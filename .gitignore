@@ -1,0 +1,44 @@
+.DS_Store
+**/.DS_Store
+._*
+.$*
+
+# Python cache
+__pycache__/
+**/__pycache__/
+*.py[cod]
+
+# Python virtual environments
+.venv/
+**/.venv/
+
+# Python packaging artifacts
+*.egg-info/
+**/*.egg-info/
+.pytest_cache/
+**/.pytest_cache/
+
+# JavaScript / TypeScript dependencies
+node_modules/
+**/node_modules/
+
+# JavaScript / TypeScript build and test outputs
+dist/
+build/
+coverage/
+.vite/
+.vitest/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Local environment files
+.env
+.env.*
+
+# Editor folders
+.idea/

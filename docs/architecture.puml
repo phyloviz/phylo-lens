@@ -1,0 +1,90 @@
+@startuml architecture
+title Phylogenetic Visualization Library - Simplified Architecture
+left to right direction
+skinparam packageStyle rectangle
+
+package "Server App" {
+  class api {
+    +ingestDataset()
+    +getCanonicalDataset()
+    +getLodBundle()
+  }
+
+  class core {
+    +validateInvariants()
+    +buildCanonicalContracts()
+  }
+
+  class data {
+    +parseNewick()
+    +parseEdgeList()
+    +normalizeCanonicalDataset()
+    +buildMetadataIndex()
+  }
+
+  class clustering {
+    +buildLodBundle()
+    +buildThresholdClusters()
+    +buildDepthClusters()
+  }
+
+  class CanonicalDataset
+  class LodBundle
+}
+
+package "Client App" {
+  class input {
+    +uploadNewick()
+    +selectDataset()
+    +setInitialConfig()
+  }
+
+  class layout {
+    +computeForceLayout()
+    +computePositions()
+  }
+
+  class render {
+    +toGraphology()
+    +applyNodePrograms()
+    +applyReducers()
+  }
+
+  class state {
+    +handleZoomTransitions()
+    +applyFilters()
+    +handleSelection()
+  }
+
+  class PositionedGraph
+}
+
+input --> api : dataset/config request
+api --> data : ingest request
+core ..> CanonicalDataset : validates
+data --> CanonicalDataset : outputs
+api --> CanonicalDataset : response payload
+CanonicalDataset --> layout : input
+layout --> PositionedGraph : outputs
+PositionedGraph --> render : render input
+state --> layout : recompute request
+state --> render : interaction events
+render --> state : selection/camera feedback
+
+clustering ..> CanonicalDataset : consumes
+clustering --> LodBundle : outputs
+LodBundle ..> state : semantic zoom levels
+api --> LodBundle : clustering response (phase 2)
+
+note bottom of render
+Renderer adapter only.
+No phylogenetic semantics here.
+end note
+
+note right of clustering
+Phase 2 module:
+implemented after
+core+data integration is stable.
+end note
+
+@enduml
