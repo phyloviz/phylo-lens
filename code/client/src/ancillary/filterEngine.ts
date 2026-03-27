@@ -1,0 +1,126 @@
+import {
+  MetadataIndexData,
+  filterNodeIdsByFieldValues,
+  getNodeMetadata,
+} from "./metadataIndex";
+import { PositionedGraph } from "../contracts/positioned";
+
+export interface CategoricalFieldFilter {
+  fieldKey: string;
+  acceptedValues: string[];
+}
+
+export interface NumericFieldFilter {
+  fieldKey: string;
+  min?: number;
+  max?: number;
+}
+
+export interface MetadataFilterState {
+  categorical: CategoricalFieldFilter[];
+  numeric: NumericFieldFilter[];
+}
+
+export const EMPTY_METADATA_FILTER_STATE: MetadataFilterState = {
+  categorical: [],
+  numeric: [],
+};
+
+export interface GraphFilterEngine {
+  apply(
+    graph: PositionedGraph,
+    metadataIndex: MetadataIndexData,
+    filterState: MetadataFilterState,
+  ): PositionedGraph;
+}
+
+// Local metadata filtering engine. Keep this boundary so server-side filtering can replace it later.
+export class ClientGraphFilterEngine implements GraphFilterEngine {
+  apply(
+    graph: PositionedGraph,
+    metadataIndex: MetadataIndexData,
+    filterState: MetadataFilterState,
+  ): PositionedGraph {
+    if (!hasActiveFilters(filterState)) {
+      return graph;
+    }
+
+    const selectedNodeIds = applyFilters(graph, metadataIndex, filterState);
+    const filteredNodes = graph.nodes.filter((node) =>
+      selectedNodeIds.has(node.id),
+    );
+    const filteredEdges = graph.edges.filter(
+      (edge) =>
+        selectedNodeIds.has(edge.source) && selectedNodeIds.has(edge.target),
+    );
+
+    return {
+      ...graph,
+      nodes: filteredNodes,
+      edges: filteredEdges,
+    };
+  }
+}
+
+function applyFilters(
+  graph: PositionedGraph,
+  metadataIndex: MetadataIndexData,
+  filterState: MetadataFilterState,
+): Set<string> {
+  let selectedNodeIds = new Set<string>(graph.nodes.map((node) => node.id));
+
+  filterState.categorical.forEach((filter) => {
+    if (filter.acceptedValues.length === 0) {
+      return;
+    }
+
+    const matchingIds = filterNodeIdsByFieldValues(
+      metadataIndex,
+      filter.fieldKey,
+      filter.acceptedValues,
+    );
+    selectedNodeIds = intersectSets(selectedNodeIds, matchingIds);
+  });
+
+  filterState.numeric.forEach((filter) => {
+    selectedNodeIds.forEach((nodeId) => {
+      const metadata = getNodeMetadata(metadataIndex, nodeId);
+      const rawValue = metadata[filter.fieldKey];
+      if (typeof rawValue !== "number") {
+        selectedNodeIds.delete(nodeId);
+        return;
+      }
+
+      if (filter.min !== undefined && rawValue < filter.min) {
+        selectedNodeIds.delete(nodeId);
+        return;
+      }
+
+      if (filter.max !== undefined && rawValue > filter.max) {
+        selectedNodeIds.delete(nodeId);
+      }
+    });
+  });
+
+  return selectedNodeIds;
+}
+
+function intersectSets(left: Set<string>, right: Set<string>): Set<string> {
+  const intersection = new Set<string>();
+  left.forEach((value) => {
+    if (right.has(value)) {
+      intersection.add(value);
+    }
+  });
+  return intersection;
+}
+
+function hasActiveFilters(filterState: MetadataFilterState): boolean {
+  const hasCategorical = filterState.categorical.some(
+    (filter) => filter.acceptedValues.length > 0,
+  );
+  const hasNumeric = filterState.numeric.some(
+    (filter) => filter.min !== undefined || filter.max !== undefined,
+  );
+  return hasCategorical || hasNumeric;
+}

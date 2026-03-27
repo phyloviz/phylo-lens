@@ -1,0 +1,26 @@
+{
+  "dataset": {
+    "dataset_id": "small-tree",
+    "nodes": [{ "id": "root" }, { "id": "a" }, { "id": "b" }],
+    "edges": [
+      { "id": "e_root_a_1", "source": "root", "target": "a" },
+      { "id": "e_root_b_1", "source": "root", "target": "b" }
+    ],
+    "metadata_schema": [{ "key": "region", "type": "string" }],
+    "metadata_by_node_id": {
+      "a": { "region": "EU" },
+      "b": { "region": "US" }
+    },
+    "source": {
+      "format": "newick",
+      "generated_at": "2026-03-23T11:00:00+00:00"
+    }
+  },
+  "stats": {
+    "node_count": 3,
+    "edge_count": 2,
+    "ingest_ms": 1.2,
+    "normalize_ms": 1.8
+  },
+  "warnings": []
+}

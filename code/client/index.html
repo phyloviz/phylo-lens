@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PhyloLens Client Demo</title>
+    <style>
+      :root {
+        --bg: #f4f7fb;
+        --surface: #ffffff;
+        --text: #1f2937;
+        --muted: #6b7280;
+        --accent: #0f766e;
+        --accent-2: #115e59;
+        --border: #d1d5db;
+      }
+
+      body {
+        margin: 0;
+        font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+        color: var(--text);
+        background:
+          radial-gradient(circle at 20% 10%, #dff3ee, transparent 35%),
+          var(--bg);
+      }
+
+      main {
+        max-width: 1240px;
+        margin: 0 auto;
+        padding: 24px;
+      }
+
+      .card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 16px;
+        box-shadow: 0 6px 24px rgba(15, 23, 42, 0.06);
+      }
+
+      h1 {
+        margin: 0 0 8px;
+        font-size: 1.5rem;
+      }
+
+      p {
+        margin: 0 0 12px;
+        color: var(--muted);
+      }
+
+      form {
+        display: grid;
+        gap: 12px;
+      }
+
+      label {
+        display: grid;
+        gap: 6px;
+        font-size: 0.92rem;
+      }
+
+      input,
+      textarea {
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 10px 12px;
+        font: inherit;
+      }
+
+      textarea {
+        min-height: 150px;
+        resize: vertical;
+      }
+
+      button {
+        width: fit-content;
+        border: none;
+        border-radius: 10px;
+        background: var(--accent);
+        color: white;
+        padding: 10px 14px;
+        font: inherit;
+        cursor: pointer;
+      }
+
+      button:hover {
+        background: var(--accent-2);
+      }
+
+      #status {
+        margin-top: 12px;
+        font-weight: 600;
+      }
+
+      #graph-root {
+        margin-top: 14px;
+        min-height: 620px;
+        height: 72vh;
+        border: 1px dashed var(--border);
+        border-radius: 10px;
+        background: #f8fafc;
+      }
+
+      #ancillary-wheel {
+        margin-top: 14px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: #f8fafc;
+        padding: 12px;
+      }
+
+      .wheel-controls {
+        margin-top: 14px;
+        display: grid;
+        grid-template-columns: repeat(3, minmax(200px, 280px));
+        gap: 10px;
+      }
+
+      .wheel-controls label {
+        margin: 0;
+      }
+
+      .wheel-controls select {
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 8px 10px;
+        font: inherit;
+        background: white;
+      }
+
+      .ancillary-wheel {
+        display: grid;
+        grid-template-columns: minmax(210px, 260px) 1fr;
+        gap: 16px;
+        align-items: center;
+      }
+
+      .ancillary-wheel-empty {
+        margin: 0;
+        color: var(--muted);
+      }
+
+      .wheel-chart {
+        width: 220px;
+        height: 220px;
+        border-radius: 50%;
+        position: relative;
+        border: 1px solid var(--border);
+      }
+
+      .wheel-center {
+        position: absolute;
+        width: 112px;
+        height: 112px;
+        border-radius: 50%;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: white;
+        border: 1px solid var(--border);
+        display: grid;
+        place-items: center;
+        text-align: center;
+      }
+
+      .wheel-center span {
+        font-size: 0.74rem;
+        color: var(--muted);
+      }
+
+      .wheel-center strong {
+        font-size: 1rem;
+      }
+
+      .wheel-meta p {
+        margin: 0 0 8px;
+      }
+
+      .wheel-meta ul {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        display: grid;
+        gap: 6px;
+      }
+
+      .wheel-meta li {
+        display: grid;
+        grid-template-columns: 14px 1fr auto;
+        gap: 8px;
+        align-items: center;
+        font-size: 0.92rem;
+      }
+
+      .wheel-meta .dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        display: inline-block;
+      }
+
+      @media (max-width: 860px) {
+        main {
+          padding: 14px;
+        }
+
+        #graph-root {
+          min-height: 460px;
+          height: 58vh;
+        }
+
+        .ancillary-wheel {
+          grid-template-columns: 1fr;
+        }
+
+        .wheel-controls {
+          grid-template-columns: 1fr;
+        }
+
+        .wheel-chart {
+          margin: 0 auto;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="card">
+        <h1>PhyloLens Demo Shell</h1>
+        <p>
+          Paste a Newick tree and submit. This demo validates client-server
+          communication, deterministic layout, and modular renderer
+          orchestration.
+        </p>
+
+        <form id="render-form">
+          <label>
+            Dataset Name
+            <input id="dataset-name-input" type="text" value="demo-tree" />
+          </label>
+
+          <label>
+            Newick Input
+            <textarea id="newick-input">((A,B)X,(C,D)Y)Root;</textarea>
+          </label>
+
+          <label>
+            Ancillary JSON (optional)
+            <textarea id="ancillary-input">
+{
+  "metadata_schema": [
+    { "key": "region", "type": "string" },
+    { "key": "distance", "type": "number" },
+    { "key": "trait_a", "type": "number" },
+    { "key": "trait_b", "type": "number" },
+    { "key": "trait_c", "type": "number" }
+  ],
+  "metadata_by_node_id": {
+    "root": { "region": "Global", "distance": 0, "trait_a": 10, "trait_b": 7, "trait_c": 4 },
+    "x": { "region": "Europe", "distance": 1, "trait_a": 7, "trait_b": 4, "trait_c": 2 },
+    "y": { "region": "America", "distance": 1, "trait_a": 3, "trait_b": 7, "trait_c": 8 },
+    "a": { "region": "Europe", "distance": 2, "trait_a": 6, "trait_b": 5, "trait_c": 1 },
+    "b": { "region": "Europe", "distance": 2, "trait_a": 4, "trait_b": 6, "trait_c": 2 },
+    "c": { "region": "America", "distance": 2, "trait_a": 2, "trait_b": 4, "trait_c": 7 },
+    "d": { "region": "America", "distance": 2, "trait_a": 1, "trait_b": 5, "trait_c": 9 }
+  },
+  "visual_mapping": {
+    "pie": {
+      "enabled": true,
+      "fields": ["trait_a", "trait_b", "trait_c"],
+      "palette": ["#ef4444", "#3b82f6", "#22c55e"]
+    }
+  }
+}</textarea
+            >
+          </label>
+
+          <button type="submit">Normalize and Render</button>
+        </form>
+
+        <div id="status" aria-live="polite"></div>
+        <div id="graph-root" aria-label="Graph render container"></div>
+        <div class="wheel-controls">
+          <label>
+            Layout Mode
+            <select id="layout-mode">
+              <option value="deterministic" selected>Deterministic Tree</option>
+              <option value="force">Force Refined</option>
+            </select>
+          </label>
+          <label>
+            Wheel Scope
+            <select id="ancillary-mode">
+              <option value="global" selected>
+                Global (all rendered nodes)
+              </option>
+              <option value="current">Current graph snapshot</option>
+              <option value="selected">Selected node only</option>
+            </select>
+          </label>
+          <label>
+            Node
+            <select id="ancillary-node" disabled>
+              <option value="">Select node</option>
+            </select>
+          </label>
+        </div>
+        <div id="ancillary-wheel" aria-live="polite"></div>
+      </section>
+    </main>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,24 @@
+{
+  "name": "phylo-lens-client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "demo": "vite",
+    "build": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "jsdom": "^29.0.1",
+    "typescript": "^5.8.3",
+    "vite": "^5.4.11",
+    "vitest": "^2.1.9"
+  },
+  "dependencies": {
+    "@sigma/node-piechart": "^3.0.0",
+    "graphology": "^0.26.0",
+    "graphology-layout-force": "^0.2.4",
+    "sigma": "^3.0.2"
+  }
+}
