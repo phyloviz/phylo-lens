@@ -69,6 +69,21 @@ Implementation order:
 2. data parser adapter and normalizer
 3. endpoint wiring and schema tests
 
+## Contribution And PR Policy (Thesis)
+
+To keep the thesis work auditable and well-scoped, this repository follows a
+strict PR-first workflow for `main`:
+
+1. Direct commits to `main` are not allowed.
+2. All changes must be submitted through a Pull Request.
+3. At least 1 approval is required before merging.
+
+Suggested workflow:
+
+1. Create a branch from `main` using a short descriptive name.
+2. Open a PR early and keep it focused on one concern (server, client, or docs).
+3. Merge only after review approval.
+
 ## Documentation Index
 
 - [Architecture Spec](docs/ARCHITECTURE_SPEC.md)
