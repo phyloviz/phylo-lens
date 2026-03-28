@@ -1,0 +1,40 @@
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "main"
+    - when: never
+
+stages:
+  - test
+
+client_test:
+  stage: test
+  image: node:20
+  script:
+    - cd code/client
+    - npm ci --cache .npm --prefer-offline
+    - npm run build
+    - npm test -- --run
+  cache:
+    key:
+      files:
+        - code/client/package-lock.json
+    paths:
+      - code/client/.npm/
+
+server_test:
+  stage: test
+  image: python:3.11
+  variables:
+    PIP_CACHE_DIR: "$CI_PROJECT_DIR/code/server/.pip-cache"
+  script:
+    - cd code/server
+    - python -m pip install --upgrade pip
+    - pip install -e '.[test]'
+    - pytest -q
+  cache:
+    key:
+      files:
+        - code/server/pyproject.toml
+    paths:
+      - code/server/.pip-cache/
