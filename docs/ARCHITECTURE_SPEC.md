@@ -58,13 +58,16 @@ Responsibilities:
 - Metadata alignment and indexing.
 - Optional columnar serialization for ancillary metadata using Apache Arrow.
 
-Output: `CanonicalDataset` plus optional Arrow batches for ancillary payloads.
+Output: `CanonicalDataset` as ingest baseline plus persisted topology artifacts
+consumed by LoD services.
 
 ## `clustering`
 
 Responsibilities:
 
 - Generate cluster levels (`LodBundle`) from topology.
+- Precompute subtree statistics required for semantic zoom.
+- Persist hierarchy indexes for later view queries.
 - Host threshold/depth clustering strategies.
 - Provide stable cluster identity mapping across levels.
 
@@ -102,6 +105,7 @@ Responsibilities:
 - View state machine: active filters, selection, camera, zoom bands.
 - Event orchestration between interaction and layout/render updates.
 - Performance-safe refresh cadence (throttle/debounce policies).
+- Visible-slice caching and orchestration for viewport-aware LoD queries.
 - Filtering execution currently starts client-side behind a pluggable filter engine boundary and is intended to move server-side with ancillary data services as scale grows.
 
 ## 5) Canonical Contracts (v0.1)
@@ -152,6 +156,59 @@ interface LodCluster {
 }
 ```
 
+## `HierarchyIndex`
+
+```ts
+interface HierarchyIndex {
+  datasetId: string;
+  rootClusterId: string;
+  clusters: Record<string, HierarchyCluster>;
+}
+
+interface HierarchyCluster {
+  clusterId: string;
+  parentClusterId?: string;
+  childClusterIds: string[];
+  representativeNodeId?: string;
+  subtreeSize: number;
+  depth: number;
+  minDepth: number;
+  maxDepth: number;
+  centroid?: { x: number; y: number };
+  bounds?: { minX: number; minY: number; maxX: number; maxY: number };
+  aggregateMetadata?: Record<string, string | number | boolean | null>;
+}
+```
+
+This is the server-side index used to answer semantic-zoom queries. It is not
+intended to be fully shipped to the browser for large datasets.
+
+## `VisibleSliceResponse`
+
+```ts
+interface VisibleSliceResponse {
+  datasetId: string;
+  lodLevel: number;
+  nodes: CanonicalNode[];
+  edges: CanonicalEdge[];
+  collapsedClusters: Array<{
+    clusterId: string;
+    representativeNodeId?: string;
+    subtreeSize: number;
+    centroid?: { x: number; y: number };
+  }>;
+  viewMeta: {
+    viewport: { x: number; y: number; width: number; height: number };
+    zoom: number;
+    returnedNodeCount: number;
+    returnedEdgeCount: number;
+  };
+}
+```
+
+This contract represents the runtime payload for the client. The design target
+is to return `O(visible_nodes)` data rather than the full topology.
+
 ## `PositionedGraph`
 
 ```ts
@@ -196,7 +253,7 @@ interface ArrowAncillaryBundle {
 ### Transport strategy
 
 - **Hybrid when needed**:
-  - topology/LoD structure remains in compact JSON contracts,
+  - topology/LoD view slices remain in compact JSON contracts,
   - ancillary/filter-heavy metadata is transported as Arrow batches.
 - This preserves implementation simplicity for graph structure while optimizing large attribute payloads.
 
@@ -212,10 +269,11 @@ interface ArrowAncillaryBundle {
 
 ## 6.1) Processing Pipeline (Next Phase)
 
-1. Enable **Server / Clustering** module and produce `LodBundle` outputs.
-2. Expose `LodBundle` via server API endpoints.
-3. Connect semantic zoom bands in client state to server clustering levels.
-4. Add Arrow ancillary path only where metadata transfer becomes a bottleneck.
+1. Enable **Server / Clustering** module and persist `HierarchyIndex` outputs.
+2. Precompute subtree metadata such as size, centroid, and depth ranges.
+3. Expose server-side visible-slice query endpoints keyed by viewport and zoom band.
+4. Connect semantic zoom bands in client state to server LoD selection.
+5. Add Arrow ancillary path only where metadata transfer becomes a bottleneck.
 
 ## 7) Interaction Model for Semantic Zoom
 
@@ -224,10 +282,13 @@ interface ArrowAncillaryBundle {
   - Band 1..N-2: intermediate clusters,
   - Band N-1: leaf-level detail.
 - Camera zoom crossing a band boundary updates active LoD level.
+- Viewport and zoom together select the visible slice returned by the server.
 - Transition policy:
   - preserve camera focus point,
   - stable cluster identity across adjacent levels,
   - optional animated interpolation by adapter.
+- Off-screen regions should remain collapsed as cluster representatives rather
+  than expanded into raw nodes.
 
 ## 8) Performance Budgets (Initial)
 
@@ -238,6 +299,8 @@ Target budgets (to be adjusted by benchmarking evidence):
 - Filter toggle response (active view): <= 120ms p95.
 - Zoom-band LoD switch: <= 180ms p95.
 - Pan/zoom interaction: >= 30 FPS on thesis test machine for target mode.
+- Visible-slice query complexity should be proportional to the returned slice
+  plus hierarchy navigation cost, not to total dataset size.
 
 ## 9) Correctness Gates
 
@@ -259,7 +322,19 @@ Target budgets (to be adjusted by benchmarking evidence):
 - Integrate `core` and `data` modules with stable API contracts.
 - Validate end-to-end data flow to client layout/render/state path.
 
-### M3 — Clustering Module Activation
+### M3 — LoD Data Engine
+
+- Persist hierarchy indexes and subtree statistics from normalized topology.
+- Define visible-slice query contracts and tests.
+- Demonstrate semantic-zoom queries without full-dataset transfer.
+
+### M4 — Client Semantic Zoom Runtime
+
+- Replace full-graph client state with visible-slice orchestration.
+- Add viewport-aware fetch, cache, and bounded Sigma updates.
+- Validate interaction budgets on thesis benchmark datasets.
+
+### M5 — Clustering Module Activation
 
 - Integrate C clustering module through Python API in `processing_module`.
 - Persist LoD artifacts for frontend consumption.
