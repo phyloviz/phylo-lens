@@ -1,3 +1,6 @@
+default:
+  interruptible: true
+
 workflow:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
@@ -9,12 +12,16 @@ stages:
 
 client_test:
   stage: test
-  image: node:20
+  image: node:20-bookworm-slim
+  timeout: 20m
+  before_script:
+    - node --version
+    - npm --version
   script:
     - cd code/client
-    - npm ci --cache .npm --prefer-offline
+    - npm ci --cache .npm --prefer-offline --no-audit --no-fund
     - npm run build
-    - npm test -- --run
+    - npm test
   cache:
     key:
       files:
@@ -24,14 +31,19 @@ client_test:
 
 server_test:
   stage: test
-  image: python:3.11
+  image: python:3.11-slim
+  timeout: 20m
   variables:
     PIP_CACHE_DIR: "$CI_PROJECT_DIR/code/server/.pip-cache"
+    PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  before_script:
+    - python --version
+    - pip --version
   script:
     - cd code/server
-    - python -m pip install --upgrade pip
-    - pip install -e '.[test]'
-    - pytest -q
+    - python -m pip install --upgrade pip setuptools wheel
+    - python -m pip install -e '.[test]'
+    - python -m pytest -q
   cache:
     key:
       files:
