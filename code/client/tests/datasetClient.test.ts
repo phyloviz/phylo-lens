@@ -1,6 +1,3 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-
 import {
   DatasetClient,
   ERR_INVALID_RESPONSE,
@@ -13,15 +10,32 @@ import { SOURCE_FORMAT_NEWICK } from "../src/contracts/canonical";
 const BASE_URL = "http://localhost:8000";
 const DATASET_NAME = "fixture-tree";
 const NEWICK_CONTENT = "(A,B)Root;";
-
-const FIXTURE_FILE = "normalizeResponse.json";
-const FIXTURE_DIR = "fixtures";
-const TESTS_DIR = "tests";
-
-function loadNormalizeFixture(): unknown {
-  const fixturePath = join(process.cwd(), TESTS_DIR, FIXTURE_DIR, FIXTURE_FILE);
-  return JSON.parse(readFileSync(fixturePath, "utf-8"));
-}
+const NORMALIZE_FIXTURE = {
+  dataset: {
+    dataset_id: "small-tree",
+    nodes: [{ id: "root" }, { id: "a" }, { id: "b" }],
+    edges: [
+      { id: "e_root_a_1", source: "root", target: "a" },
+      { id: "e_root_b_1", source: "root", target: "b" },
+    ],
+    metadata_schema: [{ key: "region", type: "string" }],
+    metadata_by_node_id: {
+      a: { region: "EU" },
+      b: { region: "US" },
+    },
+    source: {
+      format: "newick",
+      generated_at: "2026-03-23T11:00:00+00:00",
+    },
+  },
+  stats: {
+    node_count: 3,
+    edge_count: 2,
+    ingest_ms: 1.2,
+    normalize_ms: 1.8,
+  },
+  warnings: [],
+} satisfies unknown;
 
 function makeJsonResponse(payload: unknown, status = 200): Response {
   return new Response(JSON.stringify(payload), {
@@ -32,7 +46,7 @@ function makeJsonResponse(payload: unknown, status = 200): Response {
 
 describe("datasetClient", () => {
   it("validates a fixture response through runtime guards", () => {
-    const fixture = loadNormalizeFixture();
+    const fixture = NORMALIZE_FIXTURE;
 
     expect(isNormalizeResponse(fixture)).toBe(true);
 
@@ -41,7 +55,7 @@ describe("datasetClient", () => {
   });
 
   it("sends normalize requests to the expected endpoint", async () => {
-    const fixture = loadNormalizeFixture();
+    const fixture = NORMALIZE_FIXTURE;
     const fetchSpy = vi.fn(async (input: RequestInfo | URL) => {
       expect(String(input)).toBe(`${BASE_URL}${ROUTE_NORMALIZE}`);
       return makeJsonResponse(fixture);

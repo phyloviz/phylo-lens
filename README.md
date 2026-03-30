@@ -8,6 +8,13 @@ Build a modular system where phylogenetic semantics are separated from rendering
 allowing large datasets to be ingested, normalized, clustered by level of detail,
 and visualized with predictable performance.
 
+PhyloLens is not intended to render full graphs at large scale. The target
+architecture is map-like semantic zoom:
+
+- the server evolves from a normalizer into a data engine,
+- hierarchical LoD representations are precomputed from topology,
+- the client requests and renders only the visible slice for the current view.
+
 ## Architecture Baseline
 
 Two-application model with strict boundaries:
@@ -38,6 +45,19 @@ Current implementation focus is Server core plus data integration:
 This is the smallest vertical slice that proves architecture integrity before
 clustering and advanced performance paths.
 
+## Scale Strategy
+
+Large-scale interaction follows a hierarchical LoD pipeline rather than a
+full-graph rendering pipeline:
+
+1. ingest and normalize the full topology once,
+2. precompute hierarchical clustering and subtree metadata on the server,
+3. answer viewport-aware LoD queries from the client,
+4. render only visible nodes and edges in Sigma.
+
+This means current `CanonicalDataset` materialization is a correctness-first
+baseline, not the final large-scale runtime model.
+
 ## Current Status
 
 Current baseline is implemented and tested for:
@@ -45,6 +65,12 @@ Current baseline is implemented and tested for:
 1. Server normalization path (`POST /dataset/normalize`) for Newick and edge-list.
 2. Client communication module with runtime contract checks.
 3. Modular client render flow via workbench and renderer factory (Sigma + Mock adapters).
+
+Current limitations relative to the target architecture:
+
+- the active API still returns full normalized datasets,
+- the client still builds and stores full positioned graphs,
+- LoD hierarchy construction and viewport-aware querying are not active yet.
 
 ## Suggested First Server Slice
 
@@ -68,6 +94,16 @@ Implementation order:
 1. core entities and validators
 2. data parser adapter and normalizer
 3. endpoint wiring and schema tests
+
+## Next Architecture Slice
+
+The next thesis-critical slice is not parser micro-optimization, but LoD
+infrastructure:
+
+1. define hierarchy and visible-slice contracts,
+2. precompute cluster hierarchy plus subtree statistics,
+3. expose server-side view queries,
+4. switch client orchestration from full-graph mode to visible-slice mode.
 
 ## Contribution And PR Policy (Thesis)
 
