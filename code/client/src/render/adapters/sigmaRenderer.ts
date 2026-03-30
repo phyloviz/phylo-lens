@@ -109,13 +109,18 @@ export class SigmaRenderer implements GraphRenderer {
       throw new Error(ERR_SIGMA_NOT_READY);
     }
 
-    this.ensureSigmaPiePrograms(graph);
+    // Clear previous frame first so Sigma rebuilds never see stale piechart nodes.
     this.graph.clear();
+    this.ensureSigmaPiePrograms(graph);
 
     graph.nodes.forEach((node) => {
       const hasPieData = this.pieSliceKeys.some(
         (key) => toPositiveNumber(node.attributes?.[key]) > 0,
       );
+      const nodeType =
+        hasPieData && this.pieSliceKeys.length > 0
+          ? SIGMA_NODE_TYPE_PIECHART
+          : SIGMA_NODE_TYPE_DEFAULT;
 
       const pieAttributes: Record<string, number> = {};
       this.pieSliceKeys.forEach((key) => {
@@ -131,12 +136,9 @@ export class SigmaRenderer implements GraphRenderer {
           this.rendererOptions.label?.enabled === false
             ? ""
             : deriveNodeLabel(node.id, node.attributes),
-        type:
-          hasPieData && this.pieSliceKeys.length > 0
-            ? SIGMA_NODE_TYPE_PIECHART
-            : SIGMA_NODE_TYPE_DEFAULT,
-        ...pieAttributes,
         ...(node.attributes ?? {}),
+        ...pieAttributes,
+        type: nodeType,
       });
     });
 

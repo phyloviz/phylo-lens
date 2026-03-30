@@ -4,6 +4,7 @@ import re
 from dataclasses import dataclass, field
 
 LABEL_SLUG_REGEX = r"[^a-zA-Z0-9_]+"
+LABEL_SLUG_PATTERN = re.compile(LABEL_SLUG_REGEX)
 LABEL_SLUG_REPLACEMENT = "_"
 LABEL_SLUG_STRIP_CHARS = "_"
 
@@ -50,96 +51,19 @@ class ParsedGraph:
 
 
 @dataclass
-class _TreeNode:
-    label: str | None
-    children: list["_TreeNode"] = field(default_factory=list)
-
-
-class _NewickParser:
-    """Parse raw Newick content into an in-memory tree representation."""
-
-    def __init__(self, content: str) -> None:
-        self.content = content.strip()
-        self.index = 0
-
-    def parse(self) -> _TreeNode:
-        """Parse a full Newick document and enforce complete consumption."""
-        if not self.content:
-            raise ParseError(ERR_NEWICK_EMPTY)
-
-        root = self._parse_subtree()
-        self._consume_whitespace()
-        if self._peek() == TOKEN_TERMINATOR:
-            self.index += 1
-        self._consume_whitespace()
-        if self.index != len(self.content):
-            raise ParseError(ERR_NEWICK_TRAILING_CONTENT)
-        return root
-
-    def _parse_subtree(self) -> _TreeNode:
-        """Parse one Newick subtree, including optional label and branch length."""
-        self._consume_whitespace()
-        if self._peek() == TOKEN_OPEN_PAREN:
-            self.index += 1
-            children = [self._parse_subtree()]
-            self._consume_whitespace()
-            while self._peek() == TOKEN_COMMA:
-                self.index += 1
-                children.append(self._parse_subtree())
-                self._consume_whitespace()
-            if self._peek() != TOKEN_CLOSE_PAREN:
-                raise ParseError(ERR_NEWICK_MISSING_CLOSE)
-            self.index += 1
-            label = self._parse_label_optional()
-            self._parse_branch_length_optional()
-            return _TreeNode(label=label, children=children)
-
-        label = self._parse_label_optional()
-        self._parse_branch_length_optional()
-        return _TreeNode(label=label, children=[])
-
-    def _parse_label_optional(self) -> str | None:
-        """Read an optional node label stopping at Newick control tokens."""
-        self._consume_whitespace()
-        start = self.index
-        while self.index < len(self.content) and self.content[self.index] not in (
-            TOKEN_COMMA
-            + TOKEN_OPEN_PAREN
-            + TOKEN_CLOSE_PAREN
-            + TOKEN_COLON
-            + TOKEN_TERMINATOR
-        ):
-            self.index += 1
-        label = self.content[start : self.index].strip()
-        return label or None
-
-    def _parse_branch_length_optional(self) -> None:
-        """Skip branch-length tokens because current contracts do not persist them."""
-        self._consume_whitespace()
-        if self._peek() != TOKEN_COLON:
-            return
-        self.index += 1
-        while self.index < len(self.content) and self.content[self.index] not in (
-            TOKEN_COMMA + TOKEN_OPEN_PAREN + TOKEN_CLOSE_PAREN + TOKEN_TERMINATOR
-        ):
-            self.index += 1
-
-    def _consume_whitespace(self) -> None:
-        """Advance cursor over any whitespace characters."""
-        while self.index < len(self.content) and self.content[self.index].isspace():
-            self.index += 1
-
-    def _peek(self) -> str | None:
-        """Return the current character without consuming it."""
-        if self.index >= len(self.content):
-            return None
-        return self.content[self.index]
+class _PendingInternalNode:
+    preorder_index: int
+    child_ids: list[str] = field(default_factory=list)
 
 
 def parse_newick(content: str) -> ParsedGraph:
     """Parse Newick text into node and edge lists with stable generated identifiers."""
-    parser = _NewickParser(content)
-    root = parser.parse()
+    content = content.strip()
+    if not content:
+        raise ParseError(ERR_NEWICK_EMPTY)
+
+    index = 0
+    content_length = len(content)
 
     used_ids: dict[str, int] = {}
     leaf_counter = 0
@@ -148,12 +72,15 @@ def parse_newick(content: str) -> ParsedGraph:
 
     nodes: list[str] = []
     edges: list[tuple[str, str]] = []
+    stack: list[_PendingInternalNode] = []
+    root_id: str | None = None
+    expect_subtree = True
 
     def assign_id(label: str | None, prefix: str, counter: int) -> str:
         """Build a deterministic node id from label or generated prefix."""
         if label:
             slug = (
-                re.sub(LABEL_SLUG_REGEX, LABEL_SLUG_REPLACEMENT, label)
+                LABEL_SLUG_PATTERN.sub(LABEL_SLUG_REPLACEMENT, label)
                 .strip(LABEL_SLUG_STRIP_CHARS)
                 .lower()
             )
@@ -170,24 +97,113 @@ def parse_newick(content: str) -> ParsedGraph:
         used_ids[base] = 1
         return base
 
-    def visit(node: _TreeNode) -> str:
-        """Traverse the parsed tree depth-first and materialize node-edge lists."""
-        nonlocal leaf_counter, internal_counter
-        if not node.children:
+    def peek() -> str | None:
+        if index >= content_length:
+            return None
+        return content[index]
+
+    def consume_whitespace() -> None:
+        nonlocal index
+        while index < content_length and content[index].isspace():
+            index += 1
+
+    def parse_label_optional() -> str | None:
+        nonlocal index
+        consume_whitespace()
+        start = index
+        while index < content_length and content[index] not in (
+            TOKEN_COMMA
+            + TOKEN_OPEN_PAREN
+            + TOKEN_CLOSE_PAREN
+            + TOKEN_COLON
+            + TOKEN_TERMINATOR
+        ):
+            index += 1
+        label = content[start:index].strip()
+        return label or None
+
+    def parse_branch_length_optional() -> None:
+        nonlocal index
+        consume_whitespace()
+        if peek() != TOKEN_COLON:
+            return
+        index += 1
+        while index < content_length and content[index] not in (
+            TOKEN_COMMA + TOKEN_OPEN_PAREN + TOKEN_CLOSE_PAREN + TOKEN_TERMINATOR
+        ):
+            index += 1
+
+    def emit_completed_node(node_id: str) -> None:
+        nonlocal root_id
+        if stack:
+            stack[-1].child_ids.append(node_id)
+            return
+        if root_id is not None:
+            raise ParseError(ERR_NEWICK_TRAILING_CONTENT)
+        root_id = node_id
+
+    while True:
+        consume_whitespace()
+        current = peek()
+
+        if expect_subtree:
+            if current is None:
+                if stack:
+                    raise ParseError(ERR_NEWICK_MISSING_CLOSE)
+                break
+
+            if current == TOKEN_OPEN_PAREN:
+                internal_counter += 1
+                stack.append(_PendingInternalNode(preorder_index=internal_counter))
+                index += 1
+                continue
+
             leaf_counter += 1
-            node_id = assign_id(node.label, NODE_PREFIX_LEAF, leaf_counter)
+            label = parse_label_optional()
+            parse_branch_length_optional()
+            node_id = assign_id(label, NODE_PREFIX_LEAF, leaf_counter)
             nodes.append(node_id)
-            return node_id
+            emit_completed_node(node_id)
+            expect_subtree = False
+            continue
 
-        internal_counter += 1
-        node_id = assign_id(node.label, NODE_PREFIX_INTERNAL, internal_counter)
-        nodes.append(node_id)
-        for child in node.children:
-            child_id = visit(child)
-            edges.append((node_id, child_id))
-        return node_id
+        if current == TOKEN_COMMA:
+            if not stack:
+                raise ParseError(ERR_NEWICK_TRAILING_CONTENT)
+            index += 1
+            expect_subtree = True
+            continue
 
-    visit(root)
+        if current == TOKEN_CLOSE_PAREN:
+            if not stack:
+                raise ParseError(ERR_NEWICK_TRAILING_CONTENT)
+            index += 1
+            pending = stack.pop()
+            label = parse_label_optional()
+            parse_branch_length_optional()
+            node_id = assign_id(label, NODE_PREFIX_INTERNAL, pending.preorder_index)
+            nodes.append(node_id)
+            for child_id in pending.child_ids:
+                edges.append((node_id, child_id))
+            emit_completed_node(node_id)
+            continue
+
+        if current == TOKEN_TERMINATOR:
+            if stack:
+                raise ParseError(ERR_NEWICK_MISSING_CLOSE)
+            index += 1
+            consume_whitespace()
+            if index != content_length:
+                raise ParseError(ERR_NEWICK_TRAILING_CONTENT)
+            break
+
+        if current is None:
+            if stack:
+                raise ParseError(ERR_NEWICK_MISSING_CLOSE)
+            break
+
+        raise ParseError(ERR_NEWICK_TRAILING_CONTENT)
+
     return ParsedGraph(nodes=nodes, edges=edges, warnings=warnings)
 
 
