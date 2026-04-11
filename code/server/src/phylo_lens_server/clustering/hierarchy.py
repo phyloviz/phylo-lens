@@ -8,6 +8,8 @@ from phylo_lens_server.core.models import (
 
 CLUSTER_ID_PREFIX = "cluster"
 
+# Error Types
+
 ERR_HIERARCHY_EMPTY = "Cannot build hierarchy from an empty dataset."
 ERR_HIERARCHY_MULTIPLE_PARENTS = (
     "Node '{node_id}' has multiple parents and cannot be represented as a tree."
@@ -15,9 +17,7 @@ ERR_HIERARCHY_MULTIPLE_PARENTS = (
 ERR_HIERARCHY_ROOT_COUNT = (
     "Expected exactly one root node for hierarchy construction, found {count}."
 )
-ERR_HIERARCHY_EDGE_COUNT = (
-    "Expected a tree with node_count - 1 edges, found {edge_count} edges for {node_count} nodes."
-)
+ERR_HIERARCHY_EDGE_COUNT = "Expected a tree with node_count - 1 edges, found {edge_count} edges for {node_count} nodes."
 ERR_HIERARCHY_DISCONNECTED = (
     "Dataset is disconnected or cyclic and cannot be represented as one tree."
 )
