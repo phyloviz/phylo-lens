@@ -2,7 +2,7 @@
 
 This checklist turns the simplified architecture into executable phases.
 
-## Progress Snapshot (2026-03-23)
+## Progress Snapshot (2026-04-11)
 
 Implemented and validated:
 
@@ -21,6 +21,12 @@ Pending for next phases:
 - [ ] Client state module for semantic zoom orchestration.
 - [ ] Move metadata filtering execution to server ancillary pipeline via API-backed filter engine.
 - [ ] Server clustering module activation and LoD endpoints.
+- [ ] Freeze hierarchy and visible-slice contracts for the LoD engine.
+
+## Current Thesis Tickets
+
+- [ ] `TASK-PL-003` Freeze hierarchy and visible-slice contracts for the LoD engine.
+- [ ] `TASK-PL-004` Implement tree hierarchy precompute MVP for LoD engine.
 
 ## Phase 0 - Server Core Kickoff (Immediate)
 
@@ -97,11 +103,18 @@ Exit criteria:
 
 Goal: introduce semantic zoom via server-side clustering.
 
+- [ ] Freeze LoD contracts before implementation:
+  - [ ] `HierarchyIndex`
+  - [ ] `HierarchyCluster`
+  - [ ] `VisibleSliceQuery`
+  - [ ] `VisibleSliceResponse`
+  - [ ] deterministic and correctness invariants
+  - [ ] worked example across coarse/fine LoD
 - [ ] Implement Server `clustering` module API contracts.
 - [ ] Integrate depth-based and threshold-based clustering engines.
 - [ ] Expose server clustering endpoints:
-  - [ ] `POST /clusters/lod`
-  - [ ] `POST /clusters/threshold`
+  - [ ] `POST /dataset/view-slice`
+  - [ ] optional future cluster build endpoints
 - [ ] Connect clustering output to Client `state` zoom bands.
 - [ ] Render cluster levels and level transitions in Client `render`.
 
