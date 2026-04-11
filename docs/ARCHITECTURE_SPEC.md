@@ -209,6 +209,32 @@ interface VisibleSliceResponse {
 This contract represents the runtime payload for the client. The design target
 is to return `O(visible_nodes)` data rather than the full topology.
 
+## `VisibleSliceQuery`
+
+```ts
+interface VisibleSliceQuery {
+  datasetId: string;
+  viewport: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+  zoom: number;
+  lodHint?: number;
+  maxNodes?: number;
+  includeMetadataKeys?: string[];
+  filters?: {
+    categorical?: Record<string, string[]>;
+    numeric?: Record<string, { min?: number; max?: number }>;
+  };
+}
+```
+
+This is the runtime request contract used by the client to ask for the current
+visible slice. `lodHint` is advisory. The server remains authoritative for final
+LoD selection.
+
 ## `PositionedGraph`
 
 ```ts
@@ -290,6 +316,130 @@ interface ArrowAncillaryBundle {
 - Off-screen regions should remain collapsed as cluster representatives rather
   than expanded into raw nodes.
 
+### Visible-Slice Invariants
+
+- Same dataset + same query inputs must produce the same visible-slice output.
+- Returned node ids and edge endpoints must always be valid with respect to the
+  normalized dataset or persisted hierarchy.
+- A returned visible slice must not contain both a collapsed cluster and one of
+  its expanded descendants in the same response unless explicitly allowed by the
+  transition policy.
+- Off-screen topology may remain represented only by collapsed clusters.
+- `returnedNodeCount` and `returnedEdgeCount` in `viewMeta` must match the
+  actual payload sizes.
+- `maxNodes`, when provided, must act as a hard upper bound unless the request
+  is invalid and rejected.
+
+### Hierarchy Invariants
+
+- Every hierarchy cluster except the root must have exactly one parent cluster.
+- `rootClusterId` must reference a cluster present in `HierarchyIndex.clusters`.
+- `subtreeSize` must equal the number of canonical descendants represented by
+  the cluster under the chosen hierarchy semantics.
+- `minDepth <= depth <= maxDepth` for every cluster.
+- Recomputing hierarchy on the same normalized dataset must yield identical
+  cluster ids and parent-child relationships.
+
+### Worked Example
+
+Example normalized tree:
+
+```text
+((A,B)X,(C,D)Y)Root
+```
+
+Example hierarchy excerpt:
+
+```json
+{
+  "datasetId": "small-tree",
+  "rootClusterId": "cluster_root",
+  "clusters": {
+    "cluster_root": {
+      "clusterId": "cluster_root",
+      "childClusterIds": ["cluster_x", "cluster_y"],
+      "representativeNodeId": "root",
+      "subtreeSize": 7,
+      "depth": 0,
+      "minDepth": 0,
+      "maxDepth": 2
+    },
+    "cluster_x": {
+      "clusterId": "cluster_x",
+      "parentClusterId": "cluster_root",
+      "childClusterIds": ["cluster_a", "cluster_b"],
+      "representativeNodeId": "x",
+      "subtreeSize": 3,
+      "depth": 1,
+      "minDepth": 1,
+      "maxDepth": 2
+    }
+  }
+}
+```
+
+Example overview response for a low zoom band:
+
+```json
+{
+  "datasetId": "small-tree",
+  "lodLevel": 0,
+  "nodes": [{ "id": "root" }],
+  "edges": [],
+  "collapsedClusters": [
+    {
+      "clusterId": "cluster_x",
+      "representativeNodeId": "x",
+      "subtreeSize": 3
+    },
+    {
+      "clusterId": "cluster_y",
+      "representativeNodeId": "y",
+      "subtreeSize": 3
+    }
+  ],
+  "viewMeta": {
+    "viewport": { "x": 0, "y": 0, "width": 1000, "height": 600 },
+    "zoom": 0.4,
+    "returnedNodeCount": 1,
+    "returnedEdgeCount": 0
+  }
+}
+```
+
+Example finer response for a higher zoom band:
+
+```json
+{
+  "datasetId": "small-tree",
+  "lodLevel": 2,
+  "nodes": [
+    { "id": "root" },
+    { "id": "x" },
+    { "id": "y" },
+    { "id": "a" },
+    { "id": "b" },
+    { "id": "c" },
+    { "id": "d" }
+  ],
+  "edges": [
+    { "id": "e_root_x_1", "source": "root", "target": "x" },
+    { "id": "e_root_y_1", "source": "root", "target": "y" },
+    { "id": "e_x_a_1", "source": "x", "target": "a" },
+    { "id": "e_x_b_1", "source": "x", "target": "b" },
+    { "id": "e_y_c_1", "source": "y", "target": "c" },
+    { "id": "e_y_d_1", "source": "y", "target": "d" }
+  ],
+  "collapsedClusters": [],
+  "viewMeta": {
+    "viewport": { "x": 0, "y": 0, "width": 1000, "height": 600 },
+    "zoom": 1.8,
+    "returnedNodeCount": 7,
+    "returnedEdgeCount": 6
+  }
+}
+```
+
 ## 8) Performance Budgets (Initial)
 
 Target budgets (to be adjusted by benchmarking evidence):
@@ -314,7 +464,8 @@ Target budgets (to be adjusted by benchmarking evidence):
 
 ### M1 — Contract Freeze
 
-- Freeze `CanonicalDataset`, `LodBundle`, `PositionedGraph` schemas.
+- Freeze `CanonicalDataset`, `HierarchyIndex`, `VisibleSliceQuery`, and
+  `VisibleSliceResponse` schemas.
 - Add JSON fixtures and schema validation tests.
 
 ### M2 — Server Core+Data First
@@ -339,17 +490,17 @@ Target budgets (to be adjusted by benchmarking evidence):
 - Integrate C clustering module through Python API in `processing_module`.
 - Persist LoD artifacts for frontend consumption.
 
-### M4 — Layout Abstractions
+### M6 — Layout Abstractions
 
 - Implement radial layout adapter first.
 - Add dendrogram layout contract and initial edge-shape mapping.
 
-### M5 — Sigma Adapter Hardening
+### M7 — Sigma Adapter Hardening
 
 - Isolate renderer mapping and reducers.
 - Add size metric and visual mapping configuration.
 
-### M6 — Benchmark + Evaluation
+### M8 — Benchmark + Evaluation
 
 - Run N=7 median benchmarks for agreed datasets.
 - Compare modes and report against thesis criteria.
