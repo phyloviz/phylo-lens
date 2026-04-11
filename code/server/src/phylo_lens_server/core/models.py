@@ -64,6 +64,32 @@ class CanonicalDataset(BaseModel):
     source: DatasetSource
 
 
+class HierarchyCluster(BaseModel):
+    """Deterministic hierarchy entry used by server-side LoD processing."""
+
+    cluster_id: str = Field(min_length=1)
+    parent_cluster_id: str | None = None
+    child_cluster_ids: list[str] = Field(default_factory=list)
+    representative_node_id: str | None = None
+    subtree_size: int = Field(ge=1)
+    depth: int = Field(ge=0)
+    min_depth: int = Field(ge=0)
+    max_depth: int = Field(ge=0)
+    centroid: dict[str, float] | None = None
+    bounds: dict[str, float] | None = None
+    aggregate_metadata: dict[str, str | float | bool | None] = Field(
+        default_factory=dict
+    )
+
+
+class HierarchyIndex(BaseModel):
+    """Persisted hierarchy index backing visible-slice selection."""
+
+    dataset_id: str = Field(min_length=1)
+    root_cluster_id: str = Field(min_length=1)
+    clusters: dict[str, HierarchyCluster]
+
+
 class DomainValidationError(Exception):
     """Domain-level validation error carrying one or more invariant failures."""
 
