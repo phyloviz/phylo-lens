@@ -90,6 +90,63 @@ class HierarchyIndex(BaseModel):
     clusters: dict[str, HierarchyCluster]
 
 
+class Viewport(BaseModel):
+    """Viewport request bounds used for visible-slice selection."""
+
+    x: float
+    y: float
+    width: float = Field(gt=0)
+    height: float = Field(gt=0)
+
+
+class VisibleSliceFilters(BaseModel):
+    """Optional metadata filters attached to a visible-slice query."""
+
+    categorical: dict[str, list[str]] = Field(default_factory=dict)
+    numeric: dict[str, dict[str, float]] = Field(default_factory=dict)
+
+
+class VisibleSliceQuery(BaseModel):
+    """Runtime query contract for a visible graph slice."""
+
+    dataset_id: str = Field(min_length=1)
+    viewport: Viewport
+    zoom: float = Field(ge=0)
+    lod_hint: int | None = Field(default=None, ge=0)
+    max_nodes: int | None = Field(default=None, ge=1)
+    include_metadata_keys: list[str] = Field(default_factory=list)
+    filters: VisibleSliceFilters = Field(default_factory=VisibleSliceFilters)
+
+
+class CollapsedCluster(BaseModel):
+    """Collapsed hierarchy region returned in a visible slice."""
+
+    cluster_id: str = Field(min_length=1)
+    representative_node_id: str | None = None
+    subtree_size: int = Field(ge=1)
+    centroid: dict[str, float] | None = None
+
+
+class VisibleSliceViewMeta(BaseModel):
+    """Metadata describing how a visible slice was selected."""
+
+    viewport: Viewport
+    zoom: float = Field(ge=0)
+    returned_node_count: int = Field(ge=0)
+    returned_edge_count: int = Field(ge=0)
+
+
+class VisibleSliceResponse(BaseModel):
+    """Bounded graph slice returned for semantic zoom rendering."""
+
+    dataset_id: str = Field(min_length=1)
+    lod_level: int = Field(ge=0)
+    nodes: list[CanonicalNode]
+    edges: list[CanonicalEdge]
+    collapsed_clusters: list[CollapsedCluster] = Field(default_factory=list)
+    view_meta: VisibleSliceViewMeta
+
+
 class DomainValidationError(Exception):
     """Domain-level validation error carrying one or more invariant failures."""
 
