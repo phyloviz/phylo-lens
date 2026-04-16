@@ -45,14 +45,14 @@ def client(tmp_path):
     app.dependency_overrides.clear()
 
 
-def test_health() -> None:
+def test_health(client) -> None:
     """Verify the liveness route answers with a healthy status payload."""
     response = client.get(ROUTE_HEALTH)
     assert response.status_code == STATUS_OK
     assert response.json() == {KEY_STATUS: STATUS_VALUE_OK}
 
 
-def test_normalize_endpoint_accepts_newick() -> None:
+def test_normalize_endpoint_accepts_newick(client) -> None:
     """Ensure normalization succeeds for a valid Newick payload."""
     payload = {
         "format": FORMAT_NEWICK,
@@ -68,7 +68,7 @@ def test_normalize_endpoint_accepts_newick() -> None:
     assert body[KEY_STATS][KEY_NODE_COUNT] == 3
 
 
-def test_normalize_endpoint_rejects_invalid_payload() -> None:
+def test_normalize_endpoint_rejects_invalid_payload(client) -> None:
     """Ensure malformed Newick input is rejected as bad request."""
     payload = {
         "format": FORMAT_NEWICK,
