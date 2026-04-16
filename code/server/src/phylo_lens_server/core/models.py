@@ -147,6 +147,33 @@ class VisibleSliceResponse(BaseModel):
     view_meta: VisibleSliceViewMeta
 
 
+class PreparedDatasetRecord(BaseModel):
+    """Persisted dataset plus hierarchy used by LoD endpoints."""
+
+    dataset: CanonicalDataset
+    hierarchy: HierarchyIndex
+    warnings: list[str] = Field(default_factory=list)
+
+
+class PrepareDatasetStats(BaseModel):
+    """Timings and counts captured while preparing a dataset for LoD queries."""
+
+    node_count: int = Field(ge=0)
+    edge_count: int = Field(ge=0)
+    ingest_ms: float = Field(ge=0)
+    normalize_ms: float = Field(ge=0)
+    hierarchy_ms: float = Field(ge=0)
+    store_ms: float = Field(ge=0)
+
+
+class PrepareDatasetResult(BaseModel):
+    """Response returned when a dataset is prepared and persisted for LoD use."""
+
+    dataset_id: str = Field(min_length=1)
+    stats: PrepareDatasetStats
+    warnings: list[str] = Field(default_factory=list)
+
+
 class DomainValidationError(Exception):
     """Domain-level validation error carrying one or more invariant failures."""
 
