@@ -16,6 +16,8 @@ export const ID_ANCILLARY_WHEEL = "ancillary-wheel";
 export const ID_ANCILLARY_MODE = "ancillary-mode";
 export const ID_ANCILLARY_NODE = "ancillary-node";
 export const ID_LAYOUT_MODE = "layout-mode";
+export const ID_MAX_NODES_INPUT = "max-nodes-input";
+export const ID_INITIAL_ZOOM_INPUT = "initial-zoom-input";
 
 export const ERR_MISSING_RENDER_FORM = "Missing render form element.";
 export const ERR_MISSING_NEWICK_INPUT = "Missing Newick input element.";
@@ -48,6 +50,12 @@ export function bootstrapClientShell(
   const layoutModeSelect = document.getElementById(
     ID_LAYOUT_MODE,
   ) as HTMLSelectElement | null;
+  const maxNodesInput = document.getElementById(
+    ID_MAX_NODES_INPUT,
+  ) as HTMLInputElement | null;
+  const initialZoomInput = document.getElementById(
+    ID_INITIAL_ZOOM_INPUT,
+  ) as HTMLInputElement | null;
 
   if (!form) {
     throw new Error(ERR_MISSING_RENDER_FORM);
@@ -81,6 +89,8 @@ export function bootstrapClientShell(
       ancillaryModeSelect: ancillaryModeSelect ?? undefined,
       ancillaryNodeSelect: ancillaryNodeSelect ?? undefined,
       layoutModeSelect: layoutModeSelect ?? undefined,
+      maxNodesInput: maxNodesInput ?? undefined,
+      initialZoomInput: initialZoomInput ?? undefined,
     },
   });
 

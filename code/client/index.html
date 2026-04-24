@@ -112,7 +112,7 @@
       .wheel-controls {
         margin-top: 14px;
         display: grid;
-        grid-template-columns: repeat(3, minmax(200px, 280px));
+        grid-template-columns: repeat(5, minmax(160px, 1fr));
         gap: 10px;
       }
 
@@ -275,36 +275,45 @@
             >
           </label>
 
+          <div class="wheel-controls">
+            <label>
+              Layout Mode
+              <select id="layout-mode">
+                <option value="deterministic" selected>Deterministic Tree</option>
+                <option value="force">Force Refined</option>
+              </select>
+            </label>
+            <label>
+              Initial LoD Zoom
+              <input id="initial-zoom-input" type="number" min="0" step="0.5" value="4" />
+            </label>
+            <label>
+              Max Visible Nodes
+              <input id="max-nodes-input" type="number" min="10" step="50" value="1500" />
+            </label>
+            <label>
+              Wheel Scope
+              <select id="ancillary-mode">
+                <option value="global" selected>
+                  Global (all rendered nodes)
+                </option>
+                <option value="current">Current graph snapshot</option>
+                <option value="selected">Selected node only</option>
+              </select>
+            </label>
+            <label>
+              Node
+              <select id="ancillary-node" disabled>
+                <option value="">Select node</option>
+              </select>
+            </label>
+          </div>
+
           <button type="submit">Normalize and Render</button>
         </form>
 
         <div id="status" aria-live="polite"></div>
         <div id="graph-root" aria-label="Graph render container"></div>
-        <div class="wheel-controls">
-          <label>
-            Layout Mode
-            <select id="layout-mode">
-              <option value="deterministic" selected>Deterministic Tree</option>
-              <option value="force">Force Refined</option>
-            </select>
-          </label>
-          <label>
-            Wheel Scope
-            <select id="ancillary-mode">
-              <option value="global" selected>
-                Global (all rendered nodes)
-              </option>
-              <option value="current">Current graph snapshot</option>
-              <option value="selected">Selected node only</option>
-            </select>
-          </label>
-          <label>
-            Node
-            <select id="ancillary-node" disabled>
-              <option value="">Select node</option>
-            </select>
-          </label>
-        </div>
         <div id="ancillary-wheel" aria-live="polite"></div>
       </section>
     </main>

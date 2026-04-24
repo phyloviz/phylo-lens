@@ -11,6 +11,16 @@ export interface RenderContext {
   containerId: string;
 }
 
+export interface RenderViewportState {
+  viewport: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+  zoom: number;
+}
+
 export interface GraphRenderer {
   kind: RendererKind;
 
@@ -19,6 +29,11 @@ export interface GraphRenderer {
 
   // Render a positioned graph through the renderer implementation.
   render(graph: PositionedGraph): void;
+
+  // Subscribe to renderer camera/view changes when supported.
+  setViewChangeHandler?(
+    handler: ((state: RenderViewportState) => void) | null,
+  ): void;
 
   // Release resources and detach renderer from the view.
   unmount(): void;

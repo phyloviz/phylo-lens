@@ -5,6 +5,7 @@ import {
   renderAncillaryWheel,
 } from "../components/ancillaryWheel";
 import { PositionedGraph } from "../contracts/positioned";
+import { MetadataField } from "../contracts/canonical";
 import {
   LAYOUT_MODE_DETERMINISTIC,
   LAYOUT_MODE_FORCE,
@@ -15,6 +16,8 @@ export const DEFAULT_STATUS_READY = "Ready";
 export const STATUS_RENDERING_PREFIX = "Rendering";
 export const STATUS_RENDERED_PREFIX = "Rendered";
 export const STATUS_FAILED_PREFIX = "Failed";
+export const DEFAULT_MAX_NODES = 1500;
+export const DEFAULT_INITIAL_ZOOM = 4;
 
 export const ANCILLARY_MODE_GLOBAL = "global";
 export const ANCILLARY_MODE_CURRENT = "current";
@@ -43,7 +46,7 @@ const KEY_METADATA_BY_NODE_ID = "metadata_by_node_id";
 const KEY_VISUAL_MAPPING = "visual_mapping";
 
 interface AncillaryPayload {
-  metadata_schema?: Array<{ key: string; type: string }>;
+  metadata_schema?: MetadataField[];
   metadata_by_node_id?: Record<
     string,
     Record<string, string | number | boolean | null>
@@ -61,6 +64,8 @@ export interface UiShellElements {
   ancillaryModeSelect?: HTMLSelectElement;
   ancillaryNodeSelect?: HTMLSelectElement;
   layoutModeSelect?: HTMLSelectElement;
+  maxNodesInput?: HTMLInputElement;
+  initialZoomInput?: HTMLInputElement;
 }
 
 export interface UiShellOptions {
@@ -80,6 +85,8 @@ export class UiShellController {
   private readonly ancillaryModeSelect?: HTMLSelectElement;
   private readonly ancillaryNodeSelect?: HTMLSelectElement;
   private readonly layoutModeSelect?: HTMLSelectElement;
+  private readonly maxNodesInput?: HTMLInputElement;
+  private readonly initialZoomInput?: HTMLInputElement;
 
   private lastRenderedGraph: PositionedGraph | null = null;
 
@@ -98,6 +105,8 @@ export class UiShellController {
     this.ancillaryModeSelect = options.elements.ancillaryModeSelect;
     this.ancillaryNodeSelect = options.elements.ancillaryNodeSelect;
     this.layoutModeSelect = options.elements.layoutModeSelect;
+    this.maxNodesInput = options.elements.maxNodesInput;
+    this.initialZoomInput = options.elements.initialZoomInput;
 
     if (!this.form) {
       throw new Error(ERR_RENDER_FORM_REQUIRED);
@@ -171,11 +180,13 @@ export class UiShellController {
             mode: this.getSelectedLayoutMode(),
             forceIterations: 140,
           },
+          lod: {
+            maxNodes: this.getSelectedMaxNodes(),
+            zoom: this.getSelectedInitialZoom(),
+          },
         },
       );
-      this.setStatus(
-        `${STATUS_RENDERED_PREFIX}: ${graph.nodes.length} nodes, ${graph.edges.length} edges`,
-      );
+      this.setStatus(buildRenderedStatus(graph));
       this.lastRenderedGraph = graph;
       this.updateNodeSelector(graph);
       this.updateNodeSelectionVisibility();
@@ -320,6 +331,46 @@ export class UiShellController {
 
     return LAYOUT_MODE_SELECT_DETERMINISTIC;
   }
+
+  private getSelectedMaxNodes(): number {
+    const rawValue = this.maxNodesInput?.value;
+    const parsed = Number(rawValue);
+    if (!Number.isFinite(parsed) || parsed < 10) {
+      return DEFAULT_MAX_NODES;
+    }
+    return Math.round(parsed);
+  }
+
+  private getSelectedInitialZoom(): number {
+    const rawValue = this.initialZoomInput?.value;
+    const parsed = Number(rawValue);
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      return DEFAULT_INITIAL_ZOOM;
+    }
+    return parsed;
+  }
+}
+
+function buildRenderedStatus(graph: PositionedGraph): string {
+  const parts = [
+    `${graph.nodes.length} nodes`,
+    `${graph.edges.length} edges`,
+    `LoD ${graph.viewMeta.lodLevel}`,
+  ];
+
+  if (typeof graph.viewMeta.sliceNodeCount === "number") {
+    parts.push(`slice ${graph.viewMeta.sliceNodeCount} nodes`);
+  }
+
+  if (typeof graph.viewMeta.collapsedClusterCount === "number") {
+    parts.push(`${graph.viewMeta.collapsedClusterCount} collapsed clusters`);
+  }
+
+  if (typeof graph.viewMeta.zoom === "number") {
+    parts.push(`zoom ${graph.viewMeta.zoom.toFixed(2)}`);
+  }
+
+  return `${STATUS_RENDERED_PREFIX}: ${parts.join(", ")}`;
 }
 
 function parseAncillaryPayload(rawInput: string): AncillaryPayload {
@@ -349,7 +400,7 @@ function parseAncillaryPayload(rawInput: string): AncillaryPayload {
 
   return {
     metadata_schema: hasSchema
-      ? (metadataSchema as Array<{ key: string; type: string }>)
+      ? (metadataSchema as MetadataField[])
       : undefined,
     metadata_by_node_id: hasByNodeId
       ? (metadataByNodeId as Record<

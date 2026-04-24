@@ -8,6 +8,7 @@ import {
   RENDERER_KIND_SIGMA,
   RenderContext,
   RendererKind,
+  RenderViewportState,
 } from "../types";
 import {
   buildPiePalette,
@@ -16,6 +17,9 @@ import {
 } from "../pieMapping";
 
 export const SIGMA_DEFAULT_CAMERA_ZOOM = 1;
+export const SIGMA_MIN_CAMERA_RATIO = 0.02;
+export const SIGMA_MAX_CAMERA_RATIO = 10;
+export const SIGMA_ZOOMING_RATIO = 1.4;
 export const SIGMA_DEFAULT_NODE_SIZE = 6;
 export const SIGMA_DEFAULT_NODE_COLOR = "#0f766e";
 export const SIGMA_DEFAULT_EDGE_COLOR = "#94a3b8";
@@ -66,6 +70,11 @@ export class SigmaRenderer implements GraphRenderer {
   private pieSliceKeys: string[] = [];
   private piechartOptions: SigmaPiechartOptions;
   private readonly rendererOptions: SigmaRendererOptions;
+  private viewChangeHandler: ((state: RenderViewportState) => void) | null =
+    null;
+  private readonly boundCameraUpdated = () => {
+    this.emitViewChange();
+  };
 
   constructor(options: SigmaRendererOptions = {}) {
     this.rendererOptions = options;
@@ -87,6 +96,9 @@ export class SigmaRenderer implements GraphRenderer {
     this.graph = new Graph();
     this.sigma = new Sigma(this.graph, this.containerElement, {
       renderLabels: this.rendererOptions.label?.enabled !== false,
+      minCameraRatio: SIGMA_MIN_CAMERA_RATIO,
+      maxCameraRatio: SIGMA_MAX_CAMERA_RATIO,
+      zoomingRatio: SIGMA_ZOOMING_RATIO,
       labelRenderedSizeThreshold:
         this.rendererOptions.label?.renderedSizeThreshold ??
         SIGMA_DEFAULT_LABEL_RENDERED_SIZE_THRESHOLD,
@@ -101,6 +113,7 @@ export class SigmaRenderer implements GraphRenderer {
       labelSize: this.rendererOptions.label?.size ?? SIGMA_DEFAULT_LABEL_SIZE,
     });
     this.sigma.getCamera().setState({ ratio: SIGMA_DEFAULT_CAMERA_ZOOM });
+    this.bindCameraHandler();
   }
 
   // Render positioned nodes and edges into Graphology then refresh Sigma.
@@ -160,8 +173,15 @@ export class SigmaRenderer implements GraphRenderer {
     this.sigma.refresh();
   }
 
+  setViewChangeHandler(
+    handler: ((state: RenderViewportState) => void) | null,
+  ): void {
+    this.viewChangeHandler = handler;
+  }
+
   // Drop container and graph references when renderer is detached.
   unmount(): void {
+    this.unbindCameraHandler();
     this.sigma?.kill();
     this.sigma = null;
     this.graph = null;
@@ -189,6 +209,7 @@ export class SigmaRenderer implements GraphRenderer {
   }
 
   private rebuildSigma(sliceKeys: string[], graph?: PositionedGraph): void {
+    const previousCameraState = this.readCameraState();
     this.sigma?.kill();
     this.sigma = null;
 
@@ -200,6 +221,9 @@ export class SigmaRenderer implements GraphRenderer {
         this.containerElement as HTMLElement,
         {
           renderLabels: this.rendererOptions.label?.enabled !== false,
+          minCameraRatio: SIGMA_MIN_CAMERA_RATIO,
+          maxCameraRatio: SIGMA_MAX_CAMERA_RATIO,
+          zoomingRatio: SIGMA_ZOOMING_RATIO,
           labelRenderedSizeThreshold:
             this.rendererOptions.label?.renderedSizeThreshold ??
             SIGMA_DEFAULT_LABEL_RENDERED_SIZE_THRESHOLD,
@@ -216,7 +240,8 @@ export class SigmaRenderer implements GraphRenderer {
             this.rendererOptions.label?.size ?? SIGMA_DEFAULT_LABEL_SIZE,
         },
       );
-      this.sigma.getCamera().setState({ ratio: SIGMA_DEFAULT_CAMERA_ZOOM });
+      this.restoreCameraState(previousCameraState);
+      this.bindCameraHandler();
       return;
     }
 
@@ -243,6 +268,9 @@ export class SigmaRenderer implements GraphRenderer {
       this.containerElement as HTMLElement,
       {
         renderLabels: this.rendererOptions.label?.enabled !== false,
+        minCameraRatio: SIGMA_MIN_CAMERA_RATIO,
+        maxCameraRatio: SIGMA_MAX_CAMERA_RATIO,
+        zoomingRatio: SIGMA_ZOOMING_RATIO,
         labelRenderedSizeThreshold:
           this.rendererOptions.label?.renderedSizeThreshold ??
           SIGMA_DEFAULT_LABEL_RENDERED_SIZE_THRESHOLD,
@@ -260,8 +288,96 @@ export class SigmaRenderer implements GraphRenderer {
         },
       },
     );
-    this.sigma.getCamera().setState({ ratio: SIGMA_DEFAULT_CAMERA_ZOOM });
+    this.restoreCameraState(previousCameraState);
+    this.bindCameraHandler();
   }
+
+  private bindCameraHandler(): void {
+    const camera = this.sigma?.getCamera() as
+      | {
+          on?: (event: string, handler: () => void) => void;
+          off?: (event: string, handler: () => void) => void;
+        }
+      | undefined;
+    camera?.off?.("updated", this.boundCameraUpdated);
+    camera?.on?.("updated", this.boundCameraUpdated);
+  }
+
+  private unbindCameraHandler(): void {
+    const camera = this.sigma?.getCamera() as
+      | {
+          off?: (event: string, handler: () => void) => void;
+        }
+      | undefined;
+    camera?.off?.("updated", this.boundCameraUpdated);
+  }
+
+  private emitViewChange(): void {
+    if (!this.viewChangeHandler || !this.sigma || !this.containerElement) {
+      return;
+    }
+
+    const camera = this.sigma.getCamera() as {
+      x?: number;
+      y?: number;
+      ratio?: number;
+      getState?: () => { x?: number; y?: number; ratio?: number };
+    };
+    const state = camera.getState?.() ?? camera;
+    const ratio =
+      typeof state.ratio === "number" && Number.isFinite(state.ratio)
+        ? state.ratio
+        : SIGMA_DEFAULT_CAMERA_ZOOM;
+
+    this.viewChangeHandler({
+      viewport: {
+        x:
+          typeof state.x === "number" && Number.isFinite(state.x) ? state.x : 0,
+        y:
+          typeof state.y === "number" && Number.isFinite(state.y) ? state.y : 0,
+        width: this.containerElement.clientWidth,
+        height: this.containerElement.clientHeight,
+      },
+      zoom: sigmaRatioToLodZoom(ratio),
+    });
+  }
+
+  private readCameraState():
+    | { x?: number; y?: number; ratio?: number }
+    | null {
+    if (!this.sigma) {
+      return null;
+    }
+
+    const camera = this.sigma.getCamera() as {
+      getState?: () => { x?: number; y?: number; ratio?: number };
+    };
+    return camera.getState?.() ?? null;
+  }
+
+  private restoreCameraState(
+    state: { x?: number; y?: number; ratio?: number } | null,
+  ): void {
+    if (!this.sigma) {
+      return;
+    }
+
+    const camera = this.sigma.getCamera() as {
+      setState: (state: { x?: number; y?: number; ratio?: number }) => void;
+    };
+    camera.setState(
+      state ?? {
+        ratio: SIGMA_DEFAULT_CAMERA_ZOOM,
+      },
+    );
+  }
+}
+
+export function sigmaRatioToLodZoom(ratio: number): number {
+  if (!Number.isFinite(ratio) || ratio <= 0) {
+    return 1.5;
+  }
+  return Math.max(0.5, 2 - Math.log2(ratio));
 }
 
 function toPositiveNumber(value: unknown): number {

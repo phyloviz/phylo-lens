@@ -1,11 +1,8 @@
 from __future__ import annotations
 
-from collections import deque
-
 from phylo_lens_server.core.models import (
-    CanonicalDataset,
-    CanonicalEdge,
     CanonicalNode,
+    CanonicalDataset,
     CollapsedCluster,
     HierarchyIndex,
     VisibleSliceQuery,
@@ -15,10 +12,10 @@ from phylo_lens_server.core.models import (
 
 DEFAULT_OVERVIEW_DEPTH = 0
 DEFAULT_MAX_NODES_FALLBACK = 10_000
+ZOOM_OVERVIEW_THRESHOLD = 0.75
+ZOOM_DEPTH_MULTIPLIER = 3
 
-ERR_SELECTOR_DATASET_MISMATCH = (
-    "Visible-slice query dataset '{query_dataset_id}' does not match hierarchy/dataset '{dataset_id}'."
-)
+ERR_SELECTOR_DATASET_MISMATCH = "Visible-slice query dataset '{query_dataset_id}' does not match hierarchy/dataset '{dataset_id}'."
 
 
 class VisibleSliceSelectionError(ValueError):
@@ -31,7 +28,10 @@ def select_visible_slice(
     query: VisibleSliceQuery,
 ) -> VisibleSliceResponse:
     """Select a deterministic visible slice from a hierarchy and runtime query."""
-    if dataset.dataset_id != hierarchy.dataset_id or query.dataset_id != dataset.dataset_id:
+    if (
+        dataset.dataset_id != hierarchy.dataset_id
+        or query.dataset_id != dataset.dataset_id
+    ):
         raise VisibleSliceSelectionError(
             ERR_SELECTOR_DATASET_MISMATCH.format(
                 query_dataset_id=query.dataset_id,
@@ -45,10 +45,26 @@ def select_visible_slice(
     visible_cluster_ids = {hierarchy.root_cluster_id}
     visible_order = [hierarchy.root_cluster_id]
     expanded_cluster_ids: set[str] = set()
+    cluster_id_by_representative_node = {
+        cluster.representative_node_id: cluster_id
+        for cluster_id, cluster in hierarchy.clusters.items()
+        if cluster.representative_node_id is not None
+    }
+    focus_path_cluster_ids = _focus_path_cluster_ids(
+        hierarchy,
+        cluster_id_by_representative_node.get(query.focus_node_id),
+    )
 
-    queue = deque([hierarchy.root_cluster_id])
-    while queue:
-        cluster_id = queue.popleft()
+    frontier = [hierarchy.root_cluster_id]
+    while frontier:
+        frontier.sort(
+            key=lambda cluster_id: _frontier_sort_key(
+                hierarchy,
+                cluster_id,
+                focus_path_cluster_ids,
+            )
+        )
+        cluster_id = frontier.pop(0)
         cluster = hierarchy.clusters[cluster_id]
         children = cluster.child_cluster_ids
 
@@ -60,22 +76,34 @@ def select_visible_slice(
             continue
 
         expanded_cluster_ids.add(cluster_id)
-        for child_cluster_id in children:
+        for child_cluster_id in _ordered_child_cluster_ids(
+            hierarchy,
+            children,
+            focus_path_cluster_ids,
+        ):
             if child_cluster_id in visible_cluster_ids:
                 continue
             visible_cluster_ids.add(child_cluster_id)
             visible_order.append(child_cluster_id)
-            queue.append(child_cluster_id)
-
-    visible_node_ids = [
-        hierarchy.clusters[cluster_id].representative_node_id
-        for cluster_id in visible_order
-        if hierarchy.clusters[cluster_id].representative_node_id is not None
-    ]
-    visible_node_id_set = set(visible_node_ids)
+            frontier.append(child_cluster_id)
 
     node_by_id = {node.id: node for node in dataset.nodes}
-    visible_nodes = [node_by_id[node_id] for node_id in visible_node_ids]
+    visible_nodes: list[CanonicalNode] = []
+    visible_node_id_set: set[str] = set()
+    for cluster_id in visible_order:
+        cluster = hierarchy.clusters[cluster_id]
+        node_id = cluster.representative_node_id
+        if node_id is None:
+            continue
+        base_node = node_by_id[node_id]
+        visible_nodes.append(
+            CanonicalNode(
+                id=base_node.id,
+                x=cluster.centroid["x"] if cluster.centroid is not None else base_node.x,
+                y=cluster.centroid["y"] if cluster.centroid is not None else base_node.y,
+            )
+        )
+        visible_node_id_set.add(node_id)
 
     visible_edges = [
         edge
@@ -90,7 +118,10 @@ def select_visible_slice(
         cluster = hierarchy.clusters[cluster_id]
         for child_cluster_id in cluster.child_cluster_ids:
             child_cluster = hierarchy.clusters[child_cluster_id]
-            if child_cluster_id in visible_cluster_ids or child_cluster.subtree_size <= 1:
+            if (
+                child_cluster_id in visible_cluster_ids
+                or child_cluster.subtree_size <= 1
+            ):
                 continue
             collapsed_clusters.append(
                 CollapsedCluster(
@@ -101,7 +132,9 @@ def select_visible_slice(
                 )
             )
 
-    lod_level = max(hierarchy.clusters[cluster_id].depth for cluster_id in visible_order)
+    lod_level = max(
+        hierarchy.clusters[cluster_id].depth for cluster_id in visible_order
+    )
 
     return VisibleSliceResponse(
         dataset_id=dataset.dataset_id,
@@ -121,6 +154,48 @@ def select_visible_slice(
 def _target_depth(query: VisibleSliceQuery) -> int:
     if query.lod_hint is not None:
         return query.lod_hint
-    if query.zoom < 1:
+    if query.zoom < ZOOM_OVERVIEW_THRESHOLD:
         return DEFAULT_OVERVIEW_DEPTH
-    return int(query.zoom)
+    return max(1, int(round(query.zoom * ZOOM_DEPTH_MULTIPLIER)))
+
+
+def _focus_path_cluster_ids(
+    hierarchy: HierarchyIndex,
+    focus_cluster_id: str | None,
+) -> set[str]:
+    if not focus_cluster_id or focus_cluster_id not in hierarchy.clusters:
+        return set()
+
+    path: set[str] = set()
+    current_cluster_id: str | None = focus_cluster_id
+    while current_cluster_id is not None:
+        path.add(current_cluster_id)
+        current_cluster_id = hierarchy.clusters[current_cluster_id].parent_cluster_id
+    return path
+
+
+def _ordered_child_cluster_ids(
+    hierarchy: HierarchyIndex,
+    child_cluster_ids: list[str],
+    focus_path_cluster_ids: set[str],
+) -> list[str]:
+    return sorted(
+        child_cluster_ids,
+        key=lambda cluster_id: (
+            0 if cluster_id in focus_path_cluster_ids else 1,
+            hierarchy.clusters[cluster_id].representative_node_id or "",
+        ),
+    )
+
+
+def _frontier_sort_key(
+    hierarchy: HierarchyIndex,
+    cluster_id: str,
+    focus_path_cluster_ids: set[str],
+) -> tuple[int, int, str]:
+    cluster = hierarchy.clusters[cluster_id]
+    return (
+        0 if cluster_id in focus_path_cluster_ids else 1,
+        cluster.depth,
+        cluster.representative_node_id or "",
+    )

@@ -33,6 +33,8 @@ class CanonicalNode(BaseModel):
     """Canonical node representation used across server and client modules."""
 
     id: str = Field(min_length=1)
+    x: float | None = None
+    y: float | None = None
 
 
 class CanonicalEdge(BaseModel):
@@ -114,6 +116,7 @@ class VisibleSliceQuery(BaseModel):
     zoom: float = Field(ge=0)
     lod_hint: int | None = Field(default=None, ge=0)
     max_nodes: int | None = Field(default=None, ge=1)
+    focus_node_id: str | None = None
     include_metadata_keys: list[str] = Field(default_factory=list)
     filters: VisibleSliceFilters = Field(default_factory=VisibleSliceFilters)
 

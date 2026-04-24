@@ -73,6 +73,15 @@ def test_select_visible_slice_returns_full_detail_at_higher_zoom() -> None:
         "c",
         "d",
     ]
+    assert [(node.id, node.x, node.y) for node in response.nodes] == [
+        ("root", 0.0, 0.0),
+        ("x", -1.0, 1.0),
+        ("y", 1.0, 1.0),
+        ("a", -1.5, 2.0),
+        ("b", -0.5, 2.0),
+        ("c", 0.5, 2.0),
+        ("d", 1.5, 2.0),
+    ]
     assert [(edge.source, edge.target) for edge in response.edges] == [
         ("root", "x"),
         ("root", "y"),
@@ -143,3 +152,28 @@ def test_select_visible_slice_is_deterministic() -> None:
     second = select_visible_slice(dataset, hierarchy, query)
 
     assert first.model_dump() == second.model_dump()
+
+
+def test_select_visible_slice_prioritizes_focus_branch_when_bounded() -> None:
+    """Confirm a focus node biases bounded expansion toward the relevant subtree."""
+    dataset, hierarchy = _balanced_dataset_and_hierarchy()
+
+    response = select_visible_slice(
+        dataset,
+        hierarchy,
+        VisibleSliceQuery(
+            dataset_id=DATASET_BALANCED,
+            viewport=_viewport(),
+            zoom=3.0,
+            max_nodes=5,
+            focus_node_id="c",
+        ),
+    )
+
+    assert [node.id for node in response.nodes] == ["root", "y", "x", "c", "d"]
+    assert [(edge.source, edge.target) for edge in response.edges] == [
+        ("root", "x"),
+        ("root", "y"),
+        ("y", "c"),
+        ("y", "d"),
+    ]
