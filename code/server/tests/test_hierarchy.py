@@ -65,6 +65,8 @@ def test_build_tree_hierarchy_balanced_tree_statistics() -> None:
     assert root.depth == 0
     assert root.min_depth == 0
     assert root.max_depth == 2
+    assert root.centroid == {"x": 0.0, "y": 0.0}
+    assert root.bounds == {"min_x": -1.5, "max_x": 1.5, "min_y": 0.0, "max_y": 2.0}
 
     assert cluster_x.parent_cluster_id == "cluster_root"
     assert cluster_x.child_cluster_ids == ["cluster_a", "cluster_b"]
@@ -72,6 +74,7 @@ def test_build_tree_hierarchy_balanced_tree_statistics() -> None:
     assert cluster_x.depth == 1
     assert cluster_x.min_depth == 1
     assert cluster_x.max_depth == 2
+    assert cluster_x.centroid == {"x": -1.0, "y": 1.0}
 
     assert cluster_a.parent_cluster_id == "cluster_x"
     assert cluster_a.child_cluster_ids == []
@@ -79,6 +82,7 @@ def test_build_tree_hierarchy_balanced_tree_statistics() -> None:
     assert cluster_a.depth == 2
     assert cluster_a.min_depth == 2
     assert cluster_a.max_depth == 2
+    assert cluster_a.centroid == {"x": -1.5, "y": 2.0}
 
 
 def test_build_tree_hierarchy_handles_skewed_trees() -> None:

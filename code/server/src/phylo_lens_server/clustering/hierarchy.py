@@ -24,7 +24,7 @@ ERR_HIERARCHY_DISCONNECTED = (
 
 
 class HierarchyBuildError(ValueError):
-    """Raised when a canonical dataset cannot be converted into a tree hierarchy."""
+    """Raised when a c Ianonical dataset cannot be converted into a tree hierarchy."""
 
 
 def build_tree_hierarchy(dataset: CanonicalDataset) -> HierarchyIndex:
@@ -84,24 +84,56 @@ def build_tree_hierarchy(dataset: CanonicalDataset) -> HierarchyIndex:
     if len(traversal_order) != len(node_ids):
         raise HierarchyBuildError(ERR_HIERARCHY_DISCONNECTED)
 
+    postorder_seed: list[str] = []
+    stack = [root_id]
+    while stack:
+        node_id = stack.pop()
+        postorder_seed.append(node_id)
+        for child_id in children_by_parent[node_id]:
+            stack.append(child_id)
+    postorder_order = list(reversed(postorder_seed))
+
     clusters: dict[str, HierarchyCluster] = {}
     subtree_size_by_node: dict[str, int] = {}
     max_depth_by_node: dict[str, int] = {}
+    x_by_node: dict[str, float] = {}
+    bounds_by_node: dict[str, dict[str, float]] = {}
+    next_leaf_x = 0.0
 
-    for node_id in reversed(traversal_order):
+    for node_id in postorder_order:
         children = children_by_parent[node_id]
         depth = depth_by_node[node_id]
 
         subtree_size = 1
         max_depth = depth
+        child_x_values: list[float] = []
         for child_id in children:
             subtree_size += subtree_size_by_node[child_id]
             child_max_depth = max_depth_by_node[child_id]
             if child_max_depth > max_depth:
                 max_depth = child_max_depth
+            child_x_values.append(x_by_node[child_id])
 
         subtree_size_by_node[node_id] = subtree_size
         max_depth_by_node[node_id] = max_depth
+
+        if child_x_values:
+            x = sum(child_x_values) / len(child_x_values)
+            min_x = min(bounds_by_node[child_id]["min_x"] for child_id in children)
+            max_x = max(bounds_by_node[child_id]["max_x"] for child_id in children)
+        else:
+            x = next_leaf_x
+            next_leaf_x += 1.0
+            min_x = x
+            max_x = x
+
+        x_by_node[node_id] = x
+        bounds_by_node[node_id] = {
+            "min_x": min_x,
+            "max_x": max_x,
+            "min_y": float(depth),
+            "max_y": float(max_depth),
+        }
 
         cluster_id = _cluster_id_for_node(node_id)
         parent_node_id = parent_by_node[node_id]
@@ -119,7 +151,18 @@ def build_tree_hierarchy(dataset: CanonicalDataset) -> HierarchyIndex:
             depth=depth,
             min_depth=depth,
             max_depth=max_depth,
+            centroid={"x": x, "y": float(depth)},
+            bounds=bounds_by_node[node_id],
         )
+
+    root_x = x_by_node[root_id]
+    if root_x != 0:
+        for cluster in clusters.values():
+            if cluster.centroid is not None:
+                cluster.centroid["x"] -= root_x
+            if cluster.bounds is not None:
+                cluster.bounds["min_x"] -= root_x
+                cluster.bounds["max_x"] -= root_x
 
     return HierarchyIndex(
         dataset_id=dataset.dataset_id,

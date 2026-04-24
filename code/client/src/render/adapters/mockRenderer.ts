@@ -4,6 +4,7 @@ import {
   RENDERER_KIND_MOCK,
   RenderContext,
   RendererKind,
+  RenderViewportState,
 } from "../types";
 
 export const MOCK_RENDERER_EMPTY_CONTAINER = "";
@@ -23,6 +24,12 @@ export class MockRenderer implements GraphRenderer {
   // Store rendered graph snapshot for assertions and debug checks.
   render(graph: PositionedGraph): void {
     this.lastGraph = graph;
+  }
+
+  setViewChangeHandler(
+    _handler: ((state: RenderViewportState) => void) | null,
+  ): void {
+    // Mock renderer does not emit camera updates.
   }
 
   // Reset internal references on renderer teardown.

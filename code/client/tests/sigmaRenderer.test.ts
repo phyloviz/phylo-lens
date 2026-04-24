@@ -21,6 +21,7 @@ vi.mock("sigma", () => {
 import {
   ERR_CONTAINER_NOT_FOUND,
   SigmaRenderer,
+  sigmaRatioToLodZoom,
 } from "../src/render/adapters/sigmaRenderer";
 
 const CONTAINER_ID = "graph-root";
@@ -50,5 +51,14 @@ describe("sigmaRenderer", () => {
     });
 
     renderer.unmount();
+  });
+
+  it("maps deeper camera zoom to progressively higher lod zoom values", () => {
+    expect(sigmaRatioToLodZoom(2)).toBe(1);
+    expect(sigmaRatioToLodZoom(1)).toBe(2);
+    expect(sigmaRatioToLodZoom(0.5)).toBe(3);
+    expect(sigmaRatioToLodZoom(0.25)).toBe(4);
+    expect(sigmaRatioToLodZoom(0.125)).toBe(5);
+    expect(sigmaRatioToLodZoom(0.05)).toBeGreaterThan(6);
   });
 });

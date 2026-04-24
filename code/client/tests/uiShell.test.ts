@@ -21,7 +21,13 @@ describe("uiShell", () => {
       renderNewick: vi.fn(async () => ({
         nodes: [{ id: "root", x: 0, y: 0 }],
         edges: [],
-        viewMeta: { layout: "force", lodLevel: 0 },
+        viewMeta: {
+          layout: "force",
+          lodLevel: 0,
+          sliceNodeCount: 1,
+          collapsedClusterCount: 0,
+          zoom: 4,
+        },
       })),
       dispose: vi.fn(),
     } as unknown as GraphWorkbench;
@@ -39,6 +45,7 @@ describe("uiShell", () => {
     await shell.renderCurrentInput();
 
     expect(status.textContent).toContain("Rendered");
+    expect(status.textContent).toContain("slice 1 nodes");
     shell.unmount();
   });
 
@@ -127,6 +134,67 @@ describe("uiShell", () => {
 
     expect(status.textContent).toContain("Failed");
     expect(fakeWorkbench.renderNewick).not.toHaveBeenCalled();
+    shell.unmount();
+  });
+
+  it("forwards LoD controls to the workbench render request", async () => {
+    document.body.innerHTML = `
+      <form id="render-form"></form>
+      <textarea id="newick-input"></textarea>
+      <input id="max-nodes" type="number" />
+      <input id="initial-zoom" type="number" />
+      <div id="status"></div>
+    `;
+
+    const form = document.getElementById("render-form") as HTMLFormElement;
+    const input = document.getElementById(
+      "newick-input",
+    ) as HTMLTextAreaElement;
+    const maxNodesInput = document.getElementById(
+      "max-nodes",
+    ) as HTMLInputElement;
+    const initialZoomInput = document.getElementById(
+      "initial-zoom",
+    ) as HTMLInputElement;
+    const status = document.getElementById("status") as HTMLElement;
+
+    input.value = "(A,B)Root;";
+    maxNodesInput.value = "2400";
+    initialZoomInput.value = "3.5";
+
+    const fakeWorkbench = {
+      renderNewick: vi.fn(async () => ({
+        nodes: [{ id: "root", x: 0, y: 0 }],
+        edges: [],
+        viewMeta: { layout: "force", lodLevel: 1 },
+      })),
+      dispose: vi.fn(),
+    } as unknown as GraphWorkbench;
+
+    const shell = new UiShellController({
+      workbench: fakeWorkbench,
+      elements: {
+        form,
+        newickInput: input,
+        status,
+        maxNodesInput,
+        initialZoomInput,
+      },
+    });
+
+    shell.mount();
+    await shell.renderCurrentInput();
+
+    expect(fakeWorkbench.renderNewick).toHaveBeenCalledWith(
+      "(A,B)Root;",
+      undefined,
+      expect.objectContaining({
+        lod: expect.objectContaining({
+          maxNodes: 2400,
+          zoom: 3.5,
+        }),
+      }),
+    );
     shell.unmount();
   });
 });
