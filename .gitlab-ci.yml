@@ -31,7 +31,7 @@ client_test:
 
 server_test:
   stage: test
-  image: python:3.11-slim
+  image: python:3.13-slim
   timeout: 20m
   variables:
     PIP_CACHE_DIR: "$CI_PROJECT_DIR/code/server/.pip-cache"
