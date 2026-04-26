@@ -21,6 +21,7 @@ vi.mock("sigma", () => {
 import {
   ERR_CONTAINER_NOT_FOUND,
   SigmaRenderer,
+  sigmaCameraToViewportState,
   sigmaRatioToLodZoom,
 } from "../src/render/adapters/sigmaRenderer";
 
@@ -60,5 +61,20 @@ describe("sigmaRenderer", () => {
     expect(sigmaRatioToLodZoom(0.25)).toBe(4);
     expect(sigmaRatioToLodZoom(0.125)).toBe(5);
     expect(sigmaRatioToLodZoom(0.05)).toBeGreaterThan(6);
+    expect(sigmaRatioToLodZoom(0.002)).toBeGreaterThan(10);
+  });
+
+  it("translates sigma camera state into graph-space viewport bounds", () => {
+    expect(
+      sigmaCameraToViewportState(
+        { minX: -120, maxX: 280, minY: 0, maxY: 300 },
+        { x: 0.25, y: 0.5, ratio: 0.5 },
+      ),
+    ).toEqual({
+      x: -20,
+      y: 150,
+      width: 200,
+      height: 150,
+    });
   });
 });

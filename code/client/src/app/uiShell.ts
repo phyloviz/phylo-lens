@@ -7,7 +7,6 @@ import {
 import { PositionedGraph } from "../contracts/positioned";
 import { MetadataField } from "../contracts/canonical";
 import {
-  LAYOUT_MODE_DETERMINISTIC,
   LAYOUT_MODE_FORCE,
   TreeLayoutMode,
 } from "../layout/simpleTreeLayout";
@@ -23,12 +22,9 @@ export const ANCILLARY_MODE_GLOBAL = "global";
 export const ANCILLARY_MODE_CURRENT = "current";
 export const ANCILLARY_MODE_SELECTED = "selected";
 
-export const LAYOUT_MODE_SELECT_DETERMINISTIC = LAYOUT_MODE_DETERMINISTIC;
 export const LAYOUT_MODE_SELECT_FORCE = LAYOUT_MODE_FORCE;
 
-export type LayoutModeSelect =
-  | typeof LAYOUT_MODE_SELECT_DETERMINISTIC
-  | typeof LAYOUT_MODE_SELECT_FORCE;
+export type LayoutModeSelect = typeof LAYOUT_MODE_SELECT_FORCE;
 
 export type AncillaryMode =
   | typeof ANCILLARY_MODE_GLOBAL
@@ -124,6 +120,9 @@ export class UiShellController {
   // Attach submit handlers and set initial shell status.
   mount(): void {
     this.setStatus(DEFAULT_STATUS_READY);
+    this.workbench.setGraphRenderedHandler((graph) => {
+      this.handleGraphRendered(graph);
+    });
     if (this.ancillaryWheelContainer) {
       renderAncillaryWheel(this.ancillaryWheelContainer, null);
     }
@@ -169,7 +168,7 @@ export class UiShellController {
 
     try {
       const ancillaryPayload = parseAncillaryPayload(ancillaryRaw);
-      const graph = await this.workbench.renderNewick(
+      await this.workbench.renderNewick(
         newick,
         datasetName || undefined,
         {
@@ -186,11 +185,6 @@ export class UiShellController {
           },
         },
       );
-      this.setStatus(buildRenderedStatus(graph));
-      this.lastRenderedGraph = graph;
-      this.updateNodeSelector(graph);
-      this.updateNodeSelectionVisibility();
-      this.renderAncillaryStats();
     } catch (error) {
       const message = error instanceof Error ? error.message : "unknown error";
       this.setStatus(`${STATUS_FAILED_PREFIX}: ${message}`);
@@ -226,6 +220,7 @@ export class UiShellController {
       this.boundAncillaryNodeChange = null;
     }
 
+    this.workbench.setGraphRenderedHandler(null);
     this.workbench.dispose();
   }
 
@@ -271,6 +266,14 @@ export class UiShellController {
       this.ancillaryWheelContainer,
       buildAncillaryWheelStats(this.lastRenderedGraph),
     );
+  }
+
+  private handleGraphRendered(graph: PositionedGraph): void {
+    this.setStatus(buildRenderedStatus(graph));
+    this.lastRenderedGraph = graph;
+    this.updateNodeSelector(graph);
+    this.updateNodeSelectionVisibility();
+    this.renderAncillaryStats();
   }
 
   private getAncillaryMode(): AncillaryMode {
@@ -321,15 +324,7 @@ export class UiShellController {
   }
 
   private getSelectedLayoutMode(): TreeLayoutMode {
-    const mode = this.layoutModeSelect?.value;
-    if (
-      mode === LAYOUT_MODE_SELECT_DETERMINISTIC ||
-      mode === LAYOUT_MODE_SELECT_FORCE
-    ) {
-      return mode;
-    }
-
-    return LAYOUT_MODE_SELECT_DETERMINISTIC;
+    return LAYOUT_MODE_SELECT_FORCE;
   }
 
   private getSelectedMaxNodes(): number {

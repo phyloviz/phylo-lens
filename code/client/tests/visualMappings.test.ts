@@ -6,7 +6,10 @@ import {
   SOURCE_FORMAT_NEWICK,
 } from "../src/contracts/canonical";
 import { PositionedGraph } from "../src/contracts/positioned";
-import { applyVisualMappings } from "../src/render/visualMappings";
+import {
+  applyVisualMappings,
+  CLUSTER_PROXY_COLOR,
+} from "../src/render/visualMappings";
 import {
   PIE_ATTRIBUTE_PREFIX,
   PIE_PALETTE_ATTRIBUTE,
@@ -69,5 +72,34 @@ describe("visualMappings", () => {
 
     expect(pieKeys).toContain(`${PIE_ATTRIBUTE_PREFIX}trait_a`);
     expect(Array.isArray(nodeAttributes?.[PIE_PALETTE_ATTRIBUTE])).toBe(true);
+  });
+
+  it("styles cluster proxy nodes explicitly", () => {
+    const index = buildMetadataIndex(DATASET);
+    const proxyGraph: PositionedGraph = {
+      ...BASE_GRAPH,
+      nodes: [
+        {
+          id: "a",
+          x: 0,
+          y: 0,
+          attributes: {
+            is_cluster_proxy: true,
+            subtree_size: 128,
+            leaf_count: 64,
+          },
+        },
+      ],
+      edges: [],
+    };
+
+    const mapped = applyVisualMappings(proxyGraph, DATASET, index);
+    const proxyNode = mapped.nodes[0];
+
+    expect(proxyNode?.color).toBe(CLUSTER_PROXY_COLOR);
+    expect((proxyNode?.size ?? 0)).toBeGreaterThan(10);
+    expect(
+      (proxyNode?.attributes as Record<string, unknown>)?.is_cluster_proxy,
+    ).toBe(true);
   });
 });

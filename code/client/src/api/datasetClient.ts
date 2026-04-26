@@ -32,9 +32,14 @@ const KEY_SOURCE = "source";
 const KEY_NODE_ID = "id";
 const KEY_NODE_X = "x";
 const KEY_NODE_Y = "y";
+const KEY_NODE_CLUSTER_ID = "cluster_id";
+const KEY_NODE_IS_CLUSTER_PROXY = "is_cluster_proxy";
+const KEY_NODE_SUBTREE_SIZE = "subtree_size";
+const KEY_NODE_LEAF_COUNT = "leaf_count";
 const KEY_EDGE_ID = "id";
 const KEY_EDGE_SOURCE = "source";
 const KEY_EDGE_TARGET = "target";
+const KEY_EDGE_DISTANCE = "distance";
 
 const KEY_NODE_COUNT = "node_count";
 const KEY_EDGE_COUNT = "edge_count";
@@ -231,9 +236,17 @@ export function isVisibleSliceResponse(
 
       const nodeX = node[KEY_NODE_X];
       const nodeY = node[KEY_NODE_Y];
+      const clusterId = node[KEY_NODE_CLUSTER_ID];
+      const isClusterProxy = node[KEY_NODE_IS_CLUSTER_PROXY];
+      const subtreeSize = node[KEY_NODE_SUBTREE_SIZE];
+      const leafCount = node[KEY_NODE_LEAF_COUNT];
       return (
-        (nodeX !== undefined && typeof nodeX !== "number") ||
-        (nodeY !== undefined && typeof nodeY !== "number")
+        !isOptionalNumber(nodeX) ||
+        !isOptionalNumber(nodeY) ||
+        !isOptionalString(clusterId) ||
+        !isOptionalBoolean(isClusterProxy) ||
+        !isOptionalNumber(subtreeSize) ||
+        !isOptionalNumber(leafCount)
       );
     })
   ) {
@@ -247,7 +260,8 @@ export function isVisibleSliceResponse(
         !isRecord(edge) ||
         typeof edge[KEY_EDGE_ID] !== "string" ||
         typeof edge[KEY_EDGE_SOURCE] !== "string" ||
-        typeof edge[KEY_EDGE_TARGET] !== "string",
+        typeof edge[KEY_EDGE_TARGET] !== "string" ||
+        !isOptionalNumber(edge[KEY_EDGE_DISTANCE]),
     )
   ) {
     return false;
@@ -259,7 +273,9 @@ export function isVisibleSliceResponse(
       (cluster) =>
         !isRecord(cluster) ||
         typeof cluster.cluster_id !== "string" ||
-        typeof cluster.subtree_size !== "number",
+        typeof cluster.subtree_size !== "number" ||
+        !isOptionalString(cluster.representative_node_id) ||
+        !isOptionalNumberRecord(cluster.centroid),
     )
   ) {
     return false;
@@ -309,9 +325,17 @@ export function isCanonicalDataset(value: unknown): value is CanonicalDataset {
 
       const nodeX = node[KEY_NODE_X];
       const nodeY = node[KEY_NODE_Y];
+      const clusterId = node[KEY_NODE_CLUSTER_ID];
+      const isClusterProxy = node[KEY_NODE_IS_CLUSTER_PROXY];
+      const subtreeSize = node[KEY_NODE_SUBTREE_SIZE];
+      const leafCount = node[KEY_NODE_LEAF_COUNT];
       return (
-        (nodeX !== undefined && typeof nodeX !== "number") ||
-        (nodeY !== undefined && typeof nodeY !== "number")
+        !isOptionalNumber(nodeX) ||
+        !isOptionalNumber(nodeY) ||
+        !isOptionalString(clusterId) ||
+        !isOptionalBoolean(isClusterProxy) ||
+        !isOptionalNumber(subtreeSize) ||
+        !isOptionalNumber(leafCount)
       );
     })
   ) {
@@ -325,7 +349,8 @@ export function isCanonicalDataset(value: unknown): value is CanonicalDataset {
         !isRecord(edge) ||
         typeof edge[KEY_EDGE_ID] !== "string" ||
         typeof edge[KEY_EDGE_SOURCE] !== "string" ||
-        typeof edge[KEY_EDGE_TARGET] !== "string",
+        typeof edge[KEY_EDGE_TARGET] !== "string" ||
+        !isOptionalNumber(edge[KEY_EDGE_DISTANCE]),
     )
   ) {
     return false;
@@ -351,4 +376,28 @@ export function isCanonicalDataset(value: unknown): value is CanonicalDataset {
 function isRecord(value: unknown): value is Record<string, unknown> {
   // Confirm value is a non-null object before key-based checks.
   return typeof value === "object" && value !== null;
+}
+
+function isOptionalNumber(value: unknown): boolean {
+  return value === undefined || value === null || typeof value === "number";
+}
+
+function isOptionalString(value: unknown): boolean {
+  return value === undefined || value === null || typeof value === "string";
+}
+
+function isOptionalBoolean(value: unknown): boolean {
+  return value === undefined || value === null || typeof value === "boolean";
+}
+
+function isOptionalNumberRecord(value: unknown): boolean {
+  if (value === undefined || value === null) {
+    return true;
+  }
+
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return Object.values(value).every((entry) => typeof entry === "number");
 }

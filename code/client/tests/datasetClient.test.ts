@@ -57,12 +57,23 @@ const PREPARE_FIXTURE = {
 const VISIBLE_SLICE_FIXTURE = {
   dataset_id: "small-tree",
   lod_level: 1,
-  nodes: [{ id: "root" }, { id: "a" }, { id: "b" }],
-  edges: [
-    { id: "e_root_a_1", source: "root", target: "a" },
-    { id: "e_root_b_1", source: "root", target: "b" },
+  nodes: [
+    { id: "root", cluster_id: null, subtree_size: null },
+    { id: "a", x: null, y: null },
+    { id: "b", is_cluster_proxy: null, leaf_count: null },
   ],
-  collapsed_clusters: [],
+  edges: [
+    { id: "e_root_a_1", source: "root", target: "a", distance: null },
+    { id: "e_root_b_1", source: "root", target: "b", distance: null },
+  ],
+  collapsed_clusters: [
+    {
+      cluster_id: "cluster_root",
+      representative_node_id: null,
+      subtree_size: 3,
+      centroid: null,
+    },
+  ],
   view_meta: {
     viewport: { x: 0, y: 0, width: 1000, height: 600 },
     zoom: 2,

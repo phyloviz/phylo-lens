@@ -13,7 +13,10 @@ from phylo_lens_server.core.models import (
 DEFAULT_OVERVIEW_DEPTH = 0
 DEFAULT_MAX_NODES_FALLBACK = 10_000
 ZOOM_OVERVIEW_THRESHOLD = 0.75
-ZOOM_DEPTH_MULTIPLIER = 3
+ZOOM_EXPANSION_THRESHOLD = 1.0
+SELECTOR_NODE_GAP = 120.0
+SELECTOR_LAYER_GAP = 150.0
+DETAIL_VIEWPORT_MARGIN = 48.0
 
 ERR_SELECTOR_DATASET_MISMATCH = "Visible-slice query dataset '{query_dataset_id}' does not match hierarchy/dataset '{dataset_id}'."
 
@@ -39,8 +42,8 @@ def select_visible_slice(
             )
         )
 
-    target_depth = _target_depth(query)
     max_nodes = query.max_nodes or min(len(dataset.nodes), DEFAULT_MAX_NODES_FALLBACK)
+    viewport_bounds = _viewport_bounds(query)
 
     visible_cluster_ids = {hierarchy.root_cluster_id}
     visible_order = [hierarchy.root_cluster_id]
@@ -60,15 +63,23 @@ def select_visible_slice(
         frontier.sort(
             key=lambda cluster_id: _frontier_sort_key(
                 hierarchy,
+                query,
                 cluster_id,
                 focus_path_cluster_ids,
+                viewport_bounds,
             )
         )
         cluster_id = frontier.pop(0)
         cluster = hierarchy.clusters[cluster_id]
         children = cluster.child_cluster_ids
 
-        if not children or cluster.depth >= target_depth:
+        if not children or not _should_expand_cluster(
+            hierarchy,
+            query,
+            cluster_id,
+            focus_path_cluster_ids,
+            viewport_bounds,
+        ):
             continue
 
         expansion_cost = len(children)
@@ -91,25 +102,20 @@ def select_visible_slice(
     visible_nodes: list[CanonicalNode] = []
     visible_node_id_set: set[str] = set()
     for cluster_id in visible_order:
-        cluster = hierarchy.clusters[cluster_id]
-        node_id = cluster.representative_node_id
-        if node_id is None:
-            continue
-        base_node = node_by_id[node_id]
-        visible_nodes.append(
-            CanonicalNode(
-                id=base_node.id,
-                x=cluster.centroid["x"] if cluster.centroid is not None else base_node.x,
-                y=cluster.centroid["y"] if cluster.centroid is not None else base_node.y,
-            )
+        _append_cluster_node(
+            visible_nodes,
+            visible_node_id_set,
+            hierarchy,
+            node_by_id,
+            cluster_id,
+            is_cluster_proxy=_is_cluster_proxy_cluster(
+                hierarchy,
+                cluster_id,
+                expanded_cluster_ids,
+            ),
         )
-        visible_node_id_set.add(node_id)
 
-    visible_edges = [
-        edge
-        for edge in dataset.edges
-        if edge.source in visible_node_id_set and edge.target in visible_node_id_set
-    ]
+    visible_edges = []
 
     collapsed_clusters: list[CollapsedCluster] = []
     for cluster_id in visible_order:
@@ -131,6 +137,24 @@ def select_visible_slice(
                     centroid=child_cluster.centroid,
                 )
             )
+            if (
+                child_cluster.representative_node_id is not None
+                and child_cluster.representative_node_id not in visible_node_id_set
+            ):
+                _append_cluster_node(
+                    visible_nodes,
+                    visible_node_id_set,
+                    hierarchy,
+                    node_by_id,
+                    child_cluster_id,
+                    is_cluster_proxy=True,
+                )
+
+    visible_edges.extend(
+        edge
+        for edge in dataset.edges
+        if edge.source in visible_node_id_set and edge.target in visible_node_id_set
+    )
 
     lod_level = max(
         hierarchy.clusters[cluster_id].depth for cluster_id in visible_order
@@ -151,12 +175,40 @@ def select_visible_slice(
     )
 
 
-def _target_depth(query: VisibleSliceQuery) -> int:
-    if query.lod_hint is not None:
-        return query.lod_hint
-    if query.zoom < ZOOM_OVERVIEW_THRESHOLD:
-        return DEFAULT_OVERVIEW_DEPTH
-    return max(1, int(round(query.zoom * ZOOM_DEPTH_MULTIPLIER)))
+def _append_cluster_node(
+    visible_nodes: list[CanonicalNode],
+    visible_node_id_set: set[str],
+    hierarchy: HierarchyIndex,
+    node_by_id: dict[str, CanonicalNode],
+    cluster_id: str,
+    is_cluster_proxy: bool,
+) -> None:
+    cluster = hierarchy.clusters[cluster_id]
+    node_id = cluster.representative_node_id
+    if node_id is None or node_id in visible_node_id_set:
+        return
+    base_node = node_by_id[node_id]
+    visible_nodes.append(
+        CanonicalNode(
+            id=base_node.id,
+            x=cluster.centroid["x"] if cluster.centroid is not None else base_node.x,
+            y=cluster.centroid["y"] if cluster.centroid is not None else base_node.y,
+            cluster_id=cluster.cluster_id,
+            is_cluster_proxy=is_cluster_proxy,
+            subtree_size=cluster.subtree_size if is_cluster_proxy else None,
+            leaf_count=cluster.leaf_count if is_cluster_proxy else None,
+        )
+    )
+    visible_node_id_set.add(node_id)
+
+
+def _is_cluster_proxy_cluster(
+    hierarchy: HierarchyIndex,
+    cluster_id: str,
+    expanded_cluster_ids: set[str],
+) -> bool:
+    cluster = hierarchy.clusters[cluster_id]
+    return cluster.subtree_size > 1 and cluster_id not in expanded_cluster_ids
 
 
 def _focus_path_cluster_ids(
@@ -190,12 +242,119 @@ def _ordered_child_cluster_ids(
 
 def _frontier_sort_key(
     hierarchy: HierarchyIndex,
+    query: VisibleSliceQuery,
     cluster_id: str,
     focus_path_cluster_ids: set[str],
-) -> tuple[int, int, str]:
+    viewport_bounds: tuple[float, float, float, float],
+) -> tuple[int, int, float, float, int, str]:
     cluster = hierarchy.clusters[cluster_id]
+    overlap_ratio = _viewport_overlap_ratio(cluster.bounds, viewport_bounds)
+    distance = _viewport_distance(cluster.bounds, viewport_bounds)
     return (
         0 if cluster_id in focus_path_cluster_ids else 1,
-        cluster.depth,
+        0 if overlap_ratio > 0 else 1,
+        -overlap_ratio,
+        distance,
+        -min(cluster.subtree_size, query.max_nodes or DEFAULT_MAX_NODES_FALLBACK),
         cluster.representative_node_id or "",
+    )
+
+
+def _should_expand_cluster(
+    hierarchy: HierarchyIndex,
+    query: VisibleSliceQuery,
+    cluster_id: str,
+    focus_path_cluster_ids: set[str],
+    viewport_bounds: tuple[float, float, float, float],
+) -> bool:
+    cluster = hierarchy.clusters[cluster_id]
+    if query.lod_hint is not None and cluster.depth >= query.lod_hint:
+        return False
+    if query.zoom < ZOOM_OVERVIEW_THRESHOLD:
+        return False
+    if (
+        query.zoom < ZOOM_EXPANSION_THRESHOLD
+        and cluster.depth >= DEFAULT_OVERVIEW_DEPTH
+    ):
+        return False
+    if cluster_id in focus_path_cluster_ids:
+        return True
+
+    overlap_ratio = _viewport_overlap_ratio(cluster.bounds, viewport_bounds)
+    if overlap_ratio > 0:
+        return True
+
+    if cluster.depth == DEFAULT_OVERVIEW_DEPTH:
+        return True
+
+    distance = _viewport_distance(cluster.bounds, viewport_bounds)
+    return distance <= DETAIL_VIEWPORT_MARGIN * max(query.zoom, 1.0)
+
+
+def _viewport_bounds(
+    query: VisibleSliceQuery,
+) -> tuple[float, float, float, float]:
+    half_width = query.viewport.width / 2
+    half_height = query.viewport.height / 2
+    return (
+        query.viewport.x - half_width,
+        query.viewport.x + half_width,
+        query.viewport.y - half_height,
+        query.viewport.y + half_height,
+    )
+
+
+def _viewport_overlap_ratio(
+    bounds: dict[str, float] | None,
+    viewport_bounds: tuple[float, float, float, float],
+) -> float:
+    if bounds is None:
+        return 0.0
+
+    cluster_min_x, cluster_max_x, cluster_min_y, cluster_max_y = _scaled_bounds(bounds)
+    view_min_x, view_max_x, view_min_y, view_max_y = viewport_bounds
+
+    intersect_width = min(cluster_max_x, view_max_x) - max(cluster_min_x, view_min_x)
+    intersect_height = min(cluster_max_y, view_max_y) - max(cluster_min_y, view_min_y)
+    if intersect_width <= 0 or intersect_height <= 0:
+        return 0.0
+
+    cluster_area = max(
+        (cluster_max_x - cluster_min_x) * (cluster_max_y - cluster_min_y),
+        1.0,
+    )
+    return (intersect_width * intersect_height) / cluster_area
+
+
+def _viewport_distance(
+    bounds: dict[str, float] | None,
+    viewport_bounds: tuple[float, float, float, float],
+) -> float:
+    if bounds is None:
+        return float("inf")
+
+    cluster_min_x, cluster_max_x, cluster_min_y, cluster_max_y = _scaled_bounds(bounds)
+    view_min_x, view_max_x, view_min_y, view_max_y = viewport_bounds
+
+    dx = 0.0
+    if cluster_max_x < view_min_x:
+        dx = view_min_x - cluster_max_x
+    elif cluster_min_x > view_max_x:
+        dx = cluster_min_x - view_max_x
+
+    dy = 0.0
+    if cluster_max_y < view_min_y:
+        dy = view_min_y - cluster_max_y
+    elif cluster_min_y > view_max_y:
+        dy = cluster_min_y - view_max_y
+
+    return dx + dy
+
+
+def _scaled_bounds(bounds: dict[str, float]) -> tuple[float, float, float, float]:
+    return (
+        bounds["min_x"] * SELECTOR_NODE_GAP,
+        bounds["max_x"] * SELECTOR_NODE_GAP,
+        bounds["min_y"] * SELECTOR_LAYER_GAP,
+        bounds["max_y"] * SELECTOR_LAYER_GAP,
     )

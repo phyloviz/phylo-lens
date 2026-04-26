@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from phylo_lens_server.data.parsers import ParseError, parse_newick
+from phylo_lens_server.data.parsers import ParseError, parse_edgelist, parse_newick
 
 FIXTURES_DIRNAME = "fixtures"
 NEWICK_CASES_FILENAME = "newick_cases.json"
@@ -39,9 +39,9 @@ def test_parse_newick_fixture_cases(case: dict[str, object]) -> None:
     assert len(parsed.warnings) == int(case["expected_warning_count"])
 
     assert len(parsed.nodes) == len(set(parsed.nodes))
+    node_ids = set(parsed.nodes)
     assert all(
-        source in set(parsed.nodes) and target in set(parsed.nodes)
-        for source, target in parsed.edges
+        edge.source in node_ids and edge.target in node_ids for edge in parsed.edges
     )
 
 
@@ -58,13 +58,15 @@ def test_parse_newick_generates_deterministic_ids_for_unlabeled_internal_nodes()
         "c",
         "d",
     }
-    assert set(parsed.edges) == {
-        ("internal_1", "internal_2"),
-        ("internal_1", "internal_3"),
-        ("internal_2", "a"),
-        ("internal_2", "b"),
-        ("internal_3", "c"),
-        ("internal_3", "d"),
+    assert {
+        (edge.source, edge.target, edge.distance) for edge in parsed.edges
+    } == {
+        ("internal_1", "internal_2", None),
+        ("internal_1", "internal_3", None),
+        ("internal_2", "a", None),
+        ("internal_2", "b", None),
+        ("internal_3", "c", None),
+        ("internal_3", "d", None),
     }
 
 
@@ -79,4 +81,32 @@ def test_parse_newick_handles_deep_trees_without_recursion() -> None:
     assert len(parsed.edges) == depth
     assert "a" in parsed.nodes
     assert "internal_1" in parsed.nodes
-    assert ("internal_1", "internal_2") in set(parsed.edges)
+    assert ("internal_1", "internal_2", None) in {
+        (edge.source, edge.target, edge.distance) for edge in parsed.edges
+    }
+
+
+def test_parse_newick_preserves_branch_lengths_on_parent_child_edges() -> None:
+    """Confirm Newick branch lengths are carried onto canonical parent-child links."""
+    parsed = parse_newick("(A:0.10,(B:0.20,C:0.30)N:0.40)R:0.50;")
+
+    edge_by_pair = {
+        (edge.source, edge.target): edge.distance for edge in parsed.edges
+    }
+    assert edge_by_pair == {
+        ("r", "a"): 0.10,
+        ("r", "n"): 0.40,
+        ("n", "b"): 0.20,
+        ("n", "c"): 0.30,
+    }
+
+
+def test_parse_edgelist_accepts_optional_distance_column() -> None:
+    """Confirm edge-list rows may carry an optional numeric distance."""
+    parsed = parse_edgelist("source,target,distance\na,b,0.5\nb,c,1.25\n")
+
+    assert parsed.nodes == ["a", "b", "c"]
+    assert [(edge.source, edge.target, edge.distance) for edge in parsed.edges] == [
+        ("a", "b", 0.5),
+        ("b", "c", 1.25),
+    ]

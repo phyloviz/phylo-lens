@@ -6,7 +6,7 @@
     <title>PhyloLens Client Demo</title>
     <style>
       :root {
-        --bg: #f4f7fb;
+        --bg: #000000;         /* f4f7fb */
         --surface: #ffffff;
         --text: #1f2937;
         --muted: #6b7280;
@@ -229,7 +229,7 @@
         <h1>PhyloLens Demo Shell</h1>
         <p>
           Paste a Newick tree and submit. This demo validates client-server
-          communication, deterministic layout, and modular renderer
+          communication, force-directed layout, and modular renderer
           orchestration.
         </p>
 
@@ -279,8 +279,7 @@
             <label>
               Layout Mode
               <select id="layout-mode">
-                <option value="deterministic" selected>Deterministic Tree</option>
-                <option value="force">Force Refined</option>
+                <option value="force" selected>Force-Directed</option>
               </select>
             </label>
             <label>

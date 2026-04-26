@@ -21,6 +21,11 @@ export interface RenderViewportState {
   zoom: number;
 }
 
+export interface RenderNodeClickState {
+  nodeId: string;
+  attributes?: Record<string, unknown>;
+}
+
 export interface GraphRenderer {
   kind: RendererKind;
 
@@ -34,6 +39,14 @@ export interface GraphRenderer {
   setViewChangeHandler?(
     handler: ((state: RenderViewportState) => void) | null,
   ): void;
+
+  // Subscribe to node click events when supported by the renderer backend.
+  setNodeClickHandler?(
+    handler: ((state: RenderNodeClickState) => void) | null,
+  ): void;
+
+  // Recenter the rendered camera around one visible node when supported.
+  centerOnNode?(nodeId: string): void;
 
   // Release resources and detach renderer from the view.
   unmount(): void;

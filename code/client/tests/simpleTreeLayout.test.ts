@@ -21,22 +21,23 @@ const FIXTURE_DATASET: CanonicalDataset = {
 };
 
 describe("simpleTreeLayout", () => {
-  it("assigns deterministic levels and coordinates", () => {
+  it("builds a force-directed graph with valid coordinates", () => {
     const graph = buildSimpleTreeLayout(FIXTURE_DATASET, {
       layerGap: 100,
       nodeGap: 80,
+      forceIterations: 10,
     });
 
     const nodeById = Object.fromEntries(
       graph.nodes.map((node) => [node.id, node]),
     );
 
-    expect(nodeById["root"]?.y).toBe(0);
-    expect(nodeById["a"]?.y).toBe(100);
-    expect(nodeById["b"]?.y).toBe(100);
-    expect(nodeById["a1"]?.y).toBe(200);
-    expect(nodeById["a"]?.x).toBe(-40);
-    expect(nodeById["b"]?.x).toBe(40);
+    expect(graph.viewMeta.layout).toBe("force");
+    expect(Number.isFinite(nodeById["root"]?.x)).toBe(true);
+    expect(Number.isFinite(nodeById["root"]?.y)).toBe(true);
+    expect(Number.isFinite(nodeById["a"]?.x)).toBe(true);
+    expect(Number.isFinite(nodeById["a1"]?.y)).toBe(true);
+    expect(nodeById["a"]?.x).not.toBe(nodeById["b"]?.x);
     expect(graph.edges).toHaveLength(3);
   });
 });

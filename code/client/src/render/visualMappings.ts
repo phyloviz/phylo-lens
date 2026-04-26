@@ -18,10 +18,13 @@ export const DEFAULT_COLOR_PALETTE = [
   "#84cc16",
 ];
 export const DEFAULT_FALLBACK_COLOR = "#0f766e";
+export const CLUSTER_PROXY_COLOR = "#b45309";
 
 export const DEFAULT_NODE_SIZE = 6;
 export const MIN_NODE_SIZE = 4;
 export const MAX_NODE_SIZE = 14;
+export const CLUSTER_PROXY_MIN_SIZE = 7;
+export const CLUSTER_PROXY_MAX_SIZE = 12;
 
 export const DEFAULT_COLOR_FIELD = "region";
 export const DEFAULT_SIZE_FIELD = "distance";
@@ -78,11 +81,18 @@ function mapNodeVisuals(
   pieOptions: PieMappingOptions,
 ): PositionedNode {
   const metadata = getNodeMetadata(metadataIndex, node.id);
-  const color = deriveColor(metadata[colorField], palette);
-  const size = deriveSize(
+  const baseColor = deriveColor(metadata[colorField], palette);
+  const baseSize = deriveSize(
     metadata[sizeField],
     metadataIndex.numericStats.get(sizeField),
   );
+  const isClusterProxy = node.attributes?.is_cluster_proxy === true;
+  const proxySize = deriveClusterProxySize(
+    node.attributes?.subtree_size,
+    node.attributes?.leaf_count,
+  );
+  const color = isClusterProxy ? CLUSTER_PROXY_COLOR : baseColor;
+  const size = isClusterProxy ? Math.max(baseSize, proxySize) : baseSize;
 
   return {
     ...node,
@@ -92,6 +102,7 @@ function mapNodeVisuals(
       ...(node.attributes ?? {}),
       metadata,
       dataset_id: dataset.dataset_id,
+      is_cluster_proxy: isClusterProxy,
       ...buildPieAttributes(metadata, pieOptions, [sizeField]),
       ...(pieOptions.palette && pieOptions.palette.length > 0
         ? { [PIE_PALETTE_ATTRIBUTE]: pieOptions.palette }
@@ -134,4 +145,25 @@ function deriveSize(
 
   const normalized = (rawValue - stats.min) / (stats.max - stats.min);
   return MIN_NODE_SIZE + normalized * (MAX_NODE_SIZE - MIN_NODE_SIZE);
+}
+
+function deriveClusterProxySize(
+  subtreeSize: unknown,
+  leafCount: unknown,
+): number {
+  const sizeValue =
+    typeof leafCount === "number" && leafCount > 0
+      ? leafCount
+      : typeof subtreeSize === "number" && subtreeSize > 0
+        ? subtreeSize
+        : null;
+  if (sizeValue === null) {
+    return CLUSTER_PROXY_MIN_SIZE;
+  }
+
+  const normalized = Math.min(1, Math.log10(sizeValue + 1) / 3);
+  return (
+    CLUSTER_PROXY_MIN_SIZE +
+    normalized * (CLUSTER_PROXY_MAX_SIZE - CLUSTER_PROXY_MIN_SIZE)
+  );
 }

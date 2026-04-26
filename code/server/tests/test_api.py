@@ -31,8 +31,10 @@ DATASET_BROKEN = "broken"
 DATASET_UNKNOWN = "missing-tree"
 
 FORMAT_NEWICK = "newick"
+FORMAT_EDGELIST = "edgelist"
 VALID_NEWICK_CONTENT = "(A,B)Root;"
 INVALID_NEWICK_CONTENT = "(A,BRoot;"
+UNDIRECTED_TREE_CONTENT = "source,target\na,x\nx,b\nc,x\n"
 
 
 @pytest.fixture
@@ -123,7 +125,12 @@ def test_view_slice_endpoint_returns_overview_for_prepared_dataset(client) -> No
     assert response.status_code == STATUS_OK
     assert body[KEY_DATASET_ID_TOP] == DATASET_API_TREE
     assert body[KEY_LOD_LEVEL] == 0
-    assert [node["id"] for node in body[KEY_NODES]] == ["root"]
+    assert [node["id"] for node in body[KEY_NODES]] == ["root", "x", "y"]
+    assert [node["is_cluster_proxy"] for node in body[KEY_NODES]] == [True, True, True]
+    assert [(edge["source"], edge["target"]) for edge in body["edges"]] == [
+        ("root", "x"),
+        ("root", "y"),
+    ]
     assert [cluster["cluster_id"] for cluster in body[KEY_COLLAPSED_CLUSTERS]] == [
         "cluster_x",
         "cluster_y",
@@ -142,3 +149,35 @@ def test_view_slice_endpoint_rejects_unknown_dataset(client) -> None:
     )
 
     assert response.status_code == STATUS_NOT_FOUND
+
+
+def test_prepare_and_view_slice_orient_undirected_tree_edgelist(client) -> None:
+    """Ensure prepare roots undirected tree inputs before serving visible slices."""
+    prepare_response = client.post(
+        ROUTE_PREPARE,
+        json={
+            "format": FORMAT_EDGELIST,
+            "dataset_name": DATASET_API_TREE,
+            "content": UNDIRECTED_TREE_CONTENT,
+        },
+    )
+
+    assert prepare_response.status_code == STATUS_OK
+
+    response = client.post(
+        ROUTE_VIEW_SLICE,
+        json={
+            "dataset_id": DATASET_API_TREE,
+            "viewport": {"x": 0, "y": 0, "width": 1000, "height": 600},
+            "zoom": 2.0,
+        },
+    )
+    body = response.json()
+
+    assert response.status_code == STATUS_OK
+    assert [node["id"] for node in body[KEY_NODES]] == ["x", "a", "b", "c"]
+    assert [(edge["source"], edge["target"]) for edge in body["edges"]] == [
+        ("x", "a"),
+        ("x", "b"),
+        ("x", "c"),
+    ]

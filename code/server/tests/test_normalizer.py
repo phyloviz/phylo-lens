@@ -31,6 +31,24 @@ def test_normalize_newick_is_deterministic() -> None:
     ]
 
 
+def test_normalize_newick_preserves_edge_distances() -> None:
+    """Confirm Newick branch lengths are emitted as canonical edge distances."""
+    result = normalize_dataset(
+        NormalizeRequest(
+            format=FORMAT_NEWICK,
+            dataset_name=DATASET_DETERMINISTIC,
+            content="(A:0.10,(B:0.20,C:0.30)N:0.40)R:0.50;",
+        )
+    )
+
+    assert [(edge.source, edge.target, edge.distance) for edge in result.dataset.edges] == [
+        ("n", "b", 0.2),
+        ("n", "c", 0.3),
+        ("r", "a", 0.1),
+        ("r", "n", 0.4),
+    ]
+
+
 def test_normalize_edgelist_parses_header() -> None:
     """Confirm edge-list parser handles a source/target header row correctly."""
     request = NormalizeRequest(
@@ -44,3 +62,19 @@ def test_normalize_edgelist_parses_header() -> None:
     assert result.stats.node_count == EXPECTED_NODE_COUNT_EDGELIST
     assert result.stats.edge_count == EXPECTED_EDGE_COUNT_EDGELIST
     assert [node.id for node in result.dataset.nodes] == EXPECTED_NODE_IDS_EDGELIST
+
+
+def test_normalize_edgelist_preserves_optional_edge_distance() -> None:
+    """Confirm weighted edge-list input is preserved on canonical edges."""
+    result = normalize_dataset(
+        NormalizeRequest(
+            format=FORMAT_EDGELIST,
+            dataset_name=DATASET_EDGELIST,
+            content="source,target,distance\na,b,0.5\nb,c,1.25\n",
+        )
+    )
+
+    assert [(edge.source, edge.target, edge.distance) for edge in result.dataset.edges] == [
+        ("a", "b", 0.5),
+        ("b", "c", 1.25),
+    ]

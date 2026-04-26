@@ -35,6 +35,10 @@ class CanonicalNode(BaseModel):
     id: str = Field(min_length=1)
     x: float | None = None
     y: float | None = None
+    cluster_id: str | None = None
+    is_cluster_proxy: bool | None = None
+    subtree_size: int | None = Field(default=None, ge=1)
+    leaf_count: int | None = Field(default=None, ge=1)
 
 
 class CanonicalEdge(BaseModel):
@@ -43,6 +47,7 @@ class CanonicalEdge(BaseModel):
     id: str = Field(min_length=1)
     source: str = Field(min_length=1)
     target: str = Field(min_length=1)
+    distance: float | None = Field(default=None, ge=0)
 
 
 class DatasetSource(BaseModel):
@@ -73,7 +78,10 @@ class HierarchyCluster(BaseModel):
     parent_cluster_id: str | None = None
     child_cluster_ids: list[str] = Field(default_factory=list)
     representative_node_id: str | None = None
+    preorder_index: int = Field(ge=0)
+    postorder_index: int = Field(ge=0)
     subtree_size: int = Field(ge=1)
+    leaf_count: int = Field(ge=1)
     depth: int = Field(ge=0)
     min_depth: int = Field(ge=0)
     max_depth: int = Field(ge=0)

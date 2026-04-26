@@ -2,7 +2,7 @@
 
 This checklist turns the simplified architecture into executable phases.
 
-## Progress Snapshot (2026-04-11)
+## Progress Snapshot (2026-04-26)
 
 Implemented and validated:
 
@@ -14,19 +14,24 @@ Implemented and validated:
 - [x] Client renderer factory with Sigma and Mock adapters.
 - [x] Client workbench orchestration (`normalize -> layout -> render`).
 - [x] Client UI shell controller (framework-agnostic) with tests.
+- [x] `POST /dataset/prepare` and `POST /dataset/view-slice` LoD endpoints.
+- [x] Tree hierarchy precompute with deterministic rooting/orientation for undirected trees.
+- [x] Viewport-aware visible-slice selection with contracted visible edges.
+- [x] Explicit cluster proxy nodes and proxy-aware drill-down interaction.
+- [x] Server benchmark harness for hierarchy build and visible-slice selection.
 
 Pending for next phases:
 
-- [ ] Full Sigma runtime rendering integration.
-- [ ] Client state module for semantic zoom orchestration.
+- [ ] Stronger client-side caching around repeated slice requests.
+- [ ] Broader Sigma interaction and UX polish for hierarchy navigation.
 - [ ] Move metadata filtering execution to server ancillary pipeline via API-backed filter engine.
-- [ ] Server clustering module activation and LoD endpoints.
-- [ ] Freeze hierarchy and visible-slice contracts for the LoD engine.
+- [ ] Generalized weighted-graph hierarchy path beyond tree-specialized LoD.
+- [ ] Tighter memory profiling and optimization for very large hierarchies.
 
 ## Current Thesis Tickets
 
-- [ ] `TASK-PL-003` Freeze hierarchy and visible-slice contracts for the LoD engine.
-- [ ] `TASK-PL-004` Implement tree hierarchy precompute MVP for LoD engine.
+- [x] `TASK-PL-003` Freeze hierarchy and visible-slice contracts for the LoD engine.
+- [x] `TASK-PL-004` Implement tree hierarchy precompute MVP for LoD engine.
 
 ## Phase 0 - Server Core Kickoff (Immediate)
 
@@ -103,20 +108,22 @@ Exit criteria:
 
 Goal: introduce semantic zoom via server-side clustering.
 
-- [ ] Freeze LoD contracts before implementation:
-  - [ ] `HierarchyIndex`
-  - [ ] `HierarchyCluster`
-  - [ ] `VisibleSliceQuery`
-  - [ ] `VisibleSliceResponse`
-  - [ ] deterministic and correctness invariants
-  - [ ] worked example across coarse/fine LoD
-- [ ] Implement Server `clustering` module API contracts.
+- [x] Freeze LoD contracts before implementation:
+  - [x] `HierarchyIndex`
+  - [x] `HierarchyCluster`
+  - [x] `VisibleSliceQuery`
+  - [x] `VisibleSliceResponse`
+  - [x] deterministic and correctness invariants
+  - [x] worked example across coarse/fine LoD
+- [x] Implement Server `clustering` module API contracts.
 - [ ] Integrate depth-based and threshold-based clustering engines.
-- [ ] Expose server clustering endpoints:
-  - [ ] `POST /dataset/view-slice`
+- [x] Expose server clustering endpoints:
+  - [x] `POST /dataset/view-slice`
   - [ ] optional future cluster build endpoints
-- [ ] Connect clustering output to Client `state` zoom bands.
-- [ ] Render cluster levels and level transitions in Client `render`.
+- [x] Connect clustering output to Client `state` zoom bands.
+- [x] Render cluster levels and level transitions in Client `render`.
+- [x] Carry explicit cluster proxy metadata into the client contract.
+- [x] Support proxy-click drill-down for collapsed subtrees.
 
 Exit criteria:
 
@@ -128,7 +135,8 @@ Exit criteria:
 
 Goal: scale and stabilize.
 
-- [ ] Add benchmark harness (N=7 median) for load, render, and interaction.
+- [x] Add server benchmark harness (N=7 median) for hierarchy build and visible-slice selection.
+- [ ] Add benchmark harness (N=7 median) for client render and interaction.
 - [ ] Add optional Arrow path for ancillary metadata when needed.
 - [ ] Add regression tests for contracts and clustering invariants.
 - [ ] Profile memory and frame rate on large datasets.

@@ -18,6 +18,7 @@ test = [
 
 [project.scripts]
 phylo-lens-server = "phylo_lens_server.main:run"
+phylo-lens-benchmark-lod = "phylo_lens_server.benchmarking.cli:main"
 
 [build-system]
 requires = ["setuptools>=68", "wheel"]
