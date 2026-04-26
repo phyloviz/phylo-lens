@@ -36,6 +36,10 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
+# Local prepared dataset store
+.phylo_lens_store/
+**/.phylo_lens_store/
+
 # Local environment files
 .env
 .env.*

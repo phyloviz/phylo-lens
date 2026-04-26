@@ -3,6 +3,7 @@ import {
   GraphRenderer,
   RENDERER_KIND_MOCK,
   RenderContext,
+  RenderNodeClickState,
   RendererKind,
   RenderViewportState,
 } from "../types";
@@ -30,6 +31,16 @@ export class MockRenderer implements GraphRenderer {
     _handler: ((state: RenderViewportState) => void) | null,
   ): void {
     // Mock renderer does not emit camera updates.
+  }
+
+  setNodeClickHandler(
+    _handler: ((state: RenderNodeClickState) => void) | null,
+  ): void {
+    // Mock renderer does not emit node clicks.
+  }
+
+  centerOnNode(_nodeId: string): void {
+    // Mock renderer does not manage a camera.
   }
 
   // Reset internal references on renderer teardown.

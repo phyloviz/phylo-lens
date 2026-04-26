@@ -25,14 +25,19 @@ export interface MetadataField {
 
 export interface CanonicalNode {
   id: string;
-  x?: number;
-  y?: number;
+  x?: number | null;
+  y?: number | null;
+  cluster_id?: string | null;
+  is_cluster_proxy?: boolean | null;
+  subtree_size?: number | null;
+  leaf_count?: number | null;
 }
 
 export interface CanonicalEdge {
   id: string;
   source: string;
   target: string;
+  distance?: number | null;
 }
 
 export interface DatasetSource {
@@ -89,9 +94,9 @@ export interface VisibleSliceQuery {
 
 export interface CollapsedCluster {
   cluster_id: string;
-  representative_node_id?: string;
+  representative_node_id?: string | null;
   subtree_size: number;
-  centroid?: Record<string, number>;
+  centroid?: Record<string, number> | null;
 }
 
 export interface VisibleSliceViewMeta {

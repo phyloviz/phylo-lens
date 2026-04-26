@@ -34,3 +34,25 @@ Prepare + visible-slice example:
   "zoom": 0.4
 }
 ```
+
+## Benchmark
+
+Run the server-side LoD benchmark harness on synthetic trees:
+
+```bash
+pip install -e .[test]
+phylo-lens-benchmark-lod --sizes 1000 10000 100000 --repeats 7
+```
+
+What it measures:
+
+- hierarchy build median time
+- hierarchy build median peak memory via `tracemalloc`
+- visible-slice selection median time
+- returned node, edge, and collapsed-cluster counts for overview, mid, and focused-detail queries
+
+Example JSON output:
+
+```bash
+phylo-lens-benchmark-lod --sizes 1000 --repeats 3 --format json
+```

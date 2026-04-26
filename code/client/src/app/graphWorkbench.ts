@@ -16,6 +16,8 @@ import {
   DEFAULT_LAYER_GAP,
   DEFAULT_NODE_GAP,
   buildSimpleTreeLayout,
+  refinePositionedGraphWithForce,
+  LAYOUT_MODE_FORCE,
   TreeLayoutMode,
 } from "../layout/simpleTreeLayout";
 import {
@@ -25,6 +27,7 @@ import {
 import {
   GraphRenderer,
   RenderContext,
+  RenderNodeClickState,
   RenderViewportState,
   RendererFactory,
   RendererKind,
@@ -67,6 +70,8 @@ export interface GraphWorkbenchOptions {
   filterEngine?: GraphFilterEngine;
 }
 
+export type GraphRenderedHandler = (graph: PositionedGraph) => void;
+
 interface PreparedDatasetSession {
   datasetId: string;
   metadataSchema: CanonicalDataset["metadata_schema"];
@@ -94,6 +99,9 @@ export class GraphWorkbench {
   private pendingViewRefreshId: number | null = null;
   private lastRequestedViewKey: string | null = null;
   private sliceRequestSequence = 0;
+  private currentViewState: RenderViewportState | null = null;
+  private graphRenderedHandler: GraphRenderedHandler | null = null;
+  private lastFocusNodeId: string | null = null;
 
   constructor(options: GraphWorkbenchOptions) {
     this.datasetClient = options.datasetClient;
@@ -104,6 +112,9 @@ export class GraphWorkbench {
     this.renderer.mount(options.renderContext);
     this.renderer.setViewChangeHandler?.((state) => {
       void this.handleViewChange(state);
+    });
+    this.renderer.setNodeClickHandler?.((state) => {
+      void this.handleNodeClick(state);
     });
   }
 
@@ -160,6 +171,7 @@ export class GraphWorkbench {
     );
     this.currentGraph = filteredGraph;
     this.renderer.render(filteredGraph);
+    this.emitGraphRendered(filteredGraph);
     return filteredGraph;
   }
 
@@ -175,7 +187,12 @@ export class GraphWorkbench {
     }
     this.currentGraph = this.currentSliceGraph;
     this.renderer.render(this.currentSliceGraph);
+    this.emitGraphRendered(this.currentSliceGraph);
     return this.currentSliceGraph;
+  }
+
+  setGraphRenderedHandler(handler: GraphRenderedHandler | null): void {
+    this.graphRenderedHandler = handler;
   }
 
   // Unmount renderer resources when leaving the workbench lifecycle.
@@ -185,6 +202,7 @@ export class GraphWorkbench {
       this.pendingViewRefreshId = null;
     }
     this.renderer.setViewChangeHandler?.(null);
+    this.renderer.setNodeClickHandler?.(null);
     this.renderer.unmount();
   }
 
@@ -213,7 +231,44 @@ export class GraphWorkbench {
     }, DEFAULT_VIEW_CHANGE_DEBOUNCE_MS);
   }
 
-  private async refreshVisibleSlice(state: RenderViewportState): Promise<PositionedGraph> {
+  private async handleNodeClick(state: RenderNodeClickState): Promise<void> {
+    if (!this.preparedSession) {
+      return;
+    }
+
+    const clickedNode = this.currentGraph?.nodes.find(
+      (node) => node.id === state.nodeId,
+    );
+    const isClusterProxy =
+      state.attributes?.is_cluster_proxy === true ||
+      clickedNode?.attributes?.is_cluster_proxy === true;
+    if (!isClusterProxy) {
+      return;
+    }
+
+    const currentViewState =
+      this.currentViewState ?? {
+        viewport: this.preparedSession.lod.viewport,
+        zoom: DEFAULT_VIEW_SLICE_ZOOM,
+      };
+    const focusedViewport = recenterViewportOnNode(
+      currentViewState.viewport,
+      clickedNode,
+    );
+
+    await this.refreshVisibleSlice(
+      {
+        viewport: focusedViewport,
+        zoom: currentViewState.zoom + 1,
+      },
+      state.nodeId,
+    );
+  }
+
+  private async refreshVisibleSlice(
+    state: RenderViewportState,
+    focusNodeIdOverride?: string,
+  ): Promise<PositionedGraph> {
     if (!this.preparedSession) {
       throw new Error(ERR_NO_GRAPH_RENDERED);
     }
@@ -222,7 +277,13 @@ export class GraphWorkbench {
     const requestSequence = ++this.sliceRequestSequence;
     const effectiveViewport = normalizeViewport(state.viewport);
     const effectiveZoom = normalizeZoom(state.zoom);
-    const focusNodeId = findFocusNodeId(this.currentSliceGraph, effectiveViewport);
+    this.currentViewState = {
+      viewport: effectiveViewport,
+      zoom: effectiveZoom,
+    };
+    const focusNodeId =
+      focusNodeIdOverride ??
+      findFocusNodeId(this.currentSliceGraph, effectiveViewport);
     this.lastRequestedViewKey = serializeViewKey(
       effectiveViewport,
       effectiveZoom,
@@ -240,6 +301,7 @@ export class GraphWorkbench {
       focus_node_id: focusNodeId,
       include_metadata_keys: session.metadataSchema.map((field) => field.key),
     });
+    this.lastFocusNodeId = focusNodeId ?? null;
 
     if (requestSequence !== this.sliceRequestSequence) {
       return this.currentGraph ?? this.currentSliceGraph ?? emptyGraph();
@@ -287,7 +349,15 @@ export class GraphWorkbench {
       : graphWithSliceMeta;
 
     this.renderer.render(this.currentGraph);
+    if (this.lastFocusNodeId) {
+      this.renderer.centerOnNode?.(this.lastFocusNodeId);
+    }
+    this.emitGraphRendered(this.currentGraph);
     return this.currentGraph;
+  }
+
+  private emitGraphRendered(graph: PositionedGraph): void {
+    this.graphRenderedHandler?.(graph);
   }
 }
 
@@ -323,11 +393,17 @@ function buildPositionedSliceGraph(
   options: RenderNewickOptions["layout"] = {},
 ): PositionedGraph {
   if (dataset.nodes.every(hasServerCoordinates)) {
-    return {
+    const anchoredGraph: PositionedGraph = {
       nodes: dataset.nodes.map((node) => ({
         id: node.id,
         x: (node.x as number) * DEFAULT_NODE_GAP,
         y: (node.y as number) * DEFAULT_LAYER_GAP,
+        attributes: {
+          cluster_id: node.cluster_id,
+          is_cluster_proxy: node.is_cluster_proxy === true,
+          subtree_size: node.subtree_size,
+          leaf_count: node.leaf_count,
+        },
       })),
       edges: dataset.edges.map((edge) => ({
         id: edge.id,
@@ -339,6 +415,13 @@ function buildPositionedSliceGraph(
         lodLevel: 0,
       },
     };
+
+    return options.mode === LAYOUT_MODE_FORCE
+      ? refinePositionedGraphWithForce(
+          anchoredGraph,
+          options.forceIterations,
+        )
+      : anchoredGraph;
   }
 
   return buildSimpleTreeLayout(dataset, {
@@ -435,4 +518,19 @@ function findFocusNodeId(
   });
 
   return bestNodeId;
+}
+
+function recenterViewportOnNode(
+  viewport: Viewport,
+  node: PositionedGraph["nodes"][number] | undefined,
+): Viewport {
+  if (!node) {
+    return viewport;
+  }
+
+  return {
+    ...viewport,
+    x: node.x,
+    y: node.y,
+  };
 }

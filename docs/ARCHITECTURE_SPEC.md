@@ -16,7 +16,7 @@ This document is the source of truth for implementation decisions in the PoC-to-
 
 - Canonical data model for trees/graphs and metadata.
 - Parsing and normalization pipeline (Newick and edge-list first, typing-data path next).
-- LoD generation contracts (C core + Python orchestration).
+- LoD generation contracts with Python-first implementation and optional future lower-level acceleration if benchmarks justify it.
 - Layout module contracts (force/radial/dendrogram).
 - Renderer adapter contracts (Sigma.js first).
 - Interaction and state contracts for semantic zoom/filtering.
@@ -73,8 +73,9 @@ Responsibilities:
 
 Status:
 
-- Planned module.
-- Intentionally deferred in first integration phase to establish clean `core <-> data` flow first.
+- Active module for tree-oriented hierarchy precompute and visible-slice selection.
+- Current implementation is iterative, deterministic, and Python-first.
+- Future work may add alternative hierarchy builders for weighted non-tree graphs.
 
 ### Client App
 
@@ -130,6 +131,11 @@ interface CanonicalDataset {
 }
 ```
 
+Key implementation notes in the current prototype:
+
+- `CanonicalEdge` may carry an optional `distance` value when a source format provides branch lengths or weighted edges.
+- `CanonicalNode` may carry optional hierarchy-driven fields in visible-slice responses such as `cluster_id`, `is_cluster_proxy`, `subtree_size`, `leaf_count`, `x`, and `y`.
+
 ## `LodBundle`
 
 ```ts
@@ -171,9 +177,12 @@ interface HierarchyCluster {
   childClusterIds: string[];
   representativeNodeId?: string;
   subtreeSize: number;
+  leafCount: number;
   depth: number;
   minDepth: number;
   maxDepth: number;
+  preorderIndex: number;
+  postorderIndex: number;
   centroid?: { x: number; y: number };
   bounds?: { minX: number; minY: number; maxX: number; maxY: number };
   aggregateMetadata?: Record<string, string | number | boolean | null>;
@@ -208,6 +217,11 @@ interface VisibleSliceResponse {
 
 This contract represents the runtime payload for the client. The design target
 is to return `O(visible_nodes)` data rather than the full topology.
+
+In the current implementation, `nodes` may already include representative nodes
+for collapsed subtrees. Those representatives are marked explicitly with
+`is_cluster_proxy` instead of being inferred indirectly from
+`collapsedClusters` alone.
 
 ## `VisibleSliceQuery`
 
@@ -286,19 +300,19 @@ interface ArrowAncillaryBundle {
 ## 6) Processing Pipeline (Current Focus)
 
 1. **Client Input**: upload/select dataset and initial visualization config.
-2. **Client -> Server API**: submit ingest/normalize request.
-3. **Server / Core+Data Integration**: ingest, validate, normalize, index.
-4. **Server -> Client Response**: return `CanonicalDataset`.
-5. **Client / Workbench Orchestration**: normalize -> layout -> render handoff.
-6. **Client / Layout**: compute deterministic positioned graph for small trees.
-7. **Client / Render Adapter**: route rendering through factory-selected adapters.
+2. **Client -> Server API**: submit prepare request.
+3. **Server / Core+Data Integration**: ingest, validate, normalize, and orient tree-shaped inputs.
+4. **Server / Clustering**: build hierarchy indexes and stable hierarchy coordinates through explicit iterative passes over indexed topology arrays.
+5. **Client / Workbench Orchestration**: request an initial visible slice.
+6. **Server -> Client Response**: return bounded `VisibleSliceResponse`.
+7. **Client / Render Adapter**: render the current slice and react to zoom or proxy drill-down.
 
 ## 6.1) Processing Pipeline (Next Phase)
 
-1. Enable **Server / Clustering** module and persist `HierarchyIndex` outputs.
-2. Precompute subtree metadata such as size, centroid, and depth ranges.
-3. Expose server-side visible-slice query endpoints keyed by viewport and zoom band.
-4. Connect semantic zoom bands in client state to server LoD selection.
+1. Improve hierarchy internals for tighter memory use and faster large-tree traversals.
+2. Expand tree-specialized selector heuristics beyond the current viewport/bounds policy.
+3. Add generalized weighted-graph hierarchy strategies where tree semantics do not apply.
+4. Connect richer cluster analytics and caching into the client state layer.
 5. Add Arrow ancillary path only where metadata transfer becomes a bottleneck.
 
 ## 7) Interaction Model for Semantic Zoom
@@ -309,12 +323,20 @@ interface ArrowAncillaryBundle {
   - Band N-1: leaf-level detail.
 - Camera zoom crossing a band boundary updates active LoD level.
 - Viewport and zoom together select the visible slice returned by the server.
+- Clicking a visible cluster proxy is treated as an explicit drill-down request into the collapsed subtree it represents.
 - Transition policy:
   - preserve camera focus point,
   - stable cluster identity across adjacent levels,
   - optional animated interpolation by adapter.
 - Off-screen regions should remain collapsed as cluster representatives rather
   than expanded into raw nodes.
+
+### Cluster Proxy Semantics
+
+- A cluster proxy is a visible representative node for a collapsed subtree.
+- Proxy nodes carry explicit metadata such as `cluster_id`, `subtree_size`, and `leaf_count`.
+- Contracted visible edges keep coarse slices connected even when descendants are hidden.
+- Proxy nodes are interaction targets, not only styling hints: the client can use them to request deeper focused slices.
 
 ### Visible-Slice Invariants
 

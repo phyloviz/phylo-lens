@@ -31,9 +31,11 @@ NODE_PREFIX_INTERNAL = "internal"
 ERR_NEWICK_EMPTY = "Newick content is empty."
 ERR_NEWICK_TRAILING_CONTENT = "Unexpected content after Newick tree terminator."
 ERR_NEWICK_MISSING_CLOSE = "Missing ')' in Newick content."
+ERR_NEWICK_BRANCH_LENGTH = "Invalid Newick branch length near index {index}."
 ERR_EDGELIST_EMPTY = "Edge-list content is empty."
 ERR_EDGELIST_ROW_COLUMNS = "Edge-list row {index} must have at least two columns."
 ERR_EDGELIST_ROW_EMPTY = "Edge-list row {index} has empty source or target."
+ERR_EDGELIST_ROW_DISTANCE = "Edge-list row {index} has invalid distance value."
 WARN_DUPLICATE_LABEL = (
     "Label '{label}' is duplicated, generated deterministic suffix for uniqueness."
 )
@@ -43,17 +45,24 @@ class ParseError(ValueError):
     pass
 
 
+@dataclass(frozen=True)
+class ParsedEdge:
+    source: str
+    target: str
+    distance: float | None = None
+
+
 @dataclass
 class ParsedGraph:
     nodes: list[str]
-    edges: list[tuple[str, str]]
+    edges: list[ParsedEdge]
     warnings: list[str] = field(default_factory=list)
 
 
 @dataclass
 class _PendingInternalNode:
     preorder_index: int
-    child_ids: list[str] = field(default_factory=list)
+    child_links: list[tuple[str, float | None]] = field(default_factory=list)
 
 
 def parse_newick(content: str) -> ParsedGraph:
@@ -122,21 +131,29 @@ def parse_newick(content: str) -> ParsedGraph:
         label = content[start:index].strip()
         return label or None
 
-    def parse_branch_length_optional() -> None:
+    def parse_branch_length_optional() -> float | None:
         nonlocal index
         consume_whitespace()
         if peek() != TOKEN_COLON:
-            return
+            return None
         index += 1
+        start = index
         while index < content_length and content[index] not in (
             TOKEN_COMMA + TOKEN_OPEN_PAREN + TOKEN_CLOSE_PAREN + TOKEN_TERMINATOR
         ):
             index += 1
+        raw_value = content[start:index].strip()
+        if not raw_value:
+            raise ParseError(ERR_NEWICK_BRANCH_LENGTH.format(index=start))
+        try:
+            return float(raw_value)
+        except ValueError as exc:
+            raise ParseError(ERR_NEWICK_BRANCH_LENGTH.format(index=start)) from exc
 
-    def emit_completed_node(node_id: str) -> None:
+    def emit_completed_node(node_id: str, distance_to_parent: float | None) -> None:
         nonlocal root_id
         if stack:
-            stack[-1].child_ids.append(node_id)
+            stack[-1].child_links.append((node_id, distance_to_parent))
             return
         if root_id is not None:
             raise ParseError(ERR_NEWICK_TRAILING_CONTENT)
@@ -160,10 +177,10 @@ def parse_newick(content: str) -> ParsedGraph:
 
             leaf_counter += 1
             label = parse_label_optional()
-            parse_branch_length_optional()
+            branch_length = parse_branch_length_optional()
             node_id = assign_id(label, NODE_PREFIX_LEAF, leaf_counter)
             nodes.append(node_id)
-            emit_completed_node(node_id)
+            emit_completed_node(node_id, branch_length)
             expect_subtree = False
             continue
 
@@ -180,12 +197,18 @@ def parse_newick(content: str) -> ParsedGraph:
             index += 1
             pending = stack.pop()
             label = parse_label_optional()
-            parse_branch_length_optional()
+            branch_length = parse_branch_length_optional()
             node_id = assign_id(label, NODE_PREFIX_INTERNAL, pending.preorder_index)
             nodes.append(node_id)
-            for child_id in pending.child_ids:
-                edges.append((node_id, child_id))
-            emit_completed_node(node_id)
+            for child_id, child_distance in pending.child_links:
+                edges.append(
+                    ParsedEdge(
+                        source=node_id,
+                        target=child_id,
+                        distance=child_distance,
+                    )
+                )
+            emit_completed_node(node_id, branch_length)
             continue
 
         if current == TOKEN_TERMINATOR:
@@ -231,7 +254,7 @@ def parse_edgelist(content: str) -> ParsedGraph:
         rows = rows[1:]
 
     nodes: set[str] = set()
-    edges: list[tuple[str, str]] = []
+    edges: list[ParsedEdge] = []
 
     for index, row in enumerate(rows, start=1):
         if len(row) < 2:
@@ -240,9 +263,15 @@ def parse_edgelist(content: str) -> ParsedGraph:
         target = row[1].strip()
         if not source or not target:
             raise ParseError(ERR_EDGELIST_ROW_EMPTY.format(index=index))
+        distance: float | None = None
+        if len(row) >= 3 and row[2].strip():
+            try:
+                distance = float(row[2].strip())
+            except ValueError as exc:
+                raise ParseError(ERR_EDGELIST_ROW_DISTANCE.format(index=index)) from exc
         nodes.add(source)
         nodes.add(target)
-        edges.append((source, target))
+        edges.append(ParsedEdge(source=source, target=target, distance=distance))
 
     return ParsedGraph(nodes=sorted(nodes), edges=edges, warnings=[])
 

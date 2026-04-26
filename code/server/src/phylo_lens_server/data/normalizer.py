@@ -83,13 +83,22 @@ def normalize_dataset(request: NormalizeRequest) -> NormalizeResult:
 
     edge_ids: dict[tuple[str, str], int] = {}
     canonical_edges: list[CanonicalEdge] = []
-    for source, target in sorted(parsed.edges):
+    for parsed_edge in sorted(parsed.edges, key=lambda edge: (edge.source, edge.target)):
+        source = parsed_edge.source
+        target = parsed_edge.target
         key = (source, target)
         edge_ids[key] = edge_ids.get(key, 0) + 1
         edge_id = EDGE_ID_TEMPLATE.format(
             source=source, target=target, count=edge_ids[key]
         )
-        canonical_edges.append(CanonicalEdge(id=edge_id, source=source, target=target))
+        canonical_edges.append(
+            CanonicalEdge(
+                id=edge_id,
+                source=source,
+                target=target,
+                distance=parsed_edge.distance,
+            )
+        )
 
     metadata_schema = request.metadata_schema
     if not metadata_schema:

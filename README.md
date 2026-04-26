@@ -22,7 +22,7 @@ Two-application model with strict boundaries:
 - Server app
   - core: canonical domain model and invariants
   - data: parsing and normalization to canonical contracts
-  - clustering: LoD construction for semantic zoom (next phase)
+  - clustering: LoD construction and visible-slice selection for semantic zoom
 - Client app
   - layout: graph positioning strategies
   - render: renderer adapter (Sigma first)
@@ -33,17 +33,6 @@ Baseline dependency direction:
 - Server: core <- data <- clustering
 - Client: state -> layout and render
 - Cross-app: client depends only on server API contracts
-
-## Immediate Thesis Focus
-
-Current implementation focus is Server core plus data integration:
-
-1. Freeze CanonicalDataset contract.
-2. Implement deterministic normalization endpoint.
-3. Deliver stable payload to client layout and render flow.
-
-This is the smallest vertical slice that proves architecture integrity before
-clustering and advanced performance paths.
 
 ## Scale Strategy
 
@@ -60,50 +49,43 @@ baseline, not the final large-scale runtime model.
 
 ## Current Status
 
-Current baseline is implemented and tested for:
+The active prototype already implements and tests the main tree-first LoD path:
 
-1. Server normalization path (`POST /dataset/normalize`) for Newick and edge-list.
-2. Client communication module with runtime contract checks.
-3. Modular client render flow via workbench and renderer factory (Sigma + Mock adapters).
+1. deterministic normalization for Newick and edge-list inputs,
+2. optional edge distance preservation in the canonical contract,
+3. deterministic rooting/orientation for undirected tree-shaped datasets,
+4. server-side hierarchy precompute with subtree metrics and stable coordinates,
+5. viewport-aware visible-slice selection with contracted edges,
+6. explicit cluster proxies carried into Sigma rendering.
 
-Current limitations relative to the target architecture:
+This means the system is already beyond the "full dataset only" MVP. The
+runtime flow is now:
 
-- the active API still returns full normalized datasets,
-- the client still builds and stores full positioned graphs,
-- LoD hierarchy construction and viewport-aware querying are not active yet.
+1. `POST /dataset/prepare` normalizes and precomputes the hierarchy,
+2. `POST /dataset/view-slice` returns only the bounded visible slice,
+3. the client renders proxy-aware slices and can drill into collapsed subtrees.
 
-## Suggested First Server Slice
+Current limitations relative to the long-term architecture:
 
-Target endpoint:
+- hierarchy and selector internals are still Python-first and not yet memory-tuned for the largest targets,
+- viewport-aware selection is tree-specialized and not yet generalized to weighted non-tree clustering,
+- client interaction is LoD-aware, but broader caching and cluster analytics are still ahead.
 
-- POST /dataset/normalize
+## Implementation Notes For Thesis Writing
 
-Input:
+The current methodology can be described as a deterministic multistage LoD
+pipeline:
 
-- dataset payload (Newick or edge-list source)
-- optional ingest configuration
+1. parse and normalize source topology into `CanonicalDataset`,
+2. orient tree-shaped inputs into a rooted parent-child form when needed,
+3. build an indexed hierarchy from the oriented topology in explicit iterative passes,
+4. answer visible-slice queries using zoom, subtree size, bounds, and viewport,
+5. expose collapsed regions through representative proxy nodes rather than sending full subtrees.
 
-Output:
-
-- validated CanonicalDataset
-- deterministic metadata indexes
-- basic ingest statistics (counts and timings)
-
-Implementation order:
-
-1. core entities and validators
-2. data parser adapter and normalizer
-3. endpoint wiring and schema tests
-
-## Next Architecture Slice
-
-The next thesis-critical slice is not parser micro-optimization, but LoD
-infrastructure:
-
-1. define hierarchy and visible-slice contracts,
-2. precompute cluster hierarchy plus subtree statistics,
-3. expose server-side view queries,
-4. switch client orchestration from full-graph mode to visible-slice mode.
+The "proxy node" concept is important in the current implementation. A proxy is
+the visible representative of a collapsed subtree. It keeps connectivity visible
+at coarse levels and gives the client a deterministic drill-down handle without
+materializing hidden descendants.
 
 ## Contribution And PR Policy (Thesis)
 

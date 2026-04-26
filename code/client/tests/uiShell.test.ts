@@ -1,6 +1,27 @@
 import { UiShellController } from "../src/app/uiShell";
 import { GraphWorkbench } from "../src/app/graphWorkbench";
 
+function makeFakeWorkbench(renderedGraph: {
+  nodes: Array<{ id: string; x: number; y: number }>;
+  edges: Array<{ id?: string; source?: string; target?: string }>;
+  viewMeta: Record<string, unknown>;
+}) {
+  let graphRenderedHandler:
+    | ((graph: typeof renderedGraph) => void)
+    | null = null;
+
+  return {
+    renderNewick: vi.fn(async () => {
+      graphRenderedHandler?.(renderedGraph);
+      return renderedGraph;
+    }),
+    setGraphRenderedHandler: vi.fn((handler) => {
+      graphRenderedHandler = handler;
+    }),
+    dispose: vi.fn(),
+  } as unknown as GraphWorkbench;
+}
+
 describe("uiShell", () => {
   it("updates status after successful render", async () => {
     document.body.innerHTML = `
@@ -17,20 +38,17 @@ describe("uiShell", () => {
 
     input.value = "(A,B)Root;";
 
-    const fakeWorkbench = {
-      renderNewick: vi.fn(async () => ({
-        nodes: [{ id: "root", x: 0, y: 0 }],
-        edges: [],
-        viewMeta: {
-          layout: "force",
-          lodLevel: 0,
-          sliceNodeCount: 1,
-          collapsedClusterCount: 0,
-          zoom: 4,
-        },
-      })),
-      dispose: vi.fn(),
-    } as unknown as GraphWorkbench;
+    const fakeWorkbench = makeFakeWorkbench({
+      nodes: [{ id: "root", x: 0, y: 0 }],
+      edges: [],
+      viewMeta: {
+        layout: "force",
+        lodLevel: 0,
+        sliceNodeCount: 1,
+        collapsedClusterCount: 0,
+        zoom: 4,
+      },
+    });
 
     const shell = new UiShellController({
       workbench: fakeWorkbench,
@@ -64,14 +82,11 @@ describe("uiShell", () => {
 
     input.value = "   ";
 
-    const fakeWorkbench = {
-      renderNewick: vi.fn(async () => ({
-        nodes: [],
-        edges: [],
-        viewMeta: { layout: "force", lodLevel: 0 },
-      })),
-      dispose: vi.fn(),
-    } as unknown as GraphWorkbench;
+    const fakeWorkbench = makeFakeWorkbench({
+      nodes: [],
+      edges: [],
+      viewMeta: { layout: "force", lodLevel: 0 },
+    });
 
     const shell = new UiShellController({
       workbench: fakeWorkbench,
@@ -110,14 +125,11 @@ describe("uiShell", () => {
     input.value = "(A,B)Root;";
     ancillary.value = "{";
 
-    const fakeWorkbench = {
-      renderNewick: vi.fn(async () => ({
-        nodes: [],
-        edges: [],
-        viewMeta: { layout: "force", lodLevel: 0 },
-      })),
-      dispose: vi.fn(),
-    } as unknown as GraphWorkbench;
+    const fakeWorkbench = makeFakeWorkbench({
+      nodes: [],
+      edges: [],
+      viewMeta: { layout: "force", lodLevel: 0 },
+    });
 
     const shell = new UiShellController({
       workbench: fakeWorkbench,
@@ -162,14 +174,11 @@ describe("uiShell", () => {
     maxNodesInput.value = "2400";
     initialZoomInput.value = "3.5";
 
-    const fakeWorkbench = {
-      renderNewick: vi.fn(async () => ({
-        nodes: [{ id: "root", x: 0, y: 0 }],
-        edges: [],
-        viewMeta: { layout: "force", lodLevel: 1 },
-      })),
-      dispose: vi.fn(),
-    } as unknown as GraphWorkbench;
+    const fakeWorkbench = makeFakeWorkbench({
+      nodes: [{ id: "root", x: 0, y: 0 }],
+      edges: [],
+      viewMeta: { layout: "force", lodLevel: 1 },
+    });
 
     const shell = new UiShellController({
       workbench: fakeWorkbench,

@@ -10,6 +10,7 @@ from fastapi.params import Depends
 from phylo_lens_server.clustering.hierarchy import (
     HierarchyBuildError,
     build_tree_hierarchy,
+    orient_tree_dataset,
 )
 from phylo_lens_server.clustering.selector import (
     VisibleSliceSelectionError,
@@ -55,7 +56,11 @@ def get_dataset_store() -> DatasetStore:
     return DatasetStore(os.environ.get(ENV_STORE_DIR))
 
 
-@router.post(ROUTE_NORMALIZE, response_model=NormalizeResult)
+@router.post(
+    ROUTE_NORMALIZE,
+    response_model=NormalizeResult,
+    response_model_exclude_none=True,
+)
 def normalize(request: NormalizeRequest) -> NormalizeResult:
     """Normalize raw dataset payloads into canonical validated contracts."""
     try:
@@ -74,7 +79,11 @@ def normalize(request: NormalizeRequest) -> NormalizeResult:
         ) from exc
 
 
-@router.post(ROUTE_PREPARE, response_model=PrepareDatasetResult)
+@router.post(
+    ROUTE_PREPARE,
+    response_model=PrepareDatasetResult,
+    response_model_exclude_none=True,
+)
 def prepare_dataset(
     request: NormalizeRequest,
     store: DatasetStore = Depends(get_dataset_store),
@@ -84,13 +93,14 @@ def prepare_dataset(
         normalized = normalize_dataset(request)
 
         hierarchy_start = time.perf_counter()
-        hierarchy = build_tree_hierarchy(normalized.dataset)
+        oriented_dataset = orient_tree_dataset(normalized.dataset)
+        hierarchy = build_tree_hierarchy(oriented_dataset, assume_oriented=True)
         hierarchy_ms = (time.perf_counter() - hierarchy_start) * 1000
 
         store_start = time.perf_counter()
         store.save(
             PreparedDatasetRecord(
-                dataset=normalized.dataset,
+                dataset=oriented_dataset,
                 hierarchy=hierarchy,
                 warnings=normalized.warnings,
             )
@@ -98,10 +108,10 @@ def prepare_dataset(
         store_ms = (time.perf_counter() - store_start) * 1000
 
         return PrepareDatasetResult(
-            dataset_id=normalized.dataset.dataset_id,
+            dataset_id=oriented_dataset.dataset_id,
             stats=PrepareDatasetStats(
-                node_count=normalized.stats.node_count,
-                edge_count=normalized.stats.edge_count,
+                node_count=len(oriented_dataset.nodes),
+                edge_count=len(oriented_dataset.edges),
                 ingest_ms=normalized.stats.ingest_ms,
                 normalize_ms=normalized.stats.normalize_ms,
                 hierarchy_ms=round(hierarchy_ms, 3),
@@ -124,7 +134,11 @@ def prepare_dataset(
         ) from exc
 
 
-@router.post(ROUTE_VIEW_SLICE, response_model=VisibleSliceResponse)
+@router.post(
+    ROUTE_VIEW_SLICE,
+    response_model=VisibleSliceResponse,
+    response_model_exclude_none=True,
+)
 def view_slice(
     query: VisibleSliceQuery,
     store: DatasetStore = Depends(get_dataset_store),

@@ -24,8 +24,12 @@ def _viewport() -> Viewport:
     return Viewport(x=0, y=0, width=1000, height=600)
 
 
+def _viewport_at(x: float, y: float, width: float, height: float) -> Viewport:
+    return Viewport(x=x, y=y, width=width, height=height)
+
+
 def test_select_visible_slice_returns_overview_at_low_zoom() -> None:
-    """Confirm low zoom keeps only the root visible and collapses major subtrees."""
+    """Confirm low zoom shows contracted cluster representatives and their edges."""
     dataset, hierarchy = _balanced_dataset_and_hierarchy()
 
     response = select_visible_slice(
@@ -39,14 +43,25 @@ def test_select_visible_slice_returns_overview_at_low_zoom() -> None:
     )
 
     assert response.lod_level == 0
-    assert [node.id for node in response.nodes] == ["root"]
-    assert response.edges == []
+    assert [node.id for node in response.nodes] == ["root", "x", "y"]
+    assert [
+        (node.id, node.is_cluster_proxy, node.subtree_size, node.leaf_count)
+        for node in response.nodes
+    ] == [
+        ("root", True, 7, 4),
+        ("x", True, 3, 2),
+        ("y", True, 3, 2),
+    ]
+    assert [(edge.source, edge.target) for edge in response.edges] == [
+        ("root", "x"),
+        ("root", "y"),
+    ]
     assert [cluster.cluster_id for cluster in response.collapsed_clusters] == [
         "cluster_x",
         "cluster_y",
     ]
-    assert response.view_meta.returned_node_count == 1
-    assert response.view_meta.returned_edge_count == 0
+    assert response.view_meta.returned_node_count == 3
+    assert response.view_meta.returned_edge_count == 2
 
 
 def test_select_visible_slice_returns_full_detail_at_higher_zoom() -> None:
@@ -136,6 +151,9 @@ def test_select_visible_slice_prefers_lod_hint_when_present() -> None:
 
     assert response.lod_level == 1
     assert [node.id for node in response.nodes] == ["root", "x", "y"]
+    assert [node.is_cluster_proxy for node in response.nodes] == [False, True, True]
+
+
 
 
 def test_select_visible_slice_is_deterministic() -> None:
@@ -176,4 +194,28 @@ def test_select_visible_slice_prioritizes_focus_branch_when_bounded() -> None:
         ("root", "y"),
         ("y", "c"),
         ("y", "d"),
+    ]
+
+
+def test_select_visible_slice_prioritizes_viewport_overlap_when_bounded() -> None:
+    """Confirm viewport overlap biases bounded expansion toward the visible subtree."""
+    dataset, hierarchy = _balanced_dataset_and_hierarchy()
+
+    response = select_visible_slice(
+        dataset,
+        hierarchy,
+        VisibleSliceQuery(
+            dataset_id=DATASET_BALANCED,
+            viewport=_viewport_at(x=-120, y=150, width=200, height=240),
+            zoom=2.0,
+            max_nodes=5,
+        ),
+    )
+
+    assert [node.id for node in response.nodes] == ["root", "x", "y", "a", "b"]
+    assert [(edge.source, edge.target) for edge in response.edges] == [
+        ("root", "x"),
+        ("root", "y"),
+        ("x", "a"),
+        ("x", "b"),
     ]

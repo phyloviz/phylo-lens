@@ -7,6 +7,7 @@ import {
   GraphRenderer,
   RENDERER_KIND_SIGMA,
   RenderContext,
+  RenderNodeClickState,
   RendererKind,
   RenderViewportState,
 } from "../types";
@@ -17,13 +18,15 @@ import {
 } from "../pieMapping";
 
 export const SIGMA_DEFAULT_CAMERA_ZOOM = 1;
-export const SIGMA_MIN_CAMERA_RATIO = 0.02;
+export const SIGMA_MIN_CAMERA_RATIO = 0.002;
 export const SIGMA_MAX_CAMERA_RATIO = 10;
 export const SIGMA_ZOOMING_RATIO = 1.4;
 export const SIGMA_DEFAULT_NODE_SIZE = 6;
 export const SIGMA_DEFAULT_NODE_COLOR = "#0f766e";
 export const SIGMA_DEFAULT_EDGE_COLOR = "#94a3b8";
 export const SIGMA_DEFAULT_EDGE_SIZE = 1.25;
+export const SIGMA_DEFAULT_CAMERA_X = 0.5;
+export const SIGMA_DEFAULT_CAMERA_Y = 0.5;
 
 export const SIGMA_DEFAULT_LABEL_COLOR = "#0f172a";
 export const SIGMA_DEFAULT_LABEL_SIZE = 13;
@@ -59,6 +62,13 @@ export interface SigmaRendererOptions {
   };
 }
 
+interface GraphBounds {
+  minX: number;
+  maxX: number;
+  minY: number;
+  maxY: number;
+}
+
 // Sigma renderer adapter keeps Sigma-specific behavior isolated from core contracts.
 export class SigmaRenderer implements GraphRenderer {
   readonly kind: RendererKind = RENDERER_KIND_SIGMA;
@@ -68,12 +78,22 @@ export class SigmaRenderer implements GraphRenderer {
   private sigma: Sigma | null = null;
   private containerElement: HTMLElement | null = null;
   private pieSliceKeys: string[] = [];
+  private graphBounds: GraphBounds | null = null;
   private piechartOptions: SigmaPiechartOptions;
   private readonly rendererOptions: SigmaRendererOptions;
   private viewChangeHandler: ((state: RenderViewportState) => void) | null =
     null;
+  private nodeClickHandler: ((state: RenderNodeClickState) => void) | null =
+    null;
+  private suppressNextViewChange = false;
   private readonly boundCameraUpdated = () => {
     this.emitViewChange();
+  };
+  private readonly boundNodeClicked = (payload: {
+    node?: string;
+    event?: { node?: string };
+  }) => {
+    this.emitNodeClick(payload);
   };
 
   constructor(options: SigmaRendererOptions = {}) {
@@ -114,6 +134,7 @@ export class SigmaRenderer implements GraphRenderer {
     });
     this.sigma.getCamera().setState({ ratio: SIGMA_DEFAULT_CAMERA_ZOOM });
     this.bindCameraHandler();
+    this.bindNodeClickHandler();
   }
 
   // Render positioned nodes and edges into Graphology then refresh Sigma.
@@ -124,6 +145,7 @@ export class SigmaRenderer implements GraphRenderer {
 
     // Clear previous frame first so Sigma rebuilds never see stale piechart nodes.
     this.graph.clear();
+    this.graphBounds = deriveGraphBounds(graph);
     this.ensureSigmaPiePrograms(graph);
 
     graph.nodes.forEach((node) => {
@@ -179,8 +201,60 @@ export class SigmaRenderer implements GraphRenderer {
     this.viewChangeHandler = handler;
   }
 
+  setNodeClickHandler(
+    handler: ((state: RenderNodeClickState) => void) | null,
+  ): void {
+    this.nodeClickHandler = handler;
+  }
+
+  centerOnNode(nodeId: string): void {
+    if (!this.sigma || !this.graphBounds || !this.graph?.hasNode(nodeId)) {
+      return;
+    }
+
+    const attributes = this.graph.getNodeAttributes(nodeId) as Record<
+      string,
+      unknown
+    >;
+    const nodeX =
+      typeof attributes.x === "number" && Number.isFinite(attributes.x)
+        ? attributes.x
+        : null;
+    const nodeY =
+      typeof attributes.y === "number" && Number.isFinite(attributes.y)
+        ? attributes.y
+        : null;
+    if (nodeX === null || nodeY === null) {
+      return;
+    }
+
+    const camera = this.sigma.getCamera() as {
+      x?: number;
+      y?: number;
+      ratio?: number;
+      getState?: () => { x?: number; y?: number; ratio?: number };
+      setState: (state: { x?: number; y?: number; ratio?: number }) => void;
+    };
+    const currentState = camera.getState?.() ?? camera;
+    const nextCenter = graphCoordinatesToCameraCenter(this.graphBounds, {
+      x: nodeX,
+      y: nodeY,
+    });
+
+    this.suppressNextViewChange = true;
+    camera.setState({
+      x: nextCenter.x,
+      y: nextCenter.y,
+      ratio:
+        typeof currentState.ratio === "number" && Number.isFinite(currentState.ratio)
+          ? currentState.ratio
+          : SIGMA_DEFAULT_CAMERA_ZOOM,
+    });
+  }
+
   // Drop container and graph references when renderer is detached.
   unmount(): void {
+    this.unbindNodeClickHandler();
     this.unbindCameraHandler();
     this.sigma?.kill();
     this.sigma = null;
@@ -188,6 +262,7 @@ export class SigmaRenderer implements GraphRenderer {
     this.containerElement = null;
     this.containerId = null;
     this.pieSliceKeys = [];
+    this.graphBounds = null;
   }
 
   private ensureSigmaPiePrograms(graph: PositionedGraph): void {
@@ -242,6 +317,7 @@ export class SigmaRenderer implements GraphRenderer {
       );
       this.restoreCameraState(previousCameraState);
       this.bindCameraHandler();
+      this.bindNodeClickHandler();
       return;
     }
 
@@ -290,6 +366,7 @@ export class SigmaRenderer implements GraphRenderer {
     );
     this.restoreCameraState(previousCameraState);
     this.bindCameraHandler();
+    this.bindNodeClickHandler();
   }
 
   private bindCameraHandler(): void {
@@ -303,6 +380,23 @@ export class SigmaRenderer implements GraphRenderer {
     camera?.on?.("updated", this.boundCameraUpdated);
   }
 
+  private bindNodeClickHandler(): void {
+    const sigma = this.sigma as
+      | {
+          on?: (
+            event: string,
+            handler: (payload: { node?: string; event?: { node?: string } }) => void,
+          ) => void;
+          off?: (
+            event: string,
+            handler: (payload: { node?: string; event?: { node?: string } }) => void,
+          ) => void;
+        }
+      | null;
+    sigma?.off?.("clickNode", this.boundNodeClicked);
+    sigma?.on?.("clickNode", this.boundNodeClicked);
+  }
+
   private unbindCameraHandler(): void {
     const camera = this.sigma?.getCamera() as
       | {
@@ -312,8 +406,30 @@ export class SigmaRenderer implements GraphRenderer {
     camera?.off?.("updated", this.boundCameraUpdated);
   }
 
+  private unbindNodeClickHandler(): void {
+    const sigma = this.sigma as
+      | {
+          off?: (
+            event: string,
+            handler: (payload: { node?: string; event?: { node?: string } }) => void,
+          ) => void;
+        }
+      | null;
+    sigma?.off?.("clickNode", this.boundNodeClicked);
+  }
+
   private emitViewChange(): void {
-    if (!this.viewChangeHandler || !this.sigma || !this.containerElement) {
+    if (this.suppressNextViewChange) {
+      this.suppressNextViewChange = false;
+      return;
+    }
+
+    if (
+      !this.viewChangeHandler ||
+      !this.sigma ||
+      !this.containerElement ||
+      !this.graphBounds
+    ) {
       return;
     }
 
@@ -328,17 +444,42 @@ export class SigmaRenderer implements GraphRenderer {
       typeof state.ratio === "number" && Number.isFinite(state.ratio)
         ? state.ratio
         : SIGMA_DEFAULT_CAMERA_ZOOM;
+    const viewport = sigmaCameraToViewportState(this.graphBounds, {
+      x: typeof state.x === "number" ? state.x : SIGMA_DEFAULT_CAMERA_X,
+      y: typeof state.y === "number" ? state.y : SIGMA_DEFAULT_CAMERA_Y,
+      ratio,
+    });
 
     this.viewChangeHandler({
-      viewport: {
-        x:
-          typeof state.x === "number" && Number.isFinite(state.x) ? state.x : 0,
-        y:
-          typeof state.y === "number" && Number.isFinite(state.y) ? state.y : 0,
-        width: this.containerElement.clientWidth,
-        height: this.containerElement.clientHeight,
-      },
+      viewport,
       zoom: sigmaRatioToLodZoom(ratio),
+    });
+  }
+
+  private emitNodeClick(payload: {
+    node?: string;
+    event?: { node?: string };
+  }): void {
+    if (!this.nodeClickHandler || !this.graph) {
+      return;
+    }
+
+    const nodeId =
+      typeof payload.node === "string"
+        ? payload.node
+        : typeof payload.event?.node === "string"
+          ? payload.event.node
+          : undefined;
+    if (!nodeId || !this.graph.hasNode(nodeId)) {
+      return;
+    }
+
+    this.nodeClickHandler({
+      nodeId,
+      attributes: this.graph.getNodeAttributes(nodeId) as Record<
+        string,
+        unknown
+      >,
     });
   }
 
@@ -378,6 +519,40 @@ export function sigmaRatioToLodZoom(ratio: number): number {
     return 1.5;
   }
   return Math.max(0.5, 2 - Math.log2(ratio));
+}
+
+export function sigmaCameraToViewportState(
+  bounds: GraphBounds,
+  camera: { x?: number; y?: number; ratio?: number },
+): RenderViewportState["viewport"] {
+  const spanX = Math.max(bounds.maxX - bounds.minX, 1);
+  const spanY = Math.max(bounds.maxY - bounds.minY, 1);
+  const normalizedX = clampUnit(camera.x ?? SIGMA_DEFAULT_CAMERA_X);
+  const normalizedY = clampUnit(camera.y ?? SIGMA_DEFAULT_CAMERA_Y);
+  const ratio =
+    typeof camera.ratio === "number" && Number.isFinite(camera.ratio)
+      ? Math.max(camera.ratio, SIGMA_MIN_CAMERA_RATIO)
+      : SIGMA_DEFAULT_CAMERA_ZOOM;
+
+  return {
+    x: bounds.minX + normalizedX * spanX,
+    y: bounds.minY + normalizedY * spanY,
+    width: spanX * ratio,
+    height: spanY * ratio,
+  };
+}
+
+export function graphCoordinatesToCameraCenter(
+  bounds: GraphBounds,
+  point: { x: number; y: number },
+): { x: number; y: number } {
+  const spanX = Math.max(bounds.maxX - bounds.minX, 1);
+  const spanY = Math.max(bounds.maxY - bounds.minY, 1);
+
+  return {
+    x: clampUnit((point.x - bounds.minX) / spanX),
+    y: clampUnit((point.y - bounds.minY) / spanY),
+  };
 }
 
 function toPositiveNumber(value: unknown): number {
@@ -423,6 +598,33 @@ function resolvePaletteFromGraph(
   }
 
   return undefined;
+}
+
+function deriveGraphBounds(graph: PositionedGraph): GraphBounds | null {
+  if (graph.nodes.length === 0) {
+    return null;
+  }
+
+  let minX = graph.nodes[0]?.x ?? 0;
+  let maxX = minX;
+  let minY = graph.nodes[0]?.y ?? 0;
+  let maxY = minY;
+
+  graph.nodes.forEach((node) => {
+    minX = Math.min(minX, node.x);
+    maxX = Math.max(maxX, node.x);
+    minY = Math.min(minY, node.y);
+    maxY = Math.max(maxY, node.y);
+  });
+
+  return { minX, maxX, minY, maxY };
+}
+
+function clampUnit(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 0.5;
+  }
+  return Math.min(1, Math.max(0, value));
 }
 
 function deriveNodeLabel(
