@@ -3,6 +3,7 @@ import Sigma from "sigma";
 import { createNodePiechartProgram } from "@sigma/node-piechart";
 
 import { PositionedGraph } from "../../contracts/positioned";
+import { TriangleNodeProgram } from "../nodePrograms/triangleNodeProgram";
 import {
   GraphRenderer,
   RENDERER_KIND_SIGMA,
@@ -20,6 +21,7 @@ import {
 export const SIGMA_DEFAULT_CAMERA_ZOOM = 1;
 export const SIGMA_MIN_CAMERA_RATIO = 0.002;
 export const SIGMA_MAX_CAMERA_RATIO = 10;
+export const SIGMA_MAX_LOD_ZOOM = 8;
 export const SIGMA_ZOOMING_RATIO = 1.4;
 export const SIGMA_DEFAULT_NODE_SIZE = 6;
 export const SIGMA_DEFAULT_NODE_COLOR = "#0f766e";
@@ -35,6 +37,7 @@ export const SIGMA_DEFAULT_LABEL_GRID_CELL_SIZE = 90;
 export const SIGMA_DEFAULT_LABEL_RENDERED_SIZE_THRESHOLD = 4;
 
 export const SIGMA_NODE_TYPE_DEFAULT = "circle";
+export const SIGMA_NODE_TYPE_TRIANGLE = "triangle";
 export const SIGMA_NODE_TYPE_PIECHART = "piechart";
 
 export const ERR_CONTAINER_NOT_FOUND =
@@ -68,6 +71,8 @@ interface GraphBounds {
   minY: number;
   maxY: number;
 }
+
+type SigmaNodeProgramClasses = Record<string, unknown>;
 
 // Sigma renderer adapter keeps Sigma-specific behavior isolated from core contracts.
 export class SigmaRenderer implements GraphRenderer {
@@ -114,24 +119,11 @@ export class SigmaRenderer implements GraphRenderer {
 
     this.containerElement = container;
     this.graph = new Graph();
-    this.sigma = new Sigma(this.graph, this.containerElement, {
-      renderLabels: this.rendererOptions.label?.enabled !== false,
-      minCameraRatio: SIGMA_MIN_CAMERA_RATIO,
-      maxCameraRatio: SIGMA_MAX_CAMERA_RATIO,
-      zoomingRatio: SIGMA_ZOOMING_RATIO,
-      labelRenderedSizeThreshold:
-        this.rendererOptions.label?.renderedSizeThreshold ??
-        SIGMA_DEFAULT_LABEL_RENDERED_SIZE_THRESHOLD,
-      labelDensity:
-        this.rendererOptions.label?.density ?? SIGMA_DEFAULT_LABEL_DENSITY,
-      labelGridCellSize:
-        this.rendererOptions.label?.gridCellSize ??
-        SIGMA_DEFAULT_LABEL_GRID_CELL_SIZE,
-      labelColor: {
-        color: this.rendererOptions.label?.color ?? SIGMA_DEFAULT_LABEL_COLOR,
-      },
-      labelSize: this.rendererOptions.label?.size ?? SIGMA_DEFAULT_LABEL_SIZE,
-    });
+    this.sigma = new Sigma(
+      this.graph,
+      this.containerElement,
+      this.buildSigmaSettings(),
+    );
     this.sigma.getCamera().setState({ ratio: SIGMA_DEFAULT_CAMERA_ZOOM });
     this.bindCameraHandler();
     this.bindNodeClickHandler();
@@ -152,10 +144,13 @@ export class SigmaRenderer implements GraphRenderer {
       const hasPieData = this.pieSliceKeys.some(
         (key) => toPositiveNumber(node.attributes?.[key]) > 0,
       );
+      const isClusterProxy = node.attributes?.is_cluster_proxy === true;
       const nodeType =
         hasPieData && this.pieSliceKeys.length > 0
           ? SIGMA_NODE_TYPE_PIECHART
-          : SIGMA_NODE_TYPE_DEFAULT;
+          : isClusterProxy
+            ? SIGMA_NODE_TYPE_TRIANGLE
+            : SIGMA_NODE_TYPE_DEFAULT;
 
       const pieAttributes: Record<string, number> = {};
       this.pieSliceKeys.forEach((key) => {
@@ -246,7 +241,8 @@ export class SigmaRenderer implements GraphRenderer {
       x: nextCenter.x,
       y: nextCenter.y,
       ratio:
-        typeof currentState.ratio === "number" && Number.isFinite(currentState.ratio)
+        typeof currentState.ratio === "number" &&
+        Number.isFinite(currentState.ratio)
           ? currentState.ratio
           : SIGMA_DEFAULT_CAMERA_ZOOM,
     });
@@ -294,26 +290,7 @@ export class SigmaRenderer implements GraphRenderer {
       this.sigma = new Sigma(
         this.graph as Graph,
         this.containerElement as HTMLElement,
-        {
-          renderLabels: this.rendererOptions.label?.enabled !== false,
-          minCameraRatio: SIGMA_MIN_CAMERA_RATIO,
-          maxCameraRatio: SIGMA_MAX_CAMERA_RATIO,
-          zoomingRatio: SIGMA_ZOOMING_RATIO,
-          labelRenderedSizeThreshold:
-            this.rendererOptions.label?.renderedSizeThreshold ??
-            SIGMA_DEFAULT_LABEL_RENDERED_SIZE_THRESHOLD,
-          labelDensity:
-            this.rendererOptions.label?.density ?? SIGMA_DEFAULT_LABEL_DENSITY,
-          labelGridCellSize:
-            this.rendererOptions.label?.gridCellSize ??
-            SIGMA_DEFAULT_LABEL_GRID_CELL_SIZE,
-          labelColor: {
-            color:
-              this.rendererOptions.label?.color ?? SIGMA_DEFAULT_LABEL_COLOR,
-          },
-          labelSize:
-            this.rendererOptions.label?.size ?? SIGMA_DEFAULT_LABEL_SIZE,
-        },
+        this.buildSigmaSettings(),
       );
       this.restoreCameraState(previousCameraState);
       this.bindCameraHandler();
@@ -342,31 +319,40 @@ export class SigmaRenderer implements GraphRenderer {
     this.sigma = new Sigma(
       this.graph as Graph,
       this.containerElement as HTMLElement,
-      {
-        renderLabels: this.rendererOptions.label?.enabled !== false,
-        minCameraRatio: SIGMA_MIN_CAMERA_RATIO,
-        maxCameraRatio: SIGMA_MAX_CAMERA_RATIO,
-        zoomingRatio: SIGMA_ZOOMING_RATIO,
-        labelRenderedSizeThreshold:
-          this.rendererOptions.label?.renderedSizeThreshold ??
-          SIGMA_DEFAULT_LABEL_RENDERED_SIZE_THRESHOLD,
-        labelDensity:
-          this.rendererOptions.label?.density ?? SIGMA_DEFAULT_LABEL_DENSITY,
-        labelGridCellSize:
-          this.rendererOptions.label?.gridCellSize ??
-          SIGMA_DEFAULT_LABEL_GRID_CELL_SIZE,
-        labelColor: {
-          color: this.rendererOptions.label?.color ?? SIGMA_DEFAULT_LABEL_COLOR,
-        },
-        labelSize: this.rendererOptions.label?.size ?? SIGMA_DEFAULT_LABEL_SIZE,
-        nodeProgramClasses: {
-          [SIGMA_NODE_TYPE_PIECHART]: NodePiechartProgram,
-        },
-      },
+      this.buildSigmaSettings({
+        [SIGMA_NODE_TYPE_PIECHART]: NodePiechartProgram,
+      }),
     );
     this.restoreCameraState(previousCameraState);
     this.bindCameraHandler();
     this.bindNodeClickHandler();
+  }
+
+  private buildSigmaSettings(
+    nodeProgramClasses: SigmaNodeProgramClasses = {},
+  ): Record<string, unknown> {
+    return {
+      renderLabels: this.rendererOptions.label?.enabled !== false,
+      minCameraRatio: SIGMA_MIN_CAMERA_RATIO,
+      maxCameraRatio: SIGMA_MAX_CAMERA_RATIO,
+      zoomingRatio: SIGMA_ZOOMING_RATIO,
+      labelRenderedSizeThreshold:
+        this.rendererOptions.label?.renderedSizeThreshold ??
+        SIGMA_DEFAULT_LABEL_RENDERED_SIZE_THRESHOLD,
+      labelDensity:
+        this.rendererOptions.label?.density ?? SIGMA_DEFAULT_LABEL_DENSITY,
+      labelGridCellSize:
+        this.rendererOptions.label?.gridCellSize ??
+        SIGMA_DEFAULT_LABEL_GRID_CELL_SIZE,
+      labelColor: {
+        color: this.rendererOptions.label?.color ?? SIGMA_DEFAULT_LABEL_COLOR,
+      },
+      labelSize: this.rendererOptions.label?.size ?? SIGMA_DEFAULT_LABEL_SIZE,
+      nodeProgramClasses: {
+        [SIGMA_NODE_TYPE_TRIANGLE]: TriangleNodeProgram,
+        ...nodeProgramClasses,
+      },
+    };
   }
 
   private bindCameraHandler(): void {
@@ -381,18 +367,22 @@ export class SigmaRenderer implements GraphRenderer {
   }
 
   private bindNodeClickHandler(): void {
-    const sigma = this.sigma as
-      | {
-          on?: (
-            event: string,
-            handler: (payload: { node?: string; event?: { node?: string } }) => void,
-          ) => void;
-          off?: (
-            event: string,
-            handler: (payload: { node?: string; event?: { node?: string } }) => void,
-          ) => void;
-        }
-      | null;
+    const sigma = this.sigma as {
+      on?: (
+        event: string,
+        handler: (payload: {
+          node?: string;
+          event?: { node?: string };
+        }) => void,
+      ) => void;
+      off?: (
+        event: string,
+        handler: (payload: {
+          node?: string;
+          event?: { node?: string };
+        }) => void,
+      ) => void;
+    } | null;
     sigma?.off?.("clickNode", this.boundNodeClicked);
     sigma?.on?.("clickNode", this.boundNodeClicked);
   }
@@ -407,14 +397,15 @@ export class SigmaRenderer implements GraphRenderer {
   }
 
   private unbindNodeClickHandler(): void {
-    const sigma = this.sigma as
-      | {
-          off?: (
-            event: string,
-            handler: (payload: { node?: string; event?: { node?: string } }) => void,
-          ) => void;
-        }
-      | null;
+    const sigma = this.sigma as {
+      off?: (
+        event: string,
+        handler: (payload: {
+          node?: string;
+          event?: { node?: string };
+        }) => void,
+      ) => void;
+    } | null;
     sigma?.off?.("clickNode", this.boundNodeClicked);
   }
 
@@ -483,9 +474,7 @@ export class SigmaRenderer implements GraphRenderer {
     });
   }
 
-  private readCameraState():
-    | { x?: number; y?: number; ratio?: number }
-    | null {
+  private readCameraState(): { x?: number; y?: number; ratio?: number } | null {
     if (!this.sigma) {
       return null;
     }
@@ -516,9 +505,11 @@ export class SigmaRenderer implements GraphRenderer {
 
 export function sigmaRatioToLodZoom(ratio: number): number {
   if (!Number.isFinite(ratio) || ratio <= 0) {
-    return 1.5;
+    return 0.5;
   }
-  return Math.max(0.5, 2 - Math.log2(ratio));
+
+  const zoom = 1 + Math.log2(1 / ratio);
+  return Math.min(SIGMA_MAX_LOD_ZOOM, Math.max(0.5, zoom));
 }
 
 export function sigmaCameraToViewportState(

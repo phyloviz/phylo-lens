@@ -1,5 +1,15 @@
+let lastSigmaOptions: Record<string, unknown> | null = null;
+
 vi.mock("sigma", () => {
   class FakeSigma {
+    constructor(
+      _graph?: unknown,
+      _container?: unknown,
+      options?: Record<string, unknown>,
+    ) {
+      lastSigmaOptions = options ?? null;
+    }
+
     getCamera() {
       return {
         setState: () => undefined,
@@ -20,6 +30,7 @@ vi.mock("sigma", () => {
 
 import {
   ERR_CONTAINER_NOT_FOUND,
+  SIGMA_MAX_LOD_ZOOM,
   SigmaRenderer,
   sigmaCameraToViewportState,
   sigmaRatioToLodZoom,
@@ -54,14 +65,30 @@ describe("sigmaRenderer", () => {
     renderer.unmount();
   });
 
+  it("registers a triangle node program for expandable cluster proxies", () => {
+    document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
+
+    const renderer = new SigmaRenderer();
+    renderer.mount({ containerId: CONTAINER_ID });
+
+    const nodeProgramClasses = lastSigmaOptions?.[
+      "nodeProgramClasses"
+    ] as Record<string, unknown> | undefined;
+
+    expect(nodeProgramClasses).toBeDefined();
+    expect(nodeProgramClasses?.["triangle"]).toBeDefined();
+
+    renderer.unmount();
+  });
+
   it("maps deeper camera zoom to progressively higher lod zoom values", () => {
-    expect(sigmaRatioToLodZoom(2)).toBe(1);
-    expect(sigmaRatioToLodZoom(1)).toBe(2);
-    expect(sigmaRatioToLodZoom(0.5)).toBe(3);
-    expect(sigmaRatioToLodZoom(0.25)).toBe(4);
-    expect(sigmaRatioToLodZoom(0.125)).toBe(5);
-    expect(sigmaRatioToLodZoom(0.05)).toBeGreaterThan(6);
-    expect(sigmaRatioToLodZoom(0.002)).toBeGreaterThan(10);
+    expect(sigmaRatioToLodZoom(2)).toBe(0.5);
+    expect(sigmaRatioToLodZoom(1)).toBe(1);
+    expect(sigmaRatioToLodZoom(0.5)).toBe(2);
+    expect(sigmaRatioToLodZoom(0.25)).toBe(3);
+    expect(sigmaRatioToLodZoom(0.125)).toBe(4);
+    expect(sigmaRatioToLodZoom(0.05)).toBeGreaterThanOrEqual(5);
+    expect(sigmaRatioToLodZoom(0.002)).toBe(SIGMA_MAX_LOD_ZOOM);
   });
 
   it("translates sigma camera state into graph-space viewport bounds", () => {

@@ -4,7 +4,7 @@ import {
 } from "../src/app/graphWorkbench";
 import { MetadataField } from "../src/contracts/canonical";
 import { DatasetClient } from "../src/api/datasetClient";
-import { LAYOUT_FORCE } from "../src/contracts/positioned";
+import { LAYOUT_SERVER } from "../src/contracts/positioned";
 import {
   GraphRenderer,
   RENDERER_KIND_MOCK,
@@ -96,8 +96,21 @@ class ClickableTestRenderer implements GraphRenderer {
     this.nodeClickHandler?.(state);
   }
 
+  emitViewChange(state: RenderViewportState): void {
+    this.viewChangeHandler?.(state);
+  }
+
   centerOnNode(nodeId: string): void {
     this.lastCenteredNodeId = nodeId;
+  }
+}
+
+class RenderUpdatingRenderer extends ClickableTestRenderer {
+  override render(_graph: unknown): void {
+    this.emitViewChange({
+      viewport: { x: 0, y: 0, width: 1000, height: 600 },
+      zoom: 1,
+    });
   }
 }
 
@@ -121,7 +134,9 @@ describe("graphWorkbench", () => {
     const fetchImpl = vi
       .fn()
       .mockResolvedValueOnce(makeJsonResponse(PREPARE_RESPONSE))
-      .mockResolvedValueOnce(makeJsonResponse(VIEW_SLICE_RESPONSE)) as unknown as typeof fetch;
+      .mockResolvedValueOnce(
+        makeJsonResponse(VIEW_SLICE_RESPONSE),
+      ) as unknown as typeof fetch;
 
     const datasetClient = new DatasetClient({ baseUrl: BASE_URL, fetchImpl });
     const workbench = new GraphWorkbench({
@@ -136,11 +151,14 @@ describe("graphWorkbench", () => {
     expect(graph.nodes).toHaveLength(3);
     expect(graph.edges).toHaveLength(2);
     expect(graph.viewMeta.lodLevel).toBe(1);
-    expect(graph.nodes.map((node) => [node.id, node.x, node.y])).toEqual([
-      ["root", 0, 0],
-      ["a", -75, 170],
-      ["b", 75, 170],
-    ]);
+    const nodeById = Object.fromEntries(
+      graph.nodes.map((node) => [node.id, node]),
+    );
+    expect(Number.isFinite(nodeById["root"]?.x)).toBe(true);
+    expect(Number.isFinite(nodeById["root"]?.y)).toBe(true);
+    expect(Number.isFinite(nodeById["a"]?.x)).toBe(true);
+    expect(Number.isFinite(nodeById["b"]?.y)).toBe(true);
+    expect(nodeById["a"]?.x).not.toBe(nodeById["b"]?.x);
     expect(
       (fetchImpl as unknown as ReturnType<typeof vi.fn>).mock.calls.map(
         (call) => String(call[0]),
@@ -153,11 +171,13 @@ describe("graphWorkbench", () => {
     workbench.dispose();
   });
 
-  it("applies force refinement over server-provided hierarchy coordinates when requested", async () => {
+  it("uses server-provided hierarchy coordinates as authoritative positions", async () => {
     const fetchImpl = vi
       .fn()
       .mockResolvedValueOnce(makeJsonResponse(PREPARE_RESPONSE))
-      .mockResolvedValueOnce(makeJsonResponse(VIEW_SLICE_RESPONSE)) as unknown as typeof fetch;
+      .mockResolvedValueOnce(
+        makeJsonResponse(VIEW_SLICE_RESPONSE),
+      ) as unknown as typeof fetch;
 
     const datasetClient = new DatasetClient({ baseUrl: BASE_URL, fetchImpl });
     const workbench = new GraphWorkbench({
@@ -169,17 +189,16 @@ describe("graphWorkbench", () => {
 
     const graph = await workbench.renderNewick(NEWICK_CONTENT, DATASET_NAME, {
       layout: {
-        mode: "force",
         forceIterations: 2,
       },
     });
 
     expect(graph.nodes).toHaveLength(3);
-    expect(graph.viewMeta.layout).toBe(LAYOUT_FORCE);
-    expect(graph.nodes.map((node) => [node.id, node.x, node.y])).not.toEqual([
+    expect(graph.viewMeta.layout).toBe(LAYOUT_SERVER);
+    expect(graph.nodes.map((node) => [node.id, node.x, node.y])).toEqual([
       ["root", 0, 0],
-      ["a", -60, 150],
-      ["b", 60, 150],
+      ["a", -75, 170],
+      ["b", 75, 170],
     ]);
 
     workbench.dispose();
@@ -189,7 +208,9 @@ describe("graphWorkbench", () => {
     const fetchImpl = vi
       .fn()
       .mockResolvedValueOnce(makeJsonResponse(PREPARE_RESPONSE))
-      .mockResolvedValueOnce(makeJsonResponse(VIEW_SLICE_RESPONSE)) as unknown as typeof fetch;
+      .mockResolvedValueOnce(
+        makeJsonResponse(VIEW_SLICE_RESPONSE),
+      ) as unknown as typeof fetch;
 
     const datasetClient = new DatasetClient({ baseUrl: BASE_URL, fetchImpl });
     const workbench = new GraphWorkbench({
@@ -223,7 +244,9 @@ describe("graphWorkbench", () => {
     const fetchImpl = vi
       .fn()
       .mockResolvedValueOnce(makeJsonResponse(PREPARE_RESPONSE))
-      .mockResolvedValueOnce(makeJsonResponse(VIEW_SLICE_RESPONSE)) as unknown as typeof fetch;
+      .mockResolvedValueOnce(
+        makeJsonResponse(VIEW_SLICE_RESPONSE),
+      ) as unknown as typeof fetch;
 
     const datasetClient = new DatasetClient({ baseUrl: BASE_URL, fetchImpl });
     const workbench = new GraphWorkbench({
@@ -251,7 +274,9 @@ describe("graphWorkbench", () => {
     const fetchImpl = vi
       .fn()
       .mockResolvedValueOnce(makeJsonResponse(PREPARE_RESPONSE))
-      .mockResolvedValueOnce(makeJsonResponse(VIEW_SLICE_RESPONSE)) as unknown as typeof fetch;
+      .mockResolvedValueOnce(
+        makeJsonResponse(VIEW_SLICE_RESPONSE),
+      ) as unknown as typeof fetch;
 
     const datasetClient = new DatasetClient({ baseUrl: BASE_URL, fetchImpl });
     const workbench = new GraphWorkbench({
@@ -329,7 +354,9 @@ describe("graphWorkbench", () => {
       .fn()
       .mockResolvedValueOnce(makeJsonResponse(PREPARE_RESPONSE))
       .mockResolvedValueOnce(makeJsonResponse(proxySliceResponse))
-      .mockResolvedValueOnce(makeJsonResponse(focusedSliceResponse)) as unknown as typeof fetch;
+      .mockResolvedValueOnce(
+        makeJsonResponse(focusedSliceResponse),
+      ) as unknown as typeof fetch;
 
     const datasetClient = new DatasetClient({ baseUrl: BASE_URL, fetchImpl });
     const renderer = new ClickableTestRenderer();
@@ -357,20 +384,100 @@ describe("graphWorkbench", () => {
 
     const finalCall = (fetchImpl as unknown as ReturnType<typeof vi.fn>).mock
       .calls[2];
-    const body = JSON.parse(String((finalCall?.[1] as RequestInit)?.body ?? "{}")) as Record<
-      string,
-      unknown
-    >;
+    const body = JSON.parse(
+      String((finalCall?.[1] as RequestInit)?.body ?? "{}"),
+    ) as Record<string, unknown>;
 
     expect(String(finalCall?.[0])).toBe(`${BASE_URL}/dataset/view-slice`);
     expect(body.focus_node_id).toBe("x");
     expect(body.zoom).toBe(5);
     expect(body.viewport).toEqual({
-      x: -75,
-      y: 170,
+      x: expect.any(Number),
+      y: expect.any(Number),
       width: 1000,
       height: 600,
     });
+
+    workbench.dispose();
+  });
+
+  it("keeps the camera stable when refreshing semantic zoom on viewport changes", async () => {
+    vi.useFakeTimers();
+    try {
+      const fetchImpl = vi
+        .fn()
+        .mockResolvedValueOnce(makeJsonResponse(PREPARE_RESPONSE))
+        .mockResolvedValueOnce(makeJsonResponse(VIEW_SLICE_RESPONSE))
+        .mockResolvedValueOnce(
+          makeJsonResponse(VIEW_SLICE_RESPONSE),
+        ) as unknown as typeof fetch;
+
+      const datasetClient = new DatasetClient({ baseUrl: BASE_URL, fetchImpl });
+      const renderer = new ClickableTestRenderer();
+      const workbench = new GraphWorkbench({
+        datasetClient,
+        rendererFactory: new StaticRendererFactory(renderer),
+        rendererKind: RENDERER_KIND_MOCK,
+        renderContext: { containerId: "graph-root" },
+      });
+
+      await workbench.renderNewick(NEWICK_CONTENT, DATASET_NAME, {
+        lod: {
+          zoom: 4,
+        },
+      });
+
+      expect(renderer.lastCenteredNodeId).toBeNull();
+
+      await vi.advanceTimersByTimeAsync(150);
+
+      renderer.emitViewChange({
+        viewport: { x: 0, y: 0, width: 1000, height: 600 },
+        zoom: 5,
+      });
+
+      await vi.advanceTimersByTimeAsync(250);
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(renderer.lastCenteredNodeId).toBeNull();
+      expect(
+        (fetchImpl as unknown as ReturnType<typeof vi.fn>).mock.calls,
+      ).toHaveLength(3);
+
+      workbench.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("ignores renderer-originated view changes immediately after render", async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(makeJsonResponse(PREPARE_RESPONSE))
+      .mockResolvedValueOnce(
+        makeJsonResponse(VIEW_SLICE_RESPONSE),
+      ) as unknown as typeof fetch;
+
+    const datasetClient = new DatasetClient({ baseUrl: BASE_URL, fetchImpl });
+    const renderer = new RenderUpdatingRenderer();
+    const workbench = new GraphWorkbench({
+      datasetClient,
+      rendererFactory: new StaticRendererFactory(renderer),
+      rendererKind: RENDERER_KIND_MOCK,
+      renderContext: { containerId: "graph-root" },
+    });
+
+    await workbench.renderNewick(NEWICK_CONTENT, DATASET_NAME);
+
+    expect(
+      (fetchImpl as unknown as ReturnType<typeof vi.fn>).mock.calls.map(
+        (call) => String(call[0]),
+      ),
+    ).toEqual([
+      `${BASE_URL}/dataset/prepare`,
+      `${BASE_URL}/dataset/view-slice`,
+    ]);
 
     workbench.dispose();
   });

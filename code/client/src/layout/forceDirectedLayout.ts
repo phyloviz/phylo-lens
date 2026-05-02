@@ -11,35 +11,48 @@ import {
 
 export const DEFAULT_LAYER_GAP = 170;
 export const DEFAULT_NODE_GAP = 150;
-export const DEFAULT_ROOT_Y = 0;
 export const DEFAULT_FORCEATLAS2_ITERATIONS = 220;
 export const FORCEATLAS2_SEED_SPREAD_X = 320;
 export const FORCEATLAS2_SEED_SPREAD_Y = 220;
 export const FORCEATLAS2_PROXY_RADIUS = 140;
+export const FORCEATLAS2_ANCHOR_BLEND = 0.2;
+export const FORCEATLAS2_COLLINEAR_Y_RATIO = 0.12;
+export const FORCEATLAS2_COLLINEAR_ANCHOR_SCALE = 0.25;
 export const LAYOUT_MODE_FORCE = "force";
 
-export type TreeLayoutMode = typeof LAYOUT_MODE_FORCE;
+export type ForceLayoutMode = typeof LAYOUT_MODE_FORCE;
 
-export interface SimpleTreeLayoutOptions {
+const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
+
+export interface ForceDirectedLayoutOptions {
   layerGap?: number;
   nodeGap?: number;
-  mode?: TreeLayoutMode;
   forceIterations?: number;
+  initialNodePositions?: Record<string, { x: number; y: number }>;
+  normalizeOutput?: boolean;
 }
 
-interface LevelMap {
-  [nodeId: string]: number;
-}
-
-// Build a force-directed positioned graph seeded from deterministic tree levels.
-export function buildSimpleTreeLayout(
+// Build a force-directed positioned graph seeded from deterministic node order.
+export function buildForceDirectedLayout(
   dataset: CanonicalDataset,
-  options: SimpleTreeLayoutOptions = {},
+  options: ForceDirectedLayoutOptions = {},
 ): PositionedGraph {
+  if (dataset.nodes.length === 0) {
+    return {
+      nodes: [],
+      edges: [],
+      viewMeta: {
+        layout: LAYOUT_FORCE,
+        lodLevel: 0,
+      },
+    };
+  }
+
   const seededGraph = buildSeededGraph(dataset, options);
   return refinePositionedGraphWithForce(
     seededGraph,
     options.forceIterations,
+    options.normalizeOutput,
   );
 }
 
@@ -47,12 +60,31 @@ export function buildSimpleTreeLayout(
 export function refinePositionedGraphWithForce(
   graph: PositionedGraph,
   iterations = DEFAULT_FORCEATLAS2_ITERATIONS,
+  normalizeOutput = true,
 ): PositionedGraph {
+  if (graph.nodes.length === 0) {
+    return {
+      ...graph,
+      viewMeta: {
+        ...graph.viewMeta,
+        layout: LAYOUT_FORCE,
+      },
+    };
+  }
+
   const layoutGraph = new Graph();
   const degreeByNodeId = computeDegreeByNodeId(graph.edges);
+  const nodeCount = graph.nodes.length;
+  const collinearSeedInput = isCollinearInputGraph(graph.nodes);
 
   graph.nodes.forEach((node, index) => {
-    const seed = buildForceSeed(node, index, degreeByNodeId.get(node.id) ?? 0);
+    const seed = buildForceSeed(
+      node,
+      index,
+      degreeByNodeId.get(node.id) ?? 0,
+      nodeCount,
+      collinearSeedInput,
+    );
     layoutGraph.addNode(node.id, {
       x: seed.x,
       y: seed.y,
@@ -63,7 +95,10 @@ export function refinePositionedGraphWithForce(
   });
 
   graph.edges.forEach((edge) => {
-    if (!layoutGraph.hasNode(edge.source) || !layoutGraph.hasNode(edge.target)) {
+    if (
+      !layoutGraph.hasNode(edge.source) ||
+      !layoutGraph.hasNode(edge.target)
+    ) {
       return;
     }
 
@@ -86,21 +121,23 @@ export function refinePositionedGraphWithForce(
     },
   });
 
+  const positionedNodes = graph.nodes.map((node) => {
+    const attributes = layoutGraph.getNodeAttributes(node.id) as Record<
+      string,
+      unknown
+    >;
+    return {
+      ...node,
+      x: Number(attributes.x ?? node.x),
+      y: Number(attributes.y ?? node.y),
+    };
+  });
+
   return {
     ...graph,
-    nodes: expandPackedLayout(
-      graph.nodes.map((node) => {
-        const attributes = layoutGraph.getNodeAttributes(node.id) as Record<
-          string,
-          unknown
-        >;
-        return {
-          ...node,
-          x: Number(attributes.x ?? node.x),
-          y: Number(attributes.y ?? node.y),
-        };
-      }),
-    ),
+    nodes: normalizeOutput
+      ? expandPackedLayout(positionedNodes)
+      : positionedNodes,
     viewMeta: {
       ...graph.viewMeta,
       layout: LAYOUT_FORCE,
@@ -110,30 +147,34 @@ export function refinePositionedGraphWithForce(
 
 function buildSeededGraph(
   dataset: CanonicalDataset,
-  options: SimpleTreeLayoutOptions,
+  options: ForceDirectedLayoutOptions,
 ): PositionedGraph {
-  const layerGap = options.layerGap ?? DEFAULT_LAYER_GAP;
   const nodeGap = options.nodeGap ?? DEFAULT_NODE_GAP;
+  const sortedNodes = [...dataset.nodes].sort((left, right) =>
+    left.id.localeCompare(right.id),
+  );
 
-  const levelByNode = computeLevels(dataset);
-  const grouped = groupByLevel(dataset, levelByNode);
+  const nodes: PositionedNode[] = sortedNodes.map((node, index) => {
+    const priorPosition = options.initialNodePositions?.[node.id];
+    if (priorPosition) {
+      const angle = seededAngle(node.id, index);
+      const offset = nodeGap * 0.08;
+      return {
+        id: node.id,
+        x: priorPosition.x + Math.cos(angle) * offset,
+        y: priorPosition.y + Math.sin(angle) * offset,
+      };
+    }
 
-  const nodes: PositionedNode[] = [];
-  for (const level of Object.keys(grouped)
-    .map((value) => Number(value))
-    .sort((a, b) => a - b)) {
-    const ids = grouped[level] ?? [];
-    const sortedIds = [...ids].sort((a, b) => a.localeCompare(b));
-    const centerOffset = (sortedIds.length - 1) / 2;
+    const angle = index * GOLDEN_ANGLE + seededAngle(node.id, index) * 0.15;
+    const radius = Math.sqrt(index + 1) * nodeGap;
 
-    sortedIds.forEach((id, index) => {
-      nodes.push({
-        id,
-        x: (index - centerOffset) * nodeGap,
-        y: DEFAULT_ROOT_Y + level * layerGap,
-      });
-    });
-  }
+    return {
+      id: node.id,
+      x: Math.cos(angle) * radius,
+      y: Math.sin(angle) * radius,
+    };
+  });
 
   const edges: PositionedEdge[] = dataset.edges.map((edge) => ({
     id: edge.id,
@@ -151,70 +192,6 @@ function buildSeededGraph(
   };
 }
 
-function computeLevels(dataset: CanonicalDataset): LevelMap {
-  const parentToChildren = new Map<string, string[]>();
-  const allNodeIds = new Set<string>(dataset.nodes.map((node) => node.id));
-  const childIds = new Set<string>();
-
-  dataset.edges.forEach((edge) => {
-    const existingChildren = parentToChildren.get(edge.source) ?? [];
-    existingChildren.push(edge.target);
-    parentToChildren.set(edge.source, existingChildren);
-    childIds.add(edge.target);
-  });
-
-  const roots = [...allNodeIds]
-    .filter((id) => !childIds.has(id))
-    .sort((a, b) => a.localeCompare(b));
-  const levelByNode: LevelMap = {};
-  const queue: Array<{ id: string; level: number }> = roots.map((id) => ({
-    id,
-    level: 0,
-  }));
-
-  while (queue.length > 0) {
-    const current = queue.shift();
-    if (!current) {
-      break;
-    }
-
-    const previousLevel = levelByNode[current.id];
-    if (previousLevel !== undefined && previousLevel <= current.level) {
-      continue;
-    }
-
-    levelByNode[current.id] = current.level;
-
-    const children = (parentToChildren.get(current.id) ?? []).sort((a, b) =>
-      a.localeCompare(b),
-    );
-    children.forEach((childId) => {
-      queue.push({ id: childId, level: current.level + 1 });
-    });
-  }
-
-  dataset.nodes.forEach((node) => {
-    if (levelByNode[node.id] === undefined) {
-      levelByNode[node.id] = 0;
-    }
-  });
-
-  return levelByNode;
-}
-
-function groupByLevel(
-  dataset: CanonicalDataset,
-  levelByNode: LevelMap,
-): Record<number, string[]> {
-  return dataset.nodes.reduce<Record<number, string[]>>((acc, node) => {
-    const level = levelByNode[node.id] ?? 0;
-    const group = acc[level] ?? [];
-    group.push(node.id);
-    acc[level] = group;
-    return acc;
-  }, {});
-}
-
 function computeDegreeByNodeId(edges: PositionedEdge[]): Map<string, number> {
   const degreeByNodeId = new Map<string, number>();
 
@@ -230,25 +207,62 @@ function buildForceSeed(
   node: PositionedNode,
   index: number,
   degree: number,
+  nodeCount: number,
+  collinearSeedInput: boolean,
 ): { x: number; y: number } {
   const angle = seededAngle(node.id, index);
   const radialStep = 1 + Math.min(degree, 8) * 0.45;
   const proxyBoost = node.attributes?.is_cluster_proxy === true ? 1.2 : 1;
+  const densitySpread = Math.min(
+    2.4,
+    1 + Math.log10(Math.max(nodeCount, 10)) * 0.35,
+  );
+  const seedSpreadX = FORCEATLAS2_SEED_SPREAD_X * densitySpread;
+  const seedSpreadY = FORCEATLAS2_SEED_SPREAD_Y * densitySpread;
+  const anchorBlend =
+    node.attributes?.is_cluster_proxy === true
+      ? FORCEATLAS2_ANCHOR_BLEND * 1.5
+      : FORCEATLAS2_ANCHOR_BLEND;
+  const effectiveAnchorBlend = collinearSeedInput
+    ? anchorBlend * FORCEATLAS2_COLLINEAR_ANCHOR_SCALE
+    : anchorBlend;
 
   return {
     x:
-      node.x +
-      Math.cos(angle) * FORCEATLAS2_SEED_SPREAD_X * radialStep * proxyBoost +
+      node.x * effectiveAnchorBlend +
+      Math.cos(angle) * seedSpreadX * radialStep * proxyBoost +
       (node.attributes?.is_cluster_proxy === true
         ? Math.cos(angle * 0.5) * FORCEATLAS2_PROXY_RADIUS
         : 0),
     y:
-      node.y +
-      Math.sin(angle) * FORCEATLAS2_SEED_SPREAD_Y * radialStep * proxyBoost +
+      node.y * effectiveAnchorBlend +
+      Math.sin(angle) * seedSpreadY * radialStep * proxyBoost +
       (node.attributes?.is_cluster_proxy === true
         ? Math.sin(angle * 0.5) * FORCEATLAS2_PROXY_RADIUS
         : 0),
   };
+}
+
+function isCollinearInputGraph(nodes: PositionedNode[]): boolean {
+  if (nodes.length <= 2) {
+    return false;
+  }
+
+  let minX = nodes[0]?.x ?? 0;
+  let maxX = minX;
+  let minY = nodes[0]?.y ?? 0;
+  let maxY = minY;
+
+  nodes.forEach((node) => {
+    minX = Math.min(minX, node.x);
+    maxX = Math.max(maxX, node.x);
+    minY = Math.min(minY, node.y);
+    maxY = Math.max(maxY, node.y);
+  });
+
+  const spanX = Math.max(maxX - minX, 1);
+  const spanY = Math.max(maxY - minY, 1);
+  return spanY / spanX <= FORCEATLAS2_COLLINEAR_Y_RATIO;
 }
 
 function seededAngle(nodeId: string, index: number): number {

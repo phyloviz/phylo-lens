@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from enum import StrEnum
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -20,6 +21,13 @@ class SourceFormat(StrEnum):
     NEWICK = "newick"
     EDGELIST = "edgelist"
     TYPING_DATA = "typing_data"
+
+
+class HierarchyKind(StrEnum):
+    """Supported hierarchy families backing LoD selection."""
+
+    TREE = "tree"
+    THRESHOLD = "threshold"
 
 
 class MetadataField(BaseModel):
@@ -95,9 +103,37 @@ class HierarchyCluster(BaseModel):
 class HierarchyIndex(BaseModel):
     """Persisted hierarchy index backing visible-slice selection."""
 
+    kind: Literal[HierarchyKind.TREE] = HierarchyKind.TREE
     dataset_id: str = Field(min_length=1)
     root_cluster_id: str = Field(min_length=1)
     clusters: dict[str, HierarchyCluster]
+
+
+class ThresholdHierarchyCluster(BaseModel):
+    """Threshold-derived cluster entry for weighted unrooted LoD processing."""
+
+    cluster_id: str = Field(min_length=1)
+    parent_cluster_id: str | None = None
+    child_cluster_ids: list[str] = Field(default_factory=list)
+    representative_node_id: str | None = None
+    member_node_ids: list[str] = Field(default_factory=list)
+    subtree_size: int = Field(ge=1)
+    distance_threshold_level: int = Field(ge=0)
+    distance_threshold: float | None = Field(default=None, ge=0)
+    centroid: dict[str, float] | None = None
+    bounds: dict[str, float] | None = None
+    aggregate_metadata: dict[str, str | float | bool | None] = Field(
+        default_factory=dict
+    )
+
+
+class ThresholdHierarchyIndex(BaseModel):
+    """Persisted threshold hierarchy index for weighted datasets."""
+
+    kind: Literal[HierarchyKind.THRESHOLD] = HierarchyKind.THRESHOLD
+    dataset_id: str = Field(min_length=1)
+    root_cluster_id: str = Field(min_length=1)
+    clusters: dict[str, ThresholdHierarchyCluster]
 
 
 class Viewport(BaseModel):
@@ -162,7 +198,7 @@ class PreparedDatasetRecord(BaseModel):
     """Persisted dataset plus hierarchy used by LoD endpoints."""
 
     dataset: CanonicalDataset
-    hierarchy: HierarchyIndex
+    hierarchy: HierarchyIndex | ThresholdHierarchyIndex = Field(discriminator="kind")
     warnings: list[str] = Field(default_factory=list)
 
 

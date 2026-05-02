@@ -6,7 +6,7 @@
     <title>PhyloLens Client Demo</title>
     <style>
       :root {
-        --bg: #000000;         /* f4f7fb */
+        --bg: #000000; /* f4f7fb */
         --surface: #ffffff;
         --text: #1f2937;
         --muted: #6b7280;
@@ -228,9 +228,8 @@
       <section class="card">
         <h1>PhyloLens Demo Shell</h1>
         <p>
-          Paste a Newick tree and submit. This demo validates client-server
-          communication, force-directed layout, and modular renderer
-          orchestration.
+          Paste a weighted Newick tree and submit. This demo validates the
+          distance-threshold server pipeline and Sigma-based slice rendering.
         </p>
 
         <form id="render-form">
@@ -241,7 +240,7 @@
 
           <label>
             Newick Input
-            <textarea id="newick-input">((A,B)X,(C,D)Y)Root;</textarea>
+            <textarea id="newick-input">((A:1,B:1)X:2,(C:3,D:5)Y:4)Root;</textarea>
           </label>
 
           <label>
@@ -277,18 +276,24 @@
 
           <div class="wheel-controls">
             <label>
-              Layout Mode
-              <select id="layout-mode">
-                <option value="force" selected>Force-Directed</option>
-              </select>
-            </label>
-            <label>
               Initial LoD Zoom
-              <input id="initial-zoom-input" type="number" min="0" step="0.5" value="4" />
+              <input
+                id="initial-zoom-input"
+                type="number"
+                min="0"
+                step="0.5"
+                value="4"
+              />
             </label>
             <label>
               Max Visible Nodes
-              <input id="max-nodes-input" type="number" min="10" step="50" value="1500" />
+              <input
+                id="max-nodes-input"
+                type="number"
+                min="10"
+                step="50"
+                value="1510"
+              />
             </label>
             <label>
               Wheel Scope

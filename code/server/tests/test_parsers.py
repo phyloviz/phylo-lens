@@ -101,6 +101,25 @@ def test_parse_newick_preserves_branch_lengths_on_parent_child_edges() -> None:
     }
 
 
+def test_parse_newick_ignores_empty_children_from_trailing_commas() -> None:
+    """Confirm loose Newick separators do not create phantom missing-distance nodes."""
+    parsed = parse_newick("((A:1,B:1,)X:2,(C:3,D:5,)Y:4,)Root;")
+
+    edge_by_pair = {
+        (edge.source, edge.target): edge.distance for edge in parsed.edges
+    }
+    assert edge_by_pair == {
+        ("root", "x"): 2.0,
+        ("root", "y"): 4.0,
+        ("x", "a"): 1.0,
+        ("x", "b"): 1.0,
+        ("y", "c"): 3.0,
+        ("y", "d"): 5.0,
+    }
+    assert all(edge.distance is not None for edge in parsed.edges)
+    assert len(parsed.warnings) == 3
+
+
 def test_parse_edgelist_accepts_optional_distance_column() -> None:
     """Confirm edge-list rows may carry an optional numeric distance."""
     parsed = parse_edgelist("source,target,distance\na,b,0.5\nb,c,1.25\n")

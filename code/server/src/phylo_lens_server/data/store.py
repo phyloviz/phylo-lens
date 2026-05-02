@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import re
 from pathlib import Path
 
@@ -19,12 +20,17 @@ class DatasetStore:
         self.root_dir = Path(root_dir or DEFAULT_STORE_DIRNAME)
         self.root_dir.mkdir(parents=True, exist_ok=True)
         self._cache: dict[str, PreparedDatasetRecord] = {}
+        self.persist_to_disk = _parse_bool_env("PHYLO_LENS_STORE_PERSIST", True)
 
     def save(self, record: PreparedDatasetRecord) -> None:
         """Persist one prepared dataset record to memory and local disk."""
-        path = self._path_for_dataset_id(record.dataset.dataset_id)
-        path.write_text(record.model_dump_json(indent=2), encoding="utf-8")
         self._cache[record.dataset.dataset_id] = record
+        if not self.persist_to_disk:
+            return
+
+        path = self._path_for_dataset_id(record.dataset.dataset_id)
+        # Compact JSON keeps disk writes substantially faster for large datasets.
+        path.write_text(record.model_dump_json(), encoding="utf-8")
 
     def load(self, dataset_id: str) -> PreparedDatasetRecord | None:
         """Load one prepared dataset record from cache or disk if available."""
@@ -43,9 +49,20 @@ class DatasetStore:
         return record
 
     def _path_for_dataset_id(self, dataset_id: str) -> Path:
-        safe_slug = SLUG_REGEX.sub(SLUG_REPLACEMENT, dataset_id).strip(
-            SLUG_STRIP_CHARS
-        )
+        safe_slug = SLUG_REGEX.sub(SLUG_REPLACEMENT, dataset_id).strip(SLUG_STRIP_CHARS)
         base = safe_slug.lower() or "dataset"
         digest = hashlib.sha256(dataset_id.encode("utf-8")).hexdigest()[:12]
         return self.root_dir / f"{base}_{digest}.json"
+
+
+def _parse_bool_env(env_name: str, default: bool) -> bool:
+    raw_value = os.environ.get(env_name)
+    if raw_value is None:
+        return default
+
+    normalized = raw_value.strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    return default

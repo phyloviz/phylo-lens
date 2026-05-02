@@ -39,6 +39,9 @@ ERR_EDGELIST_ROW_DISTANCE = "Edge-list row {index} has invalid distance value."
 WARN_DUPLICATE_LABEL = (
     "Label '{label}' is duplicated, generated deterministic suffix for uniqueness."
 )
+WARN_NEWICK_EMPTY_CHILD = (
+    "Ignored empty child position in Newick content near index {index}."
+)
 
 
 class ParseError(ValueError):
@@ -173,6 +176,20 @@ def parse_newick(content: str) -> ParsedGraph:
                 internal_counter += 1
                 stack.append(_PendingInternalNode(preorder_index=internal_counter))
                 index += 1
+                continue
+
+            if current == TOKEN_COMMA:
+                if not stack:
+                    raise ParseError(ERR_NEWICK_TRAILING_CONTENT)
+                warnings.append(WARN_NEWICK_EMPTY_CHILD.format(index=index))
+                index += 1
+                continue
+
+            if current == TOKEN_CLOSE_PAREN:
+                if not stack:
+                    raise ParseError(ERR_NEWICK_TRAILING_CONTENT)
+                warnings.append(WARN_NEWICK_EMPTY_CHILD.format(index=index))
+                expect_subtree = False
                 continue
 
             leaf_counter += 1

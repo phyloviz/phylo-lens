@@ -4,7 +4,7 @@ import {
   SOURCE_FORMAT_NEWICK,
   Viewport,
 } from "../contracts/canonical";
-import { LAYOUT_DENDROGRAM, PositionedGraph } from "../contracts/positioned";
+import { LAYOUT_SERVER, PositionedGraph } from "../contracts/positioned";
 import { buildMetadataIndex } from "../ancillary/metadataIndex";
 import {
   ClientGraphFilterEngine,
@@ -15,11 +15,8 @@ import {
 import {
   DEFAULT_LAYER_GAP,
   DEFAULT_NODE_GAP,
-  buildSimpleTreeLayout,
-  refinePositionedGraphWithForce,
-  LAYOUT_MODE_FORCE,
-  TreeLayoutMode,
-} from "../layout/simpleTreeLayout";
+  buildForceDirectedLayout,
+} from "../layout/forceDirectedLayout";
 import {
   applyVisualMappings,
   VisualMappingOptions,
@@ -35,8 +32,10 @@ import {
 
 export const DEFAULT_DATASET_NAME = "uploaded-dataset";
 export const DEFAULT_VIEW_SLICE_ZOOM = 4;
-export const DEFAULT_VIEW_SLICE_MAX_NODES = 1500;
+export const DEFAULT_VIEW_SLICE_MAX_NODES = 3000;
 export const DEFAULT_VIEW_CHANGE_DEBOUNCE_MS = 180;
+export const DEFAULT_RENDER_VIEW_SUPPRESSION_MS = 120;
+export const MAX_DYNAMIC_VIEW_SLICE_NODES = 10_000;
 export const DEFAULT_VIEWPORT: Viewport = {
   x: 0,
   y: 0,
@@ -51,7 +50,6 @@ export interface RenderNewickOptions {
   metadataByNodeId?: CanonicalDataset["metadata_by_node_id"];
   visualMapping?: VisualMappingOptions;
   layout?: {
-    mode?: TreeLayoutMode;
     forceIterations?: number;
   };
   lod?: {
@@ -101,7 +99,7 @@ export class GraphWorkbench {
   private sliceRequestSequence = 0;
   private currentViewState: RenderViewportState | null = null;
   private graphRenderedHandler: GraphRenderedHandler | null = null;
-  private lastFocusNodeId: string | null = null;
+  private suppressViewChangesUntil = 0;
 
   constructor(options: GraphWorkbenchOptions) {
     this.datasetClient = options.datasetClient;
@@ -210,6 +208,9 @@ export class GraphWorkbench {
     if (!this.preparedSession) {
       return;
     }
+    if (Date.now() < this.suppressViewChangesUntil) {
+      return;
+    }
 
     const nextViewKey = serializeViewKey(
       state.viewport,
@@ -246,11 +247,10 @@ export class GraphWorkbench {
       return;
     }
 
-    const currentViewState =
-      this.currentViewState ?? {
-        viewport: this.preparedSession.lod.viewport,
-        zoom: DEFAULT_VIEW_SLICE_ZOOM,
-      };
+    const currentViewState = this.currentViewState ?? {
+      viewport: this.preparedSession.lod.viewport,
+      zoom: DEFAULT_VIEW_SLICE_ZOOM,
+    };
     const focusedViewport = recenterViewportOnNode(
       currentViewState.viewport,
       clickedNode,
@@ -261,13 +261,16 @@ export class GraphWorkbench {
         viewport: focusedViewport,
         zoom: currentViewState.zoom + 1,
       },
-      state.nodeId,
+      { focusNodeIdOverride: state.nodeId, centerOnFocusNode: true },
     );
   }
 
   private async refreshVisibleSlice(
     state: RenderViewportState,
-    focusNodeIdOverride?: string,
+    options: {
+      focusNodeIdOverride?: string;
+      centerOnFocusNode?: boolean;
+    } = {},
   ): Promise<PositionedGraph> {
     if (!this.preparedSession) {
       throw new Error(ERR_NO_GRAPH_RENDERED);
@@ -281,13 +284,15 @@ export class GraphWorkbench {
       viewport: effectiveViewport,
       zoom: effectiveZoom,
     };
-    const focusNodeId =
-      focusNodeIdOverride ??
-      findFocusNodeId(this.currentSliceGraph, effectiveViewport);
+    const focusNodeId = options.focusNodeIdOverride;
+    const effectiveMaxNodes = resolveMaxNodesForZoom(
+      session.lod.maxNodes,
+      effectiveZoom,
+    );
     this.lastRequestedViewKey = serializeViewKey(
       effectiveViewport,
       effectiveZoom,
-      session.lod.maxNodes,
+      effectiveMaxNodes,
       session.lod.lodHint,
       focusNodeId,
     );
@@ -297,12 +302,10 @@ export class GraphWorkbench {
       viewport: effectiveViewport,
       zoom: effectiveZoom,
       lod_hint: session.lod.lodHint,
-      max_nodes: session.lod.maxNodes,
+      max_nodes: effectiveMaxNodes,
       focus_node_id: focusNodeId,
       include_metadata_keys: session.metadataSchema.map((field) => field.key),
     });
-    this.lastFocusNodeId = focusNodeId ?? null;
-
     if (requestSequence !== this.sliceRequestSequence) {
       return this.currentGraph ?? this.currentSliceGraph ?? emptyGraph();
     }
@@ -314,11 +317,16 @@ export class GraphWorkbench {
       session.metadataSchema,
       session.metadataByNodeId,
     );
+    const previousSliceGraph = this.currentSliceGraph;
 
-    const positionedGraph = buildPositionedSliceGraph(sliceDataset, {
-      mode: session.layout?.mode,
-      forceIterations: session.layout?.forceIterations,
-    });
+    const positionedGraph = buildPositionedSliceGraph(
+      sliceDataset,
+      {
+        forceIterations: session.layout?.forceIterations,
+      },
+      previousSliceGraph,
+      previousSliceGraph !== null,
+    );
     const metadataIndex = buildMetadataIndex(sliceDataset);
     const mappedGraph = applyVisualMappings(
       positionedGraph,
@@ -349,8 +357,10 @@ export class GraphWorkbench {
       : graphWithSliceMeta;
 
     this.renderer.render(this.currentGraph);
-    if (this.lastFocusNodeId) {
-      this.renderer.centerOnNode?.(this.lastFocusNodeId);
+    this.suppressViewChangesUntil =
+      Date.now() + DEFAULT_RENDER_VIEW_SUPPRESSION_MS;
+    if (options.centerOnFocusNode && options.focusNodeIdOverride) {
+      this.renderer.centerOnNode?.(options.focusNodeIdOverride);
     }
     this.emitGraphRendered(this.currentGraph);
     return this.currentGraph;
@@ -391,42 +401,74 @@ function buildSliceDataset(
 function buildPositionedSliceGraph(
   dataset: CanonicalDataset,
   options: RenderNewickOptions["layout"] = {},
+  previousGraph: PositionedGraph | null = null,
+  _isInteractiveRefresh = false,
 ): PositionedGraph {
+  const initialNodePositions = previousGraph
+    ? Object.fromEntries(
+        previousGraph.nodes.map((node) => [
+          node.id,
+          {
+            x: node.x,
+            y: node.y,
+          },
+        ]),
+      )
+    : undefined;
+
   if (dataset.nodes.every(hasServerCoordinates)) {
+    const degenerateServerGeometry = hasDegenerateServerGeometry(dataset.nodes);
     const anchoredGraph: PositionedGraph = {
-      nodes: dataset.nodes.map((node) => ({
-        id: node.id,
-        x: (node.x as number) * DEFAULT_NODE_GAP,
-        y: (node.y as number) * DEFAULT_LAYER_GAP,
-        attributes: {
-          cluster_id: node.cluster_id,
-          is_cluster_proxy: node.is_cluster_proxy === true,
-          subtree_size: node.subtree_size,
-          leaf_count: node.leaf_count,
-        },
-      })),
+      nodes: dataset.nodes.map((node, index) => {
+        const previousPosition = initialNodePositions?.[node.id];
+        if (previousPosition) {
+          return {
+            id: node.id,
+            x: previousPosition.x,
+            y: previousPosition.y,
+            attributes: {
+              cluster_id: node.cluster_id,
+              is_cluster_proxy: node.is_cluster_proxy === true,
+              subtree_size: node.subtree_size,
+              leaf_count: node.leaf_count,
+            },
+          };
+        }
+
+        const seeded = seedServerAnchoredPosition(
+          node,
+          index,
+          degenerateServerGeometry,
+        );
+        return {
+          id: node.id,
+          x: seeded.x,
+          y: seeded.y,
+          attributes: {
+            cluster_id: node.cluster_id,
+            is_cluster_proxy: node.is_cluster_proxy === true,
+            subtree_size: node.subtree_size,
+            leaf_count: node.leaf_count,
+          },
+        };
+      }),
       edges: dataset.edges.map((edge) => ({
         id: edge.id,
         source: edge.source,
         target: edge.target,
       })),
       viewMeta: {
-        layout: LAYOUT_DENDROGRAM,
+        layout: LAYOUT_SERVER,
         lodLevel: 0,
       },
     };
-
-    return options.mode === LAYOUT_MODE_FORCE
-      ? refinePositionedGraphWithForce(
-          anchoredGraph,
-          options.forceIterations,
-        )
-      : anchoredGraph;
+    return anchoredGraph;
   }
 
-  return buildSimpleTreeLayout(dataset, {
-    mode: options.mode,
+  return buildForceDirectedLayout(dataset, {
     forceIterations: options.forceIterations,
+    initialNodePositions,
+    normalizeOutput: true,
   });
 }
 
@@ -462,9 +504,23 @@ function normalizeZoom(zoom: number): number {
   return zoom;
 }
 
+function resolveMaxNodesForZoom(baseMaxNodes: number, zoom: number): number {
+  if (!Number.isFinite(zoom) || zoom <= DEFAULT_VIEW_SLICE_ZOOM) {
+    return baseMaxNodes;
+  }
+
+  const zoomFactor = 1 + (zoom - DEFAULT_VIEW_SLICE_ZOOM) * 0.5;
+  return Math.min(
+    MAX_DYNAMIC_VIEW_SLICE_NODES,
+    Math.max(baseMaxNodes, Math.round(baseMaxNodes * zoomFactor)),
+  );
+}
+
 function hasActiveClientFilters(filterState: MetadataFilterState): boolean {
   return (
-    filterState.categorical.some((filter) => filter.acceptedValues.length > 0) ||
+    filterState.categorical.some(
+      (filter) => filter.acceptedValues.length > 0,
+    ) ||
     filterState.numeric.some(
       (filter) => filter.min !== undefined || filter.max !== undefined,
     )
@@ -485,7 +541,9 @@ function emptyGraph(): PositionedGraph {
   };
 }
 
-function hasServerCoordinates(node: CanonicalDataset["nodes"][number]): boolean {
+function hasServerCoordinates(
+  node: CanonicalDataset["nodes"][number],
+): boolean {
   return (
     typeof node.x === "number" &&
     Number.isFinite(node.x) &&
@@ -494,30 +552,57 @@ function hasServerCoordinates(node: CanonicalDataset["nodes"][number]): boolean 
   );
 }
 
-function findFocusNodeId(
-  graph: PositionedGraph | null,
-  viewport: Viewport,
-): string | undefined {
-  if (!graph || graph.nodes.length === 0) {
-    return undefined;
+function hasDegenerateServerGeometry(
+  nodes: CanonicalDataset["nodes"],
+): boolean {
+  if (nodes.length <= 2) {
+    return false;
   }
 
-  const centerX = viewport.x;
-  const centerY = viewport.y;
-  let bestNodeId = graph.nodes[0]?.id;
-  let bestDistance = Number.POSITIVE_INFINITY;
+  let minX = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
 
-  graph.nodes.forEach((node) => {
-    const dx = node.x - centerX;
-    const dy = node.y - centerY;
-    const distance = dx * dx + dy * dy;
-    if (distance < bestDistance) {
-      bestDistance = distance;
-      bestNodeId = node.id;
-    }
+  nodes.forEach((node) => {
+    minX = Math.min(minX, node.x as number);
+    maxX = Math.max(maxX, node.x as number);
+    minY = Math.min(minY, node.y as number);
+    maxY = Math.max(maxY, node.y as number);
   });
 
-  return bestNodeId;
+  const spanX = Math.max((maxX - minX) * DEFAULT_NODE_GAP, 1);
+  const spanY = Math.max((maxY - minY) * DEFAULT_LAYER_GAP, 1);
+  return spanY / spanX <= 0.12;
+}
+
+function seedServerAnchoredPosition(
+  node: CanonicalDataset["nodes"][number],
+  index: number,
+  degenerateServerGeometry: boolean,
+): { x: number; y: number } {
+  const baseX = (node.x as number) * DEFAULT_NODE_GAP;
+  const baseY = (node.y as number) * DEFAULT_LAYER_GAP;
+  if (!degenerateServerGeometry) {
+    return { x: baseX, y: baseY };
+  }
+
+  const angle = seededAngle(node.id, index);
+  return {
+    x: baseX + Math.cos(angle) * DEFAULT_NODE_GAP * 0.45,
+    y: baseY + Math.sin(angle) * DEFAULT_LAYER_GAP * 0.8,
+  };
+}
+
+function seededAngle(nodeId: string, index: number): number {
+  let hash = 2166136261;
+  for (let offset = 0; offset < nodeId.length; offset += 1) {
+    hash ^= nodeId.charCodeAt(offset);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  const normalized = ((hash >>> 0) + index * 2654435761) >>> 0;
+  return (normalized / 0xffffffff) * Math.PI * 2;
 }
 
 function recenterViewportOnNode(

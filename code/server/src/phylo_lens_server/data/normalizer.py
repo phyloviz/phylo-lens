@@ -68,22 +68,27 @@ class NormalizeResult(BaseModel):
 def normalize_dataset(request: NormalizeRequest) -> NormalizeResult:
     """Parse input data and produce a validated deterministic canonical dataset."""
     ingest_start = time.perf_counter()
-    # This should probably become a switch case in future (when supporting more formats)
-    if request.format == NormalizeFormat.NEWICK:
-        parsed = parse_newick(request.content)
-    elif request.format == NormalizeFormat.EDGELIST:
-        parsed = parse_edgelist(request.content)
-    else:
-        raise ParseError(ERR_UNSUPPORTED_FORMAT.format(format_name=request.format))
-    ingest_ms = (time.perf_counter() - ingest_start) * 1000
 
+    match request.format:
+        case NormalizeFormat.NEWICK:
+            parsed = parse_newick(request.content)
+        case NormalizeFormat.EDGELIST:
+            parsed = parse_edgelist(request.content)
+
+        # If a invalid format is provided, raise a ParseError which will be handled by the caller to return a 400 response.
+        case _:
+            raise ParseError(ERR_UNSUPPORTED_FORMAT.format(format_name=request.format))
+
+    ingest_ms = (time.perf_counter() - ingest_start) * 1000
     normalize_start = time.perf_counter()
 
     nodes = [CanonicalNode(id=node_id) for node_id in sorted(parsed.nodes)]
 
     edge_ids: dict[tuple[str, str], int] = {}
     canonical_edges: list[CanonicalEdge] = []
-    for parsed_edge in sorted(parsed.edges, key=lambda edge: (edge.source, edge.target)):
+    for parsed_edge in sorted(
+        parsed.edges, key=lambda edge: (edge.source, edge.target)
+    ):
         source = parsed_edge.source
         target = parsed_edge.target
         key = (source, target)

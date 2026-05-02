@@ -1,4 +1,4 @@
-import { buildSimpleTreeLayout } from "../src/layout/simpleTreeLayout";
+import { buildForceDirectedLayout } from "../src/layout/forceDirectedLayout";
 import {
   CanonicalDataset,
   SOURCE_FORMAT_NEWICK,
@@ -20,9 +20,9 @@ const FIXTURE_DATASET: CanonicalDataset = {
   },
 };
 
-describe("simpleTreeLayout", () => {
+describe("forceDirectedLayout", () => {
   it("builds a force-directed graph with valid coordinates", () => {
-    const graph = buildSimpleTreeLayout(FIXTURE_DATASET, {
+    const graph = buildForceDirectedLayout(FIXTURE_DATASET, {
       layerGap: 100,
       nodeGap: 80,
       forceIterations: 10,

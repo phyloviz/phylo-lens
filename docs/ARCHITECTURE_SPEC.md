@@ -17,7 +17,7 @@ This document is the source of truth for implementation decisions in the PoC-to-
 - Canonical data model for trees/graphs and metadata.
 - Parsing and normalization pipeline (Newick and edge-list first, typing-data path next).
 - LoD generation contracts with Python-first implementation and optional future lower-level acceleration if benchmarks justify it.
-- Layout module contracts (force/radial/dendrogram).
+- Server-side layout computation for visible-slice rendering.
 - Renderer adapter contracts (Sigma.js first).
 - Interaction and state contracts for semantic zoom/filtering.
 - Performance and correctness acceptance criteria.
@@ -38,7 +38,7 @@ This document is the source of truth for implementation decisions in the PoC-to-
 
 ## 4) Module Map (Simplified)
 
-Architecture is split into two applications with three modules each.
+Architecture is split into two applications with explicit module boundaries.
 
 ### Server App
 
@@ -66,34 +66,29 @@ consumed by LoD services.
 Responsibilities:
 
 - Generate cluster levels (`LodBundle`) from topology.
-- Precompute subtree statistics required for semantic zoom.
+- Precompute threshold-containment statistics required for semantic zoom.
 - Persist hierarchy indexes for later view queries.
-- Host threshold/depth clustering strategies.
+- Host distance-threshold clustering strategies.
 - Provide stable cluster identity mapping across levels.
+- Compute backend layout coordinates for nodes and threshold clusters.
 
 Status:
 
-- Active module for tree-oriented hierarchy precompute and visible-slice selection.
-- Current implementation is iterative, deterministic, and Python-first.
-- Future work may add alternative hierarchy builders for weighted non-tree graphs.
+- Active module for weighted distance-threshold hierarchy precompute and visible-slice selection.
+- Current implementation is iterative, deterministic, and Python-first, with backend layout computed before client rendering.
+- Future work may add lower-level acceleration or richer threshold policies if benchmarks justify it.
 
 ### Client App
 
-## `layout`
-
-Responsibilities:
-
-- Compute positions for current visualization mode.
-- Initial focus: force-directed layout.
-- Future extensibility: radial and dendrogram strategies.
-
-Output: `PositionedGraph`.
+Server-side layout is now the active path for weighted threshold datasets, so
+the client focuses on interaction orchestration and rendering rather than
+recomputing graph coordinates per slice.
 
 ## `render`
 
 Responsibilities:
 
-- Translate `PositionedGraph` + visual mapping into Graphology/Sigma attributes.
+- Translate backend-positioned `PositionedGraph` + visual mapping into Graphology/Sigma attributes.
 - Manage Sigma-specific programs (e.g., piechart nodes).
 - Apply reducers and rendering-side optimizations.
 
@@ -221,7 +216,8 @@ is to return `O(visible_nodes)` data rather than the full topology.
 In the current implementation, `nodes` may already include representative nodes
 for collapsed subtrees. Those representatives are marked explicitly with
 `is_cluster_proxy` instead of being inferred indirectly from
-`collapsedClusters` alone.
+`collapsedClusters` alone, and they may also carry backend-computed `x` / `y`
+coordinates that the client treats as authoritative.
 
 ## `VisibleSliceQuery`
 

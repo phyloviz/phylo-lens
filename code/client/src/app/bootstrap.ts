@@ -15,7 +15,6 @@ export const ID_GRAPH_ROOT = "graph-root";
 export const ID_ANCILLARY_WHEEL = "ancillary-wheel";
 export const ID_ANCILLARY_MODE = "ancillary-mode";
 export const ID_ANCILLARY_NODE = "ancillary-node";
-export const ID_LAYOUT_MODE = "layout-mode";
 export const ID_MAX_NODES_INPUT = "max-nodes-input";
 export const ID_INITIAL_ZOOM_INPUT = "initial-zoom-input";
 
@@ -46,9 +45,6 @@ export function bootstrapClientShell(
   ) as HTMLSelectElement | null;
   const ancillaryNodeSelect = document.getElementById(
     ID_ANCILLARY_NODE,
-  ) as HTMLSelectElement | null;
-  const layoutModeSelect = document.getElementById(
-    ID_LAYOUT_MODE,
   ) as HTMLSelectElement | null;
   const maxNodesInput = document.getElementById(
     ID_MAX_NODES_INPUT,
@@ -88,7 +84,6 @@ export function bootstrapClientShell(
       ancillaryWheelContainer: ancillaryWheelContainer ?? undefined,
       ancillaryModeSelect: ancillaryModeSelect ?? undefined,
       ancillaryNodeSelect: ancillaryNodeSelect ?? undefined,
-      layoutModeSelect: layoutModeSelect ?? undefined,
       maxNodesInput: maxNodesInput ?? undefined,
       initialZoomInput: initialZoomInput ?? undefined,
     },

@@ -5,7 +5,7 @@ export * from "./api/datasetClient";
 export * from "./ancillary/metadataIndex";
 export * from "./ancillary/filterEngine";
 
-export * from "./layout/simpleTreeLayout";
+export * from "./layout/forceDirectedLayout";
 
 export * from "./render/types";
 export * from "./render/rendererFactory";

@@ -7,15 +7,15 @@ import time
 import tracemalloc
 from dataclasses import asdict, dataclass
 
-from phylo_lens_server.clustering.hierarchy import build_tree_hierarchy
 from phylo_lens_server.clustering.selector import select_visible_slice
+from phylo_lens_server.clustering.threshold_hierarchy import build_threshold_hierarchy
 from phylo_lens_server.core.models import (
     CanonicalDataset,
     CanonicalEdge,
     CanonicalNode,
     DatasetSource,
-    HierarchyIndex,
     SourceFormat,
+    ThresholdHierarchyIndex,
     Viewport,
     VisibleSliceQuery,
 )
@@ -67,6 +67,7 @@ def generate_balanced_binary_tree(
                 id=f"e_{_node_id(parent_index)}_{_node_id(child_index)}_1",
                 source=_node_id(parent_index),
                 target=_node_id(child_index),
+                distance=_synthetic_distance(child_index),
             )
         )
 
@@ -99,6 +100,7 @@ def generate_skewed_tree(
             id=f"e_{_node_id(index)}_{_node_id(index + 1)}_1",
             source=_node_id(index),
             target=_node_id(index + 1),
+            distance=_synthetic_distance(index + 1),
         )
         for index in range(node_count - 1)
     ]
@@ -150,13 +152,13 @@ def benchmark_dataset(
     """Benchmark hierarchy build and the default visible-slice query suite."""
     hierarchy_timings_ms: list[float] = []
     hierarchy_peak_mb: list[float] = []
-    hierarchy: HierarchyIndex | None = None
+    hierarchy: ThresholdHierarchyIndex | None = None
 
     for _ in range(repeats):
         gc.collect()
         tracemalloc.start()
         start = time.perf_counter()
-        hierarchy = build_tree_hierarchy(dataset)
+        hierarchy = build_threshold_hierarchy(dataset)
         hierarchy_timings_ms.append((time.perf_counter() - start) * 1000)
         _, peak_bytes = tracemalloc.get_traced_memory()
         tracemalloc.stop()
@@ -267,6 +269,10 @@ def _node_id(index: int) -> str:
     if index == 0:
         return "root"
     return f"n_{index:06d}"
+
+
+def _synthetic_distance(index: int) -> float:
+    return float((index % 7) + 1)
 
 
 def _median(values: list[int] | list[float]) -> float:

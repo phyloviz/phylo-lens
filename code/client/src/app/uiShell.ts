@@ -6,10 +6,6 @@ import {
 } from "../components/ancillaryWheel";
 import { PositionedGraph } from "../contracts/positioned";
 import { MetadataField } from "../contracts/canonical";
-import {
-  LAYOUT_MODE_FORCE,
-  TreeLayoutMode,
-} from "../layout/simpleTreeLayout";
 
 export const DEFAULT_STATUS_READY = "Ready";
 export const STATUS_RENDERING_PREFIX = "Rendering";
@@ -21,10 +17,6 @@ export const DEFAULT_INITIAL_ZOOM = 4;
 export const ANCILLARY_MODE_GLOBAL = "global";
 export const ANCILLARY_MODE_CURRENT = "current";
 export const ANCILLARY_MODE_SELECTED = "selected";
-
-export const LAYOUT_MODE_SELECT_FORCE = LAYOUT_MODE_FORCE;
-
-export type LayoutModeSelect = typeof LAYOUT_MODE_SELECT_FORCE;
 
 export type AncillaryMode =
   | typeof ANCILLARY_MODE_GLOBAL
@@ -59,7 +51,6 @@ export interface UiShellElements {
   ancillaryWheelContainer?: HTMLElement;
   ancillaryModeSelect?: HTMLSelectElement;
   ancillaryNodeSelect?: HTMLSelectElement;
-  layoutModeSelect?: HTMLSelectElement;
   maxNodesInput?: HTMLInputElement;
   initialZoomInput?: HTMLInputElement;
 }
@@ -80,7 +71,6 @@ export class UiShellController {
   private readonly ancillaryWheelContainer?: HTMLElement;
   private readonly ancillaryModeSelect?: HTMLSelectElement;
   private readonly ancillaryNodeSelect?: HTMLSelectElement;
-  private readonly layoutModeSelect?: HTMLSelectElement;
   private readonly maxNodesInput?: HTMLInputElement;
   private readonly initialZoomInput?: HTMLInputElement;
 
@@ -100,7 +90,6 @@ export class UiShellController {
     this.ancillaryWheelContainer = options.elements.ancillaryWheelContainer;
     this.ancillaryModeSelect = options.elements.ancillaryModeSelect;
     this.ancillaryNodeSelect = options.elements.ancillaryNodeSelect;
-    this.layoutModeSelect = options.elements.layoutModeSelect;
     this.maxNodesInput = options.elements.maxNodesInput;
     this.initialZoomInput = options.elements.initialZoomInput;
 
@@ -168,23 +157,15 @@ export class UiShellController {
 
     try {
       const ancillaryPayload = parseAncillaryPayload(ancillaryRaw);
-      await this.workbench.renderNewick(
-        newick,
-        datasetName || undefined,
-        {
-          metadataSchema: ancillaryPayload.metadata_schema,
-          metadataByNodeId: ancillaryPayload.metadata_by_node_id,
-          visualMapping: ancillaryPayload.visual_mapping,
-          layout: {
-            mode: this.getSelectedLayoutMode(),
-            forceIterations: 140,
-          },
-          lod: {
-            maxNodes: this.getSelectedMaxNodes(),
-            zoom: this.getSelectedInitialZoom(),
-          },
+      await this.workbench.renderNewick(newick, datasetName || undefined, {
+        metadataSchema: ancillaryPayload.metadata_schema,
+        metadataByNodeId: ancillaryPayload.metadata_by_node_id,
+        visualMapping: ancillaryPayload.visual_mapping,
+        lod: {
+          maxNodes: this.getSelectedMaxNodes(),
+          zoom: this.getSelectedInitialZoom(),
         },
-      );
+      });
     } catch (error) {
       const message = error instanceof Error ? error.message : "unknown error";
       this.setStatus(`${STATUS_FAILED_PREFIX}: ${message}`);
@@ -321,10 +302,6 @@ export class UiShellController {
     const selectedMode = this.getAncillaryMode();
     this.ancillaryNodeSelect.disabled =
       selectedMode !== ANCILLARY_MODE_SELECTED;
-  }
-
-  private getSelectedLayoutMode(): TreeLayoutMode {
-    return LAYOUT_MODE_SELECT_FORCE;
   }
 
   private getSelectedMaxNodes(): number {
