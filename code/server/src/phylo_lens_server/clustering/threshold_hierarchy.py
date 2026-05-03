@@ -5,8 +5,12 @@ from math import cos, pi, sin
 
 import igraph as ig
 
+from phylo_lens_server.clustering.spatial import spatial_bounds_from_cluster_bounds
+from phylo_lens_server.clustering.spatial_index import build_str_spatial_index
 from phylo_lens_server.core.models import (
     CanonicalDataset,
+    SpatialBounds,
+    SpatialLevelIndex,
     ThresholdHierarchyCluster,
     ThresholdHierarchyIndex,
 )
@@ -105,10 +109,18 @@ def build_threshold_hierarchy(dataset: CanonicalDataset) -> ThresholdHierarchyIn
         dataset_id=dataset.dataset_id,
         root_cluster_id=root_cluster_id,
         clusters=clusters,
+        global_bounds=spatial_bounds_from_cluster_bounds(
+            clusters[root_cluster_id].bounds
+        ),
+        max_distance_threshold_level=_max_distance_threshold_level(
+            clusters,
+            root_cluster_id,
+        ),
+        cluster_ids_by_level=_cluster_ids_by_level(clusters),
+        spatial_index_by_level=_spatial_index_by_level(clusters),
     )
 
 
-#!TODO: REFACTOR: The current implementation builds the entire hierarchy in memory, which can be expensive for large datasets. Consider implementing a more memory-efficient approach that constructs clusters on-the-fly or uses a streaming algorithm.
 def _validated_weighted_topology(
     dataset: CanonicalDataset,
 ) -> tuple[list[str], list[tuple[float, int, int]]]:
@@ -135,7 +147,7 @@ def _validated_weighted_topology(
 
 def _build_threshold_clusters(
     levels: list[_ComponentLevel],
-    *, 
+    *,
     level_offset: int = 0,
 ) -> tuple[
     dict[str, ThresholdHierarchyCluster],
@@ -411,6 +423,62 @@ def _assign_cluster_geometry(
             "min_y": min_y,
             "max_y": max_y,
         }
+
+
+def _max_distance_threshold_level(
+    clusters: dict[str, ThresholdHierarchyCluster],
+    root_cluster_id: str,
+) -> int:
+    return max(
+        (
+            cluster.distance_threshold_level
+            for cluster_id, cluster in clusters.items()
+            if cluster_id != root_cluster_id or cluster.parent_cluster_id is not None
+        ),
+        default=0,
+    )
+
+
+def _cluster_ids_by_level(
+    clusters: dict[str, ThresholdHierarchyCluster],
+) -> dict[int, list[str]]:
+    cluster_ids_by_level: dict[int, list[str]] = {}
+    for cluster in clusters.values():
+        cluster_ids_by_level.setdefault(
+            cluster.distance_threshold_level,
+            [],
+        ).append(cluster.cluster_id)
+
+    return {
+        level: sorted(cluster_ids)
+        for level, cluster_ids in sorted(cluster_ids_by_level.items())
+    }
+
+
+def _spatial_index_by_level(
+    clusters: dict[str, ThresholdHierarchyCluster],
+) -> dict[int, SpatialLevelIndex]:
+    entries_by_level = _spatial_entries_by_level(clusters)
+    return {
+        level: build_str_spatial_index(level, entries)
+        for level, entries in sorted(entries_by_level.items())
+    }
+
+
+def _spatial_entries_by_level(
+    clusters: dict[str, ThresholdHierarchyCluster],
+) -> dict[int, list[tuple[str, SpatialBounds]]]:
+    entries_by_level: dict[int, list[tuple[str, SpatialBounds]]] = {}
+    for cluster in clusters.values():
+        bounds = spatial_bounds_from_cluster_bounds(cluster.bounds)
+        if bounds is None:
+            continue
+        entries_by_level.setdefault(
+            cluster.distance_threshold_level,
+            [],
+        ).append((cluster.cluster_id, bounds))
+
+    return entries_by_level
 
 
 def _compute_node_positions(

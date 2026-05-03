@@ -1,23 +1,23 @@
-from phylo_lens_server.clustering.hierarchy import build_tree_hierarchy
+from phylo_lens_server.clustering.threshold_hierarchy import build_threshold_hierarchy
 from phylo_lens_server.core.models import PreparedDatasetRecord
 from phylo_lens_server.data.normalizer import NormalizeRequest, normalize_dataset
 from phylo_lens_server.data.store import DatasetStore
 
-FORMAT_NEWICK = "newick"
+FORMAT_EDGELIST = "edgelist"
 DATASET_ID = "store-tree"
-NEWICK_CONTENT = "((A,B)X,(C,D)Y)Root;"
+WEIGHTED_EDGELIST_CONTENT = "source,target,distance\na,b,1\nb,c,2\n"
 
 
 def test_dataset_store_persists_and_reloads_prepared_record(tmp_path) -> None:
     """Ensure prepared datasets survive a fresh store instance via disk persistence."""
     dataset = normalize_dataset(
         NormalizeRequest(
-            format=FORMAT_NEWICK,
+            format=FORMAT_EDGELIST,
             dataset_name=DATASET_ID,
-            content=NEWICK_CONTENT,
+            content=WEIGHTED_EDGELIST_CONTENT,
         )
     ).dataset
-    hierarchy = build_tree_hierarchy(dataset)
+    hierarchy = build_threshold_hierarchy(dataset)
     record = PreparedDatasetRecord(dataset=dataset, hierarchy=hierarchy)
 
     first_store = DatasetStore(tmp_path)

@@ -45,6 +45,19 @@ def test_build_threshold_hierarchy_creates_nested_threshold_levels() -> None:
     assert root.bounds is not None
     assert root.bounds["min_x"] < root.bounds["max_x"]
     assert root.bounds["min_y"] < root.bounds["max_y"]
+    assert hierarchy.global_bounds is not None
+    assert hierarchy.global_bounds.min_x < hierarchy.global_bounds.max_x
+    assert hierarchy.global_bounds.min_y < hierarchy.global_bounds.max_y
+    assert hierarchy.max_distance_threshold_level == 3
+    assert hierarchy.cluster_ids_by_level[0] == [hierarchy.root_cluster_id]
+    assert set(hierarchy.cluster_ids_by_level[1]) == {
+        "threshold_cluster_1_a",
+        "threshold_cluster_1_d",
+    }
+    assert 1 in hierarchy.spatial_index_by_level
+    level_index = hierarchy.spatial_index_by_level[1]
+    assert level_index.root_node_index is not None
+    assert len(level_index.nodes) >= 1
 
 
 def test_build_threshold_hierarchy_rejects_missing_distances() -> None:

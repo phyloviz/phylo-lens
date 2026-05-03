@@ -52,6 +52,7 @@ const KEY_LOD_LEVEL = "lod_level";
 const KEY_COLLAPSED_CLUSTERS = "collapsed_clusters";
 const KEY_VIEW_META = "view_meta";
 const KEY_VIEWPORT = "viewport";
+const KEY_GLOBAL_BOUNDS = "global_bounds";
 const KEY_ZOOM = "zoom";
 const KEY_RETURNED_NODE_COUNT = "returned_node_count";
 const KEY_RETURNED_EDGE_COUNT = "returned_edge_count";
@@ -286,6 +287,7 @@ export function isVisibleSliceResponse(
   }
 
   const viewport = viewMeta[KEY_VIEWPORT];
+  const globalBounds = viewMeta[KEY_GLOBAL_BOUNDS];
   if (
     typeof viewMeta[KEY_ZOOM] !== "number" ||
     typeof viewMeta[KEY_RETURNED_NODE_COUNT] !== "number" ||
@@ -294,7 +296,8 @@ export function isVisibleSliceResponse(
     typeof viewport.x !== "number" ||
     typeof viewport.y !== "number" ||
     typeof viewport.width !== "number" ||
-    typeof viewport.height !== "number"
+    typeof viewport.height !== "number" ||
+    !isOptionalSpatialBounds(globalBounds)
   ) {
     return false;
   }
@@ -400,4 +403,21 @@ function isOptionalNumberRecord(value: unknown): boolean {
   }
 
   return Object.values(value).every((entry) => typeof entry === "number");
+}
+
+function isOptionalSpatialBounds(value: unknown): boolean {
+  if (value === undefined || value === null) {
+    return true;
+  }
+
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    typeof value.min_x === "number" &&
+    typeof value.max_x === "number" &&
+    typeof value.min_y === "number" &&
+    typeof value.max_y === "number"
+  );
 }

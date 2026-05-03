@@ -1,19 +1,47 @@
 let lastSigmaOptions: Record<string, unknown> | null = null;
+let lastCamera:
+  | {
+      state: { x?: number; y?: number; ratio?: number };
+      handler: (() => void) | null;
+      setState: (state: { x?: number; y?: number; ratio?: number }) => void;
+      getState: () => { x?: number; y?: number; ratio?: number };
+      on: (event: string, handler: () => void) => void;
+      off: (event: string, handler: () => void) => void;
+    }
+  | null = null;
 
 vi.mock("sigma", () => {
   class FakeSigma {
+    private readonly camera = {
+      state: { ratio: 1 } as { x?: number; y?: number; ratio?: number },
+      handler: null as (() => void) | null,
+      setState: (state: { x?: number; y?: number; ratio?: number }) => {
+        this.camera.state = { ...this.camera.state, ...state };
+      },
+      getState: () => this.camera.state,
+      on: (event: string, handler: () => void) => {
+        if (event === "updated") {
+          this.camera.handler = handler;
+        }
+      },
+      off: (event: string, handler: () => void) => {
+        if (event === "updated" && this.camera.handler === handler) {
+          this.camera.handler = null;
+        }
+      },
+    };
+
     constructor(
       _graph?: unknown,
       _container?: unknown,
       options?: Record<string, unknown>,
     ) {
       lastSigmaOptions = options ?? null;
+      lastCamera = this.camera;
     }
 
     getCamera() {
-      return {
-        setState: () => undefined,
-      };
+      return this.camera;
     }
 
     refresh() {
@@ -103,5 +131,41 @@ describe("sigmaRenderer", () => {
       width: 200,
       height: 150,
     });
+  });
+
+  it("emits camera viewports in global graph bounds when a slice provides them", () => {
+    document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
+
+    const renderer = new SigmaRenderer();
+    const handler = vi.fn();
+    renderer.mount({ containerId: CONTAINER_ID });
+    renderer.setViewChangeHandler(handler);
+    renderer.render({
+      nodes: [
+        { id: "left", x: -10, y: 0 },
+        { id: "nearby", x: 10, y: 0 },
+      ],
+      edges: [],
+      viewMeta: {
+        layout: "server",
+        lodLevel: 1,
+        globalBounds: { minX: -1000, maxX: 1000, minY: -500, maxY: 500 },
+      },
+    });
+
+    lastCamera?.setState({ x: 0.25, y: 0.5, ratio: 0.25 });
+    lastCamera?.handler?.();
+
+    expect(handler).toHaveBeenCalledWith({
+      viewport: {
+        x: -500,
+        y: 0,
+        width: 500,
+        height: 250,
+      },
+      zoom: 3,
+    });
+
+    renderer.unmount();
   });
 });

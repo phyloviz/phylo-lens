@@ -343,6 +343,14 @@ export class GraphWorkbench {
         sliceEdgeCount: visibleSlice.view_meta.returned_edge_count,
         collapsedClusterCount: visibleSlice.collapsed_clusters.length,
         zoom: visibleSlice.view_meta.zoom,
+        globalBounds: visibleSlice.view_meta.global_bounds
+          ? {
+              minX: visibleSlice.view_meta.global_bounds.min_x,
+              maxX: visibleSlice.view_meta.global_bounds.max_x,
+              minY: visibleSlice.view_meta.global_bounds.min_y,
+              maxY: visibleSlice.view_meta.global_bounds.max_y,
+            }
+          : mappedGraph.viewMeta.globalBounds,
       },
     };
 

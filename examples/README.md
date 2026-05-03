@@ -1,42 +1,29 @@
 # Examples
 
-This folder contains small sample datasets and demo inputs for PhyloLens.
+Small input datasets for local development and smoke testing.
 
-## Newick Samples
+## Newick
 
-- [small-balanced.newick](newick/small-balanced.newick)
-- [with-branch-lengths.newick](newick/with-branch-lengths.newick)
+- [small-balanced.newick](newick/small-balanced.newick): unweighted topology,
+  useful for normalization tests.
+- [with-branch-lengths.newick](newick/with-branch-lengths.newick): weighted
+  topology, suitable for `prepare` and visible-slice LoD queries.
 
-## Running Client Demo
+## Local Demo
 
-From [code/client](../code/client):
-
-```bash
-npm install
-npm run demo
-```
-
-Then open the local URL shown by Vite and test with one of the sample Newick files.
-
-## Full Demo (Server + Client + Ancillary)
-
-1. Start the server from code/server:
+Start the server:
 
 ```bash
-source .venv/bin/activate
-phylo-lens-server
+cd code/server
+uvicorn phylo_lens_server.main:app --reload
 ```
 
-2. Start the client from code/client:
+Start the client:
 
 ```bash
-npm run demo
+cd code/client
+npm run dev
 ```
 
-3. In the demo UI:
-
-- paste a Newick tree,
-- optionally edit the Ancillary JSON block,
-- submit and inspect node color, size, and pie-chart slices.
-
-The Sigma renderer now uses the official pie-chart node program and consumes ancillary-derived slice attributes.
+Use a weighted Newick example when testing the active `prepare` and
+`view-slice` path.

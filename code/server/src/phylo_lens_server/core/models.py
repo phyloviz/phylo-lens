@@ -26,7 +26,6 @@ class SourceFormat(StrEnum):
 class HierarchyKind(StrEnum):
     """Supported hierarchy families backing LoD selection."""
 
-    TREE = "tree"
     THRESHOLD = "threshold"
 
 
@@ -79,34 +78,29 @@ class CanonicalDataset(BaseModel):
     source: DatasetSource
 
 
-class HierarchyCluster(BaseModel):
-    """Deterministic hierarchy entry used by server-side LoD processing."""
+class SpatialBounds(BaseModel):
+    """Axis-aligned bounds in the same coordinate space as visible-slice queries."""
 
-    cluster_id: str = Field(min_length=1)
-    parent_cluster_id: str | None = None
-    child_cluster_ids: list[str] = Field(default_factory=list)
-    representative_node_id: str | None = None
-    preorder_index: int = Field(ge=0)
-    postorder_index: int = Field(ge=0)
-    subtree_size: int = Field(ge=1)
-    leaf_count: int = Field(ge=1)
-    depth: int = Field(ge=0)
-    min_depth: int = Field(ge=0)
-    max_depth: int = Field(ge=0)
-    centroid: dict[str, float] | None = None
-    bounds: dict[str, float] | None = None
-    aggregate_metadata: dict[str, str | float | bool | None] = Field(
-        default_factory=dict
-    )
+    min_x: float
+    max_x: float
+    min_y: float
+    max_y: float
 
 
-class HierarchyIndex(BaseModel):
-    """Persisted hierarchy index backing visible-slice selection."""
+class SpatialIndexNode(BaseModel):
+    """One static R-tree node over prepared cluster bounds."""
 
-    kind: Literal[HierarchyKind.TREE] = HierarchyKind.TREE
-    dataset_id: str = Field(min_length=1)
-    root_cluster_id: str = Field(min_length=1)
-    clusters: dict[str, HierarchyCluster]
+    bounds: SpatialBounds
+    child_node_indices: list[int] = Field(default_factory=list)
+    cluster_ids: list[str] = Field(default_factory=list)
+
+
+class SpatialLevelIndex(BaseModel):
+    """Static spatial index for clusters belonging to one LoD level."""
+
+    level: int = Field(ge=0)
+    root_node_index: int | None = None
+    nodes: list[SpatialIndexNode] = Field(default_factory=list)
 
 
 class ThresholdHierarchyCluster(BaseModel):
@@ -134,6 +128,12 @@ class ThresholdHierarchyIndex(BaseModel):
     dataset_id: str = Field(min_length=1)
     root_cluster_id: str = Field(min_length=1)
     clusters: dict[str, ThresholdHierarchyCluster]
+    global_bounds: SpatialBounds | None = None
+    max_distance_threshold_level: int = Field(default=0, ge=0)
+    cluster_ids_by_level: dict[int, list[str]] = Field(default_factory=dict)
+    spatial_index_by_level: dict[int, SpatialLevelIndex] = Field(
+        default_factory=dict
+    )
 
 
 class Viewport(BaseModel):
@@ -181,6 +181,7 @@ class VisibleSliceViewMeta(BaseModel):
     zoom: float = Field(ge=0)
     returned_node_count: int = Field(ge=0)
     returned_edge_count: int = Field(ge=0)
+    global_bounds: SpatialBounds | None = None
 
 
 class VisibleSliceResponse(BaseModel):
@@ -198,7 +199,7 @@ class PreparedDatasetRecord(BaseModel):
     """Persisted dataset plus hierarchy used by LoD endpoints."""
 
     dataset: CanonicalDataset
-    hierarchy: HierarchyIndex | ThresholdHierarchyIndex = Field(discriminator="kind")
+    hierarchy: ThresholdHierarchyIndex
     warnings: list[str] = Field(default_factory=list)
 
 

@@ -2,7 +2,10 @@ import Graph from "graphology";
 import Sigma from "sigma";
 import { createNodePiechartProgram } from "@sigma/node-piechart";
 
-import { PositionedGraph } from "../../contracts/positioned";
+import {
+  PositionedGraph,
+  PositionedGraphBounds,
+} from "../../contracts/positioned";
 import { TriangleNodeProgram } from "../nodePrograms/triangleNodeProgram";
 import {
   GraphRenderer,
@@ -84,6 +87,7 @@ export class SigmaRenderer implements GraphRenderer {
   private containerElement: HTMLElement | null = null;
   private pieSliceKeys: string[] = [];
   private graphBounds: GraphBounds | null = null;
+  private coordinateBounds: GraphBounds | null = null;
   private piechartOptions: SigmaPiechartOptions;
   private readonly rendererOptions: SigmaRendererOptions;
   private viewChangeHandler: ((state: RenderViewportState) => void) | null =
@@ -138,6 +142,8 @@ export class SigmaRenderer implements GraphRenderer {
     // Clear previous frame first so Sigma rebuilds never see stale piechart nodes.
     this.graph.clear();
     this.graphBounds = deriveGraphBounds(graph);
+    this.coordinateBounds =
+      normalizeGraphBounds(graph.viewMeta.globalBounds) ?? this.graphBounds;
     this.ensureSigmaPiePrograms(graph);
 
     graph.nodes.forEach((node) => {
@@ -203,7 +209,7 @@ export class SigmaRenderer implements GraphRenderer {
   }
 
   centerOnNode(nodeId: string): void {
-    if (!this.sigma || !this.graphBounds || !this.graph?.hasNode(nodeId)) {
+    if (!this.sigma || !this.coordinateBounds || !this.graph?.hasNode(nodeId)) {
       return;
     }
 
@@ -231,7 +237,7 @@ export class SigmaRenderer implements GraphRenderer {
       setState: (state: { x?: number; y?: number; ratio?: number }) => void;
     };
     const currentState = camera.getState?.() ?? camera;
-    const nextCenter = graphCoordinatesToCameraCenter(this.graphBounds, {
+    const nextCenter = graphCoordinatesToCameraCenter(this.coordinateBounds, {
       x: nodeX,
       y: nodeY,
     });
@@ -259,6 +265,7 @@ export class SigmaRenderer implements GraphRenderer {
     this.containerId = null;
     this.pieSliceKeys = [];
     this.graphBounds = null;
+    this.coordinateBounds = null;
   }
 
   private ensureSigmaPiePrograms(graph: PositionedGraph): void {
@@ -419,7 +426,7 @@ export class SigmaRenderer implements GraphRenderer {
       !this.viewChangeHandler ||
       !this.sigma ||
       !this.containerElement ||
-      !this.graphBounds
+      !this.coordinateBounds
     ) {
       return;
     }
@@ -435,7 +442,7 @@ export class SigmaRenderer implements GraphRenderer {
       typeof state.ratio === "number" && Number.isFinite(state.ratio)
         ? state.ratio
         : SIGMA_DEFAULT_CAMERA_ZOOM;
-    const viewport = sigmaCameraToViewportState(this.graphBounds, {
+    const viewport = sigmaCameraToViewportState(this.coordinateBounds, {
       x: typeof state.x === "number" ? state.x : SIGMA_DEFAULT_CAMERA_X,
       y: typeof state.y === "number" ? state.y : SIGMA_DEFAULT_CAMERA_Y,
       ratio,
@@ -609,6 +616,25 @@ function deriveGraphBounds(graph: PositionedGraph): GraphBounds | null {
   });
 
   return { minX, maxX, minY, maxY };
+}
+
+function normalizeGraphBounds(
+  bounds: PositionedGraphBounds | undefined,
+): GraphBounds | null {
+  if (!bounds) {
+    return null;
+  }
+
+  if (
+    !Number.isFinite(bounds.minX) ||
+    !Number.isFinite(bounds.maxX) ||
+    !Number.isFinite(bounds.minY) ||
+    !Number.isFinite(bounds.maxY)
+  ) {
+    return null;
+  }
+
+  return bounds;
 }
 
 function clampUnit(value: number): number {

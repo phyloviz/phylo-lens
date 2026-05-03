@@ -5,12 +5,20 @@ from heapq import heappop, heappush
 from phylo_lens_server.clustering.threshold_hierarchy import (
     THRESHOLD_SYNTHETIC_ROOT_ID,
 )
+from phylo_lens_server.clustering.spatial import (
+    BoundsTuple,
+    bounds_distance,
+    bounds_overlap_ratio,
+    spatial_bounds_from_cluster_bounds,
+    viewport_to_bounds,
+)
+from phylo_lens_server.clustering.spatial_index import query_spatial_index
 from phylo_lens_server.core.models import (
     CanonicalDataset,
     CanonicalEdge,
     CanonicalNode,
     CollapsedCluster,
-    HierarchyIndex,
+    SpatialBounds,
     ThresholdHierarchyCluster,
     ThresholdHierarchyIndex,
     VisibleSliceQuery,
@@ -21,13 +29,8 @@ from phylo_lens_server.core.models import (
 DEFAULT_MAX_NODES_FALLBACK = 10_000
 ZOOM_OVERVIEW_THRESHOLD = 0.75
 ZOOM_EXPANSION_THRESHOLD = 1.0
-SELECTOR_NODE_GAP = 120.0
-SELECTOR_LAYER_GAP = 150.0
 
 ERR_SELECTOR_DATASET_MISMATCH = "Visible-slice query dataset '{query_dataset_id}' does not match hierarchy/dataset '{dataset_id}'."
-ERR_SELECTOR_UNSUPPORTED_HIERARCHY = (
-    "Visible-slice selection currently supports only distance-threshold hierarchies."
-)
 
 
 class VisibleSliceSelectionError(ValueError):
@@ -36,38 +39,45 @@ class VisibleSliceSelectionError(ValueError):
 
 def select_visible_slice(
     dataset: CanonicalDataset,
-    hierarchy: HierarchyIndex | ThresholdHierarchyIndex,
+    hierarchy: ThresholdHierarchyIndex,
     query: VisibleSliceQuery,
 ) -> VisibleSliceResponse:
     """Select a deterministic visible slice from a threshold hierarchy."""
-    threshold_hierarchy = _require_threshold_hierarchy(hierarchy)
-    _validate_dataset_match(dataset, threshold_hierarchy, query)
+    _validate_dataset_match(dataset, hierarchy, query)
 
     max_nodes = query.max_nodes or min(len(dataset.nodes), DEFAULT_MAX_NODES_FALLBACK)
-    viewport_bounds = _viewport_bounds(query)
-    target_level = _target_level(threshold_hierarchy, query)
+    viewport_bounds = viewport_to_bounds(query.viewport)
+    target_level = _target_level(hierarchy, query)
     focus_path_cluster_ids = _focus_path_cluster_ids(
-        threshold_hierarchy, query.focus_node_id
+        hierarchy, query.focus_node_id
     )
+    spatial_candidate_cluster_ids = _spatial_candidate_cluster_ids(
+        hierarchy,
+        viewport_bounds,
+        target_level,
+    )
+    if spatial_candidate_cluster_ids is not None:
+        spatial_candidate_cluster_ids.update(focus_path_cluster_ids)
 
     visible_order, expanded_cluster_ids = _visible_cluster_order(
-        threshold_hierarchy,
+        hierarchy,
         query,
         max_nodes,
         viewport_bounds,
         target_level,
         focus_path_cluster_ids,
+        spatial_candidate_cluster_ids,
     )
 
     node_by_id = {node.id: node for node in dataset.nodes}
     visible_nodes, visible_node_id_set, rendered_cluster_ids = _visible_nodes(
-        threshold_hierarchy,
+        hierarchy,
         node_by_id,
         visible_order,
         expanded_cluster_ids,
     )
     collapsed_clusters = _collapsed_clusters(
-        threshold_hierarchy,
+        hierarchy,
         visible_order,
         expanded_cluster_ids,
         rendered_cluster_ids,
@@ -76,12 +86,12 @@ def select_visible_slice(
         node_by_id,
     )
     visible_edges = _visible_edges(
-        threshold_hierarchy,
+        hierarchy,
         visible_order,
         rendered_cluster_ids,
         visible_node_id_set,
     )
-    lod_level = _lod_level(threshold_hierarchy, rendered_cluster_ids)
+    lod_level = _lod_level(hierarchy, rendered_cluster_ids)
 
     return VisibleSliceResponse(
         dataset_id=dataset.dataset_id,
@@ -94,16 +104,9 @@ def select_visible_slice(
             zoom=query.zoom,
             returned_node_count=len(visible_nodes),
             returned_edge_count=len(visible_edges),
+            global_bounds=_global_bounds(hierarchy),
         ),
     )
-
-
-def _require_threshold_hierarchy(
-    hierarchy: HierarchyIndex | ThresholdHierarchyIndex,
-) -> ThresholdHierarchyIndex:
-    if not isinstance(hierarchy, ThresholdHierarchyIndex):
-        raise VisibleSliceSelectionError(ERR_SELECTOR_UNSUPPORTED_HIERARCHY)
-    return hierarchy
 
 
 def _validate_dataset_match(
@@ -149,13 +152,29 @@ def _focus_path_cluster_ids(
     return path
 
 
+def _spatial_candidate_cluster_ids(
+    hierarchy: ThresholdHierarchyIndex,
+    viewport_bounds: BoundsTuple,
+    target_level: int,
+) -> set[str] | None:
+    if not hierarchy.spatial_index_by_level:
+        return None
+
+    candidates = {hierarchy.root_cluster_id}
+    for level, index in hierarchy.spatial_index_by_level.items():
+        if level <= target_level:
+            candidates.update(query_spatial_index(index, viewport_bounds))
+    return candidates
+
+
 def _visible_cluster_order(
     hierarchy: ThresholdHierarchyIndex,
     query: VisibleSliceQuery,
     max_nodes: int,
-    viewport_bounds: tuple[float, float, float, float],
+    viewport_bounds: BoundsTuple,
     target_level: int,
     focus_path_cluster_ids: set[str],
+    spatial_candidate_cluster_ids: set[str] | None,
 ) -> tuple[list[str], set[str]]:
     visible_cluster_ids = {hierarchy.root_cluster_id}
     visible_order = [hierarchy.root_cluster_id]
@@ -181,11 +200,15 @@ def _visible_cluster_order(
         if not _should_expand_cluster(hierarchy, query, cluster, target_level):
             continue
 
-        children = _ordered_child_cluster_ids(
+        children = _visible_child_cluster_ids(
             hierarchy,
             cluster.child_cluster_ids,
             focus_path_cluster_ids,
+            viewport_bounds,
+            spatial_candidate_cluster_ids,
         )
+        if not children:
+            continue
         if len(visible_cluster_ids) + len(children) > max_nodes:
             continue
 
@@ -216,12 +239,12 @@ def _frontier_sort_key(
     hierarchy: ThresholdHierarchyIndex,
     cluster_id: str,
     focus_path_cluster_ids: set[str],
-    viewport_bounds: tuple[float, float, float, float],
+    viewport_bounds: BoundsTuple,
     max_nodes: int,
 ) -> tuple[int, int, float, float, int, str]:
     cluster = hierarchy.clusters[cluster_id]
-    overlap_ratio = _viewport_overlap_ratio(cluster.bounds, viewport_bounds)
-    distance = _viewport_distance(cluster.bounds, viewport_bounds)
+    overlap_ratio = bounds_overlap_ratio(cluster.bounds, viewport_bounds)
+    distance = bounds_distance(cluster.bounds, viewport_bounds)
     return (
         0 if cluster_id in focus_path_cluster_ids else 1,
         0 if overlap_ratio > 0 else 1,
@@ -232,18 +255,56 @@ def _frontier_sort_key(
     )
 
 
-def _ordered_child_cluster_ids(
+def _visible_child_cluster_ids(
     hierarchy: ThresholdHierarchyIndex,
     child_cluster_ids: list[str],
     focus_path_cluster_ids: set[str],
+    viewport_bounds: BoundsTuple,
+    spatial_candidate_cluster_ids: set[str] | None,
 ) -> list[str]:
     return sorted(
-        child_cluster_ids,
+        (
+            cluster_id
+            for cluster_id in child_cluster_ids
+            if _is_view_relevant_cluster(
+                hierarchy,
+                cluster_id,
+                focus_path_cluster_ids,
+                viewport_bounds,
+                spatial_candidate_cluster_ids,
+            )
+        ),
         key=lambda cluster_id: (
             0 if cluster_id in focus_path_cluster_ids else 1,
+            0
+            if bounds_overlap_ratio(
+                hierarchy.clusters[cluster_id].bounds,
+                viewport_bounds,
+            )
+            > 0
+            else 1,
             hierarchy.clusters[cluster_id].representative_node_id or "",
         ),
     )
+
+
+def _is_view_relevant_cluster(
+    hierarchy: ThresholdHierarchyIndex,
+    cluster_id: str,
+    focus_path_cluster_ids: set[str],
+    viewport_bounds: BoundsTuple,
+    spatial_candidate_cluster_ids: set[str] | None,
+) -> bool:
+    if cluster_id in focus_path_cluster_ids:
+        return True
+    if _is_synthetic_root(hierarchy, cluster_id):
+        return True
+    if spatial_candidate_cluster_ids is not None:
+        return cluster_id in spatial_candidate_cluster_ids
+    return bounds_overlap_ratio(
+        hierarchy.clusters[cluster_id].bounds,
+        viewport_bounds,
+    ) > 0
 
 
 def _should_expand_cluster(
@@ -263,7 +324,10 @@ def _should_expand_cluster(
         return False
     if query.zoom < ZOOM_OVERVIEW_THRESHOLD:
         return False
-    if query.zoom <= ZOOM_EXPANSION_THRESHOLD and cluster.distance_threshold_level >= 1:
+    if (
+        query.zoom <= ZOOM_EXPANSION_THRESHOLD
+        and cluster.distance_threshold_level >= 1
+    ):
         return False
     return cluster.distance_threshold_level < target_level
 
@@ -272,11 +336,7 @@ def _target_level(
     hierarchy: ThresholdHierarchyIndex,
     query: VisibleSliceQuery,
 ) -> int:
-    max_level = max(
-        cluster.distance_threshold_level
-        for cluster_id, cluster in hierarchy.clusters.items()
-        if not _is_synthetic_root(hierarchy, cluster_id)
-    )
+    max_level = hierarchy.max_distance_threshold_level
     if query.lod_hint is not None:
         return min(max_level, max(0, query.lod_hint))
     if query.zoom <= ZOOM_EXPANSION_THRESHOLD:
@@ -481,69 +541,10 @@ def _is_synthetic_root(hierarchy: ThresholdHierarchyIndex, cluster_id: str) -> b
     return _has_synthetic_root(hierarchy) and cluster_id == hierarchy.root_cluster_id
 
 
-def _viewport_bounds(
-    query: VisibleSliceQuery,
-) -> tuple[float, float, float, float]:
-    half_width = query.viewport.width / 2
-    half_height = query.viewport.height / 2
-    return (
-        query.viewport.x - half_width,
-        query.viewport.x + half_width,
-        query.viewport.y - half_height,
-        query.viewport.y + half_height,
-    )
+def _global_bounds(hierarchy: ThresholdHierarchyIndex) -> SpatialBounds | None:
+    if hierarchy.global_bounds is not None:
+        return hierarchy.global_bounds
 
-
-def _viewport_overlap_ratio(
-    bounds: dict[str, float] | None,
-    viewport_bounds: tuple[float, float, float, float],
-) -> float:
-    if bounds is None:
-        return 0.0
-
-    cluster_min_x, cluster_max_x, cluster_min_y, cluster_max_y = _scaled_bounds(bounds)
-    view_min_x, view_max_x, view_min_y, view_max_y = viewport_bounds
-    intersect_width = min(cluster_max_x, view_max_x) - max(cluster_min_x, view_min_x)
-    intersect_height = min(cluster_max_y, view_max_y) - max(cluster_min_y, view_min_y)
-    if intersect_width <= 0 or intersect_height <= 0:
-        return 0.0
-
-    cluster_area = max(
-        (cluster_max_x - cluster_min_x) * (cluster_max_y - cluster_min_y),
-        1.0,
-    )
-    return (intersect_width * intersect_height) / cluster_area
-
-
-def _viewport_distance(
-    bounds: dict[str, float] | None,
-    viewport_bounds: tuple[float, float, float, float],
-) -> float:
-    if bounds is None:
-        return float("inf")
-
-    cluster_min_x, cluster_max_x, cluster_min_y, cluster_max_y = _scaled_bounds(bounds)
-    view_min_x, view_max_x, view_min_y, view_max_y = viewport_bounds
-
-    dx = 0.0
-    if cluster_max_x < view_min_x:
-        dx = view_min_x - cluster_max_x
-    elif cluster_min_x > view_max_x:
-        dx = cluster_min_x - view_max_x
-
-    dy = 0.0
-    if cluster_max_y < view_min_y:
-        dy = view_min_y - cluster_max_y
-    elif cluster_min_y > view_max_y:
-        dy = cluster_min_y - view_max_y
-
-    return dx + dy
-
-
-def _scaled_bounds(bounds: dict[str, float]) -> tuple[float, float, float, float]:
-    return (
-        bounds["min_x"] * SELECTOR_NODE_GAP,
-        bounds["max_x"] * SELECTOR_NODE_GAP,
-        bounds["min_y"] * SELECTOR_LAYER_GAP,
-        bounds["max_y"] * SELECTOR_LAYER_GAP,
+    return spatial_bounds_from_cluster_bounds(
+        hierarchy.clusters[hierarchy.root_cluster_id].bounds
     )

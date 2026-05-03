@@ -78,6 +78,13 @@ export interface Viewport {
   height: number;
 }
 
+export interface SpatialBounds {
+  min_x: number;
+  max_x: number;
+  min_y: number;
+  max_y: number;
+}
+
 export interface VisibleSliceQuery {
   dataset_id: string;
   viewport: Viewport;
@@ -104,6 +111,7 @@ export interface VisibleSliceViewMeta {
   zoom: number;
   returned_node_count: number;
   returned_edge_count: number;
+  global_bounds?: SpatialBounds | null;
 }
 
 export interface VisibleSliceResponse {

@@ -1,645 +1,207 @@
-# Phylogenetic Visualization Library Architecture (Thesis)
+# Architecture
 
-## 1) Purpose
+PhyloLens is split into a server-side data engine and a Sigma-based client. The
+server owns phylogenetic semantics, normalization, LoD precomputation, spatial
+indexes, and visible-slice selection. The client owns interaction, camera state,
+rendering, and local visual mappings.
 
-Define a modular architecture for a scalable, phylogeny-aware visualization library where:
+## Design Principles
 
-- biological/topological semantics are independent from rendering technology,
-- semantic zoom is driven by deterministic LoD clusters,
-- rendering backends (Sigma now, others later) are adapters.
+1. **Semantics stay server-side.** Parsing, validation, weighted topology, LoD
+   hierarchy construction, and visible-slice selection are server concerns.
+2. **Rendering is adapter-based.** Sigma-specific behavior must not leak into
+   canonical contracts or clustering logic.
+3. **Precompute before interaction.** Expensive global work happens during
+   `prepare`; interactive camera updates issue bounded window queries.
+4. **Use stable coordinate space.** The client camera and server selector share
+   one global coordinate system through `global_bounds`.
+5. **Keep runtime payloads bounded.** The browser receives only visible nodes,
+   visible edges, and collapsed-cluster metadata.
 
-This document is the source of truth for implementation decisions in the PoC-to-library transition.
+## Server Modules
 
-## 2) Scope and Non-Goals
+### `core`
 
-### In scope
+Defines Pydantic contracts and domain validation errors:
 
-- Canonical data model for trees/graphs and metadata.
-- Parsing and normalization pipeline (Newick and edge-list first, typing-data path next).
-- LoD generation contracts with Python-first implementation and optional future lower-level acceleration if benchmarks justify it.
-- Server-side layout computation for visible-slice rendering.
-- Renderer adapter contracts (Sigma.js first).
-- Interaction and state contracts for semantic zoom/filtering.
-- Performance and correctness acceptance criteria.
+- canonical nodes, edges, metadata, and datasets;
+- threshold hierarchy clusters and indexes;
+- spatial bounds and spatial index nodes;
+- visible-slice request/response contracts;
+- prepared dataset records.
 
-### Out of scope (for first release)
+`core` must not import parsing, HTTP, clustering, or rendering code.
 
-- Full phylogenetic inference algorithms.
-- Domain-specific analytics UI beyond visualization primitives.
-- Multi-user collaboration features.
+### `data`
 
-## 3) Architectural Principles
+Parses and normalizes input data:
 
-1. **Semantics-first**: biological correctness lives in `core`, not in the renderer.
-2. **Deterministic pipeline**: same input + config => same normalized model and LoD outputs.
-3. **Renderer-agnostic contracts**: Sigma-specific code must not leak into domain modules.
-4. **Scale-aware by design**: precomputation and indexing before runtime interaction.
-5. **Observable performance**: every stage exposes timings and memory-friendly metrics.
+- Newick input, including optional branch lengths;
+- edge-list input, including optional `distance`;
+- deterministic node/edge ordering;
+- metadata schema and per-node metadata alignment;
+- file-backed prepared dataset storage.
 
-## 4) Module Map (Simplified)
+The output is a `CanonicalDataset`.
 
-Architecture is split into two applications with explicit module boundaries.
+### `clustering`
 
-### Server App
+Builds and queries LoD data structures:
 
-## `core`
+- `threshold_hierarchy.py`: weighted threshold hierarchy construction;
+- `spatial.py`: shared viewport and bounding-box math;
+- `spatial_index.py`: STR-packed static R-tree construction and query;
+- `selector.py`: viewport-aware visible-slice selection.
 
-Responsibilities:
+The active hierarchy path is `ThresholdHierarchyIndex`. Legacy depth/tree
+hierarchy code has been removed to keep the runtime model explicit.
 
-- Canonical entities and invariants (`Node`, `Edge`, `Tree`, metadata contracts).
-- Validation and deterministic rules shared by server processing.
+### `api`
 
-## `data`
+Exposes FastAPI endpoints:
 
-Responsibilities:
+- `POST /dataset/normalize`
+- `POST /dataset/prepare`
+- `POST /dataset/view-slice`
 
-- Input adapters: Newick parser bridge, edge-list loaders, future typing-data adapters.
-- Normalization to canonical model.
-- Metadata alignment and indexing.
-- Optional columnar serialization for ancillary metadata using Apache Arrow.
+`prepare` normalizes input and builds LoD artifacts. `view-slice` loads a
+prepared dataset and returns a bounded visible graph slice.
 
-Output: `CanonicalDataset` as ingest baseline plus persisted topology artifacts
-consumed by LoD services.
+## Client Modules
 
-## `clustering`
+### `api`
 
-Responsibilities:
+Contains runtime guards for server contracts and typed API clients.
 
-- Generate cluster levels (`LodBundle`) from topology.
-- Precompute threshold-containment statistics required for semantic zoom.
-- Persist hierarchy indexes for later view queries.
-- Host distance-threshold clustering strategies.
-- Provide stable cluster identity mapping across levels.
-- Compute backend layout coordinates for nodes and threshold clusters.
+### `app`
 
-Status:
+`GraphWorkbench` orchestrates:
 
-- Active module for weighted distance-threshold hierarchy precompute and visible-slice selection.
-- Current implementation is iterative, deterministic, and Python-first, with backend layout computed before client rendering.
-- Future work may add lower-level acceleration or richer threshold policies if benchmarks justify it.
+1. prepare dataset;
+2. request visible slice;
+3. build a positioned graph;
+4. apply visual mappings;
+5. render through the selected renderer;
+6. request new slices on camera changes or proxy drill-down.
 
-### Client App
+### `render`
 
-Server-side layout is now the active path for weighted threshold datasets, so
-the client focuses on interaction orchestration and rendering rather than
-recomputing graph coordinates per slice.
+Renderer adapter layer. The current production adapter is Sigma:
 
-## `render`
+- maps positioned graph nodes/edges into Graphology;
+- renders cluster proxies as distinct visual entities;
+- preserves camera state across refreshes;
+- emits camera viewport updates in the server-provided global coordinate space.
 
-Responsibilities:
+### `ancillary`
 
-- Translate backend-positioned `PositionedGraph` + visual mapping into Graphology/Sigma attributes.
-- Manage Sigma-specific programs (e.g., piechart nodes).
-- Apply reducers and rendering-side optimizations.
+Client-side metadata indexing and filtering. This is still local-first; the
+future server-side ancillary path should be added only if metadata transfer or
+filtering becomes a benchmarked bottleneck.
 
-No biology decisions here.
-
-## `state`
-
-Responsibilities:
-
-- View state machine: active filters, selection, camera, zoom bands.
-- Event orchestration between interaction and layout/render updates.
-- Performance-safe refresh cadence (throttle/debounce policies).
-- Visible-slice caching and orchestration for viewport-aware LoD queries.
-- Filtering execution currently starts client-side behind a pluggable filter engine boundary and is intended to move server-side with ancillary data services as scale grows.
-
-## 5) Canonical Contracts (v0.1)
-
-## `CanonicalDataset`
-
-```ts
-interface CanonicalDataset {
-  datasetId: string;
-  nodes: CanonicalNode[];
-  edges: CanonicalEdge[];
-  metadataSchema: MetadataField[];
-  metadataByNodeId: Record<
-    string,
-    Record<string, string | number | boolean | null>
-  >;
-  source: {
-    format: "newick" | "edgelist" | "typing_data";
-    generatedAt: string;
-    provenance?: string;
-  };
-}
-```
-
-Key implementation notes in the current prototype:
-
-- `CanonicalEdge` may carry an optional `distance` value when a source format provides branch lengths or weighted edges.
-- `CanonicalNode` may carry optional hierarchy-driven fields in visible-slice responses such as `cluster_id`, `is_cluster_proxy`, `subtree_size`, `leaf_count`, `x`, and `y`.
-
-## `LodBundle`
-
-```ts
-interface LodBundle {
-  datasetId: string;
-  levels: LodLevel[]; // ordered coarse -> fine
-  mapping: {
-    childClusterToParentCluster: Record<string, string>;
-    nodeToLeafCluster: Record<string, string>;
-  };
-}
-
-interface LodLevel {
-  level: number;
-  cutoffDepth?: number;
-  clusters: LodCluster[];
-}
-
-interface LodCluster {
-  clusterId: string;
-  memberNodeIds: string[];
-  representativeNodeId?: string;
-  aggregates?: Record<string, number | string>;
-}
-```
-
-## `HierarchyIndex`
-
-```ts
-interface HierarchyIndex {
-  datasetId: string;
-  rootClusterId: string;
-  clusters: Record<string, HierarchyCluster>;
-}
-
-interface HierarchyCluster {
-  clusterId: string;
-  parentClusterId?: string;
-  childClusterIds: string[];
-  representativeNodeId?: string;
-  subtreeSize: number;
-  leafCount: number;
-  depth: number;
-  minDepth: number;
-  maxDepth: number;
-  preorderIndex: number;
-  postorderIndex: number;
-  centroid?: { x: number; y: number };
-  bounds?: { minX: number; minY: number; maxX: number; maxY: number };
-  aggregateMetadata?: Record<string, string | number | boolean | null>;
-}
-```
-
-This is the server-side index used to answer semantic-zoom queries. It is not
-intended to be fully shipped to the browser for large datasets.
-
-## `VisibleSliceResponse`
-
-```ts
-interface VisibleSliceResponse {
-  datasetId: string;
-  lodLevel: number;
-  nodes: CanonicalNode[];
-  edges: CanonicalEdge[];
-  collapsedClusters: Array<{
-    clusterId: string;
-    representativeNodeId?: string;
-    subtreeSize: number;
-    centroid?: { x: number; y: number };
-  }>;
-  viewMeta: {
-    viewport: { x: number; y: number; width: number; height: number };
-    zoom: number;
-    returnedNodeCount: number;
-    returnedEdgeCount: number;
-  };
-}
-```
-
-This contract represents the runtime payload for the client. The design target
-is to return `O(visible_nodes)` data rather than the full topology.
-
-In the current implementation, `nodes` may already include representative nodes
-for collapsed subtrees. Those representatives are marked explicitly with
-`is_cluster_proxy` instead of being inferred indirectly from
-`collapsedClusters` alone, and they may also carry backend-computed `x` / `y`
-coordinates that the client treats as authoritative.
-
-## `VisibleSliceQuery`
-
-```ts
-interface VisibleSliceQuery {
-  datasetId: string;
-  viewport: {
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  };
-  zoom: number;
-  lodHint?: number;
-  maxNodes?: number;
-  includeMetadataKeys?: string[];
-  filters?: {
-    categorical?: Record<string, string[]>;
-    numeric?: Record<string, { min?: number; max?: number }>;
-  };
-}
-```
-
-This is the runtime request contract used by the client to ask for the current
-visible slice. `lodHint` is advisory. The server remains authoritative for final
-LoD selection.
-
-## `PositionedGraph`
-
-```ts
-interface PositionedGraph {
-  nodes: Array<{
-    id: string;
-    x: number;
-    y: number;
-    size?: number;
-    color?: string;
-    attributes?: Record<string, unknown>;
-  }>;
-  edges: Array<{
-    id: string;
-    source: string;
-    target: string;
-    attributes?: Record<string, unknown>;
-  }>;
-  viewMeta: {
-    layout: "force" | "radial" | "dendrogram";
-    lodLevel: number;
-  };
-}
-```
-
-## `ArrowAncillaryBundle` (Optional)
-
-```ts
-interface ArrowAncillaryBundle {
-  datasetId: string;
-  schemaVersion: string;
-  scope: "node" | "cluster" | "mixed";
-  batches: Array<{
-    batchId: string;
-    format: "apache-arrow";
-    rowCount: number;
-    contentEncoding?: "none" | "zstd";
-  }>;
-}
-```
-
-### Transport strategy
-
-- **Hybrid when needed**:
-  - topology/LoD view slices remain in compact JSON contracts,
-  - ancillary/filter-heavy metadata is transported as Arrow batches.
-- This preserves implementation simplicity for graph structure while optimizing large attribute payloads.
-
-## 6) Processing Pipeline (Current Focus)
-
-1. **Client Input**: upload/select dataset and initial visualization config.
-2. **Client -> Server API**: submit prepare request.
-3. **Server / Core+Data Integration**: ingest, validate, normalize, and orient tree-shaped inputs.
-4. **Server / Clustering**: build hierarchy indexes and stable hierarchy coordinates through explicit iterative passes over indexed topology arrays.
-5. **Client / Workbench Orchestration**: request an initial visible slice.
-6. **Server -> Client Response**: return bounded `VisibleSliceResponse`.
-7. **Client / Render Adapter**: render the current slice and react to zoom or proxy drill-down.
-
-## 6.1) Processing Pipeline (Next Phase)
-
-1. Improve hierarchy internals for tighter memory use and faster large-tree traversals.
-2. Expand tree-specialized selector heuristics beyond the current viewport/bounds policy.
-3. Add generalized weighted-graph hierarchy strategies where tree semantics do not apply.
-4. Connect richer cluster analytics and caching into the client state layer.
-5. Add Arrow ancillary path only where metadata transfer becomes a bottleneck.
-
-## 7) Interaction Model for Semantic Zoom
-
-- Define zoom bands (example):
-  - Band 0: overview clusters,
-  - Band 1..N-2: intermediate clusters,
-  - Band N-1: leaf-level detail.
-- Camera zoom crossing a band boundary updates active LoD level.
-- Viewport and zoom together select the visible slice returned by the server.
-- Clicking a visible cluster proxy is treated as an explicit drill-down request into the collapsed subtree it represents.
-- Transition policy:
-  - preserve camera focus point,
-  - stable cluster identity across adjacent levels,
-  - optional animated interpolation by adapter.
-- Off-screen regions should remain collapsed as cluster representatives rather
-  than expanded into raw nodes.
-
-### Cluster Proxy Semantics
-
-- A cluster proxy is a visible representative node for a collapsed subtree.
-- Proxy nodes carry explicit metadata such as `cluster_id`, `subtree_size`, and `leaf_count`.
-- Contracted visible edges keep coarse slices connected even when descendants are hidden.
-- Proxy nodes are interaction targets, not only styling hints: the client can use them to request deeper focused slices.
-
-### Visible-Slice Invariants
-
-- Same dataset + same query inputs must produce the same visible-slice output.
-- Returned node ids and edge endpoints must always be valid with respect to the
-  normalized dataset or persisted hierarchy.
-- A returned visible slice must not contain both a collapsed cluster and one of
-  its expanded descendants in the same response unless explicitly allowed by the
-  transition policy.
-- Off-screen topology may remain represented only by collapsed clusters.
-- `returnedNodeCount` and `returnedEdgeCount` in `viewMeta` must match the
-  actual payload sizes.
-- `maxNodes`, when provided, must act as a hard upper bound unless the request
-  is invalid and rejected.
-
-### Hierarchy Invariants
-
-- Every hierarchy cluster except the root must have exactly one parent cluster.
-- `rootClusterId` must reference a cluster present in `HierarchyIndex.clusters`.
-- `subtreeSize` must equal the number of canonical descendants represented by
-  the cluster under the chosen hierarchy semantics.
-- `minDepth <= depth <= maxDepth` for every cluster.
-- Recomputing hierarchy on the same normalized dataset must yield identical
-  cluster ids and parent-child relationships.
-
-### Worked Example
-
-Example normalized tree:
+## Runtime Flow
 
 ```text
-((A,B)X,(C,D)Y)Root
+input dataset
+  -> normalize
+  -> build threshold hierarchy
+  -> compute global coordinates and cluster bounds
+  -> build STR spatial indexes per LoD level
+  -> persist prepared dataset
+
+camera viewport + zoom
+  -> view-slice request
+  -> spatial candidate query
+  -> threshold hierarchy expansion
+  -> visible nodes, visible edges, collapsed clusters
+  -> Sigma render
 ```
 
-Example hierarchy excerpt:
+## Core Contracts
 
-```json
-{
-  "datasetId": "small-tree",
-  "rootClusterId": "cluster_root",
-  "clusters": {
-    "cluster_root": {
-      "clusterId": "cluster_root",
-      "childClusterIds": ["cluster_x", "cluster_y"],
-      "representativeNodeId": "root",
-      "subtreeSize": 7,
-      "depth": 0,
-      "minDepth": 0,
-      "maxDepth": 2
-    },
-    "cluster_x": {
-      "clusterId": "cluster_x",
-      "parentClusterId": "cluster_root",
-      "childClusterIds": ["cluster_a", "cluster_b"],
-      "representativeNodeId": "x",
-      "subtreeSize": 3,
-      "depth": 1,
-      "minDepth": 1,
-      "maxDepth": 2
-    }
-  }
-}
-```
+### `CanonicalDataset`
 
-Example overview response for a low zoom band:
+The correctness-first normalized representation. It is allowed to materialize
+the full topology during prepare, but it is not the intended browser payload for
+large datasets.
 
-```json
-{
-  "datasetId": "small-tree",
-  "lodLevel": 0,
-  "nodes": [{ "id": "root" }],
-  "edges": [],
-  "collapsedClusters": [
-    {
-      "clusterId": "cluster_x",
-      "representativeNodeId": "x",
-      "subtreeSize": 3
-    },
-    {
-      "clusterId": "cluster_y",
-      "representativeNodeId": "y",
-      "subtreeSize": 3
-    }
-  ],
-  "viewMeta": {
-    "viewport": { "x": 0, "y": 0, "width": 1000, "height": 600 },
-    "zoom": 0.4,
-    "returnedNodeCount": 1,
-    "returnedEdgeCount": 0
-  }
-}
-```
+### `ThresholdHierarchyIndex`
 
-Example finer response for a higher zoom band:
+Prepared server-side LoD artifact:
 
-```json
-{
-  "datasetId": "small-tree",
-  "lodLevel": 2,
-  "nodes": [
-    { "id": "root" },
-    { "id": "x" },
-    { "id": "y" },
-    { "id": "a" },
-    { "id": "b" },
-    { "id": "c" },
-    { "id": "d" }
-  ],
-  "edges": [
-    { "id": "e_root_x_1", "source": "root", "target": "x" },
-    { "id": "e_root_y_1", "source": "root", "target": "y" },
-    { "id": "e_x_a_1", "source": "x", "target": "a" },
-    { "id": "e_x_b_1", "source": "x", "target": "b" },
-    { "id": "e_y_c_1", "source": "y", "target": "c" },
-    { "id": "e_y_d_1", "source": "y", "target": "d" }
-  ],
-  "collapsedClusters": [],
-  "viewMeta": {
-    "viewport": { "x": 0, "y": 0, "width": 1000, "height": 600 },
-    "zoom": 1.8,
-    "returnedNodeCount": 7,
-    "returnedEdgeCount": 6
-  }
-}
-```
+- `root_cluster_id`
+- `clusters`
+- `global_bounds`
+- `max_distance_threshold_level`
+- `cluster_ids_by_level`
+- `spatial_index_by_level`
 
-## 8) Performance Budgets (Initial)
+It is persisted on the server and should not be shipped wholesale to the client
+for large datasets.
 
-Target budgets (to be adjusted by benchmarking evidence):
+### `VisibleSliceQuery`
 
-- Load + normalize (100k nodes): <= 2.5s median.
-- LoD build (100k nodes): <= 1.5s median offline/precompute path.
-- Filter toggle response (active view): <= 120ms p95.
-- Zoom-band LoD switch: <= 180ms p95.
-- Pan/zoom interaction: >= 30 FPS on thesis test machine for target mode.
-- Visible-slice query complexity should be proportional to the returned slice
-  plus hierarchy navigation cost, not to total dataset size.
+Runtime client request:
 
-## 9) Correctness Gates
+- `dataset_id`
+- `viewport`
+- `zoom`
+- optional `lod_hint`
+- optional `max_nodes`
+- optional `focus_node_id`
 
-- Cluster membership conservation across levels.
-- No node loss when moving from coarse to fine LoD.
-- Edge endpoint validity after every transformation.
-- Metadata aggregation reproducibility.
-- Deterministic output for same seed/config where applicable.
+The viewport is expressed in global server/client coordinates.
 
-## 10) Milestones
+### `VisibleSliceResponse`
 
-### M1 — Contract Freeze
+Runtime server response:
 
-- Freeze `CanonicalDataset`, `HierarchyIndex`, `VisibleSliceQuery`, and
-  `VisibleSliceResponse` schemas.
-- Add JSON fixtures and schema validation tests.
+- visible `nodes`
+- visible `edges`
+- `collapsed_clusters`
+- `view_meta`, including returned counts and `global_bounds`
 
-### M2 — Server Core+Data First
+Proxy nodes are explicit. A collapsed cluster represented in the slice carries
+`is_cluster_proxy`, `cluster_id`, `subtree_size`, and `leaf_count`.
 
-- Integrate `core` and `data` modules with stable API contracts.
-- Validate end-to-end data flow to client layout/render/state path.
+## Correctness Invariants
 
-### M3 — LoD Data Engine
+- Same input and options produce deterministic normalized output.
+- Same prepared hierarchy and query produce deterministic visible slices.
+- Every visible edge references returned visible nodes.
+- `view_meta.returned_node_count` and `returned_edge_count` match payload sizes.
+- A slice must not expand off-camera branches unless they are part of an
+  explicit focus path.
+- `max_nodes` is treated as a hard upper bound for rendered cluster expansion.
+- Camera viewport calculations use `global_bounds`, not the bounds of the
+  currently rendered slice.
 
-- Persist hierarchy indexes and subtree statistics from normalized topology.
-- Define visible-slice query contracts and tests.
-- Demonstrate semantic-zoom queries without full-dataset transfer.
+## Performance Model
 
-### M4 — Client Semantic Zoom Runtime
+Prepare-time work:
 
-- Replace full-graph client state with visible-slice orchestration.
-- Add viewport-aware fetch, cache, and bounded Sigma updates.
-- Validate interaction budgets on thesis benchmark datasets.
+- parse and normalize input;
+- sort weighted edges;
+- build threshold component levels with Union-Find;
+- compute representative positions and cluster bounds;
+- pack per-level STR spatial indexes.
 
-### M5 — Clustering Module Activation
+Interaction-time work:
 
-- Integrate C clustering module through Python API in `processing_module`.
-- Persist LoD artifacts for frontend consumption.
+- map camera state to global viewport;
+- query spatial indexes up to target LoD;
+- expand only candidate/focus clusters;
+- return bounded slice payload.
 
-### M6 — Layout Abstractions
+The intended query cost is proportional to spatial index traversal plus returned
+slice size, rather than total dataset size.
 
-- Implement radial layout adapter first.
-- Add dendrogram layout contract and initial edge-shape mapping.
+## Future Work
 
-### M7 — Sigma Adapter Hardening
-
-- Isolate renderer mapping and reducers.
-- Add size metric and visual mapping configuration.
-
-### M8 — Benchmark + Evaluation
-
-- Run N=7 median benchmarks for agreed datasets.
-- Compare modes and report against thesis criteria.
-
-## 11) Suggested Repo Structure (Library-Oriented)
-
-```text
-solution_poc/
-  architecture/
-    ARCHITECTURE_SPEC.md
-    architecture.puml
-    architecture.drawio
-  processing_module/
-    hierarichal_clustering.c
-    hierarchical_clustering.py
-    api.py
-  sigmajs/
-    poc-01/
-```
-
-Future (when graduating from PoC):
-
-```text
-library/
-  packages/
-    server/
-      core/
-      data/
-      clustering/
-    client/
-      layout/
-      render/
-      state/
-```
-
-## 12) Decision Log (Initial)
-
-- Architecture is organized as two apps with a 3+3 module split: Server (`core`, `data`, `clustering`) and Client (`layout`, `render`, `state`).
-- First delivery prioritizes working integration between `core` and `data` on server and `layout`/`render`/`state` on client.
-- `clustering` is planned and intentionally deferred until base module integration is stable.
-- Sigma.js is the initial render backend; force-directed is the initial layout strategy.
-- Arrow remains optional for ancillary metadata transport when scale demands it.
-
-## 13) Server Core Kickoff Blueprint (Immediate)
-
-This section translates the architecture into a concrete starting point for the
-first coding sprint.
-
-### 13.1) Module Boundaries for Sprint 1
-
-Server `core` owns:
-
-- canonical types (`CanonicalNode`, `CanonicalEdge`, `CanonicalDataset`),
-- deterministic validation rules,
-- domain-level error taxonomy.
-
-Server `data` owns:
-
-- source parsing adapters,
-- normalization into core contracts,
-- metadata indexing and ingest metrics.
-
-Boundary rule:
-
-- `data` may use `core` types and validators.
-- `core` must not import parser or transport concerns.
-
-### 13.2) Determinism Rules (Required)
-
-For the same input and configuration:
-
-- node ordering in output is stable,
-- edge ordering in output is stable,
-- generated ids are stable,
-- validation results are reproducible.
-
-Recommended implementation pattern:
-
-- canonical sort by id,
-- explicit id strategy (source id or reproducible hash),
-- no runtime-random ordering dependence.
-
-### 13.3) First Endpoint Contract
-
-`POST /dataset/normalize`
-
-Request (conceptual):
-
-- `format`: `newick | edgelist`
-- `datasetName`: string
-- `content`: string or structured payload
-- `options`: parser and normalization options
-
-Response (conceptual):
-
-- `dataset`: `CanonicalDataset`
-- `stats`: `{ nodeCount, edgeCount, ingestMs, normalizeMs }`
-- `warnings`: string[]
-
-Error model:
-
-- `400` invalid input format/content
-- `422` semantic validation failure (violates invariants)
-- `500` unexpected server error
-
-### 13.4) Invariants to Enforce in Core
-
-- every node id is unique and non-empty,
-- every edge references existing node ids,
-- no self-loop unless explicitly allowed by config,
-- graph component consistency is validated,
-- metadata keys match declared schema.
-
-### 13.5) Test Gate for Sprint 1
-
-Minimum tests before enabling clustering work:
-
-- unit tests for each invariant in `core`,
-- parser-normalizer tests in `data` with fixed fixtures,
-- endpoint integration test for `POST /dataset/normalize`,
-- deterministic replay test: same input produces byte-equivalent canonical output
-  after normalized ordering.
-
-Exit to next phase only when these tests pass consistently.
+- Benchmark STR index build/query time against non-indexed selection.
+- Tune threshold-level selection using projected cluster size and label density.
+- Add server-side cache for repeated viewport/zoom queries.
+- Add server-side ancillary filtering only if benchmarks show client-side
+  filtering or metadata transfer is a bottleneck.
+- Consider lower-level acceleration after Python data structures and algorithms
+  are stable and measured.

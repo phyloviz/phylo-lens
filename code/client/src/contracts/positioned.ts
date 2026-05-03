@@ -25,6 +25,13 @@ export interface PositionedEdge {
   attributes?: Record<string, unknown>;
 }
 
+export interface PositionedGraphBounds {
+  minX: number;
+  maxX: number;
+  minY: number;
+  maxY: number;
+}
+
 export interface PositionedGraph {
   nodes: PositionedNode[];
   edges: PositionedEdge[];
@@ -35,5 +42,6 @@ export interface PositionedGraph {
     sliceEdgeCount?: number;
     collapsedClusterCount?: number;
     zoom?: number;
+    globalBounds?: PositionedGraphBounds;
   };
 }

@@ -58,6 +58,7 @@ const VIEW_SLICE_RESPONSE = {
     zoom: 2,
     returned_node_count: 3,
     returned_edge_count: 2,
+    global_bounds: { min_x: -600, max_x: 600, min_y: 0, max_y: 1200 },
   },
 };
 
@@ -151,6 +152,12 @@ describe("graphWorkbench", () => {
     expect(graph.nodes).toHaveLength(3);
     expect(graph.edges).toHaveLength(2);
     expect(graph.viewMeta.lodLevel).toBe(1);
+    expect(graph.viewMeta.globalBounds).toEqual({
+      minX: -600,
+      maxX: 600,
+      minY: 0,
+      maxY: 1200,
+    });
     const nodeById = Object.fromEntries(
       graph.nodes.map((node) => [node.id, node]),
     );

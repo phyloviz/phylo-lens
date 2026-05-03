@@ -1,110 +1,93 @@
 # PhyloLens
 
-Scalable phylogenetic visualization library.
+PhyloLens is a prototype data engine and client for scalable phylogenetic
+visualization. It is designed around map-like semantic zoom: the server
+precomputes level-of-detail data structures and the client renders only the
+visible slice for the current camera viewport.
 
-## Project Goal
+The project is thesis-oriented, but the implementation follows production-style
+boundaries:
 
-Build a modular system where phylogenetic semantics are separated from rendering,
-allowing large datasets to be ingested, normalized, clustered by level of detail,
-and visualized with predictable performance.
+- `code/server`: FastAPI service for parsing, normalization, LoD precompute,
+  spatial indexing, and visible-slice queries.
+- `code/client`: TypeScript/Sigma client for camera interaction, proxy-aware
+  rendering, and metadata-driven visual mappings.
+- `docs`: maintained technical documentation only.
+- `examples`: small input datasets for local runs and tests.
 
-PhyloLens is not intended to render full graphs at large scale. The target
-architecture is map-like semantic zoom:
+## Current Runtime
 
-- the server evolves from a normalizer into a data engine,
-- hierarchical LoD representations are precomputed from weighted distance thresholds,
-- the client requests and renders only the visible slice for the current view.
+The active path is weighted threshold LoD:
 
-## Architecture Baseline
+1. `POST /dataset/prepare` parses and normalizes Newick or edge-list input.
+2. The server builds a deterministic distance-threshold hierarchy using
+   Union-Find over weighted edges.
+3. The server computes stable representative coordinates and cluster bounds.
+4. The server builds static STR-packed spatial indexes per LoD level.
+5. `POST /dataset/view-slice` translates camera viewport + zoom into a bounded
+   graph slice.
+6. The client renders backend-positioned real nodes and proxy nodes in Sigma.
 
-Two-application model with strict boundaries:
+PhyloLens deliberately avoids full-graph rendering for large datasets. The
+runtime contract is `O(visible slice)` transfer and rendering, with server-side
+precomputation absorbing the expensive global work.
 
-- Server app
-  - core: canonical domain model and invariants
-  - data: parsing and normalization to canonical contracts
-  - clustering: LoD construction and visible-slice selection for semantic zoom
-- Client app
-  - render: renderer adapter (Sigma first)
-  - state: interaction and semantic-zoom orchestration over server-positioned slices
+## Algorithms And Data Structures
 
-Baseline dependency direction:
+- **Canonical normalization**: deterministic node/edge contracts for Newick and
+  edge-list inputs.
+- **Union-Find threshold hierarchy**: clusters are generated from weighted edge
+  thresholds, ordered from coarse to fine LoD.
+- **Representative proxy nodes**: collapsed clusters are represented by stable
+  real node ids with explicit `cluster_id`, `subtree_size`, and `leaf_count`.
+- **Global coordinate space**: server-provided `global_bounds` keeps camera
+  queries stable across slice refreshes.
+- **STR-packed R-tree**: each LoD level has a static spatial index over cluster
+  bounding boxes for efficient viewport/window queries.
 
-- Server: core <- data <- clustering
-- Client: state -> layout and render
-- Cross-app: client depends only on server API contracts
+The design is inspired by large-graph map exploration systems such as
+graphVizdb: offline layout/index construction, followed by low-latency spatial
+queries during interaction.
 
-## Scale Strategy
+## Development
 
-Large-scale interaction follows a hierarchical LoD pipeline rather than a
-full-graph rendering pipeline:
+Server:
 
-1. ingest and normalize the full topology once,
-2. precompute distance-threshold clustering, layout coordinates, and cluster metadata on the server,
-3. answer viewport-aware LoD queries from the client,
-4. render only visible nodes and edges in Sigma.
+```bash
+cd code/server
+pip install -e '.[test]'
+uvicorn phylo_lens_server.main:app --reload
+```
 
-This means current `CanonicalDataset` materialization is a correctness-first
-baseline, not the final large-scale runtime model.
+Client:
 
-## Current Status
+```bash
+cd code/client
+npm ci
+npm run dev
+```
 
-The active prototype already implements and tests the main weighted threshold LoD path:
+Validation:
 
-1. deterministic normalization for Newick and edge-list inputs,
-2. optional edge distance preservation in the canonical contract,
-3. server-side distance-threshold hierarchy precompute with Union-Find,
-4. server-side layout coordinates for threshold clusters and representatives,
-5. viewport-aware visible-slice selection over the threshold hierarchy,
-6. explicit cluster proxies carried into Sigma rendering as distinct visual entities.
+```bash
+cd code/server
+pytest -q
 
-This means the system is already beyond the "full dataset only" MVP. The
-runtime flow is now:
+cd ../client
+npm run build
+npm test
+```
 
-1. `POST /dataset/prepare` normalizes and precomputes the hierarchy,
-2. `POST /dataset/view-slice` returns only the bounded visible slice,
-3. the client renders backend-positioned proxy-aware slices and can drill into collapsed subtrees.
+Benchmarking:
 
-Current limitations relative to the long-term architecture:
+```bash
+cd code/server
+phylo-lens-benchmark-lod --sizes 1000 10000 100000 --repeats 7
+```
 
-- hierarchy and selector internals are still Python-first and not yet memory-tuned for the largest targets,
-- threshold selection and threshold-level policy still need tuning for smoother interaction,
-- broader caching and cluster analytics are still ahead.
+## Documentation
 
-## Implementation Notes For Thesis Writing
-
-The current methodology can be described as a deterministic multistage LoD
-pipeline:
-
-1. parse and normalize source topology into `CanonicalDataset`,
-2. preserve weighted edges and derive deterministic distance-threshold levels,
-3. build an indexed threshold-containment hierarchy from disjoint sets,
-4. compute node and cluster positions on the server,
-5. answer visible-slice queries using zoom, cluster size, bounds, and viewport,
-6. expose collapsed regions through representative proxy nodes rather than sending full subtrees.
-
-The "proxy node" concept is important in the current implementation. A proxy is
-the visible representative of a collapsed subtree. It keeps connectivity visible
-at coarse levels and gives the client a deterministic drill-down handle without
-materializing hidden descendants.
-
-## Contribution And PR Policy (Thesis)
-
-To keep the thesis work auditable and well-scoped, this repository follows a
-strict PR-first workflow for `main`:
-
-1. Direct commits to `main` are not allowed.
-2. All changes must be submitted through a Pull Request.
-3. At least 1 approval is required before merging.
-
-Suggested workflow:
-
-1. Create a branch from `main` using a short descriptive name.
-2. Open a PR early and keep it focused on one concern (server, client, or docs).
-3. Merge only after review approval.
-
-## Documentation Index
-
-- [Architecture Spec](docs/ARCHITECTURE_SPEC.md)
-- [Architecture UML (PlantUML)](docs/architecture.puml)
-- [Architecture Diagram (draw.io)](docs/architecture.drawio)
-- [Implementation Checklist](docs/IMPLEMENTATION_CHECKLIST.md)
+- [Architecture](docs/ARCHITECTURE_SPEC.md)
+- [LoD and Spatial Indexing](docs/LOD_SPATIAL_INDEX.md)
+- [Server API](code/server/README.md)
+- [Examples](examples/README.md)

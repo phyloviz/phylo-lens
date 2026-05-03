@@ -1,58 +1,107 @@
 # PhyloLens Server
 
-Python-first server for canonical phylogenetic dataset ingestion and normalization.
+FastAPI service for deterministic phylogenetic normalization, weighted LoD
+precomputation, spatial indexing, and visible-slice queries.
+
+## Setup
+
+```bash
+cd code/server
+pip install -e '.[test]'
+```
 
 ## Run
 
 ```bash
-pip install -e .[test]
 uvicorn phylo_lens_server.main:app --reload
 ```
 
-## Endpoints
+Or, after installation:
 
-- `POST /dataset/normalize`
-- `POST /dataset/prepare`
-- `POST /dataset/view-slice`
+```bash
+phylo-lens-server
+```
 
-Payload example:
+## API
+
+### `GET /health`
+
+Returns service health.
+
+### `POST /dataset/normalize`
+
+Parses and normalizes a dataset into `CanonicalDataset`.
+
+Example:
 
 ```json
 {
   "format": "newick",
   "dataset_name": "example-tree",
-  "content": "((A,B)X,(C,D)Y)Root;"
+  "content": "(A:1,(B:2,C:4)N:3)R;"
 }
 ```
 
-Prepare + visible-slice example:
+### `POST /dataset/prepare`
+
+Normalizes input and builds the active LoD runtime artifacts:
+
+- `ThresholdHierarchyIndex`;
+- global cluster bounds;
+- representative coordinates;
+- STR spatial indexes per LoD level.
+
+The active prepare path requires weighted edges. Newick branch lengths or
+edge-list `distance` values are used as threshold distances.
+
+### `POST /dataset/view-slice`
+
+Returns a bounded visible graph slice for a prepared dataset.
+
+Example:
 
 ```json
 {
   "dataset_id": "example-tree",
   "viewport": { "x": 0, "y": 0, "width": 1000, "height": 600 },
-  "zoom": 0.4
+  "zoom": 2.0,
+  "max_nodes": 3000
 }
 ```
 
-## Benchmark
+The response includes visible nodes, visible edges, collapsed cluster metadata,
+returned counts, and `global_bounds` for stable client camera mapping.
 
-Run the server-side LoD benchmark harness on synthetic trees:
+## Storage
+
+Prepared datasets are stored through `DatasetStore`.
+
+Environment variables:
+
+- `PHYLO_LENS_STORE_DIR`: store directory. Defaults to `.phylo_lens_store`.
+- `PHYLO_LENS_STORE_PERSIST`: `true` or `false`. Defaults to `true`.
+
+## Benchmarking
 
 ```bash
-pip install -e .[test]
 phylo-lens-benchmark-lod --sizes 1000 10000 100000 --repeats 7
 ```
 
-What it measures:
+The benchmark reports median values for:
 
-- hierarchy build median time
-- hierarchy build median peak memory via `tracemalloc`
-- visible-slice selection median time
-- returned node, edge, and collapsed-cluster counts for overview, mid, and focused-detail queries
+- hierarchy build time;
+- hierarchy build peak memory;
+- visible-slice selection time;
+- returned node, edge, and collapsed-cluster counts.
 
-Example JSON output:
+JSON output:
 
 ```bash
 phylo-lens-benchmark-lod --sizes 1000 --repeats 3 --format json
+```
+
+## Tests
+
+```bash
+pytest -q
 ```
