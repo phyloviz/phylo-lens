@@ -1,19 +1,19 @@
 import {
   ERR_NO_GRAPH_RENDERED,
-  GraphWorkbench,
-} from "../src/app/graphWorkbench";
-import { MetadataField } from "../src/contracts/canonical";
-import { DatasetClient } from "../src/api/datasetClient";
+  createGraphWorkbench,
+} from "../src/app/workbench/graphWorkbench";
+import type { MetadataField } from "../src/contracts/models";
+import { createDatasetClient } from "../src/api/datasetClient";
 import { LAYOUT_SERVER } from "../src/contracts/positioned";
-import {
+import type {
   GraphRenderer,
-  RENDERER_KIND_MOCK,
-  RenderContext,
   RenderNodeClickState,
   RenderViewportState,
   RendererFactory,
 } from "../src/render/types";
+import { RENDERER_KIND_MOCK } from "../src/render/types";
 import { DefaultRendererFactory } from "../src/render/rendererFactory";
+import { describe, it, vi, expect } from "vitest";
 
 const BASE_URL = "http://localhost:8000";
 const DATASET_NAME = "workbench-tree";
@@ -71,9 +71,9 @@ class ClickableTestRenderer implements GraphRenderer {
     null;
   lastCenteredNodeId: string | null = null;
 
-  mount(_context: RenderContext): void {}
+  mount(): void {}
 
-  render(_graph: unknown): void {}
+  render(): void {}
 
   setViewChangeHandler(
     handler: ((state: RenderViewportState) => void) | null,
@@ -107,7 +107,7 @@ class ClickableTestRenderer implements GraphRenderer {
 }
 
 class RenderUpdatingRenderer extends ClickableTestRenderer {
-  override render(_graph: unknown): void {
+  override render(): void {
     this.emitViewChange({
       viewport: { x: 0, y: 0, width: 1000, height: 600 },
       zoom: 1,
@@ -139,8 +139,8 @@ describe("graphWorkbench", () => {
         makeJsonResponse(VIEW_SLICE_RESPONSE),
       ) as unknown as typeof fetch;
 
-    const datasetClient = new DatasetClient({ baseUrl: BASE_URL, fetchImpl });
-    const workbench = new GraphWorkbench({
+    const datasetClient = createDatasetClient({ baseUrl: BASE_URL, fetchImpl });
+    const workbench = createGraphWorkbench({
       datasetClient,
       rendererFactory: new DefaultRendererFactory(),
       rendererKind: RENDERER_KIND_MOCK,
@@ -186,8 +186,8 @@ describe("graphWorkbench", () => {
         makeJsonResponse(VIEW_SLICE_RESPONSE),
       ) as unknown as typeof fetch;
 
-    const datasetClient = new DatasetClient({ baseUrl: BASE_URL, fetchImpl });
-    const workbench = new GraphWorkbench({
+    const datasetClient = createDatasetClient({ baseUrl: BASE_URL, fetchImpl });
+    const workbench = createGraphWorkbench({
       datasetClient,
       rendererFactory: new DefaultRendererFactory(),
       rendererKind: RENDERER_KIND_MOCK,
@@ -211,6 +211,46 @@ describe("graphWorkbench", () => {
     workbench.dispose();
   });
 
+  it("does not perturb collinear server-provided hierarchy coordinates", async () => {
+    const collinearSliceResponse = {
+      ...VIEW_SLICE_RESPONSE,
+      nodes: [
+        { id: "root", x: 0, y: 0 },
+        { id: "a", x: 1, y: 0 },
+        { id: "b", x: 2, y: 0 },
+      ],
+      view_meta: {
+        ...VIEW_SLICE_RESPONSE.view_meta,
+        global_bounds: { min_x: 0, max_x: 300, min_y: 0, max_y: 1 },
+      },
+    };
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(makeJsonResponse(PREPARE_RESPONSE))
+      .mockResolvedValueOnce(
+        makeJsonResponse(collinearSliceResponse),
+      ) as unknown as typeof fetch;
+
+    const datasetClient = createDatasetClient({ baseUrl: BASE_URL, fetchImpl });
+    const workbench = createGraphWorkbench({
+      datasetClient,
+      rendererFactory: new DefaultRendererFactory(),
+      rendererKind: RENDERER_KIND_MOCK,
+      renderContext: { containerId: "graph-root" },
+    });
+
+    const graph = await workbench.renderNewick(NEWICK_CONTENT, DATASET_NAME);
+
+    expect(graph.viewMeta.layout).toBe(LAYOUT_SERVER);
+    expect(graph.nodes.map((node) => [node.id, node.x, node.y])).toEqual([
+      ["root", 0, 0],
+      ["a", 150, 0],
+      ["b", 300, 0],
+    ]);
+
+    workbench.dispose();
+  });
+
   it("applies metadata filters on the current visible slice after rendering", async () => {
     const fetchImpl = vi
       .fn()
@@ -219,8 +259,8 @@ describe("graphWorkbench", () => {
         makeJsonResponse(VIEW_SLICE_RESPONSE),
       ) as unknown as typeof fetch;
 
-    const datasetClient = new DatasetClient({ baseUrl: BASE_URL, fetchImpl });
-    const workbench = new GraphWorkbench({
+    const datasetClient = createDatasetClient({ baseUrl: BASE_URL, fetchImpl });
+    const workbench = createGraphWorkbench({
       datasetClient,
       rendererFactory: new DefaultRendererFactory(),
       rendererKind: RENDERER_KIND_MOCK,
@@ -255,8 +295,8 @@ describe("graphWorkbench", () => {
         makeJsonResponse(VIEW_SLICE_RESPONSE),
       ) as unknown as typeof fetch;
 
-    const datasetClient = new DatasetClient({ baseUrl: BASE_URL, fetchImpl });
-    const workbench = new GraphWorkbench({
+    const datasetClient = createDatasetClient({ baseUrl: BASE_URL, fetchImpl });
+    const workbench = createGraphWorkbench({
       datasetClient,
       rendererFactory: new DefaultRendererFactory(),
       rendererKind: RENDERER_KIND_MOCK,
@@ -285,8 +325,8 @@ describe("graphWorkbench", () => {
         makeJsonResponse(VIEW_SLICE_RESPONSE),
       ) as unknown as typeof fetch;
 
-    const datasetClient = new DatasetClient({ baseUrl: BASE_URL, fetchImpl });
-    const workbench = new GraphWorkbench({
+    const datasetClient = createDatasetClient({ baseUrl: BASE_URL, fetchImpl });
+    const workbench = createGraphWorkbench({
       datasetClient,
       rendererFactory: new DefaultRendererFactory(),
       rendererKind: RENDERER_KIND_MOCK,
@@ -365,9 +405,9 @@ describe("graphWorkbench", () => {
         makeJsonResponse(focusedSliceResponse),
       ) as unknown as typeof fetch;
 
-    const datasetClient = new DatasetClient({ baseUrl: BASE_URL, fetchImpl });
+    const datasetClient = createDatasetClient({ baseUrl: BASE_URL, fetchImpl });
     const renderer = new ClickableTestRenderer();
-    const workbench = new GraphWorkbench({
+    const workbench = createGraphWorkbench({
       datasetClient,
       rendererFactory: new StaticRendererFactory(renderer),
       rendererKind: RENDERER_KIND_MOCK,
@@ -419,9 +459,12 @@ describe("graphWorkbench", () => {
           makeJsonResponse(VIEW_SLICE_RESPONSE),
         ) as unknown as typeof fetch;
 
-      const datasetClient = new DatasetClient({ baseUrl: BASE_URL, fetchImpl });
+      const datasetClient = createDatasetClient({
+        baseUrl: BASE_URL,
+        fetchImpl,
+      });
       const renderer = new ClickableTestRenderer();
-      const workbench = new GraphWorkbench({
+      const workbench = createGraphWorkbench({
         datasetClient,
         rendererFactory: new StaticRendererFactory(renderer),
         rendererKind: RENDERER_KIND_MOCK,
@@ -466,9 +509,9 @@ describe("graphWorkbench", () => {
         makeJsonResponse(VIEW_SLICE_RESPONSE),
       ) as unknown as typeof fetch;
 
-    const datasetClient = new DatasetClient({ baseUrl: BASE_URL, fetchImpl });
+    const datasetClient = createDatasetClient({ baseUrl: BASE_URL, fetchImpl });
     const renderer = new RenderUpdatingRenderer();
-    const workbench = new GraphWorkbench({
+    const workbench = createGraphWorkbench({
       datasetClient,
       rendererFactory: new StaticRendererFactory(renderer),
       rendererKind: RENDERER_KIND_MOCK,

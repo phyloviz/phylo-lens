@@ -1,8 +1,8 @@
 import { buildForceDirectedLayout } from "../src/layout/forceDirectedLayout";
 import {
-  CanonicalDataset,
   SOURCE_FORMAT_NEWICK,
-} from "../src/contracts/canonical";
+} from "../src/contracts/models";
+import type { CanonicalDataset } from "../src/contracts/models";
 
 const FIXTURE_DATASET: CanonicalDataset = {
   dataset_id: "layout-tree",

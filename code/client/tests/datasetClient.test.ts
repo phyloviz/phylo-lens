@@ -1,17 +1,19 @@
 import {
-  DatasetClient,
+  createDatasetClient,
   ERR_INVALID_RESPONSE,
   ERR_INVALID_PREPARE_RESPONSE,
   ERR_INVALID_VISIBLE_SLICE_RESPONSE,
-  isCanonicalDataset,
-  isNormalizeResponse,
-  isPrepareDatasetResponse,
-  isVisibleSliceResponse,
   ROUTE_NORMALIZE,
   ROUTE_PREPARE,
   ROUTE_VIEW_SLICE,
 } from "../src/api/datasetClient";
-import { SOURCE_FORMAT_NEWICK } from "../src/contracts/canonical";
+import { SOURCE_FORMAT_NEWICK } from "../src/contracts/models";
+import {
+  isCanonicalDataset,
+  isNormalizeResponse,
+  isPrepareDatasetResponse,
+  isVisibleSliceResponse,
+} from "../src/validation/datasetGuards";
 
 const BASE_URL = "http://localhost:8000";
 const DATASET_NAME = "fixture-tree";
@@ -106,7 +108,7 @@ describe("datasetClient", () => {
       return makeJsonResponse(fixture);
     }) as unknown as typeof fetch;
 
-    const client = new DatasetClient({
+    const client = createDatasetClient({
       baseUrl: BASE_URL,
       fetchImpl: fetchSpy,
     });
@@ -132,7 +134,7 @@ describe("datasetClient", () => {
       return makeJsonResponse(PREPARE_FIXTURE);
     }) as unknown as typeof fetch;
 
-    const client = new DatasetClient({
+    const client = createDatasetClient({
       baseUrl: BASE_URL,
       fetchImpl: fetchSpy,
     });
@@ -153,7 +155,7 @@ describe("datasetClient", () => {
       return makeJsonResponse(VISIBLE_SLICE_FIXTURE);
     }) as unknown as typeof fetch;
 
-    const client = new DatasetClient({
+    const client = createDatasetClient({
       baseUrl: BASE_URL,
       fetchImpl: fetchSpy,
     });
@@ -174,7 +176,7 @@ describe("datasetClient", () => {
       makeJsonResponse(invalidPayload),
     ) as unknown as typeof fetch;
 
-    const client = new DatasetClient({
+    const client = createDatasetClient({
       baseUrl: BASE_URL,
       fetchImpl: fetchSpy,
     });
@@ -193,7 +195,7 @@ describe("datasetClient", () => {
       makeJsonResponse({ invalid: true }),
     ) as unknown as typeof fetch;
 
-    const client = new DatasetClient({
+    const client = createDatasetClient({
       baseUrl: BASE_URL,
       fetchImpl: fetchSpy,
     });
@@ -212,7 +214,7 @@ describe("datasetClient", () => {
       makeJsonResponse({ invalid: true }),
     ) as unknown as typeof fetch;
 
-    const client = new DatasetClient({
+    const client = createDatasetClient({
       baseUrl: BASE_URL,
       fetchImpl: fetchSpy,
     });

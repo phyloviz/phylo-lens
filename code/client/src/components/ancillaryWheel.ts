@@ -1,4 +1,4 @@
-import { PositionedGraph } from "../contracts/positioned";
+import type { PositionedGraph } from "../contracts/positioned";
 import {
   buildPiePalette,
   PIE_ATTRIBUTE_PREFIX,

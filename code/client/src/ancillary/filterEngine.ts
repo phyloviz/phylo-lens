@@ -1,9 +1,9 @@
 import {
-  MetadataIndexData,
   filterNodeIdsByFieldValues,
   getNodeMetadata,
 } from "./metadataIndex";
-import { PositionedGraph } from "../contracts/positioned";
+import type { MetadataIndexData } from "./metadataIndex";
+import type { PositionedGraph } from "../contracts/positioned";
 
 export interface CategoricalFieldFilter {
   fieldKey: string;

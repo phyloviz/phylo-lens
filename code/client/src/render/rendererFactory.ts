@@ -1,11 +1,11 @@
 import { MockRenderer } from "./adapters/mockRenderer";
 import { SigmaRenderer } from "./adapters/sigmaRenderer";
 import {
-  GraphRenderer,
+  type GraphRenderer,
   RENDERER_KIND_MOCK,
   RENDERER_KIND_SIGMA,
-  RendererFactory,
-  RendererKind,
+  type RendererFactory,
+  type RendererKind,
 } from "./types";
 
 export const ERR_UNSUPPORTED_RENDERER = "Unsupported renderer kind: {kind}";

@@ -1,5 +1,5 @@
 import { UiShellController } from "../src/app/uiShell";
-import { GraphWorkbench } from "../src/app/graphWorkbench";
+import type { GraphWorkbench } from "../src/app/workbench/graphWorkbench";
 
 function makeFakeWorkbench(renderedGraph: {
   nodes: Array<{ id: string; x: number; y: number }>;

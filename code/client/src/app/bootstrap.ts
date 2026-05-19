@@ -1,5 +1,5 @@
-import { DatasetClient } from "../api/datasetClient";
-import { GraphWorkbench } from "./graphWorkbench";
+import { createGraphWorkbench } from "./workbench/graphWorkbench";
+import { createDatasetClient } from "../api/datasetClient";
 import { UiShellController } from "./uiShell";
 import { DefaultRendererFactory } from "../render/rendererFactory";
 import { RENDERER_KIND_SIGMA } from "../render/types";
@@ -23,7 +23,7 @@ export const ERR_MISSING_NEWICK_INPUT = "Missing Newick input element.";
 export const ERR_MISSING_STATUS = "Missing status element.";
 
 // Bootstrap the client shell using DOM ids and the modular workbench pipeline.
-export function bootstrapClientShell(
+export default function bootstrapClientShell(
   baseUrl = DEFAULT_SERVER_BASE_URL,
 ): UiShellController {
   const form = document.getElementById(
@@ -65,8 +65,8 @@ export function bootstrapClientShell(
     throw new Error(ERR_MISSING_STATUS);
   }
 
-  const datasetClient = new DatasetClient({ baseUrl });
-  const workbench = new GraphWorkbench({
+  const datasetClient = createDatasetClient({ baseUrl });
+  const workbench = createGraphWorkbench({
     datasetClient,
     rendererFactory: new DefaultRendererFactory(),
     rendererKind: RENDERER_KIND_SIGMA,

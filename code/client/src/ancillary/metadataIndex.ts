@@ -1,8 +1,7 @@
 import {
-  CanonicalDataset,
   METADATA_TYPE_NUMBER,
-  MetadataField,
-} from "../contracts/canonical";
+} from "../contracts/models";
+import type { CanonicalDataset, MetadataField } from "../contracts/models";
 
 export const EMPTY_METADATA_RECORD = {} as Record<
   string,

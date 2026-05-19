@@ -2,14 +2,16 @@ import Graph from "graphology";
 import Sigma from "sigma";
 import { createNodePiechartProgram } from "@sigma/node-piechart";
 
-import {
+import type {
   PositionedGraph,
   PositionedGraphBounds,
 } from "../../contracts/positioned";
 import { TriangleNodeProgram } from "../nodePrograms/triangleNodeProgram";
 import {
-  GraphRenderer,
   RENDERER_KIND_SIGMA,
+} from "../types";
+import type {
+  GraphRenderer,
   RenderContext,
   RenderNodeClickState,
   RendererKind,
@@ -81,7 +83,6 @@ type SigmaNodeProgramClasses = Record<string, unknown>;
 export class SigmaRenderer implements GraphRenderer {
   readonly kind: RendererKind = RENDERER_KIND_SIGMA;
 
-  private containerId: string | null = null;
   private graph: Graph | null = null;
   private sigma: Sigma | null = null;
   private containerElement: HTMLElement | null = null;
@@ -112,8 +113,6 @@ export class SigmaRenderer implements GraphRenderer {
 
   // Bind the renderer adapter to a view container.
   mount(context: RenderContext): void {
-    this.containerId = context.containerId;
-
     const container = document.getElementById(context.containerId);
     if (!container) {
       throw new Error(
@@ -128,7 +127,7 @@ export class SigmaRenderer implements GraphRenderer {
       this.containerElement,
       this.buildSigmaSettings(),
     );
-    this.sigma.getCamera().setState({ ratio: SIGMA_DEFAULT_CAMERA_ZOOM });
+    this.sigma.getCamera().setState(defaultCameraState());
     this.bindCameraHandler();
     this.bindNodeClickHandler();
   }
@@ -262,7 +261,6 @@ export class SigmaRenderer implements GraphRenderer {
     this.sigma = null;
     this.graph = null;
     this.containerElement = null;
-    this.containerId = null;
     this.pieSliceKeys = [];
     this.graphBounds = null;
     this.coordinateBounds = null;
@@ -503,11 +501,17 @@ export class SigmaRenderer implements GraphRenderer {
       setState: (state: { x?: number; y?: number; ratio?: number }) => void;
     };
     camera.setState(
-      state ?? {
-        ratio: SIGMA_DEFAULT_CAMERA_ZOOM,
-      },
+      state ?? defaultCameraState(),
     );
   }
+}
+
+function defaultCameraState(): { x: number; y: number; ratio: number } {
+  return {
+    x: SIGMA_DEFAULT_CAMERA_X,
+    y: SIGMA_DEFAULT_CAMERA_Y,
+    ratio: SIGMA_DEFAULT_CAMERA_ZOOM,
+  };
 }
 
 export function sigmaRatioToLodZoom(ratio: number): number {

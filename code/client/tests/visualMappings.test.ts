@@ -1,11 +1,11 @@
 import { buildMetadataIndex } from "../src/ancillary/metadataIndex";
 import {
-  CanonicalDataset,
   METADATA_TYPE_NUMBER,
   METADATA_TYPE_STRING,
   SOURCE_FORMAT_NEWICK,
-} from "../src/contracts/canonical";
-import { PositionedGraph } from "../src/contracts/positioned";
+} from "../src/contracts/models";
+import type { CanonicalDataset } from "../src/contracts/models";
+import type { PositionedGraph } from "../src/contracts/positioned";
 import {
   applyVisualMappings,
   CLUSTER_PROXY_COLOR,

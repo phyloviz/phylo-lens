@@ -1,3 +1,5 @@
+import { isRecord } from "../validation/guards";
+
 export const HTTP_METHOD_POST = "POST";
 export const HEADER_CONTENT_TYPE = "Content-Type";
 export const CONTENT_TYPE_JSON = "application/json";
@@ -10,8 +12,69 @@ export interface HttpClientOptions {
   fetchImpl?: typeof fetch;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
+export interface HttpClient {
+  post: <TRequest, TResponse>(
+    path: string,
+    body: TRequest,
+  ) => Promise<TResponse>;
+}
+
+export function createHttpClient(options: HttpClientOptions): HttpClient {
+  const fetchImpl = options.fetchImpl ?? safeFetch;
+
+  return {
+    post: <TRequest, TResponse>(path: string, body: TRequest) =>
+      post<TRequest, TResponse>({
+        baseUrl: options.baseUrl,
+        fetchImpl,
+        path,
+        body,
+      }),
+  };
+}
+
+interface PostJsonOptions<TRequest> {
+  baseUrl: string;
+  fetchImpl: typeof fetch;
+  path: string;
+  body: TRequest;
+}
+
+async function post<TRequest, TResponse>({
+  baseUrl,
+  fetchImpl,
+  path,
+  body,
+}: PostJsonOptions<TRequest>): Promise<TResponse> {
+  const response = await fetchImpl(`${baseUrl}${path}`, {
+    method: HTTP_METHOD_POST,
+    headers: { [HEADER_CONTENT_TYPE]: CONTENT_TYPE_JSON },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    throw new Error(await buildHttpErrorMessage(response));
+  }
+
+  return (await response.json()) as TResponse;
+}
+
+async function buildHttpErrorMessage(response: Response): Promise<string> {
+  const detailMessage = await readErrorDetail(response);
+
+  if (detailMessage) {
+    return `${ERR_HTTP_PREFIX}: ${response.status} - ${detailMessage}`;
+  }
+
+  return `${ERR_HTTP_PREFIX}: ${response.status}`;
+}
+
+async function readErrorDetail(response: Response): Promise<string | null> {
+  try {
+    return extractErrorDetail(await response.json());
+  } catch {
+    return null;
+  }
 }
 
 function extractErrorDetail(payload: unknown): string | null {
@@ -20,56 +83,25 @@ function extractErrorDetail(payload: unknown): string | null {
   }
 
   const detail = payload[KEY_DETAIL];
+
   if (typeof detail === "string") {
     return detail;
   }
 
-  if (isRecord(detail)) {
-    const errors = detail["errors"];
-    if (Array.isArray(errors) && errors.every((item) => typeof item === "string")) {
-      return errors.join("; ");
-    }
+  if (!isRecord(detail)) {
+    return null;
+  }
+
+  const errors = detail.errors;
+
+  if (
+    Array.isArray(errors) &&
+    errors.every((item) => typeof item === "string")
+  ) {
+    return errors.join("; ");
   }
 
   return null;
 }
 
 const safeFetch: typeof fetch = (...args) => globalThis.fetch(...args);
-
-export class HttpClient {
-  private readonly baseUrl: string;
-  private readonly fetchImpl: typeof fetch;
-
-  constructor(options: HttpClientOptions) {
-    this.baseUrl = options.baseUrl;
-    this.fetchImpl = options.fetchImpl ?? safeFetch;
-  }
-
-  // Send a JSON POST request and parse a JSON response.
-  async postJson<TRequest, TResponse>(
-    path: string,
-    body: TRequest,
-  ): Promise<TResponse> {
-    const response = await this.fetchImpl(`${this.baseUrl}${path}`, {
-      method: HTTP_METHOD_POST,
-      headers: { [HEADER_CONTENT_TYPE]: CONTENT_TYPE_JSON },
-      body: JSON.stringify(body),
-    });
-
-    if (!response.ok) {
-      let detailMessage: string | null = null;
-      try {
-        detailMessage = extractErrorDetail(await response.json());
-      } catch {
-        detailMessage = null;
-      }
-      throw new Error(
-        detailMessage
-          ? `${ERR_HTTP_PREFIX}: ${response.status} - ${detailMessage}`
-          : `${ERR_HTTP_PREFIX}: ${response.status}`,
-      );
-    }
-
-    return (await response.json()) as TResponse;
-  }
-}

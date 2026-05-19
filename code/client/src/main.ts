@@ -1,4 +1,4 @@
-import { bootstrapClientShell } from "./app/bootstrap";
+import bootstrapClientShell from "./app/bootstrap";
 
 export const WINDOW_EVENT_DOM_READY = "DOMContentLoaded";
 

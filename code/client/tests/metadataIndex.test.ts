@@ -4,11 +4,11 @@ import {
   getNodeMetadata,
 } from "../src/ancillary/metadataIndex";
 import {
-  CanonicalDataset,
   METADATA_TYPE_NUMBER,
   METADATA_TYPE_STRING,
   SOURCE_FORMAT_NEWICK,
-} from "../src/contracts/canonical";
+} from "../src/contracts/models";
+import type { CanonicalDataset } from "../src/contracts/models";
 
 const DATASET: CanonicalDataset = {
   dataset_id: "meta-dataset",

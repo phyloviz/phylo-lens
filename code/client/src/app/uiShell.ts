@@ -1,11 +1,11 @@
-import { GraphWorkbench } from "./graphWorkbench";
-import { VisualMappingOptions } from "../render/visualMappings";
+import type { GraphWorkbench } from "./workbench/graphWorkbench";
+import type { VisualMappingOptions } from "../render/visualMappings";
 import {
   buildAncillaryWheelStats,
   renderAncillaryWheel,
 } from "../components/ancillaryWheel";
-import { PositionedGraph } from "../contracts/positioned";
-import { MetadataField } from "../contracts/canonical";
+import type { PositionedGraph } from "../contracts/positioned";
+import type { MetadataField } from "../contracts/models";
 
 export const DEFAULT_STATUS_READY = "Ready";
 export const STATUS_RENDERING_PREFIX = "Rendering";

@@ -1,11 +1,11 @@
 import {
   ClientGraphFilterEngine,
   EMPTY_METADATA_FILTER_STATE,
-  MetadataFilterState,
 } from "../src/ancillary/filterEngine";
+import type { MetadataFilterState } from "../src/ancillary/filterEngine";
 import { buildMetadataIndex } from "../src/ancillary/metadataIndex";
-import { CanonicalDataset } from "../src/contracts/canonical";
-import { PositionedGraph } from "../src/contracts/positioned";
+import type { CanonicalDataset } from "../src/contracts/models";
+import type { PositionedGraph } from "../src/contracts/positioned";
 
 const DATASET: CanonicalDataset = {
   dataset_id: "d1",

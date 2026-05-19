@@ -1,9 +1,9 @@
 import Graph from "graphology";
 import forceAtlas2 from "graphology-layout-forceatlas2";
 
-import { CanonicalDataset } from "../contracts/canonical";
-import {
-  LAYOUT_FORCE,
+import type { CanonicalDataset } from "../contracts/models";
+import { LAYOUT_FORCE } from "../contracts/positioned";
+import type {
   PositionedEdge,
   PositionedGraph,
   PositionedNode,

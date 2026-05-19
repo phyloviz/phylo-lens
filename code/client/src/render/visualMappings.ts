@@ -1,11 +1,12 @@
-import { CanonicalDataset } from "../contracts/canonical";
-import { PositionedGraph, PositionedNode } from "../contracts/positioned";
-import { MetadataIndexData, getNodeMetadata } from "../ancillary/metadataIndex";
+import type { CanonicalDataset } from "../contracts/models";
+import type { PositionedGraph, PositionedNode } from "../contracts/positioned";
+import { getNodeMetadata } from "../ancillary/metadataIndex";
+import type { MetadataIndexData } from "../ancillary/metadataIndex";
 import {
   buildPieAttributes,
-  PieMappingOptions,
   PIE_PALETTE_ATTRIBUTE,
 } from "./pieMapping";
+import type { PieMappingOptions } from "./pieMapping";
 
 export const DEFAULT_COLOR_PALETTE = [
   "#0f766e",

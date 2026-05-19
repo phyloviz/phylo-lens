@@ -1,4 +1,4 @@
-import { PositionedGraph } from "../contracts/positioned";
+import type { PositionedGraph } from "../contracts/positioned";
 
 export const RENDERER_KIND_SIGMA = "sigma";
 export const RENDERER_KIND_MOCK = "mock";

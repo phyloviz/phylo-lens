@@ -1,11 +1,11 @@
-import { PositionedGraph } from "../../contracts/positioned";
+import type { PositionedGraph } from "../../contracts/positioned";
 import {
-  GraphRenderer,
+  type GraphRenderer,
   RENDERER_KIND_MOCK,
-  RenderContext,
-  RenderNodeClickState,
-  RendererKind,
-  RenderViewportState,
+  type RenderContext,
+  type RenderNodeClickState,
+  type RendererKind,
+  type RenderViewportState,
 } from "../types";
 
 export const MOCK_RENDERER_EMPTY_CONTAINER = "";
@@ -16,10 +16,17 @@ export class MockRenderer implements GraphRenderer {
 
   private containerId: string = MOCK_RENDERER_EMPTY_CONTAINER;
   private lastGraph: PositionedGraph | null = null;
+  private lastCenteredNodeId: string | null = null;
+  private viewChangeHandler: ((state: RenderViewportState) => void) | null =
+    null;
+  private nodeClickHandler: ((state: RenderNodeClickState) => void) | null =
+    null;
 
   // Bind the mock renderer to a container identifier.
   mount(context: RenderContext): void {
     this.containerId = context.containerId;
+    this.lastGraph = null;
+    this.lastCenteredNodeId = null;
   }
 
   // Store rendered graph snapshot for assertions and debug checks.
@@ -28,29 +35,48 @@ export class MockRenderer implements GraphRenderer {
   }
 
   setViewChangeHandler(
-    _handler: ((state: RenderViewportState) => void) | null,
+    handler: ((state: RenderViewportState) => void) | null,
   ): void {
-    // Mock renderer does not emit camera updates.
+    this.viewChangeHandler = handler;
   }
 
   setNodeClickHandler(
-    _handler: ((state: RenderNodeClickState) => void) | null,
+    handler: ((state: RenderNodeClickState) => void) | null,
   ): void {
-    // Mock renderer does not emit node clicks.
+    this.nodeClickHandler = handler;
   }
 
-  centerOnNode(_nodeId: string): void {
-    // Mock renderer does not manage a camera.
+  centerOnNode(nodeId: string): void {
+    this.lastCenteredNodeId = nodeId;
   }
 
   // Reset internal references on renderer teardown.
   unmount(): void {
     this.containerId = MOCK_RENDERER_EMPTY_CONTAINER;
     this.lastGraph = null;
+    this.lastCenteredNodeId = null;
+    this.viewChangeHandler = null;
+    this.nodeClickHandler = null;
   }
 
   // Expose the last rendered graph for tests and diagnostics.
   getRenderedGraph(): PositionedGraph | null {
     return this.lastGraph;
+  }
+
+  getMountedContainerId(): string {
+    return this.containerId;
+  }
+
+  getLastCenteredNodeId(): string | null {
+    return this.lastCenteredNodeId;
+  }
+
+  emitViewChange(state: RenderViewportState): void {
+    this.viewChangeHandler?.(state);
+  }
+
+  emitNodeClick(state: RenderNodeClickState): void {
+    this.nodeClickHandler?.(state);
   }
 }
