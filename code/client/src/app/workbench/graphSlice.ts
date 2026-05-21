@@ -55,6 +55,13 @@ export function buildPositionedSliceGraph(
   return buildForcePositionedGraph(dataset, options, initialNodePositions);
 }
 
+export function buildFullPositionedGraph(
+  dataset: CanonicalDataset,
+  options: RenderNewickOptions["layout"] = {},
+): PositionedGraph {
+  return buildPositionedSliceGraph(dataset, options, null);
+}
+
 export function emptyGraph(): PositionedGraph {
   return {
     nodes: [],

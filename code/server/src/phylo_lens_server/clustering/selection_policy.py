@@ -44,6 +44,12 @@ def select_cluster_view(
         hierarchy,
         query.focus_node_id,
     )
+    focus_path_cluster_ids_set.update(
+        cluster_path_cluster_ids(
+            hierarchy,
+            query.focus_cluster_id,
+        )
+    )
     spatial_candidate_cluster_ids = spatial_candidate_cluster_ids_for_viewport(
         hierarchy,
         viewport_bounds,
@@ -96,6 +102,23 @@ def focus_path_cluster_ids(
 
     path: set[str] = set()
     current_cluster_id: str | None = cluster_id
+
+    while current_cluster_id is not None:
+        path.add(current_cluster_id)
+        current_cluster_id = hierarchy.clusters[current_cluster_id].parent_cluster_id
+
+    return path
+
+
+def cluster_path_cluster_ids(
+    hierarchy: ThresholdHierarchyIndex,
+    focus_cluster_id: str | None,
+) -> set[str]:
+    if focus_cluster_id is None or focus_cluster_id not in hierarchy.clusters:
+        return set()
+
+    path: set[str] = set()
+    current_cluster_id: str | None = focus_cluster_id
 
     while current_cluster_id is not None:
         path.add(current_cluster_id)

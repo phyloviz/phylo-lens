@@ -235,3 +235,57 @@ def test_select_visible_slice_keeps_requested_cluster_collapsed_above_zoom_thres
     assert {(edge.source, edge.target) for edge in response.edges} == {
         ("root", "left"),
     }
+
+
+def test_select_visible_slice_collapsed_cluster_wins_over_expanded_cluster() -> None:
+    # Given
+    dataset, hierarchy = _viewport_relevance_dataset_and_hierarchy()
+    query = VisibleSliceQuery(
+        dataset_id=dataset.dataset_id,
+        viewport=Viewport(x=-1350, y=0, width=300, height=600),
+        zoom=3.0,
+        max_nodes=10,
+        expanded_cluster_ids=["cluster_left"],
+        collapsed_cluster_ids=["cluster_left"],
+    )
+
+    # When
+    response = select_visible_slice(dataset, hierarchy, query)
+
+    # Then
+    left_node = next(node for node in response.nodes if node.id == "left")
+
+    assert [node.id for node in response.nodes] == ["root", "left"]
+    assert "left_leaf" not in {node.id for node in response.nodes}
+    assert left_node.cluster_id == "cluster_left"
+    assert left_node.is_cluster_proxy is True
+    assert {(edge.source, edge.target) for edge in response.edges} == {
+        ("root", "left"),
+    }
+
+
+def test_select_visible_slice_keeps_focus_cluster_path_view_relevant() -> None:
+    # Given
+    dataset, hierarchy = _viewport_relevance_dataset_and_hierarchy()
+    query = VisibleSliceQuery(
+        dataset_id=dataset.dataset_id,
+        viewport=Viewport(x=-1350, y=0, width=300, height=600),
+        zoom=3.0,
+        max_nodes=10,
+        focus_cluster_id="cluster_right",
+    )
+
+    # When
+    response = select_visible_slice(dataset, hierarchy, query)
+
+    # Then
+    right_node = next(node for node in response.nodes if node.id == "right")
+
+    assert "right" in {node.id for node in response.nodes}
+    assert right_node.cluster_id == "cluster_right"
+    assert right_node.is_cluster_proxy is True
+    assert {(edge.source, edge.target) for edge in response.edges} == {
+        ("root", "right"),
+        ("root", "left"),
+        ("left", "left_leaf"),
+    }

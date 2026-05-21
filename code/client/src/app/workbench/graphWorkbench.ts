@@ -28,6 +28,7 @@ import type {
   RendererKind,
 } from "../../render/types";
 import {
+  buildFullPositionedGraph,
   buildPositionedSliceGraph,
   buildSliceDataset,
   emptyGraph,
@@ -55,7 +56,7 @@ export {
 } from "./graphViewport";
 
 export const DEFAULT_DATASET_NAME = "uploaded-dataset";
-
+export const DEFAULT_FULL_RENDER_NODE_LIMIT = 4000;
 export const ERR_NO_GRAPH_RENDERED =
   "No graph has been rendered yet. Render a dataset before applying filters.";
 
@@ -67,6 +68,8 @@ export interface RenderNewickOptions {
     forceIterations?: number;
   };
   lod?: {
+    enabled?: boolean;
+    fullRenderNodeLimit?: number;
     zoom?: number;
     maxNodes?: number;
     lodHint?: number;
@@ -113,6 +116,7 @@ interface PreparedDatasetSession {
   };
 }
 
+type RenderMode = "full" | "lod";
 interface GraphWorkbenchState {
   currentSliceGraph: PositionedGraph | null;
   currentGraph: PositionedGraph | null;
@@ -127,6 +131,7 @@ interface GraphWorkbenchState {
   suppressViewChangesUntil: number;
   expandedClusterIds: Set<string>;
   collapsedClusterIds: Set<string>;
+  renderMode: RenderMode | null;
 }
 
 export function createGraphWorkbench(
@@ -208,6 +213,7 @@ function createInitialGraphWorkbenchState(): GraphWorkbenchState {
     suppressViewChangesUntil: 0,
     expandedClusterIds: new Set(),
     collapsedClusterIds: new Set(),
+    renderMode: null,
   };
 }
 
@@ -217,6 +223,72 @@ function createMountedRenderer(options: GraphWorkbenchOptions): GraphRenderer {
   renderer.mount(options.renderContext);
 
   return renderer;
+}
+
+function shouldUseLodMode(
+  dataset: CanonicalDataset,
+  options: RenderNewickOptions,
+): boolean {
+  if (options.lod?.enabled !== undefined) {
+    return options.lod.enabled;
+  }
+
+  const fullRenderLimit =
+    options.lod?.fullRenderNodeLimit ?? DEFAULT_FULL_RENDER_NODE_LIMIT;
+
+  return dataset.nodes.length > fullRenderLimit;
+}
+
+function resetWorkbenchForNewDataset(state: GraphWorkbenchState): void {
+  state.currentSliceGraph = null;
+  state.currentGraph = null;
+  state.metadataIndex = null;
+  state.activeFilters = EMPTY_METADATA_FILTER_STATE;
+  state.preparedSession = null;
+  state.pendingViewRefreshId = null;
+  state.lastRequestedViewKey = null;
+  state.currentViewState = null;
+  state.expandedClusterIds.clear();
+  state.collapsedClusterIds.clear();
+  state.renderMode = null;
+}
+
+interface RenderFullDatasetArgs {
+  state: GraphWorkbenchState;
+  renderer: GraphRenderer;
+  filterEngine: GraphFilterEngine;
+  dataset: CanonicalDataset;
+  options: RenderNewickOptions;
+}
+
+function renderFullDataset({
+  state,
+  renderer,
+  filterEngine,
+  dataset,
+  options,
+}: RenderFullDatasetArgs): PositionedGraph {
+  const positionedGraph = buildFullPositionedGraph(dataset, options.layout);
+  const metadataIndex = buildMetadataIndex(dataset);
+
+  const mappedGraph = applyVisualMappings(
+    positionedGraph,
+    dataset,
+    metadataIndex,
+    options.visualMapping,
+  );
+
+  state.renderMode = "full";
+  state.currentSliceGraph = mappedGraph;
+  state.currentGraph = hasActiveClientFilters(state.activeFilters)
+    ? filterEngine.apply(mappedGraph, metadataIndex, state.activeFilters)
+    : mappedGraph;
+  state.metadataIndex = metadataIndex;
+
+  renderer.render(state.currentGraph);
+  emitGraphRendered(state, state.currentGraph);
+
+  return state.currentGraph;
 }
 
 interface RenderNewickArgs {
@@ -238,6 +310,8 @@ async function renderNewick({
   datasetName = DEFAULT_DATASET_NAME,
   options = {},
 }: RenderNewickArgs): Promise<PositionedGraph> {
+  resetWorkbenchForNewDataset(state);
+
   const metadataSchema = options.metadataSchema ?? [];
   const metadataByNodeId = options.metadataByNodeId ?? {};
 
@@ -249,8 +323,21 @@ async function renderNewick({
     metadata_by_node_id: metadataByNodeId,
   };
 
+  const normalized = await datasetClient.normalizeDataset(request);
+
+  if (!shouldUseLodMode(normalized.dataset, options)) {
+    return renderFullDataset({
+      state,
+      renderer,
+      filterEngine,
+      dataset: normalized.dataset,
+      options,
+    });
+  }
+
   const preparedDataset = await datasetClient.prepareDataset(request);
 
+  state.renderMode = "lod";
   state.preparedSession = {
     datasetId: preparedDataset.dataset_id,
     metadataSchema,
@@ -263,11 +350,6 @@ async function renderNewick({
       viewport: options.lod?.viewport ?? DEFAULT_VIEWPORT,
     },
   };
-
-  state.activeFilters = EMPTY_METADATA_FILTER_STATE;
-  state.lastRequestedViewKey = null;
-  state.expandedClusterIds.clear();
-  state.collapsedClusterIds.clear();
 
   return refreshVisibleSlice({
     state,
@@ -351,7 +433,7 @@ async function handleViewChange({
 }: HandleViewChangeArgs): Promise<void> {
   const session = state.preparedSession;
 
-  if (!session) {
+  if (!session || state.renderMode !== "lod") {
     return;
   }
 
@@ -402,7 +484,7 @@ async function handleNodeClick({
 }: HandleNodeClickArgs): Promise<void> {
   const session = state.preparedSession;
 
-  if (!session) {
+  if (!session || state.renderMode !== "lod") {
     return;
   }
 
@@ -416,12 +498,7 @@ async function handleNodeClick({
     return;
   }
 
-  state.expandedClusterIds.add(clickedClusterId);
-  state.collapsedClusterIds.delete(clickedClusterId);
-
-  if (!isClusterProxyClick(clickState, clickedNode)) {
-    return;
-  }
+  const expansionAction = toggleClusterExpansion(state, clickedClusterId);
 
   const currentViewState = state.currentViewState ?? {
     viewport: session.lod.viewport,
@@ -434,15 +511,33 @@ async function handleNodeClick({
     datasetClient,
     filterEngine,
     viewState: {
-      viewport: recenterViewportOnNode(currentViewState.viewport, clickedNode),
-      zoom: currentViewState.zoom + 1,
+      viewport:
+        expansionAction === "expanded"
+          ? recenterViewportOnNode(currentViewState.viewport, clickedNode)
+          : currentViewState.viewport,
+      zoom: currentViewState.zoom,
     },
     options: {
       focusNodeIdOverride: clickState.nodeId,
       focusClusterIdOverride: clickedClusterId,
-      centerOnFocusNode: true,
+      centerOnFocusNode: expansionAction === "expanded",
     },
   });
+}
+
+function toggleClusterExpansion(
+  state: GraphWorkbenchState,
+  clusterId: string,
+): "expanded" | "collapsed" {
+  if (state.expandedClusterIds.has(clusterId)) {
+    state.expandedClusterIds.delete(clusterId);
+    state.collapsedClusterIds.add(clusterId);
+    return "collapsed";
+  }
+
+  state.collapsedClusterIds.delete(clusterId);
+  state.expandedClusterIds.add(clusterId);
+  return "expanded";
 }
 
 interface RefreshVisibleSliceArgs {
