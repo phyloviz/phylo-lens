@@ -92,6 +92,9 @@ export interface VisibleSliceQuery {
   lod_hint?: number;
   max_nodes?: number;
   focus_node_id?: string;
+  focus_cluster_id?: string;
+  expanded_cluster_ids?: string[];
+  collapsed_cluster_ids?: string[];
   include_metadata_keys?: string[];
   filters?: {
     categorical?: Record<string, string[]>;

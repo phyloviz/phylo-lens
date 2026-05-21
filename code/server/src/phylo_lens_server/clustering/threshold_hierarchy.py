@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from math import cos, pi, sin
+import time
 
 import igraph as ig
 
@@ -20,6 +21,12 @@ THRESHOLD_SYNTHETIC_ROOT_ID = "threshold_cluster_root"
 MAX_THRESHOLD_LEVELS = 12
 SPRING_LAYOUT_SEED = 11
 SPRING_LAYOUT_ITERATIONS = 150
+SPRING_LAYOUT_MEDIUM_NODE_COUNT = 1_000
+SPRING_LAYOUT_LARGE_NODE_COUNT = 5_000
+SPRING_LAYOUT_HUGE_NODE_COUNT = 25_000
+SPRING_LAYOUT_MEDIUM_ITERATIONS = 110
+SPRING_LAYOUT_LARGE_ITERATIONS = 80
+SPRING_LAYOUT_HUGE_ITERATIONS = 55
 SPRING_LAYOUT_SCALE = 10.0
 
 ERR_THRESHOLD_EMPTY = "Cannot build threshold hierarchy from an empty dataset."
@@ -37,6 +44,18 @@ class _ComponentLevel:
     level: int
     distance_threshold: float | None
     components: list[tuple[str, ...]]
+
+
+@dataclass(frozen=True)
+class ThresholdHierarchyBuildStats:
+    topology_ms: float
+    thresholds_ms: float
+    components_ms: float
+    layout_ms: float
+    layout_iterations: int
+    cluster_ms: float
+    geometry_ms: float
+    spatial_index_ms: float
 
 
 class _UnionFind:
@@ -71,12 +90,37 @@ class _UnionFind:
 
 def build_threshold_hierarchy(dataset: CanonicalDataset) -> ThresholdHierarchyIndex:
     """Build a threshold-containment hierarchy from one weighted dataset or forest."""
-    node_ids, weighted_edges = _validated_weighted_topology(dataset)
+    hierarchy, _ = build_threshold_hierarchy_with_stats(dataset)
+    return hierarchy
 
+
+def build_threshold_hierarchy_with_stats(
+    dataset: CanonicalDataset,
+) -> tuple[ThresholdHierarchyIndex, ThresholdHierarchyBuildStats]:
+    """Build a threshold hierarchy and return phase timings for prepare profiling."""
+    topology_start = time.perf_counter()
+    node_ids, weighted_edges = _validated_weighted_topology(dataset)
+    topology_ms = _elapsed_ms(topology_start)
+
+    thresholds_start = time.perf_counter()
     thresholds = _selected_thresholds(weighted_edges)
+    thresholds_ms = _elapsed_ms(thresholds_start)
+
+    components_start = time.perf_counter()
     levels = _build_component_levels(node_ids, weighted_edges, thresholds)
+    components_ms = _elapsed_ms(components_start)
+
+    layout_start = time.perf_counter()
     is_forest = len(levels[0].components) > 1
-    node_positions = _compute_node_positions(node_ids, weighted_edges)
+    layout_iterations = _spring_layout_iterations(len(node_ids))
+    node_positions = _compute_node_positions(
+        node_ids,
+        weighted_edges,
+        iterations=layout_iterations,
+    )
+    layout_ms = _elapsed_ms(layout_start)
+
+    cluster_start = time.perf_counter()
     clusters, cluster_id_by_level_and_component, nodes_by_level = (
         _build_threshold_clusters(levels, level_offset=1 if is_forest else 0)
     )
@@ -103,9 +147,17 @@ def build_threshold_hierarchy(dataset: CanonicalDataset) -> ThresholdHierarchyIn
         clusters,
         root_cluster_id,
     )
-    _assign_cluster_geometry(clusters, node_positions)
+    cluster_ms = _elapsed_ms(cluster_start)
 
-    return ThresholdHierarchyIndex(
+    geometry_start = time.perf_counter()
+    _assign_cluster_geometry(clusters, node_positions)
+    geometry_ms = _elapsed_ms(geometry_start)
+
+    spatial_index_start = time.perf_counter()
+    spatial_index_by_level = _spatial_index_by_level(clusters)
+    spatial_index_ms = _elapsed_ms(spatial_index_start)
+
+    hierarchy = ThresholdHierarchyIndex(
         dataset_id=dataset.dataset_id,
         root_cluster_id=root_cluster_id,
         clusters=clusters,
@@ -117,8 +169,22 @@ def build_threshold_hierarchy(dataset: CanonicalDataset) -> ThresholdHierarchyIn
             root_cluster_id,
         ),
         cluster_ids_by_level=_cluster_ids_by_level(clusters),
-        spatial_index_by_level=_spatial_index_by_level(clusters),
+        spatial_index_by_level=spatial_index_by_level,
     )
+    return hierarchy, ThresholdHierarchyBuildStats(
+        topology_ms=round(topology_ms, 3),
+        thresholds_ms=round(thresholds_ms, 3),
+        components_ms=round(components_ms, 3),
+        layout_ms=round(layout_ms, 3),
+        layout_iterations=layout_iterations,
+        cluster_ms=round(cluster_ms, 3),
+        geometry_ms=round(geometry_ms, 3),
+        spatial_index_ms=round(spatial_index_ms, 3),
+    )
+
+
+def _elapsed_ms(start_time: float) -> float:
+    return (time.perf_counter() - start_time) * 1000
 
 
 def _validated_weighted_topology(
@@ -157,23 +223,30 @@ def _build_threshold_clusters(
     clusters: dict[str, ThresholdHierarchyCluster] = {}
     cluster_id_by_level_and_component: dict[tuple[int, tuple[str, ...]], str] = {}
     nodes_by_level: list[dict[str, str]] = []
+    active_cluster_id_by_component: dict[tuple[str, ...], str] = {}
 
     for level in levels:
         node_to_cluster_id: dict[str, str] = {}
+        next_active_cluster_id_by_component: dict[tuple[str, ...], str] = {}
         for component in level.components:
-            cluster_id = _cluster_id_for_component(level.level, component[0])
+            cluster_id = active_cluster_id_by_component.get(component)
+            if cluster_id is None:
+                cluster_id = _cluster_id_for_component(level.level, component[0])
+                clusters[cluster_id] = ThresholdHierarchyCluster(
+                    cluster_id=cluster_id,
+                    representative_node_id=component[0],
+                    member_node_ids=list(component),
+                    subtree_size=len(component),
+                    distance_threshold_level=level.level + level_offset,
+                    distance_threshold=level.distance_threshold,
+                )
+
             cluster_id_by_level_and_component[(level.level, component)] = cluster_id
-            clusters[cluster_id] = ThresholdHierarchyCluster(
-                cluster_id=cluster_id,
-                representative_node_id=component[0],
-                member_node_ids=list(component),
-                subtree_size=len(component),
-                distance_threshold_level=level.level + level_offset,
-                distance_threshold=level.distance_threshold,
-            )
+            next_active_cluster_id_by_component[component] = cluster_id
             for node_id in component:
                 node_to_cluster_id[node_id] = cluster_id
         nodes_by_level.append(node_to_cluster_id)
+        active_cluster_id_by_component = next_active_cluster_id_by_component
 
     return clusters, cluster_id_by_level_and_component, nodes_by_level
 
@@ -207,24 +280,24 @@ def _choose_threshold_representatives(
     levels: list[_ComponentLevel],
     cluster_id_by_level_and_component: dict[tuple[int, tuple[str, ...]], str],
 ) -> None:
+    visited_cluster_ids: set[str] = set()
     for level in reversed(levels):
         for component in level.components:
             cluster_id = cluster_id_by_level_and_component[(level.level, component)]
+            if cluster_id in visited_cluster_ids:
+                continue
+            visited_cluster_ids.add(cluster_id)
             child_representatives = {
                 clusters[child_cluster_id].representative_node_id
                 for child_cluster_id in clusters[cluster_id].child_cluster_ids
                 if clusters[child_cluster_id].representative_node_id is not None
             }
-            candidate_ids = [
-                node_id
-                for node_id in clusters[cluster_id].member_node_ids
-                if node_id not in child_representatives
-            ]
-            clusters[cluster_id].representative_node_id = (
-                candidate_ids[0]
-                if candidate_ids
-                else clusters[cluster_id].member_node_ids[0]
-            )
+            representative_node_id = clusters[cluster_id].member_node_ids[0]
+            for node_id in clusters[cluster_id].member_node_ids:
+                if node_id not in child_representatives:
+                    representative_node_id = node_id
+                    break
+            clusters[cluster_id].representative_node_id = representative_node_id
 
 
 def _resolve_root_cluster_id(
@@ -389,8 +462,15 @@ def _assign_cluster_geometry(
     clusters: dict[str, ThresholdHierarchyCluster],
     node_positions: dict[str, tuple[float, float]],
 ) -> None:
-    for cluster in clusters.values():
-        position_count = 0
+    geometry_by_cluster_id: dict[str, tuple[int, float, float, float, float, float, float]] = {}
+    ordered_clusters = sorted(
+        clusters.values(),
+        key=lambda cluster: cluster.distance_threshold_level,
+        reverse=True,
+    )
+
+    for cluster in ordered_clusters:
+        count = 0
         sum_x = 0.0
         sum_y = 0.0
         min_x = float("inf")
@@ -398,24 +478,55 @@ def _assign_cluster_geometry(
         min_y = float("inf")
         max_y = float("-inf")
 
-        for node_id in cluster.member_node_ids:
-            position = node_positions.get(node_id)
+        for child_cluster_id in cluster.child_cluster_ids:
+            child_geometry = geometry_by_cluster_id.get(child_cluster_id)
+            if child_geometry is None:
+                continue
+            (
+                child_count,
+                child_sum_x,
+                child_sum_y,
+                child_min_x,
+                child_max_x,
+                child_min_y,
+                child_max_y,
+            ) = child_geometry
+            count += child_count
+            sum_x += child_sum_x
+            sum_y += child_sum_y
+            min_x = min(min_x, child_min_x)
+            max_x = max(max_x, child_max_x)
+            min_y = min(min_y, child_min_y)
+            max_y = max(max_y, child_max_y)
+
+        if count == 0:
+            node_id = cluster.representative_node_id or (
+                cluster.member_node_ids[0] if cluster.member_node_ids else None
+            )
+            position = node_positions.get(node_id) if node_id is not None else None
             if position is None:
                 continue
             x, y = position
-            position_count += 1
-            sum_x += x
-            sum_y += y
-            min_x = min(min_x, x)
-            max_x = max(max_x, x)
-            min_y = min(min_y, y)
-            max_y = max(max_y, y)
+            count = 1
+            sum_x = x
+            sum_y = y
+            min_x = x
+            max_x = x
+            min_y = y
+            max_y = y
 
-        if position_count == 0:
-            continue
+        geometry_by_cluster_id[cluster.cluster_id] = (
+            count,
+            sum_x,
+            sum_y,
+            min_x,
+            max_x,
+            min_y,
+            max_y,
+        )
         cluster.centroid = {
-            "x": sum_x / position_count,
-            "y": sum_y / position_count,
+            "x": sum_x / count,
+            "y": sum_y / count,
         }
         cluster.bounds = {
             "min_x": min_x,
@@ -484,6 +595,8 @@ def _spatial_entries_by_level(
 def _compute_node_positions(
     node_ids: list[str],
     weighted_edges: list[tuple[float, int, int]],
+    *,
+    iterations: int | None = None,
 ) -> dict[str, tuple[float, float]]:
     if len(node_ids) == 1:
         node_id = node_ids[0]
@@ -500,7 +613,9 @@ def _compute_node_positions(
     weights = [_spring_weight(distance) for distance, _, _ in weighted_edges]
     layout = graph.layout_fruchterman_reingold(
         weights=weights,
-        niter=SPRING_LAYOUT_ITERATIONS,
+        niter=iterations
+        if iterations is not None
+        else _spring_layout_iterations(len(node_ids)),
         seed=_initial_layout_seed(len(node_ids)),
     )
     return {
@@ -510,6 +625,16 @@ def _compute_node_positions(
         )
         for node_index, position in enumerate(layout)
     }
+
+
+def _spring_layout_iterations(node_count: int) -> int:
+    if node_count >= SPRING_LAYOUT_HUGE_NODE_COUNT:
+        return SPRING_LAYOUT_HUGE_ITERATIONS
+    if node_count >= SPRING_LAYOUT_LARGE_NODE_COUNT:
+        return SPRING_LAYOUT_LARGE_ITERATIONS
+    if node_count >= SPRING_LAYOUT_MEDIUM_NODE_COUNT:
+        return SPRING_LAYOUT_MEDIUM_ITERATIONS
+    return SPRING_LAYOUT_ITERATIONS
 
 
 def _spring_weight(distance: float) -> float:

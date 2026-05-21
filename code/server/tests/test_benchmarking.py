@@ -1,9 +1,11 @@
 from phylo_lens_server.benchmarking.lod import (
     benchmark_dataset,
     build_default_query_specs,
+    evaluate_visible_layout,
     generate_balanced_binary_tree,
     generate_skewed_tree,
 )
+from phylo_lens_server.core.models import CanonicalEdge, CanonicalNode
 
 
 def test_generate_balanced_binary_tree_counts_match_requested_size() -> None:
@@ -46,3 +48,28 @@ def test_benchmark_dataset_returns_one_row_per_default_query() -> None:
     assert all(row.shape == "balanced" for row in rows)
     assert all(row.hierarchy_median_ms >= 0 for row in rows)
     assert all(row.selector_median_ms >= 0 for row in rows)
+    assert all(row.crossing_count_median >= 0 for row in rows)
+    assert all(row.bounds_aspect_ratio_median >= 1 for row in rows)
+
+
+def test_evaluate_visible_layout_counts_crossings_and_near_overlaps() -> None:
+    """Confirm quality metrics catch crossings and close node pairs."""
+    nodes = [
+        CanonicalNode(id="a", x=0, y=0),
+        CanonicalNode(id="b", x=10, y=10),
+        CanonicalNode(id="c", x=0, y=10),
+        CanonicalNode(id="d", x=10, y=0),
+        CanonicalNode(id="e", x=1, y=1),
+    ]
+    edges = [
+        CanonicalEdge(id="e_a_b", source="a", target="b"),
+        CanonicalEdge(id="e_c_d", source="c", target="d"),
+    ]
+
+    metrics = evaluate_visible_layout(nodes, edges, near_overlap_distance=2)
+
+    assert metrics.crossing_count == 1
+    assert metrics.near_overlap_count == 1
+    assert metrics.edge_length_median > 0
+    assert metrics.edge_length_p95 >= metrics.edge_length_median
+    assert metrics.bounds_aspect_ratio == 1

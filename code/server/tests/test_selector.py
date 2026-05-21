@@ -33,48 +33,7 @@ def _viewport() -> Viewport:
     return Viewport(x=0, y=0, width=1000, height=600)
 
 
-def test_select_visible_slice_is_deterministic_for_threshold_hierarchies() -> None:
-    dataset, hierarchy = _threshold_dataset_and_hierarchy()
-    query = VisibleSliceQuery(
-        dataset_id=DATASET_THRESHOLD,
-        viewport=_viewport(),
-        zoom=2.0,
-        max_nodes=4,
-    )
-
-    first = select_visible_slice(dataset, hierarchy, query)
-    second = select_visible_slice(dataset, hierarchy, query)
-
-    assert first.model_dump() == second.model_dump()
-    assert first.view_meta.global_bounds is not None
-    assert first.view_meta.global_bounds.min_x < first.view_meta.global_bounds.max_x
-    assert first.view_meta.global_bounds.min_y < first.view_meta.global_bounds.max_y
-
-
-def test_select_visible_slice_prioritizes_focus_branch_when_bounded() -> None:
-    dataset, hierarchy = _threshold_dataset_and_hierarchy()
-
-    response = select_visible_slice(
-        dataset,
-        hierarchy,
-        VisibleSliceQuery(
-            dataset_id=DATASET_THRESHOLD,
-            viewport=_viewport(),
-            zoom=3.0,
-            max_nodes=3,
-            focus_node_id="d",
-        ),
-    )
-
-    assert [node.id for node in response.nodes] == ["a", "d", "b"]
-    assert response.nodes[1].id == "d"
-    assert {(edge.source, edge.target) for edge in response.edges} == {
-        ("a", "d"),
-        ("a", "b"),
-    }
-
-
-def test_select_visible_slice_expands_only_viewport_relevant_clusters() -> None:
+def _viewport_relevance_dataset_and_hierarchy():
     dataset = CanonicalDataset(
         dataset_id="viewport-tree",
         nodes=[
@@ -161,6 +120,53 @@ def test_select_visible_slice_expands_only_viewport_relevant_clusters() -> None:
         },
     )
 
+    return dataset, hierarchy
+
+
+def test_select_visible_slice_is_deterministic_for_threshold_hierarchies() -> None:
+    dataset, hierarchy = _threshold_dataset_and_hierarchy()
+    query = VisibleSliceQuery(
+        dataset_id=DATASET_THRESHOLD,
+        viewport=_viewport(),
+        zoom=2.0,
+        max_nodes=4,
+    )
+
+    first = select_visible_slice(dataset, hierarchy, query)
+    second = select_visible_slice(dataset, hierarchy, query)
+
+    assert first.model_dump() == second.model_dump()
+    assert first.view_meta.global_bounds is not None
+    assert first.view_meta.global_bounds.min_x < first.view_meta.global_bounds.max_x
+    assert first.view_meta.global_bounds.min_y < first.view_meta.global_bounds.max_y
+
+
+def test_select_visible_slice_prioritizes_focus_branch_when_bounded() -> None:
+    dataset, hierarchy = _threshold_dataset_and_hierarchy()
+
+    response = select_visible_slice(
+        dataset,
+        hierarchy,
+        VisibleSliceQuery(
+            dataset_id=DATASET_THRESHOLD,
+            viewport=_viewport(),
+            zoom=3.0,
+            max_nodes=3,
+            focus_node_id="d",
+        ),
+    )
+
+    assert [node.id for node in response.nodes] == ["a", "d", "b"]
+    assert response.nodes[1].id == "d"
+    assert {(edge.source, edge.target) for edge in response.edges} == {
+        ("a", "d"),
+        ("a", "b"),
+    }
+
+
+def test_select_visible_slice_expands_only_viewport_relevant_clusters() -> None:
+    dataset, hierarchy = _viewport_relevance_dataset_and_hierarchy()
+
     response = select_visible_slice(
         dataset,
         hierarchy,
@@ -181,3 +187,51 @@ def test_select_visible_slice_expands_only_viewport_relevant_clusters() -> None:
     assert response.view_meta.global_bounds is not None
     assert response.view_meta.global_bounds.min_x == -1500
     assert response.view_meta.global_bounds.max_x == 1500
+
+
+def test_select_visible_slice_expands_requested_cluster_below_zoom_threshold() -> None:
+    # Given
+    dataset, hierarchy = _viewport_relevance_dataset_and_hierarchy()
+    query = VisibleSliceQuery(
+        dataset_id=dataset.dataset_id,
+        viewport=Viewport(x=0, y=0, width=4000, height=600),
+        zoom=0.4,
+        max_nodes=10,
+        expanded_cluster_ids=["cluster_root"],
+    )
+
+    # When
+    response = select_visible_slice(dataset, hierarchy, query)
+
+    # Then
+    assert [node.id for node in response.nodes] == ["root", "left", "right"]
+    assert {(edge.source, edge.target) for edge in response.edges} == {
+        ("root", "left"),
+        ("root", "right"),
+    }
+
+
+def test_select_visible_slice_keeps_requested_cluster_collapsed_above_zoom_threshold() -> None:
+    # Given
+    dataset, hierarchy = _viewport_relevance_dataset_and_hierarchy()
+    query = VisibleSliceQuery(
+        dataset_id=dataset.dataset_id,
+        viewport=Viewport(x=-1350, y=0, width=300, height=600),
+        zoom=3.0,
+        max_nodes=10,
+        collapsed_cluster_ids=["cluster_left"],
+    )
+
+    # When
+    response = select_visible_slice(dataset, hierarchy, query)
+
+    # Then
+    left_node = next(node for node in response.nodes if node.id == "left")
+
+    assert [node.id for node in response.nodes] == ["root", "left"]
+    assert "left_leaf" not in {node.id for node in response.nodes}
+    assert left_node.cluster_id == "cluster_left"
+    assert left_node.is_cluster_proxy is True
+    assert {(edge.source, edge.target) for edge in response.edges} == {
+        ("root", "left"),
+    }

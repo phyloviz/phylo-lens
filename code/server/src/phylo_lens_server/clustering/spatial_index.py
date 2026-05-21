@@ -55,8 +55,15 @@ def query_spatial_index(
         node = index.nodes[node_index]
         if not bounds_intersect(spatial_bounds_to_tuple(node.bounds), viewport_bounds):
             continue
-        matches.update(node.cluster_ids)
-        stack.extend(reversed(node.child_node_indices))
+        if node.child_node_indices:
+            stack.extend(reversed(node.child_node_indices))
+            continue
+
+        matches.update(
+            cluster_id
+            for cluster_id in node.cluster_ids
+            if _leaf_cluster_intersects(node, cluster_id, viewport_bounds)
+        )
 
     return matches
 
@@ -74,10 +81,22 @@ def _pack_leaf_nodes(
                 SpatialIndexNode(
                     bounds=_union_bounds([bounds for _, bounds in tile]),
                     cluster_ids=[cluster_id for cluster_id, _ in tile],
+                    cluster_bounds_by_id=dict(tile),
                 ),
             )
         )
     return node_indices
+
+
+def _leaf_cluster_intersects(
+    node: SpatialIndexNode,
+    cluster_id: str,
+    viewport_bounds: BoundsTuple,
+) -> bool:
+    bounds = node.cluster_bounds_by_id.get(cluster_id)
+    if bounds is None:
+        return True
+    return bounds_intersect(spatial_bounds_to_tuple(bounds), viewport_bounds)
 
 
 def _pack_parent_nodes(

@@ -1,7 +1,13 @@
 from phylo_lens_server.clustering.selector import select_visible_slice
 from phylo_lens_server.clustering.threshold_hierarchy import (
+    SPRING_LAYOUT_HUGE_ITERATIONS,
+    SPRING_LAYOUT_ITERATIONS,
+    SPRING_LAYOUT_LARGE_ITERATIONS,
+    SPRING_LAYOUT_MEDIUM_ITERATIONS,
     ThresholdHierarchyBuildError,
     build_threshold_hierarchy,
+    build_threshold_hierarchy_with_stats,
+    _spring_layout_iterations,
 )
 from phylo_lens_server.core.models import VisibleSliceQuery, Viewport
 from phylo_lens_server.data.normalizer import NormalizeRequest, normalize_dataset
@@ -60,6 +66,22 @@ def test_build_threshold_hierarchy_creates_nested_threshold_levels() -> None:
     assert len(level_index.nodes) >= 1
 
 
+def test_build_threshold_hierarchy_reports_force_layout_iterations() -> None:
+    dataset = _weighted_dataset()
+
+    _, stats = build_threshold_hierarchy_with_stats(dataset)
+
+    assert stats.layout_iterations == SPRING_LAYOUT_ITERATIONS
+    assert stats.layout_ms >= 0
+
+
+def test_force_layout_iterations_are_adaptive_by_graph_size() -> None:
+    assert _spring_layout_iterations(10) == SPRING_LAYOUT_ITERATIONS
+    assert _spring_layout_iterations(1_000) == SPRING_LAYOUT_MEDIUM_ITERATIONS
+    assert _spring_layout_iterations(5_000) == SPRING_LAYOUT_LARGE_ITERATIONS
+    assert _spring_layout_iterations(25_000) == SPRING_LAYOUT_HUGE_ITERATIONS
+
+
 def test_build_threshold_hierarchy_rejects_missing_distances() -> None:
     dataset = normalize_dataset(
         NormalizeRequest(
@@ -108,7 +130,7 @@ def test_select_visible_slice_uses_threshold_levels_for_weighted_hierarchy() -> 
         hierarchy,
         VisibleSliceQuery(
             dataset_id=DATASET_THRESHOLD,
-            viewport=Viewport(x=0, y=0, width=1000, height=600),
+            viewport=Viewport(x=0, y=0, width=8000, height=5000),
             zoom=2.0,
             max_nodes=4,
         ),
@@ -140,7 +162,8 @@ def test_select_visible_slice_threshold_prefers_viewport_overlap_when_bounded() 
         ),
     )
 
-    assert [node.id for node in response.nodes] == ["a", "b", "d"]
+    assert [node.id for node in response.nodes] == ["a"]
+    assert response.nodes[0].is_cluster_proxy is True
 
 
 def test_select_visible_slice_threshold_forest_shows_multiple_components_without_fake_root() -> None:
@@ -158,7 +181,7 @@ def test_select_visible_slice_threshold_forest_shows_multiple_components_without
         hierarchy,
         VisibleSliceQuery(
             dataset_id=DATASET_THRESHOLD,
-            viewport=Viewport(x=0, y=0, width=1000, height=600),
+            viewport=Viewport(x=0, y=0, width=5000, height=5000),
             zoom=0.4,
             max_nodes=10,
         ),
@@ -185,7 +208,7 @@ def test_select_visible_slice_threshold_forest_zoom_in_reveals_component_detail(
         hierarchy,
         VisibleSliceQuery(
             dataset_id=DATASET_THRESHOLD,
-            viewport=Viewport(x=0, y=0, width=1000, height=600),
+            viewport=Viewport(x=0, y=0, width=5000, height=5000),
             zoom=2.0,
             max_nodes=10,
         ),

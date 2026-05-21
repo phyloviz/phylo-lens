@@ -7,7 +7,14 @@ precomputation, spatial indexing, and visible-slice queries.
 
 ```bash
 cd code/server
-pip install -e '.[test]'
+pip install -e '.[test,dev]'
+pre-commit install
+```
+
+To run the hook manually across the server source tree:
+
+```bash
+pre-commit run --all-files
 ```
 
 ## Run

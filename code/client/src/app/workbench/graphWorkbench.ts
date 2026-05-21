@@ -125,6 +125,8 @@ interface GraphWorkbenchState {
   currentViewState: RenderViewportState | null;
   graphRenderedHandler: GraphRenderedHandler | null;
   suppressViewChangesUntil: number;
+  expandedClusterIds: Set<string>;
+  collapsedClusterIds: Set<string>;
 }
 
 export function createGraphWorkbench(
@@ -204,6 +206,8 @@ function createInitialGraphWorkbenchState(): GraphWorkbenchState {
     currentViewState: null,
     graphRenderedHandler: null,
     suppressViewChangesUntil: 0,
+    expandedClusterIds: new Set(),
+    collapsedClusterIds: new Set(),
   };
 }
 
@@ -262,6 +266,8 @@ async function renderNewick({
 
   state.activeFilters = EMPTY_METADATA_FILTER_STATE;
   state.lastRequestedViewKey = null;
+  state.expandedClusterIds.clear();
+  state.collapsedClusterIds.clear();
 
   return refreshVisibleSlice({
     state,
@@ -404,6 +410,15 @@ async function handleNodeClick({
     (node) => node.id === clickState.nodeId,
   );
 
+  const clickedClusterId = getClickedClusterId(clickState, clickedNode);
+
+  if (!clickedClusterId || !isClusterProxyClick(clickState, clickedNode)) {
+    return;
+  }
+
+  state.expandedClusterIds.add(clickedClusterId);
+  state.collapsedClusterIds.delete(clickedClusterId);
+
   if (!isClusterProxyClick(clickState, clickedNode)) {
     return;
   }
@@ -424,6 +439,7 @@ async function handleNodeClick({
     },
     options: {
       focusNodeIdOverride: clickState.nodeId,
+      focusClusterIdOverride: clickedClusterId,
       centerOnFocusNode: true,
     },
   });
@@ -437,6 +453,7 @@ interface RefreshVisibleSliceArgs {
   viewState: RenderViewportState;
   options?: {
     focusNodeIdOverride?: string;
+    focusClusterIdOverride?: string;
     centerOnFocusNode?: boolean;
   };
 }
@@ -459,6 +476,7 @@ async function refreshVisibleSlice({
   const effectiveViewport = normalizeViewport(viewState.viewport);
   const effectiveZoom = normalizeZoom(viewState.zoom);
   const focusNodeId = options.focusNodeIdOverride;
+  const focusClusterId = options.focusClusterIdOverride;
 
   state.currentViewState = {
     viewport: effectiveViewport,
@@ -476,6 +494,9 @@ async function refreshVisibleSlice({
     effectiveMaxNodes,
     session.lod.lodHint,
     focusNodeId,
+    focusClusterId,
+    [...state.expandedClusterIds],
+    [...state.collapsedClusterIds],
   );
 
   const visibleSlice = await datasetClient.viewSlice({
@@ -485,6 +506,9 @@ async function refreshVisibleSlice({
     lod_hint: session.lod.lodHint,
     max_nodes: effectiveMaxNodes,
     focus_node_id: focusNodeId,
+    focus_cluster_id: focusClusterId,
+    expanded_cluster_ids: [...state.expandedClusterIds],
+    collapsed_cluster_ids: [...state.collapsedClusterIds],
     include_metadata_keys: session.metadataSchema.map((field) => field.key),
   });
 
@@ -611,4 +635,22 @@ function emitGraphRendered(
   graph: PositionedGraph,
 ): void {
   state.graphRenderedHandler?.(graph);
+}
+
+function getClickedClusterId(
+  clickState: RenderNodeClickState,
+  clickedNode: PositionedGraph["nodes"][number] | undefined,
+): string | undefined {
+  const fromClickState = clickState.attributes?.cluster_id;
+  const fromGraphNode = clickedNode?.attributes?.cluster_id;
+
+  if (typeof fromClickState === "string") {
+    return fromClickState;
+  }
+
+  if (typeof fromGraphNode === "string") {
+    return fromGraphNode;
+  }
+
+  return undefined;
 }

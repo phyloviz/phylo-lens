@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import gc
 import json
+import math
 import statistics
 import time
 import tracemalloc
@@ -46,6 +47,11 @@ class BenchmarkRow:
     returned_node_median: float
     returned_edge_median: float
     collapsed_cluster_median: float
+    crossing_count_median: float
+    near_overlap_count_median: float
+    edge_length_median: float
+    edge_length_p95_median: float
+    bounds_aspect_ratio_median: float
 
 
 def generate_balanced_binary_tree(
@@ -173,6 +179,11 @@ def benchmark_dataset(
         returned_node_counts: list[int] = []
         returned_edge_counts: list[int] = []
         collapsed_cluster_counts: list[int] = []
+        crossing_counts: list[int] = []
+        near_overlap_counts: list[int] = []
+        edge_length_medians: list[float] = []
+        edge_length_p95_values: list[float] = []
+        bounds_aspect_ratios: list[float] = []
 
         for _ in range(repeats):
             gc.collect()
@@ -192,6 +203,12 @@ def benchmark_dataset(
             returned_node_counts.append(len(response.nodes))
             returned_edge_counts.append(len(response.edges))
             collapsed_cluster_counts.append(len(response.collapsed_clusters))
+            metrics = evaluate_visible_layout(response.nodes, response.edges)
+            crossing_counts.append(metrics.crossing_count)
+            near_overlap_counts.append(metrics.near_overlap_count)
+            edge_length_medians.append(metrics.edge_length_median)
+            edge_length_p95_values.append(metrics.edge_length_p95)
+            bounds_aspect_ratios.append(metrics.bounds_aspect_ratio)
 
         rows.append(
             BenchmarkRow(
@@ -207,10 +224,63 @@ def benchmark_dataset(
                 returned_node_median=_median(returned_node_counts),
                 returned_edge_median=_median(returned_edge_counts),
                 collapsed_cluster_median=_median(collapsed_cluster_counts),
+                crossing_count_median=_median(crossing_counts),
+                near_overlap_count_median=_median(near_overlap_counts),
+                edge_length_median=_median(edge_length_medians),
+                edge_length_p95_median=_median(edge_length_p95_values),
+                bounds_aspect_ratio_median=_median(bounds_aspect_ratios),
             )
         )
 
     return rows
+
+
+@dataclass(frozen=True)
+class LayoutQualityMetrics:
+    crossing_count: int
+    near_overlap_count: int
+    edge_length_median: float
+    edge_length_p95: float
+    bounds_aspect_ratio: float
+
+
+def evaluate_visible_layout(
+    nodes: list[CanonicalNode],
+    edges: list[CanonicalEdge],
+    *,
+    near_overlap_distance: float = 20.0,
+) -> LayoutQualityMetrics:
+    """Compute deterministic quality metrics for one visible positioned slice."""
+    node_positions = {
+        node.id: (node.x, node.y)
+        for node in nodes
+        if node.x is not None and node.y is not None
+    }
+    edge_segments = [
+        (
+            edge.source,
+            edge.target,
+            node_positions[edge.source],
+            node_positions[edge.target],
+        )
+        for edge in edges
+        if edge.source in node_positions and edge.target in node_positions
+    ]
+    edge_lengths = [
+        _distance(source_position, target_position)
+        for _, _, source_position, target_position in edge_segments
+    ]
+
+    return LayoutQualityMetrics(
+        crossing_count=_count_edge_crossings(edge_segments),
+        near_overlap_count=_count_near_overlaps(
+            list(node_positions.values()),
+            near_overlap_distance,
+        ),
+        edge_length_median=_median(edge_lengths) if edge_lengths else 0.0,
+        edge_length_p95=_percentile(edge_lengths, 0.95) if edge_lengths else 0.0,
+        bounds_aspect_ratio=_bounds_aspect_ratio(list(node_positions.values())),
+    )
 
 
 def format_rows_as_table(rows: list[BenchmarkRow]) -> str:
@@ -227,6 +297,11 @@ def format_rows_as_table(rows: list[BenchmarkRow]) -> str:
         "ret_nodes",
         "ret_edges",
         "collapsed",
+        "cross",
+        "near",
+        "edge_med",
+        "edge_p95",
+        "aspect",
     ]
     values = [
         [
@@ -241,6 +316,11 @@ def format_rows_as_table(rows: list[BenchmarkRow]) -> str:
             f"{row.returned_node_median:.1f}",
             f"{row.returned_edge_median:.1f}",
             f"{row.collapsed_cluster_median:.1f}",
+            f"{row.crossing_count_median:.1f}",
+            f"{row.near_overlap_count_median:.1f}",
+            f"{row.edge_length_median:.2f}",
+            f"{row.edge_length_p95_median:.2f}",
+            f"{row.bounds_aspect_ratio_median:.2f}",
         ]
         for row in rows
     ]
@@ -277,3 +357,96 @@ def _synthetic_distance(index: int) -> float:
 
 def _median(values: list[int] | list[float]) -> float:
     return float(statistics.median(values))
+
+
+Point = tuple[float, float]
+EdgeSegment = tuple[str, str, Point, Point]
+
+
+def _count_edge_crossings(edge_segments: list[EdgeSegment]) -> int:
+    crossing_count = 0
+    for left_index, left in enumerate(edge_segments):
+        left_source, left_target, left_start, left_end = left
+        for right_source, right_target, right_start, right_end in edge_segments[
+            left_index + 1 :
+        ]:
+            if (
+                left_source == right_source
+                or left_source == right_target
+                or left_target == right_source
+                or left_target == right_target
+            ):
+                continue
+            if _segments_cross(left_start, left_end, right_start, right_end):
+                crossing_count += 1
+    return crossing_count
+
+
+def _segments_cross(
+    left_start: Point,
+    left_end: Point,
+    right_start: Point,
+    right_end: Point,
+) -> bool:
+    left_orientation_1 = _orientation(left_start, left_end, right_start)
+    left_orientation_2 = _orientation(left_start, left_end, right_end)
+    right_orientation_1 = _orientation(right_start, right_end, left_start)
+    right_orientation_2 = _orientation(right_start, right_end, left_end)
+
+    return (
+        left_orientation_1 * left_orientation_2 < 0
+        and right_orientation_1 * right_orientation_2 < 0
+    )
+
+
+def _orientation(origin: Point, target: Point, point: Point) -> float:
+    return (target[0] - origin[0]) * (point[1] - origin[1]) - (
+        target[1] - origin[1]
+    ) * (point[0] - origin[0])
+
+
+def _count_near_overlaps(
+    positions: list[Point],
+    distance_threshold: float,
+) -> int:
+    squared_threshold = distance_threshold * distance_threshold
+    near_overlap_count = 0
+    for left_index, left in enumerate(positions):
+        for right in positions[left_index + 1 :]:
+            if _squared_distance(left, right) <= squared_threshold:
+                near_overlap_count += 1
+    return near_overlap_count
+
+
+def _distance(left: Point, right: Point) -> float:
+    return math.sqrt(_squared_distance(left, right))
+
+
+def _squared_distance(left: Point, right: Point) -> float:
+    delta_x = left[0] - right[0]
+    delta_y = left[1] - right[1]
+    return delta_x * delta_x + delta_y * delta_y
+
+
+def _percentile(values: list[float], percentile: float) -> float:
+    if not values:
+        return 0.0
+    sorted_values = sorted(values)
+    index = min(
+        len(sorted_values) - 1,
+        max(0, math.ceil(percentile * len(sorted_values)) - 1),
+    )
+    return float(sorted_values[index])
+
+
+def _bounds_aspect_ratio(positions: list[Point]) -> float:
+    if len(positions) <= 1:
+        return 1.0
+
+    min_x = min(position[0] for position in positions)
+    max_x = max(position[0] for position in positions)
+    min_y = min(position[1] for position in positions)
+    max_y = max(position[1] for position in positions)
+    width = max(max_x - min_x, 1e-9)
+    height = max(max_y - min_y, 1e-9)
+    return max(width / height, height / width)

@@ -22,6 +22,7 @@ PhyloLens therefore treats the server as a data engine:
 
 ```text
 CanonicalDataset
+  -> content-fingerprint prepare cache lookup
   -> weighted edge sort
   -> Union-Find threshold levels
   -> ThresholdHierarchyIndex
@@ -51,8 +52,11 @@ reveal finer components.
 
 ### Global Coordinate Space
 
-Cluster centroids and bounds are computed once on the server. The root cluster
-produces `global_bounds`, which defines the coordinate system used by:
+Node coordinates, cluster centroids, and bounds are computed once on the server.
+The active layout is force-directed: PhyloLens uses igraph
+Fruchterman-Reingold with an adaptive iteration budget based on graph size. The
+root cluster produces `global_bounds`, which defines the coordinate system used
+by:
 
 - Sigma camera updates;
 - visible-slice viewport queries;
@@ -93,6 +97,7 @@ Each `SpatialIndexNode` contains:
 - `bounds`;
 - `child_node_indices` for internal nodes;
 - `cluster_ids` for leaf nodes.
+- `cluster_bounds_by_id` for exact per-cluster filtering inside leaf nodes.
 
 The flat-array representation is deliberate. It is easier to persist, cheaper
 to traverse than nested Pydantic objects, and closer to a future lower-level
@@ -144,7 +149,13 @@ index lookup.
 - Threshold selection is fixed and still needs interaction-oriented tuning.
 - The index is persisted as Pydantic models; this is clean but not the final
   memory layout for very large targets.
-- No cache is used for repeated viewport/zoom queries yet.
+- The current `DatasetStore` is an in-memory cache plus compact JSON persistence.
+  This is sufficient while the LoD contract is still evolving. A database-backed
+  store should be introduced when prepared indexes need concurrent access,
+  partial loading, cross-dataset management, or database-native spatial query
+  acceleration.
+- Repeated prepare requests are cached by source fingerprint, but repeated
+  viewport/zoom queries are not cached yet.
 - Metadata filters are still primarily client-side.
 - Label density is not yet part of LoD selection.
 
@@ -152,7 +163,8 @@ index lookup.
 
 Measure at least:
 
-- hierarchy build time;
+- hierarchy build time, including `topology_ms`, `components_ms`, `layout_ms`,
+  `layout_iterations`, `cluster_ms`, `geometry_ms`, and `spatial_index_ms`;
 - STR index build time;
 - peak memory during prepare;
 - visible-slice query time for overview, mid-zoom, and focused detail;

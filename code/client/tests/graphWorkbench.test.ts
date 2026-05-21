@@ -361,6 +361,7 @@ describe("graphWorkbench", () => {
         { id: "root", x: 0, y: 0, is_cluster_proxy: false },
         {
           id: "x",
+          cluster_id: "cluster_x",
           x: -0.5,
           y: 1,
           is_cluster_proxy: true,
@@ -423,6 +424,7 @@ describe("graphWorkbench", () => {
     renderer.emitNodeClick({
       nodeId: "x",
       attributes: {
+        cluster_id: "cluster_x",
         is_cluster_proxy: true,
       },
     });
@@ -437,6 +439,8 @@ describe("graphWorkbench", () => {
 
     expect(String(finalCall?.[0])).toBe(`${BASE_URL}/dataset/view-slice`);
     expect(body.focus_node_id).toBe("x");
+    expect(body.focus_cluster_id).toBe("cluster_x");
+    expect(body.expanded_cluster_ids).toEqual(["cluster_x"]);
     expect(body.zoom).toBe(5);
     expect(body.viewport).toEqual({
       x: expect.any(Number),

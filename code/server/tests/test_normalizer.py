@@ -49,6 +49,23 @@ def test_normalize_newick_preserves_edge_distances() -> None:
     ]
 
 
+def test_normalize_clamps_negative_newick_branch_lengths() -> None:
+    """Confirm RapidNJ-style negative branch lengths stay prepare-compatible."""
+    result = normalize_dataset(
+        NormalizeRequest(
+            format=FORMAT_NEWICK,
+            dataset_name=DATASET_DETERMINISTIC,
+            content="(A:-0.001,B:0.20)R:0;",
+        )
+    )
+
+    assert [(edge.source, edge.target, edge.distance) for edge in result.dataset.edges] == [
+        ("r", "a", 0.0),
+        ("r", "b", 0.2),
+    ]
+    assert "clamped" in result.warnings[0]
+
+
 def test_normalize_edgelist_parses_header() -> None:
     """Confirm edge-list parser handles a source/target header row correctly."""
     request = NormalizeRequest(

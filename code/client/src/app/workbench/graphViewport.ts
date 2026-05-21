@@ -20,6 +20,9 @@ export function serializeViewKey(
   maxNodes: number,
   lodHint?: number,
   focusNodeId?: string,
+  focusClusterId?: string,
+  expandedClusterIds: readonly string[] = [],
+  collapsedClusterIds: readonly string[] = [],
 ): string {
   return JSON.stringify({
     viewport,
@@ -27,6 +30,9 @@ export function serializeViewKey(
     maxNodes,
     lodHint,
     focusNodeId,
+    focusClusterId,
+    expandedClusterIds: [...expandedClusterIds].sort(),
+    collapsedClusterIds: [...collapsedClusterIds].sort(),
   });
 }
 

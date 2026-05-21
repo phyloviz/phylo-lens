@@ -93,6 +93,7 @@ class SpatialIndexNode(BaseModel):
     bounds: SpatialBounds
     child_node_indices: list[int] = Field(default_factory=list)
     cluster_ids: list[str] = Field(default_factory=list)
+    cluster_bounds_by_id: dict[str, SpatialBounds] = Field(default_factory=dict)
 
 
 class SpatialLevelIndex(BaseModel):
@@ -131,9 +132,7 @@ class ThresholdHierarchyIndex(BaseModel):
     global_bounds: SpatialBounds | None = None
     max_distance_threshold_level: int = Field(default=0, ge=0)
     cluster_ids_by_level: dict[int, list[str]] = Field(default_factory=dict)
-    spatial_index_by_level: dict[int, SpatialLevelIndex] = Field(
-        default_factory=dict
-    )
+    spatial_index_by_level: dict[int, SpatialLevelIndex] = Field(default_factory=dict)
 
 
 class Viewport(BaseModel):
@@ -155,14 +154,16 @@ class VisibleSliceFilters(BaseModel):
 class VisibleSliceQuery(BaseModel):
     """Runtime query contract for a visible graph slice."""
 
-    dataset_id: str = Field(min_length=1)
+    dataset_id: str
     viewport: Viewport
-    zoom: float = Field(ge=0)
-    lod_hint: int | None = Field(default=None, ge=0)
-    max_nodes: int | None = Field(default=None, ge=1)
+    zoom: float
+    lod_hint: int | None = None
+    max_nodes: int | None = None
     focus_node_id: str | None = None
+    focus_cluster_id: str | None = None
+    expanded_cluster_ids: list[str] = Field(default_factory=list)
+    collapsed_cluster_ids: list[str] = Field(default_factory=list)
     include_metadata_keys: list[str] = Field(default_factory=list)
-    filters: VisibleSliceFilters = Field(default_factory=VisibleSliceFilters)
 
 
 class CollapsedCluster(BaseModel):
@@ -208,9 +209,18 @@ class PrepareDatasetStats(BaseModel):
 
     node_count: int = Field(ge=0)
     edge_count: int = Field(ge=0)
+    cache_hit: bool = False
     ingest_ms: float = Field(ge=0)
     normalize_ms: float = Field(ge=0)
     hierarchy_ms: float = Field(ge=0)
+    topology_ms: float | None = Field(default=None, ge=0)
+    thresholds_ms: float | None = Field(default=None, ge=0)
+    components_ms: float | None = Field(default=None, ge=0)
+    layout_ms: float | None = Field(default=None, ge=0)
+    layout_iterations: int | None = Field(default=None, ge=0)
+    cluster_ms: float | None = Field(default=None, ge=0)
+    geometry_ms: float | None = Field(default=None, ge=0)
+    spatial_index_ms: float | None = Field(default=None, ge=0)
     store_ms: float = Field(ge=0)
 
 

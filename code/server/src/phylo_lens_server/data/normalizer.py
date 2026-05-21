@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from math import isfinite
 import time
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -35,6 +36,10 @@ METADATA_TYPE_BOOLEAN = "boolean"
 METADATA_TYPE_NUMBER = "number"
 
 ERR_UNSUPPORTED_FORMAT = "Unsupported format '{format_name}'."
+ERR_NONFINITE_DISTANCE = "Edge distance on '{source}' -> '{target}' must be finite."
+WARN_NEGATIVE_DISTANCE_CLAMPED = (
+    "Negative edge distance {distance} on '{source}' -> '{target}' was clamped to 0.0."
+)
 
 
 class NormalizeOptions(BaseModel):
@@ -83,6 +88,7 @@ def normalize_dataset(request: NormalizeRequest) -> NormalizeResult:
     normalize_start = time.perf_counter()
 
     nodes = [CanonicalNode(id=node_id) for node_id in sorted(parsed.nodes)]
+    warnings = list(parsed.warnings)
 
     edge_ids: dict[tuple[str, str], int] = {}
     canonical_edges: list[CanonicalEdge] = []
@@ -91,6 +97,12 @@ def normalize_dataset(request: NormalizeRequest) -> NormalizeResult:
     ):
         source = parsed_edge.source
         target = parsed_edge.target
+        distance = _normalize_edge_distance(
+            parsed_edge.distance,
+            source=source,
+            target=target,
+            warnings=warnings,
+        )
         key = (source, target)
         edge_ids[key] = edge_ids.get(key, 0) + 1
         edge_id = EDGE_ID_TEMPLATE.format(
@@ -101,7 +113,7 @@ def normalize_dataset(request: NormalizeRequest) -> NormalizeResult:
                 id=edge_id,
                 source=source,
                 target=target,
-                distance=parsed_edge.distance,
+                distance=distance,
             )
         )
 
@@ -137,8 +149,31 @@ def normalize_dataset(request: NormalizeRequest) -> NormalizeResult:
     return NormalizeResult(
         dataset=dataset,
         stats=stats,
-        warnings=parsed.warnings,
+        warnings=warnings,
     )
+
+
+def _normalize_edge_distance(
+    distance: float | None,
+    *,
+    source: str,
+    target: str,
+    warnings: list[str],
+) -> float | None:
+    if distance is None:
+        return None
+    if not isfinite(distance):
+        raise ParseError(ERR_NONFINITE_DISTANCE.format(source=source, target=target))
+    if distance < 0:
+        warnings.append(
+            WARN_NEGATIVE_DISTANCE_CLAMPED.format(
+                distance=distance,
+                source=source,
+                target=target,
+            )
+        )
+        return 0.0
+    return distance
 
 
 def _infer_metadata_schema(
