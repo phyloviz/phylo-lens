@@ -28,6 +28,30 @@ const METADATA_BY_NODE_ID = {
   b: { region: "AF", distance: 3 },
 };
 
+const NORMALIZE_RESPONSE = {
+  dataset: {
+    dataset_id: DATASET_NAME,
+    nodes: [{ id: "root" }, { id: "a" }, { id: "b" }],
+    edges: [
+      { id: "e_root_a_1", source: "root", target: "a" },
+      { id: "e_root_b_1", source: "root", target: "b" },
+    ],
+    metadata_schema: METADATA_SCHEMA,
+    metadata_by_node_id: METADATA_BY_NODE_ID,
+    source: {
+      format: "newick",
+      generated_at: "2026-05-25T00:00:00+00:00",
+    },
+  },
+  stats: {
+    node_count: 3,
+    edge_count: 2,
+    ingest_ms: 1,
+    normalize_ms: 2,
+  },
+  warnings: [],
+};
+
 const PREPARE_RESPONSE = {
   dataset_id: DATASET_NAME,
   stats: {
@@ -134,6 +158,7 @@ describe("graphWorkbench", () => {
   it("prepares Newick, fetches a visible slice, and renders through selected adapter", async () => {
     const fetchImpl = vi
       .fn()
+      .mockResolvedValueOnce(makeJsonResponse(NORMALIZE_RESPONSE))
       .mockResolvedValueOnce(makeJsonResponse(PREPARE_RESPONSE))
       .mockResolvedValueOnce(
         makeJsonResponse(VIEW_SLICE_RESPONSE),
@@ -147,7 +172,9 @@ describe("graphWorkbench", () => {
       renderContext: { containerId: "graph-root" },
     });
 
-    const graph = await workbench.renderNewick(NEWICK_CONTENT, DATASET_NAME);
+    const graph = await workbench.renderNewick(NEWICK_CONTENT, DATASET_NAME, {
+      lod: { enabled: true },
+    });
 
     expect(graph.nodes).toHaveLength(3);
     expect(graph.edges).toHaveLength(2);
@@ -171,6 +198,7 @@ describe("graphWorkbench", () => {
         (call) => String(call[0]),
       ),
     ).toEqual([
+      `${BASE_URL}/dataset/normalize`,
       `${BASE_URL}/dataset/prepare`,
       `${BASE_URL}/dataset/view-slice`,
     ]);
@@ -181,6 +209,7 @@ describe("graphWorkbench", () => {
   it("uses server-provided hierarchy coordinates as authoritative positions", async () => {
     const fetchImpl = vi
       .fn()
+      .mockResolvedValueOnce(makeJsonResponse(NORMALIZE_RESPONSE))
       .mockResolvedValueOnce(makeJsonResponse(PREPARE_RESPONSE))
       .mockResolvedValueOnce(
         makeJsonResponse(VIEW_SLICE_RESPONSE),
@@ -198,6 +227,7 @@ describe("graphWorkbench", () => {
       layout: {
         forceIterations: 2,
       },
+      lod: { enabled: true },
     });
 
     expect(graph.nodes).toHaveLength(3);
@@ -226,6 +256,7 @@ describe("graphWorkbench", () => {
     };
     const fetchImpl = vi
       .fn()
+      .mockResolvedValueOnce(makeJsonResponse(NORMALIZE_RESPONSE))
       .mockResolvedValueOnce(makeJsonResponse(PREPARE_RESPONSE))
       .mockResolvedValueOnce(
         makeJsonResponse(collinearSliceResponse),
@@ -239,7 +270,9 @@ describe("graphWorkbench", () => {
       renderContext: { containerId: "graph-root" },
     });
 
-    const graph = await workbench.renderNewick(NEWICK_CONTENT, DATASET_NAME);
+    const graph = await workbench.renderNewick(NEWICK_CONTENT, DATASET_NAME, {
+      lod: { enabled: true },
+    });
 
     expect(graph.viewMeta.layout).toBe(LAYOUT_SERVER);
     expect(graph.nodes.map((node) => [node.id, node.x, node.y])).toEqual([
@@ -254,6 +287,7 @@ describe("graphWorkbench", () => {
   it("applies metadata filters on the current visible slice after rendering", async () => {
     const fetchImpl = vi
       .fn()
+      .mockResolvedValueOnce(makeJsonResponse(NORMALIZE_RESPONSE))
       .mockResolvedValueOnce(makeJsonResponse(PREPARE_RESPONSE))
       .mockResolvedValueOnce(
         makeJsonResponse(VIEW_SLICE_RESPONSE),
@@ -270,6 +304,7 @@ describe("graphWorkbench", () => {
     await workbench.renderNewick(NEWICK_CONTENT, DATASET_NAME, {
       metadataSchema: METADATA_SCHEMA,
       metadataByNodeId: METADATA_BY_NODE_ID,
+      lod: { enabled: true },
     });
 
     const filtered = workbench.applyMetadataFilters({
@@ -290,6 +325,7 @@ describe("graphWorkbench", () => {
   it("fails filter operations before first render", () => {
     const fetchImpl = vi
       .fn()
+      .mockResolvedValueOnce(makeJsonResponse(NORMALIZE_RESPONSE))
       .mockResolvedValueOnce(makeJsonResponse(PREPARE_RESPONSE))
       .mockResolvedValueOnce(
         makeJsonResponse(VIEW_SLICE_RESPONSE),
@@ -320,6 +356,7 @@ describe("graphWorkbench", () => {
   it("forwards ancillary metadata payload to prepare request", async () => {
     const fetchImpl = vi
       .fn()
+      .mockResolvedValueOnce(makeJsonResponse(NORMALIZE_RESPONSE))
       .mockResolvedValueOnce(makeJsonResponse(PREPARE_RESPONSE))
       .mockResolvedValueOnce(
         makeJsonResponse(VIEW_SLICE_RESPONSE),
@@ -338,11 +375,12 @@ describe("graphWorkbench", () => {
       metadataByNodeId: {
         root: { trait_a: 10 },
       },
+      lod: { enabled: true },
     });
 
-    const firstCall = (fetchImpl as unknown as ReturnType<typeof vi.fn>).mock
-      .calls[0];
-    const init = firstCall?.[1] as RequestInit | undefined;
+    const prepareCall = (fetchImpl as unknown as ReturnType<typeof vi.fn>).mock
+      .calls[1];
+    const init = prepareCall?.[1] as RequestInit | undefined;
     const body = JSON.parse(String(init?.body ?? "{}")) as Record<
       string,
       unknown
@@ -354,7 +392,7 @@ describe("graphWorkbench", () => {
     workbench.dispose();
   });
 
-  it("drills into cluster proxy nodes by focusing their subtree and increasing zoom", async () => {
+  it("drills into cluster proxy nodes by focusing their subtree without changing zoom", async () => {
     const proxySliceResponse = {
       ...VIEW_SLICE_RESPONSE,
       nodes: [
@@ -393,13 +431,14 @@ describe("graphWorkbench", () => {
       collapsed_clusters: [],
       view_meta: {
         viewport: { x: -60, y: 150, width: 1000, height: 600 },
-        zoom: 5,
+        zoom: 4,
         returned_node_count: 3,
         returned_edge_count: 2,
       },
     };
     const fetchImpl = vi
       .fn()
+      .mockResolvedValueOnce(makeJsonResponse(NORMALIZE_RESPONSE))
       .mockResolvedValueOnce(makeJsonResponse(PREPARE_RESPONSE))
       .mockResolvedValueOnce(makeJsonResponse(proxySliceResponse))
       .mockResolvedValueOnce(
@@ -417,6 +456,7 @@ describe("graphWorkbench", () => {
 
     await workbench.renderNewick(NEWICK_CONTENT, DATASET_NAME, {
       lod: {
+        enabled: true,
         zoom: 4,
       },
     });
@@ -432,7 +472,7 @@ describe("graphWorkbench", () => {
     await Promise.resolve();
 
     const finalCall = (fetchImpl as unknown as ReturnType<typeof vi.fn>).mock
-      .calls[2];
+      .calls[3];
     const body = JSON.parse(
       String((finalCall?.[1] as RequestInit)?.body ?? "{}"),
     ) as Record<string, unknown>;
@@ -441,7 +481,8 @@ describe("graphWorkbench", () => {
     expect(body.focus_node_id).toBe("x");
     expect(body.focus_cluster_id).toBe("cluster_x");
     expect(body.expanded_cluster_ids).toEqual(["cluster_x"]);
-    expect(body.zoom).toBe(5);
+    expect(body.zoom).toBe(4);
+    expect(renderer.lastCenteredNodeId).toBeNull();
     expect(body.viewport).toEqual({
       x: expect.any(Number),
       y: expect.any(Number),
@@ -452,12 +493,118 @@ describe("graphWorkbench", () => {
     workbench.dispose();
   });
 
+  it("collapses expanded cluster proxy nodes without changing zoom", async () => {
+    const proxySliceResponse = {
+      ...VIEW_SLICE_RESPONSE,
+      nodes: [
+        { id: "root", x: 0, y: 0, is_cluster_proxy: false },
+        {
+          id: "x",
+          cluster_id: "cluster_x",
+          x: -0.5,
+          y: 1,
+          is_cluster_proxy: true,
+          subtree_size: 32,
+        },
+      ],
+      edges: [{ id: "e_root_x_1", source: "root", target: "x" }],
+      collapsed_clusters: [{ cluster_id: "cluster_x", subtree_size: 32 }],
+    };
+    const expandedSliceResponse = {
+      ...VIEW_SLICE_RESPONSE,
+      nodes: [
+        {
+          id: "x",
+          cluster_id: "cluster_x",
+          x: -0.5,
+          y: 1,
+          is_cluster_proxy: true,
+          subtree_size: 32,
+        },
+        { id: "a", x: -0.75, y: 2 },
+      ],
+      edges: [{ id: "e_x_a_1", source: "x", target: "a" }],
+      collapsed_clusters: [],
+      view_meta: {
+        ...VIEW_SLICE_RESPONSE.view_meta,
+        zoom: 4,
+      },
+    };
+    const collapsedSliceResponse = {
+      ...proxySliceResponse,
+      view_meta: {
+        ...VIEW_SLICE_RESPONSE.view_meta,
+        zoom: 4,
+      },
+    };
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(makeJsonResponse(NORMALIZE_RESPONSE))
+      .mockResolvedValueOnce(makeJsonResponse(PREPARE_RESPONSE))
+      .mockResolvedValueOnce(makeJsonResponse(proxySliceResponse))
+      .mockResolvedValueOnce(makeJsonResponse(expandedSliceResponse))
+      .mockResolvedValueOnce(
+        makeJsonResponse(collapsedSliceResponse),
+      ) as unknown as typeof fetch;
+
+    const datasetClient = createDatasetClient({ baseUrl: BASE_URL, fetchImpl });
+    const renderer = new ClickableTestRenderer();
+    const workbench = createGraphWorkbench({
+      datasetClient,
+      rendererFactory: new StaticRendererFactory(renderer),
+      rendererKind: RENDERER_KIND_MOCK,
+      renderContext: { containerId: "graph-root" },
+    });
+
+    await workbench.renderNewick(NEWICK_CONTENT, DATASET_NAME, {
+      lod: {
+        enabled: true,
+        zoom: 4,
+      },
+    });
+
+    renderer.emitNodeClick({
+      nodeId: "x",
+      attributes: {
+        cluster_id: "cluster_x",
+        is_cluster_proxy: true,
+      },
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    renderer.emitNodeClick({
+      nodeId: "x",
+      attributes: {
+        cluster_id: "cluster_x",
+        is_cluster_proxy: true,
+      },
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const finalCall = (fetchImpl as unknown as ReturnType<typeof vi.fn>).mock
+      .calls[4];
+    const body = JSON.parse(
+      String((finalCall?.[1] as RequestInit)?.body ?? "{}"),
+    ) as Record<string, unknown>;
+
+    expect(String(finalCall?.[0])).toBe(`${BASE_URL}/dataset/view-slice`);
+    expect(body.expanded_cluster_ids).toEqual([]);
+    expect(body.collapsed_cluster_ids).toEqual(["cluster_x"]);
+    expect(body.zoom).toBe(4);
+    expect(renderer.lastCenteredNodeId).toBeNull();
+
+    workbench.dispose();
+  });
+
   it("keeps the camera stable when refreshing semantic zoom on viewport changes", async () => {
     vi.useFakeTimers();
     try {
       const fetchImpl = vi
         .fn()
-        .mockResolvedValueOnce(makeJsonResponse(PREPARE_RESPONSE))
+        .mockResolvedValueOnce(makeJsonResponse(NORMALIZE_RESPONSE))
+      .mockResolvedValueOnce(makeJsonResponse(PREPARE_RESPONSE))
         .mockResolvedValueOnce(makeJsonResponse(VIEW_SLICE_RESPONSE))
         .mockResolvedValueOnce(
           makeJsonResponse(VIEW_SLICE_RESPONSE),
@@ -477,6 +624,7 @@ describe("graphWorkbench", () => {
 
       await workbench.renderNewick(NEWICK_CONTENT, DATASET_NAME, {
         lod: {
+          enabled: true,
           zoom: 4,
         },
       });
@@ -508,6 +656,7 @@ describe("graphWorkbench", () => {
   it("ignores renderer-originated view changes immediately after render", async () => {
     const fetchImpl = vi
       .fn()
+      .mockResolvedValueOnce(makeJsonResponse(NORMALIZE_RESPONSE))
       .mockResolvedValueOnce(makeJsonResponse(PREPARE_RESPONSE))
       .mockResolvedValueOnce(
         makeJsonResponse(VIEW_SLICE_RESPONSE),
@@ -522,13 +671,16 @@ describe("graphWorkbench", () => {
       renderContext: { containerId: "graph-root" },
     });
 
-    await workbench.renderNewick(NEWICK_CONTENT, DATASET_NAME);
+    await workbench.renderNewick(NEWICK_CONTENT, DATASET_NAME, {
+      lod: { enabled: true },
+    });
 
     expect(
       (fetchImpl as unknown as ReturnType<typeof vi.fn>).mock.calls.map(
         (call) => String(call[0]),
       ),
     ).toEqual([
+      `${BASE_URL}/dataset/normalize`,
       `${BASE_URL}/dataset/prepare`,
       `${BASE_URL}/dataset/view-slice`,
     ]);

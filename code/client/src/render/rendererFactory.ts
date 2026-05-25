@@ -1,5 +1,5 @@
 import { MockRenderer } from "./adapters/mockRenderer";
-import { SigmaRenderer } from "./adapters/sigmaRenderer";
+import { SigmaRenderer } from "./adapters/sigma/sigmaRenderer";
 import {
   type GraphRenderer,
   RENDERER_KIND_MOCK,

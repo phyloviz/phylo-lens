@@ -164,6 +164,7 @@ class VisibleSliceQuery(BaseModel):
     expanded_cluster_ids: list[str] = Field(default_factory=list)
     collapsed_cluster_ids: list[str] = Field(default_factory=list)
     include_metadata_keys: list[str] = Field(default_factory=list)
+    filters: VisibleSliceFilters = Field(default_factory=VisibleSliceFilters)
 
 
 class CollapsedCluster(BaseModel):
@@ -183,6 +184,8 @@ class VisibleSliceViewMeta(BaseModel):
     returned_node_count: int = Field(ge=0)
     returned_edge_count: int = Field(ge=0)
     global_bounds: SpatialBounds | None = None
+    focus_cluster_id: str | None = None
+    focus_cluster_bounds: SpatialBounds | None = None
 
 
 class VisibleSliceResponse(BaseModel):

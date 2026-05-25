@@ -64,6 +64,10 @@ def build_visible_slice_response(
             returned_node_count=len(visible_nodes),
             returned_edge_count=len(visible_edges),
             global_bounds=global_bounds(hierarchy),
+            focus_cluster_id=query.focus_cluster_id,
+            focus_cluster_bounds=focus_cluster_bounds(
+                hierarchy, query.focus_cluster_id
+            ),
         ),
     )
 
@@ -361,3 +365,18 @@ def global_bounds(hierarchy: ThresholdHierarchyIndex) -> SpatialBounds | None:
     return spatial_bounds_from_cluster_bounds(
         hierarchy.clusters[hierarchy.root_cluster_id].bounds
     )
+
+
+def focus_cluster_bounds(
+    hierarchy: ThresholdHierarchyIndex,
+    focus_cluster_id: str | None,
+) -> SpatialBounds | None:
+    if focus_cluster_id is None:
+        return None
+
+    cluster = hierarchy.clusters.get(focus_cluster_id)
+
+    if cluster is None:
+        return None
+
+    return spatial_bounds_from_cluster_bounds(cluster.bounds)

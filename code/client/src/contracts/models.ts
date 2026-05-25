@@ -115,6 +115,13 @@ export interface VisibleSliceViewMeta {
   returned_node_count: number;
   returned_edge_count: number;
   global_bounds?: SpatialBounds | null;
+  focus_cluster_id?: string | null;
+  focus_cluster_bounds?: {
+    min_x: number;
+    max_x: number;
+    min_y: number;
+    max_y: number;
+  } | null;
 }
 
 export interface VisibleSliceResponse {

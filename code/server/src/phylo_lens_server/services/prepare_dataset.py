@@ -164,10 +164,8 @@ def build_prepared_hierarchy(
 def ensure_prepare_edge_distances(
     dataset: CanonicalDataset,
 ) -> tuple[CanonicalDataset, list[str]]:
-    if not dataset.edges or all(edge.distance is not None for edge in dataset.edges):
-        return dataset, []
-
-    if any(edge.distance is not None for edge in dataset.edges):
+    # Only infer distances when no edge has an explicit distance.
+    if not dataset.edges or any(edge.distance is not None for edge in dataset.edges):
         return dataset, []
 
     return (
@@ -189,8 +187,8 @@ def ensure_prepare_edge_distances(
 
 
 def should_use_distance_threshold_hierarchy(dataset: CanonicalDataset) -> bool:
-    if dataset.source.format is SourceFormat.TYPING_DATA:
-        return False
+    # if dataset.source.format is SourceFormat.TYPING_DATA:
+    #     return False
 
     return len(dataset.edges) > 0 and all(
         edge.distance is not None for edge in dataset.edges

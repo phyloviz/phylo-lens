@@ -32,6 +32,7 @@ import {
   buildPositionedSliceGraph,
   buildSliceDataset,
   emptyGraph,
+  serverSpatialBoundsToGraphBounds,
 } from "./graphSlice";
 import {
   DEFAULT_RENDER_VIEW_SUPPRESSION_MS,
@@ -41,7 +42,6 @@ import {
   DEFAULT_VIEW_SLICE_ZOOM,
   normalizeViewport,
   normalizeZoom,
-  recenterViewportOnNode,
   resolveMaxNodesForZoom,
   serializeViewKey,
 } from "./graphViewport";
@@ -441,11 +441,22 @@ async function handleViewChange({
     return;
   }
 
-  const nextViewKey = serializeViewKey(
-    viewState.viewport,
-    viewState.zoom,
+  const effectiveViewport = normalizeViewport(viewState.viewport);
+  const effectiveZoom = normalizeZoom(viewState.zoom);
+  const effectiveMaxNodes = resolveMaxNodesForZoom(
     session.lod.maxNodes,
+    effectiveZoom,
+  );
+
+  const nextViewKey = serializeViewKey(
+    effectiveViewport,
+    effectiveZoom,
+    effectiveMaxNodes,
     session.lod.lodHint,
+    undefined,
+    undefined,
+    [...state.expandedClusterIds],
+    [...state.collapsedClusterIds],
   );
 
   if (nextViewKey === state.lastRequestedViewKey) {
@@ -462,7 +473,10 @@ async function handleViewChange({
       renderer,
       datasetClient,
       filterEngine,
-      viewState,
+      viewState: {
+        viewport: effectiveViewport,
+        zoom: effectiveZoom,
+      },
     });
   }, DEFAULT_VIEW_CHANGE_DEBOUNCE_MS);
 }
@@ -498,7 +512,7 @@ async function handleNodeClick({
     return;
   }
 
-  const expansionAction = toggleClusterExpansion(state, clickedClusterId);
+  toggleClusterExpansion(state, clickedClusterId);
 
   const currentViewState = state.currentViewState ?? {
     viewport: session.lod.viewport,
@@ -511,16 +525,12 @@ async function handleNodeClick({
     datasetClient,
     filterEngine,
     viewState: {
-      viewport:
-        expansionAction === "expanded"
-          ? recenterViewportOnNode(currentViewState.viewport, clickedNode)
-          : currentViewState.viewport,
+      viewport: currentViewState.viewport,
       zoom: currentViewState.zoom,
     },
     options: {
       focusNodeIdOverride: clickState.nodeId,
       focusClusterIdOverride: clickedClusterId,
-      centerOnFocusNode: expansionAction === "expanded",
     },
   });
 }
@@ -549,7 +559,6 @@ interface RefreshVisibleSliceArgs {
   options?: {
     focusNodeIdOverride?: string;
     focusClusterIdOverride?: string;
-    centerOnFocusNode?: boolean;
   };
 }
 
@@ -588,8 +597,8 @@ async function refreshVisibleSlice({
     effectiveZoom,
     effectiveMaxNodes,
     session.lod.lodHint,
-    focusNodeId,
-    focusClusterId,
+    undefined,
+    undefined,
     [...state.expandedClusterIds],
     [...state.collapsedClusterIds],
   );
@@ -651,10 +660,6 @@ async function refreshVisibleSlice({
   state.suppressViewChangesUntil =
     Date.now() + DEFAULT_RENDER_VIEW_SUPPRESSION_MS;
 
-  if (options.centerOnFocusNode && options.focusNodeIdOverride) {
-    renderer.centerOnNode?.(options.focusNodeIdOverride);
-  }
-
   emitGraphRendered(state, state.currentGraph);
 
   return state.currentGraph;
@@ -673,14 +678,10 @@ function applySliceViewMeta(
       sliceEdgeCount: visibleSlice.view_meta.returned_edge_count,
       collapsedClusterCount: visibleSlice.collapsed_clusters.length,
       zoom: visibleSlice.view_meta.zoom,
-      globalBounds: visibleSlice.view_meta.global_bounds
-        ? {
-            minX: visibleSlice.view_meta.global_bounds.min_x,
-            maxX: visibleSlice.view_meta.global_bounds.max_x,
-            minY: visibleSlice.view_meta.global_bounds.min_y,
-            maxY: visibleSlice.view_meta.global_bounds.max_y,
-          }
-        : graph.viewMeta.globalBounds,
+      globalBounds:
+        serverSpatialBoundsToGraphBounds(
+          visibleSlice.view_meta.global_bounds,
+        ) ?? graph.viewMeta.globalBounds,
     },
   };
 }

@@ -2,10 +2,10 @@ import { type Viewport } from "../../contracts/models";
 import { type PositionedGraph } from "../../contracts/positioned";
 
 export const DEFAULT_VIEW_SLICE_ZOOM = 1;
-export const DEFAULT_VIEW_SLICE_MAX_NODES = 4000;
+export const DEFAULT_VIEW_SLICE_MAX_NODES = 6000;
 export const DEFAULT_VIEW_CHANGE_DEBOUNCE_MS = 180;
-export const DEFAULT_RENDER_VIEW_SUPPRESSION_MS = 120;
-export const MAX_DYNAMIC_VIEW_SLICE_NODES = 10_010;
+export const DEFAULT_RENDER_VIEW_SUPPRESSION_MS = 450;
+export const MAX_DYNAMIC_VIEW_SLICE_NODES = 12_010;
 
 export const DEFAULT_VIEWPORT: Viewport = {
   x: 0,

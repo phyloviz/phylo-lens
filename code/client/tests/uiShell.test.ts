@@ -64,6 +64,8 @@ describe("uiShell", () => {
 
     expect(status.textContent).toContain("Rendered");
     expect(status.textContent).toContain("slice 1 nodes");
+    expect(status.textContent).toContain("rendered depth 0");
+    expect(status.textContent).toContain("LoD zoom 4.00");
     shell.unmount();
   });
 

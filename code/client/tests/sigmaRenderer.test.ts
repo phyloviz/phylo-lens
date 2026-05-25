@@ -1,4 +1,10 @@
 let lastSigmaOptions: Record<string, unknown> | null = null;
+let lastCustomBBox:
+  | {
+      x: [number, number];
+      y: [number, number];
+    }
+  | null = null;
 let lastCamera:
   | {
       state: { x?: number; y?: number; ratio?: number };
@@ -48,6 +54,13 @@ vi.mock("sigma", () => {
       return undefined;
     }
 
+    setCustomBBox(
+      bounds: { x: [number, number]; y: [number, number] } | null,
+    ) {
+      lastCustomBBox = bounds;
+      return this;
+    }
+
     kill() {
       return undefined;
     }
@@ -62,7 +75,7 @@ import {
   SigmaRenderer,
   sigmaCameraToViewportState,
   sigmaRatioToLodZoom,
-} from "../src/render/adapters/sigmaRenderer";
+} from "../src/render/adapters/sigma/sigmaRenderer";
 
 const CONTAINER_ID = "graph-root";
 
@@ -164,6 +177,10 @@ describe("sigmaRenderer", () => {
         height: 250,
       },
       zoom: 3,
+    });
+    expect(lastCustomBBox).toEqual({
+      x: [-1000, 1000],
+      y: [-500, 500],
     });
 
     renderer.unmount();

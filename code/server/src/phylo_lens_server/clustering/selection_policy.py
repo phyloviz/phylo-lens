@@ -153,9 +153,9 @@ def visible_cluster_order(
     focus_path_cluster_ids: set[str],
     spatial_candidate_cluster_ids: set[str] | None,
 ) -> tuple[list[str], set[str]]:
+    expanded_cluster_ids: set[str] = set()
     visible_cluster_ids = {hierarchy.root_cluster_id}
     visible_order = [hierarchy.root_cluster_id]
-    expanded_cluster_ids: set[str] = set()
 
     frontier: list[tuple[FrontierSortKey, str]] = []
     push_frontier_cluster(
@@ -165,7 +165,6 @@ def visible_cluster_order(
         focus_path_cluster_ids=focus_path_cluster_ids,
         viewport_bounds=viewport_bounds,
         max_nodes=max_nodes,
-        expanded_cluster_ids=expanded_cluster_ids,
     )
 
     while frontier:
@@ -181,7 +180,7 @@ def visible_cluster_order(
             focus_path_cluster_ids=focus_path_cluster_ids,
             viewport_bounds=viewport_bounds,
             spatial_candidate_cluster_ids=spatial_candidate_cluster_ids,
-            expanded_cluster_ids=expanded_cluster_ids,
+            force_all_children=should_force_expand_children(query, cluster.cluster_id),
         )
 
         if not children:
@@ -206,7 +205,6 @@ def visible_cluster_order(
                 focus_path_cluster_ids=focus_path_cluster_ids,
                 viewport_bounds=viewport_bounds,
                 max_nodes=max_nodes,
-                expanded_cluster_ids=expanded_cluster_ids,
             )
 
     return visible_order, expanded_cluster_ids
@@ -222,7 +220,6 @@ def push_frontier_cluster(
     focus_path_cluster_ids: set[str],
     viewport_bounds: BoundsTuple,
     max_nodes: int,
-    expanded_cluster_ids: set[str] | None = None,
 ) -> None:
     heappush(
         frontier,
@@ -233,7 +230,6 @@ def push_frontier_cluster(
                 focus_path_cluster_ids=focus_path_cluster_ids,
                 viewport_bounds=viewport_bounds,
                 max_nodes=max_nodes,
-                expanded_cluster_ids=expanded_cluster_ids,
             ),
             cluster_id,
         ),
@@ -246,7 +242,6 @@ def frontier_sort_key(
     focus_path_cluster_ids: set[str],
     viewport_bounds: BoundsTuple,
     max_nodes: int,
-    expanded_cluster_ids: set[str] | None = None,
 ) -> FrontierSortKey:
     cluster = hierarchy.clusters[cluster_id]
     overlap_ratio = bounds_overlap_ratio(cluster.bounds, viewport_bounds)
@@ -268,20 +263,22 @@ def visible_child_cluster_ids(
     focus_path_cluster_ids: set[str],
     viewport_bounds: BoundsTuple,
     spatial_candidate_cluster_ids: set[str] | None,
-    expanded_cluster_ids: set[str] | None = None,
+    force_all_children: bool = False,
 ) -> list[str]:
-    relevant_child_cluster_ids = [
-        cluster_id
-        for cluster_id in child_cluster_ids
-        if is_view_relevant_cluster(
-            hierarchy=hierarchy,
-            cluster_id=cluster_id,
-            focus_path_cluster_ids=focus_path_cluster_ids,
-            viewport_bounds=viewport_bounds,
-            spatial_candidate_cluster_ids=spatial_candidate_cluster_ids,
-            expanded_cluster_ids=expanded_cluster_ids,
-        )
-    ]
+    if force_all_children:
+        relevant_child_cluster_ids = child_cluster_ids
+    else:
+        relevant_child_cluster_ids = [
+            cluster_id
+            for cluster_id in child_cluster_ids
+            if is_view_relevant_cluster(
+                hierarchy=hierarchy,
+                cluster_id=cluster_id,
+                focus_path_cluster_ids=focus_path_cluster_ids,
+                viewport_bounds=viewport_bounds,
+                spatial_candidate_cluster_ids=spatial_candidate_cluster_ids,
+            )
+        ]
 
     return sorted(
         relevant_child_cluster_ids,
@@ -324,12 +321,8 @@ def is_view_relevant_cluster(
     focus_path_cluster_ids: set[str],
     viewport_bounds: BoundsTuple,
     spatial_candidate_cluster_ids: set[str] | None,
-    expanded_cluster_ids: set[str] | None = None,
 ) -> bool:
     if cluster_id in focus_path_cluster_ids:
-        return True
-
-    if expanded_cluster_ids is not None and cluster_id in expanded_cluster_ids:
         return True
 
     if is_synthetic_root(hierarchy, cluster_id):
@@ -410,3 +403,12 @@ def is_synthetic_root(
     cluster_id: str,
 ) -> bool:
     return has_synthetic_root(hierarchy) and cluster_id == hierarchy.root_cluster_id
+
+
+def should_force_expand_children(
+    query: VisibleSliceQuery,
+    cluster_id: str,
+) -> bool:
+    return (
+        cluster_id == query.focus_cluster_id or cluster_id in query.expanded_cluster_ids
+    )

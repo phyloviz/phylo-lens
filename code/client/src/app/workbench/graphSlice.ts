@@ -1,10 +1,12 @@
 import {
   type CanonicalDataset,
   SOURCE_FORMAT_NEWICK,
+  type SpatialBounds,
 } from "../../contracts/models";
 import {
   LAYOUT_SERVER,
   type PositionedGraph,
+  type PositionedGraphBounds,
 } from "../../contracts/positioned";
 import {
   DEFAULT_LAYER_GAP,
@@ -13,6 +15,20 @@ import {
 } from "../../layout/forceDirectedLayout";
 import type { RenderNewickOptions } from "./graphWorkbench.ts";
 
+export function serverSpatialBoundsToGraphBounds(
+  bounds: SpatialBounds | null | undefined,
+): PositionedGraphBounds | undefined {
+  if (!bounds) {
+    return undefined;
+  }
+
+  return {
+    minX: bounds.min_x,
+    maxX: bounds.max_x,
+    minY: bounds.min_y,
+    maxY: bounds.max_y,
+  };
+}
 export function buildSliceDataset(
   datasetId: string,
   nodes: CanonicalDataset["nodes"],
@@ -46,11 +62,11 @@ export function buildPositionedSliceGraph(
   options: RenderNewickOptions["layout"] = {},
   previousGraph: PositionedGraph | null = null,
 ): PositionedGraph {
-  const initialNodePositions = getInitialNodePositions(previousGraph);
-
   if (dataset.nodes.every(hasServerCoordinates)) {
-    return buildServerPositionedGraph(dataset, initialNodePositions);
+    return buildServerPositionedGraph(dataset);
   }
+
+  const initialNodePositions = getInitialNodePositions(previousGraph);
 
   return buildForcePositionedGraph(dataset, options, initialNodePositions);
 }
@@ -96,12 +112,9 @@ function getInitialNodePositions(
 
 function buildServerPositionedGraph(
   dataset: CanonicalDataset,
-  initialNodePositions?: Record<string, { x: number; y: number }>,
 ): PositionedGraph {
   return {
-    nodes: dataset.nodes.map((node) =>
-      buildServerPositionedNode(node, initialNodePositions),
-    ),
+    nodes: dataset.nodes.map(buildServerPositionedNode),
     edges: dataset.edges.map((edge) => ({
       id: edge.id,
       source: edge.source,
@@ -116,20 +129,8 @@ function buildServerPositionedGraph(
 
 function buildServerPositionedNode(
   node: CanonicalDataset["nodes"][number],
-  initialNodePositions?: Record<string, { x: number; y: number }>,
 ): PositionedGraph["nodes"][number] {
-  const previousPosition = initialNodePositions?.[node.id];
-
-  if (previousPosition) {
-    return {
-      id: node.id,
-      x: previousPosition.x,
-      y: previousPosition.y,
-      attributes: buildNodeAttributes(node),
-    };
-  }
-
-  const anchored = serverAnchoredPosition(node);
+  const anchored = serverPosition(node);
 
   return {
     id: node.id,
@@ -173,7 +174,7 @@ function hasServerCoordinates(
   );
 }
 
-function serverAnchoredPosition(node: CanonicalDataset["nodes"][number]): {
+function serverPosition(node: CanonicalDataset["nodes"][number]): {
   x: number;
   y: number;
 } {

@@ -283,9 +283,11 @@ def test_select_visible_slice_keeps_focus_cluster_path_view_relevant() -> None:
 
     assert "right" in {node.id for node in response.nodes}
     assert right_node.cluster_id == "cluster_right"
-    assert right_node.is_cluster_proxy is True
+    assert right_node.is_cluster_proxy is False
+    assert "right_leaf" in {node.id for node in response.nodes}
     assert {(edge.source, edge.target) for edge in response.edges} == {
         ("root", "right"),
+        ("right", "right_leaf"),
         ("root", "left"),
         ("left", "left_leaf"),
     }

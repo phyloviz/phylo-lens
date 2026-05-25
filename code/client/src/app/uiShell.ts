@@ -11,7 +11,7 @@ export const DEFAULT_STATUS_READY = "Ready";
 export const STATUS_RENDERING_PREFIX = "Rendering";
 export const STATUS_RENDERED_PREFIX = "Rendered";
 export const STATUS_FAILED_PREFIX = "Failed";
-export const DEFAULT_MAX_NODES = 1500;
+export const DEFAULT_MAX_NODES = 4000;
 export const DEFAULT_INITIAL_ZOOM = 4;
 
 export const ANCILLARY_MODE_GLOBAL = "global";
@@ -327,7 +327,7 @@ function buildRenderedStatus(graph: PositionedGraph): string {
   const parts = [
     `${graph.nodes.length} nodes`,
     `${graph.edges.length} edges`,
-    `LoD ${graph.viewMeta.lodLevel}`,
+    `rendered depth ${graph.viewMeta.lodLevel}`,
   ];
 
   if (typeof graph.viewMeta.sliceNodeCount === "number") {
@@ -339,7 +339,7 @@ function buildRenderedStatus(graph: PositionedGraph): string {
   }
 
   if (typeof graph.viewMeta.zoom === "number") {
-    parts.push(`zoom ${graph.viewMeta.zoom.toFixed(2)}`);
+    parts.push(`LoD zoom ${graph.viewMeta.zoom.toFixed(2)}`);
   }
 
   return `${STATUS_RENDERED_PREFIX}: ${parts.join(", ")}`;

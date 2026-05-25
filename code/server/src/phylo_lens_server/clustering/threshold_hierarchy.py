@@ -18,7 +18,7 @@ from phylo_lens_server.core.models import (
 
 THRESHOLD_CLUSTER_ID_PREFIX = "threshold_cluster"
 THRESHOLD_SYNTHETIC_ROOT_ID = "threshold_cluster_root"
-MAX_THRESHOLD_LEVELS = 12
+MAX_THRESHOLD_LEVELS = 16
 SPRING_LAYOUT_SEED = 11
 SPRING_LAYOUT_ITERATIONS = 150
 SPRING_LAYOUT_MEDIUM_NODE_COUNT = 1_000
@@ -462,7 +462,9 @@ def _assign_cluster_geometry(
     clusters: dict[str, ThresholdHierarchyCluster],
     node_positions: dict[str, tuple[float, float]],
 ) -> None:
-    geometry_by_cluster_id: dict[str, tuple[int, float, float, float, float, float, float]] = {}
+    geometry_by_cluster_id: dict[
+        str, tuple[int, float, float, float, float, float, float]
+    ] = {}
     ordered_clusters = sorted(
         clusters.values(),
         key=lambda cluster: cluster.distance_threshold_level,
@@ -611,13 +613,16 @@ def _compute_node_positions(
         directed=False,
     )
     weights = [_spring_weight(distance) for distance, _, _ in weighted_edges]
-    layout = graph.layout_fruchterman_reingold(
-        weights=weights,
-        niter=iterations
-        if iterations is not None
-        else _spring_layout_iterations(len(node_ids)),
-        seed=_initial_layout_seed(len(node_ids)),
-    )
+    # layout = graph.layout_fruchterman_reingold(
+    #     weights=weights,
+    #     niter=(
+    #         iterations
+    #         if iterations is not None
+    #         else _spring_layout_iterations(len(node_ids))
+    #     ),
+    #     seed=_initial_layout_seed(len(node_ids)),
+    # )
+    layout = graph.layout_with_sfdp(weights=weights)
     return {
         node_ids[node_index]: (
             float(position[0]) * SPRING_LAYOUT_SCALE,

@@ -63,6 +63,9 @@ const KEY_ZOOM = "zoom";
 const KEY_RETURNED_NODE_COUNT = "returned_node_count";
 const KEY_RETURNED_EDGE_COUNT = "returned_edge_count";
 
+const KEY_FOCUS_CLUSTER_ID = "focus_cluster_id";
+const KEY_FOCUS_CLUSTER_BOUNDS = "focus_cluster_bounds";
+
 const NORMALIZE_STATS_KEYS = [
   KEY_NODE_COUNT,
   KEY_EDGE_COUNT,
@@ -183,7 +186,9 @@ function isViewMeta(value: unknown): value is Record<string, unknown> {
     isFiniteNumber(value[KEY_RETURNED_NODE_COUNT]) &&
     isFiniteNumber(value[KEY_RETURNED_EDGE_COUNT]) &&
     isViewport(value[KEY_VIEWPORT]) &&
-    isOptionalSpatialBounds(value[KEY_GLOBAL_BOUNDS])
+    isOptionalSpatialBounds(value[KEY_GLOBAL_BOUNDS]) &&
+    isOptionalString(value[KEY_FOCUS_CLUSTER_ID]) &&
+    isOptionalSpatialBounds(value[KEY_FOCUS_CLUSTER_BOUNDS])
   );
 }
 

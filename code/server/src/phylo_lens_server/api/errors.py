@@ -1,4 +1,4 @@
-# from __future__ import annotations
+import logging
 
 from fastapi import HTTPException
 from pydantic import ValidationError
@@ -16,6 +16,8 @@ STATUS_UNPROCESSABLE_ENTITY = 422
 STATUS_INTERNAL_SERVER_ERROR = 500
 
 ERR_UNEXPECTED_SERVER = "Unexpected server error"
+
+logger = logging.getLogger(__name__)
 
 
 def parse_error_to_http(exc: ParseError) -> HTTPException:
@@ -63,6 +65,7 @@ def not_found_error(message: str) -> HTTPException:
 
 
 def unexpected_server_error(exc: Exception) -> HTTPException:
+    logger.exception("%s: %s", ERR_UNEXPECTED_SERVER, exc)
     return HTTPException(
         status_code=STATUS_INTERNAL_SERVER_ERROR,
         detail=ERR_UNEXPECTED_SERVER,
