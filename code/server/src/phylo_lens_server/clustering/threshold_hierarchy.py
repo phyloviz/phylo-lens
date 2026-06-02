@@ -613,16 +613,18 @@ def _compute_node_positions(
         directed=False,
     )
     weights = [_spring_weight(distance) for distance, _, _ in weighted_edges]
-    # layout = graph.layout_fruchterman_reingold(
-    #     weights=weights,
-    #     niter=(
-    #         iterations
-    #         if iterations is not None
-    #         else _spring_layout_iterations(len(node_ids))
-    #     ),
-    #     seed=_initial_layout_seed(len(node_ids)),
-    # )
-    layout = graph.layout_with_sfdp(weights=weights)
+    if hasattr(graph, "layout_with_sfdp"):
+        layout = graph.layout_with_sfdp(weights=weights)
+    else:
+        layout = graph.layout_fruchterman_reingold(
+            weights=weights,
+            niter=(
+                iterations
+                if iterations is not None
+                else _spring_layout_iterations(len(node_ids))
+            ),
+            seed=_initial_layout_seed(len(node_ids)),
+        )
     return {
         node_ids[node_index]: (
             float(position[0]) * SPRING_LAYOUT_SCALE,

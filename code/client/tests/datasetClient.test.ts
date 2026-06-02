@@ -1,10 +1,12 @@
 import {
   createDatasetClient,
   ERR_INVALID_RESPONSE,
+  ERR_INVALID_SEARCH_RESPONSE,
   ERR_INVALID_PREPARE_RESPONSE,
   ERR_INVALID_VISIBLE_SLICE_RESPONSE,
   ROUTE_NORMALIZE,
   ROUTE_PREPARE,
+  ROUTE_SEARCH,
   ROUTE_VIEW_SLICE,
 } from "../src/api/datasetClient";
 import { SOURCE_FORMAT_NEWICK } from "../src/contracts/models";
@@ -12,6 +14,7 @@ import {
   isCanonicalDataset,
   isNormalizeResponse,
   isPrepareDatasetResponse,
+  isSearchDatasetResponse,
   isVisibleSliceResponse,
 } from "../src/validation/datasetGuards";
 
@@ -83,6 +86,19 @@ const VISIBLE_SLICE_FIXTURE = {
     returned_edge_count: 2,
   },
 } satisfies unknown;
+const SEARCH_FIXTURE = {
+  dataset_id: "small-tree",
+  query: "eu",
+  matches: [
+    {
+      node_id: "a",
+      score: 8,
+      matched_text: "a EU",
+      metadata: { region: "EU" },
+    },
+  ],
+  total_count: 1,
+} satisfies unknown;
 
 function makeJsonResponse(payload: unknown, status = 200): Response {
   return new Response(JSON.stringify(payload), {
@@ -123,9 +139,10 @@ describe("datasetClient", () => {
     expect(result.stats.node_count).toBe(3);
   });
 
-  it("validates prepare and visible-slice responses through runtime guards", () => {
+  it("validates prepare, visible-slice, and search responses through runtime guards", () => {
     expect(isPrepareDatasetResponse(PREPARE_FIXTURE)).toBe(true);
     expect(isVisibleSliceResponse(VISIBLE_SLICE_FIXTURE)).toBe(true);
+    expect(isSearchDatasetResponse(SEARCH_FIXTURE)).toBe(true);
   });
 
   it("sends prepare requests to the expected endpoint", async () => {
@@ -168,6 +185,27 @@ describe("datasetClient", () => {
 
     expect(result.dataset_id).toBe("small-tree");
     expect(result.lod_level).toBe(1);
+  });
+
+  it("sends search requests to the expected endpoint", async () => {
+    const fetchSpy = vi.fn(async (input: RequestInfo | URL) => {
+      expect(String(input)).toBe(`${BASE_URL}${ROUTE_SEARCH}`);
+      return makeJsonResponse(SEARCH_FIXTURE);
+    }) as unknown as typeof fetch;
+
+    const client = createDatasetClient({
+      baseUrl: BASE_URL,
+      fetchImpl: fetchSpy,
+    });
+
+    const result = await client.searchDataset({
+      dataset_id: DATASET_NAME,
+      query: "eu",
+      include_metadata_keys: ["region"],
+    });
+
+    expect(result.matches[0]?.node_id).toBe("a");
+    expect(result.matches[0]?.metadata).toEqual({ region: "EU" });
   });
 
   it("rejects invalid response shapes", async () => {
@@ -226,5 +264,23 @@ describe("datasetClient", () => {
         zoom: 2,
       }),
     ).rejects.toThrow(ERR_INVALID_VISIBLE_SLICE_RESPONSE);
+  });
+
+  it("rejects invalid search response shapes", async () => {
+    const fetchSpy = vi.fn(async () =>
+      makeJsonResponse({ invalid: true }),
+    ) as unknown as typeof fetch;
+
+    const client = createDatasetClient({
+      baseUrl: BASE_URL,
+      fetchImpl: fetchSpy,
+    });
+
+    await expect(
+      client.searchDataset({
+        dataset_id: DATASET_NAME,
+        query: "eu",
+      }),
+    ).rejects.toThrow(ERR_INVALID_SEARCH_RESPONSE);
   });
 });

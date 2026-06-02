@@ -8,6 +8,7 @@ from phylo_lens_server.main import app
 ROUTE_HEALTH = "/health"
 ROUTE_NORMALIZE = "/dataset/normalize"
 ROUTE_PREPARE = "/dataset/prepare"
+ROUTE_SEARCH = "/dataset/search"
 ROUTE_VIEW_SLICE = "/dataset/view-slice"
 
 STATUS_OK = 200
@@ -29,6 +30,9 @@ KEY_NODES = "nodes"
 KEY_COLLAPSED_CLUSTERS = "collapsed_clusters"
 KEY_DATASET_ID_TOP = "dataset_id"
 KEY_WARNINGS = "warnings"
+KEY_MATCHES = "matches"
+KEY_NODE_ID = "node_id"
+KEY_METADATA = "metadata"
 HEADER_ACCESS_CONTROL_ALLOW_ORIGIN = "access-control-allow-origin"
 HEADER_ACCESS_CONTROL_REQUEST_METHOD = "Access-Control-Request-Method"
 HEADER_ORIGIN = "Origin"
@@ -79,6 +83,34 @@ def test_normalize_endpoint_accepts_newick(client) -> None:
     assert response.status_code == STATUS_OK
     assert body[KEY_DATASET][KEY_DATASET_ID] == DATASET_API_TREE
     assert body[KEY_STATS][KEY_NODE_COUNT] == 3
+
+
+def test_normalize_endpoint_accepts_tabular_ancillary_data(client) -> None:
+    """Ensure users can provide CSV/TSV metadata alongside tree content."""
+    payload = {
+        "format": FORMAT_NEWICK,
+        "dataset_name": DATASET_API_TREE,
+        "content": "(P09:0.1,P12:0.2)Root;",
+        "ancillary_data": {
+            "format": "tsv",
+            "join_column": "isolate",
+            "content": (
+                "isolate\tcountry\tdisease\tpenner\n"
+                "P09\tUnknown\tcarrier\t9\n"
+                "P12\tCanada\tgastroenteritis\t12\n"
+            ),
+        },
+    }
+
+    response = client.post(ROUTE_NORMALIZE, json=payload)
+    body = response.json()
+
+    assert response.status_code == STATUS_OK
+    assert body[KEY_DATASET]["metadata_by_node_id"]["p09"] == {
+        "country": "Unknown",
+        "disease": "carrier",
+        "penner": 9,
+    }
 
 
 def test_normalize_endpoint_rejects_invalid_payload(client) -> None:
@@ -191,6 +223,46 @@ def test_view_slice_endpoint_rejects_unknown_dataset(client) -> None:
     )
 
     assert response.status_code == STATUS_NOT_FOUND
+
+
+def test_search_endpoint_finds_prepared_node_ids_and_metadata(client) -> None:
+    """Ensure prepared datasets can be searched by id and metadata text."""
+    client.post(
+        ROUTE_PREPARE,
+        json={
+            "format": FORMAT_NEWICK,
+            "dataset_name": DATASET_API_TREE,
+            "content": VALID_NEWICK_CONTENT,
+            "metadata_schema": [{"key": "region", "type": "string"}],
+            "metadata_by_node_id": {
+                "a": {"region": "iberia"},
+                "b": {"region": "atlantic"},
+            },
+        },
+    )
+
+    by_id = client.post(
+        ROUTE_SEARCH,
+        json={
+            "dataset_id": DATASET_API_TREE,
+            "query": "a",
+            "include_metadata_keys": ["region"],
+        },
+    )
+    by_metadata = client.post(
+        ROUTE_SEARCH,
+        json={
+            "dataset_id": DATASET_API_TREE,
+            "query": "iber",
+            "include_metadata_keys": ["region"],
+        },
+    )
+
+    assert by_id.status_code == STATUS_OK
+    assert by_id.json()[KEY_MATCHES][0][KEY_NODE_ID] == "a"
+    assert by_id.json()[KEY_MATCHES][0][KEY_METADATA] == {"region": "iberia"}
+    assert by_metadata.status_code == STATUS_OK
+    assert by_metadata.json()[KEY_MATCHES][0][KEY_NODE_ID] == "a"
 
 
 def test_prepare_and_view_slice_use_threshold_hierarchy_for_weighted_edgelist(

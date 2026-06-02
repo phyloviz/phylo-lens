@@ -60,11 +60,13 @@
       }
 
       input,
+      select,
       textarea {
         border: 1px solid var(--border);
         border-radius: 10px;
         padding: 10px 12px;
         font: inherit;
+        background: white;
       }
 
       textarea {
@@ -120,12 +122,30 @@
         margin: 0;
       }
 
-      .wheel-controls select {
+      .search-controls {
+        margin-top: 14px;
+        display: grid;
+        grid-template-columns: minmax(220px, 1fr) auto;
+        gap: 10px;
+        align-items: end;
+      }
+
+      #search-results {
+        margin-top: 10px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .search-result {
         border: 1px solid var(--border);
-        border-radius: 10px;
+        background: #f8fafc;
+        color: var(--text);
         padding: 8px 10px;
-        font: inherit;
-        background: white;
+      }
+
+      .search-result:hover {
+        background: #eef2f7;
       }
 
       .ancillary-wheel {
@@ -246,34 +266,47 @@
           </label>
 
           <label>
-            Ancillary JSON (optional)
-            <textarea id="ancillary-input">
-{
-  "metadata_schema": [
-    { "key": "region", "type": "string" },
-    { "key": "distance", "type": "number" },
-    { "key": "trait_a", "type": "number" },
-    { "key": "trait_b", "type": "number" },
-    { "key": "trait_c", "type": "number" }
-  ],
-  "metadata_by_node_id": {
-    "root": { "region": "Global", "distance": 0, "trait_a": 10, "trait_b": 7, "trait_c": 4 },
-    "x": { "region": "Europe", "distance": 1, "trait_a": 7, "trait_b": 4, "trait_c": 2 },
-    "y": { "region": "America", "distance": 1, "trait_a": 3, "trait_b": 7, "trait_c": 8 },
-    "a": { "region": "Europe", "distance": 2, "trait_a": 6, "trait_b": 5, "trait_c": 1 },
-    "b": { "region": "Europe", "distance": 2, "trait_a": 4, "trait_b": 6, "trait_c": 2 },
-    "c": { "region": "America", "distance": 2, "trait_a": 2, "trait_b": 4, "trait_c": 7 },
-    "d": { "region": "America", "distance": 2, "trait_a": 1, "trait_b": 5, "trait_c": 9 }
-  },
-  "visual_mapping": {
-    "pie": {
-      "enabled": true,
-      "fields": ["trait_a", "trait_b", "trait_c"],
-      "palette": ["#ef4444", "#3b82f6", "#22c55e"]
-    }
-  }
-}</textarea
-            >
+            Newick File
+            <input
+              id="newick-file-input"
+              type="file"
+              accept=".nwk,.newick,.tree,.txt"
+            />
+          </label>
+
+          <div class="wheel-controls">
+            <label>
+              Ancillary Table
+              <input
+                id="ancillary-file-input"
+                type="file"
+                accept=".csv,.tsv,.txt"
+              />
+            </label>
+            <label>
+              Join Column
+              <input
+                id="ancillary-join-column-input"
+                type="text"
+                value="isolate"
+              />
+            </label>
+            <label>
+              Table Format
+              <select id="ancillary-format">
+                <option value="auto" selected>Auto</option>
+                <option value="tsv">TSV</option>
+                <option value="csv">CSV</option>
+              </select>
+            </label>
+          </div>
+
+          <label>
+            Advanced Ancillary JSON (optional)
+            <textarea
+              id="ancillary-input"
+              placeholder='{"metadata_by_node_id":{"a":{"country":"Portugal"}}}'
+            ></textarea>
           </label>
 
           <div class="wheel-controls">
@@ -308,12 +341,31 @@
               </select>
             </label>
             <label>
+              Pie Field
+              <select id="metadata-pie-field" disabled>
+                <option value="">Auto pie fields</option>
+              </select>
+            </label>
+            <label>
               Node
               <select id="ancillary-node" disabled>
                 <option value="">Select node</option>
               </select>
             </label>
           </div>
+
+          <div class="search-controls">
+            <label>
+              Search
+              <input
+                id="search-input"
+                type="search"
+                placeholder="Node id or metadata"
+              />
+            </label>
+            <button id="search-button" type="button">Search</button>
+          </div>
+          <div id="search-results"></div>
 
           <button type="submit">Normalize and Render</button>
         </form>

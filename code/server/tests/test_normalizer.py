@@ -95,3 +95,91 @@ def test_normalize_edgelist_preserves_optional_edge_distance() -> None:
         ("a", "b", 0.5),
         ("b", "c", 1.25),
     ]
+
+
+def test_normalize_newick_joins_tsv_ancillary_data_by_leaf_label() -> None:
+    """Confirm user-supplied tabular metadata is compiled onto canonical node ids."""
+    result = normalize_dataset(
+        NormalizeRequest(
+            format=FORMAT_NEWICK,
+            dataset_name=DATASET_DETERMINISTIC,
+            content="(P09:0.1,P12:0.2)Root;",
+            ancillary_data={
+                "format": "tsv",
+                "join_column": "isolate",
+                "content": (
+                    "isolate\tcountry\tsource\tpenner\n"
+                    "P09\tUnknown\tgoat\t9\n"
+                    "P12\tCanada\thuman stool\t12\n"
+                ),
+            },
+        )
+    )
+
+    assert result.dataset.metadata_by_node_id["p09"] == {
+        "country": "Unknown",
+        "source": "goat",
+        "penner": 9,
+    }
+    assert result.dataset.metadata_by_node_id["p12"]["source"] == "human stool"
+    assert {field.key: field.type for field in result.dataset.metadata_schema} == {
+        "country": "string",
+        "source": "string",
+        "penner": "number",
+    }
+    assert result.warnings == []
+
+
+def test_normalize_newick_warns_for_unmatched_ancillary_rows() -> None:
+    """Confirm table rows that cannot join are reported without breaking ingest."""
+    result = normalize_dataset(
+        NormalizeRequest(
+            format=FORMAT_NEWICK,
+            dataset_name=DATASET_DETERMINISTIC,
+            content="(P09:0.1,P12:0.2)Root;",
+            ancillary_data={
+                "join_column": "isolate",
+                "content": "isolate,country\nP09,Unknown\nPX,Unknown\n",
+            },
+        )
+    )
+
+    assert list(result.dataset.metadata_by_node_id) == ["p09"]
+    assert "did not match a node" in result.warnings[0]
+    assert "did not include rows for 1 joinable nodes" in result.warnings[1]
+
+
+def test_normalize_ancillary_data_allows_blank_cells_in_typed_columns() -> None:
+    """Confirm sparse real-world metadata tables can keep null cells."""
+    result = normalize_dataset(
+        NormalizeRequest(
+            format=FORMAT_NEWICK,
+            dataset_name=DATASET_DETERMINISTIC,
+            content="(3157:0.1,2475:0.2)Root;",
+            ancillary_data={
+                "format": "tsv",
+                "join_column": "isolate",
+                "content": (
+                    "isolate\tregion\tyear\taliases\n"
+                    "3157\t\t1991\t\n"
+                    "2475\tManchester\t\tATCC\n"
+                ),
+            },
+        )
+    )
+
+    assert result.dataset.metadata_by_node_id["3157"] == {
+        "region": None,
+        "year": 1991,
+        "aliases": None,
+    }
+    assert result.dataset.metadata_by_node_id["2475"] == {
+        "region": "Manchester",
+        "year": None,
+        "aliases": "ATCC",
+    }
+    assert {field.key: field.type for field in result.dataset.metadata_schema} == {
+        "aliases": "string",
+        "region": "string",
+        "year": "number",
+    }

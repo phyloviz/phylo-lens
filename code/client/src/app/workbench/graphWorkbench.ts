@@ -4,6 +4,7 @@ import {
 } from "../../api/datasetClient";
 import {
   type CanonicalDataset,
+  type SearchDatasetResponse,
   SOURCE_FORMAT_NEWICK,
   type Viewport,
 } from "../../contracts/models";
@@ -63,6 +64,7 @@ export const ERR_NO_GRAPH_RENDERED =
 export interface RenderNewickOptions {
   metadataSchema?: CanonicalDataset["metadata_schema"];
   metadataByNodeId?: CanonicalDataset["metadata_by_node_id"];
+  ancillaryData?: NormalizeRequest["ancillary_data"];
   visualMapping?: VisualMappingOptions;
   layout?: {
     forceIterations?: number;
@@ -98,6 +100,16 @@ export interface GraphWorkbench {
 
   clearMetadataFilters: () => PositionedGraph;
 
+  updateVisualMapping: (visualMapping: VisualMappingOptions) => PositionedGraph;
+
+  searchNodes: (query: {
+    query: string;
+    limit?: number;
+    includeMetadataKeys?: string[];
+  }) => Promise<SearchDatasetResponse>;
+
+  focusNode: (nodeId: string) => Promise<PositionedGraph>;
+
   setGraphRenderedHandler: (handler: GraphRenderedHandler | null) => void;
 
   dispose: () => void;
@@ -118,6 +130,8 @@ interface PreparedDatasetSession {
 
 type RenderMode = "full" | "lod";
 interface GraphWorkbenchState {
+  currentSliceDataset: CanonicalDataset | null;
+  currentPositionedSliceGraph: PositionedGraph | null;
   currentSliceGraph: PositionedGraph | null;
   currentGraph: PositionedGraph | null;
   metadataIndex: ReturnType<typeof buildMetadataIndex> | null;
@@ -188,6 +202,30 @@ export function createGraphWorkbench(
         renderer,
       }),
 
+    updateVisualMapping: (visualMapping) =>
+      updateVisualMapping({
+        state,
+        renderer,
+        filterEngine,
+        visualMapping,
+      }),
+
+    searchNodes: (query) =>
+      searchNodes({
+        state,
+        datasetClient: options.datasetClient,
+        query,
+      }),
+
+    focusNode: (nodeId) =>
+      focusNode({
+        state,
+        renderer,
+        datasetClient: options.datasetClient,
+        filterEngine,
+        nodeId,
+      }),
+
     setGraphRenderedHandler: (handler) => {
       state.graphRenderedHandler = handler;
     },
@@ -200,6 +238,8 @@ export function createGraphWorkbench(
 
 function createInitialGraphWorkbenchState(): GraphWorkbenchState {
   return {
+    currentSliceDataset: null,
+    currentPositionedSliceGraph: null,
     currentSliceGraph: null,
     currentGraph: null,
     metadataIndex: null,
@@ -240,6 +280,8 @@ function shouldUseLodMode(
 }
 
 function resetWorkbenchForNewDataset(state: GraphWorkbenchState): void {
+  state.currentSliceDataset = null;
+  state.currentPositionedSliceGraph = null;
   state.currentSliceGraph = null;
   state.currentGraph = null;
   state.metadataIndex = null;
@@ -269,26 +311,17 @@ function renderFullDataset({
   options,
 }: RenderFullDatasetArgs): PositionedGraph {
   const positionedGraph = buildFullPositionedGraph(dataset, options.layout);
-  const metadataIndex = buildMetadataIndex(dataset);
-
-  const mappedGraph = applyVisualMappings(
-    positionedGraph,
-    dataset,
-    metadataIndex,
-    options.visualMapping,
-  );
 
   state.renderMode = "full";
-  state.currentSliceGraph = mappedGraph;
-  state.currentGraph = hasActiveClientFilters(state.activeFilters)
-    ? filterEngine.apply(mappedGraph, metadataIndex, state.activeFilters)
-    : mappedGraph;
-  state.metadataIndex = metadataIndex;
+  state.currentSliceDataset = dataset;
+  state.currentPositionedSliceGraph = positionedGraph;
 
-  renderer.render(state.currentGraph);
-  emitGraphRendered(state, state.currentGraph);
-
-  return state.currentGraph;
+  return renderMappedCurrentSlice({
+    state,
+    renderer,
+    filterEngine,
+    visualMapping: options.visualMapping,
+  });
 }
 
 interface RenderNewickArgs {
@@ -312,18 +345,18 @@ async function renderNewick({
 }: RenderNewickArgs): Promise<PositionedGraph> {
   resetWorkbenchForNewDataset(state);
 
-  const metadataSchema = options.metadataSchema ?? [];
-  const metadataByNodeId = options.metadataByNodeId ?? {};
-
   const request: NormalizeRequest = {
     format: SOURCE_FORMAT_NEWICK,
     dataset_name: datasetName,
     content: newick,
-    metadata_schema: metadataSchema,
-    metadata_by_node_id: metadataByNodeId,
+    metadata_schema: options.metadataSchema ?? [],
+    metadata_by_node_id: options.metadataByNodeId ?? {},
+    ancillary_data: options.ancillaryData,
   };
 
   const normalized = await datasetClient.normalizeDataset(request);
+  const metadataSchema = normalized.dataset.metadata_schema;
+  const metadataByNodeId = normalized.dataset.metadata_by_node_id;
 
   if (!shouldUseLodMode(normalized.dataset, options)) {
     return renderFullDataset({
@@ -409,6 +442,72 @@ function clearMetadataFilters({
 
   state.activeFilters = EMPTY_METADATA_FILTER_STATE;
   state.currentGraph = state.currentSliceGraph;
+
+  renderer.render(state.currentGraph);
+  emitGraphRendered(state, state.currentGraph);
+
+  return state.currentGraph;
+}
+
+interface UpdateVisualMappingArgs {
+  state: GraphWorkbenchState;
+  renderer: GraphRenderer;
+  filterEngine: GraphFilterEngine;
+  visualMapping: VisualMappingOptions;
+}
+
+function updateVisualMapping({
+  state,
+  renderer,
+  filterEngine,
+  visualMapping,
+}: UpdateVisualMappingArgs): PositionedGraph {
+  if (!state.currentSliceDataset || !state.currentPositionedSliceGraph) {
+    throw new Error(ERR_NO_GRAPH_RENDERED);
+  }
+
+  if (state.preparedSession) {
+    state.preparedSession.visualMapping = visualMapping;
+  }
+
+  return renderMappedCurrentSlice({
+    state,
+    renderer,
+    filterEngine,
+    visualMapping,
+  });
+}
+
+interface RenderMappedCurrentSliceArgs {
+  state: GraphWorkbenchState;
+  renderer: GraphRenderer;
+  filterEngine: GraphFilterEngine;
+  visualMapping?: VisualMappingOptions;
+}
+
+function renderMappedCurrentSlice({
+  state,
+  renderer,
+  filterEngine,
+  visualMapping,
+}: RenderMappedCurrentSliceArgs): PositionedGraph {
+  if (!state.currentSliceDataset || !state.currentPositionedSliceGraph) {
+    throw new Error(ERR_NO_GRAPH_RENDERED);
+  }
+
+  const metadataIndex = buildMetadataIndex(state.currentSliceDataset);
+  const mappedGraph = applyVisualMappings(
+    state.currentPositionedSliceGraph,
+    state.currentSliceDataset,
+    metadataIndex,
+    visualMapping,
+  );
+
+  state.currentSliceGraph = mappedGraph;
+  state.currentGraph = hasActiveClientFilters(state.activeFilters)
+    ? filterEngine.apply(mappedGraph, metadataIndex, state.activeFilters)
+    : mappedGraph;
+  state.metadataIndex = metadataIndex;
 
   renderer.render(state.currentGraph);
   emitGraphRendered(state, state.currentGraph);
@@ -559,6 +658,7 @@ interface RefreshVisibleSliceArgs {
   options?: {
     focusNodeIdOverride?: string;
     focusClusterIdOverride?: string;
+    centerOnNodeId?: string;
   };
 }
 
@@ -628,7 +728,8 @@ async function refreshVisibleSlice({
     session.metadataByNodeId,
   );
 
-  const previousSliceGraph = state.currentSliceGraph;
+  const previousSliceGraph =
+    state.currentPositionedSliceGraph ?? state.currentSliceGraph;
 
   const positionedGraph = buildPositionedSliceGraph(
     sliceDataset,
@@ -638,31 +739,99 @@ async function refreshVisibleSlice({
     previousSliceGraph,
   );
 
-  const metadataIndex = buildMetadataIndex(sliceDataset);
-
-  const mappedGraph = applyVisualMappings(
+  state.currentSliceDataset = sliceDataset;
+  state.currentPositionedSliceGraph = applySliceViewMeta(
     positionedGraph,
-    sliceDataset,
-    metadataIndex,
-    session.visualMapping,
+    visibleSlice,
   );
 
-  const graphWithSliceMeta = applySliceViewMeta(mappedGraph, visibleSlice);
-
-  state.currentSliceGraph = graphWithSliceMeta;
-  state.metadataIndex = metadataIndex;
-  state.currentGraph = hasActiveClientFilters(state.activeFilters)
-    ? filterEngine.apply(graphWithSliceMeta, metadataIndex, state.activeFilters)
-    : graphWithSliceMeta;
-
-  renderer.render(state.currentGraph);
+  const renderedGraph = renderMappedCurrentSlice({
+    state,
+    renderer,
+    filterEngine,
+    visualMapping: session.visualMapping,
+  });
 
   state.suppressViewChangesUntil =
     Date.now() + DEFAULT_RENDER_VIEW_SUPPRESSION_MS;
 
-  emitGraphRendered(state, state.currentGraph);
+  if (
+    options.centerOnNodeId &&
+    renderedGraph.nodes.some((node) => node.id === options.centerOnNodeId)
+  ) {
+    renderer.centerOnNode?.(options.centerOnNodeId);
+  }
 
-  return state.currentGraph;
+  return renderedGraph;
+}
+
+interface SearchNodesArgs {
+  state: GraphWorkbenchState;
+  datasetClient: DatasetClient;
+  query: {
+    query: string;
+    limit?: number;
+    includeMetadataKeys?: string[];
+  };
+}
+
+async function searchNodes({
+  state,
+  datasetClient,
+  query,
+}: SearchNodesArgs): Promise<SearchDatasetResponse> {
+  const session = state.preparedSession;
+
+  if (!session || state.renderMode !== "lod") {
+    throw new Error(ERR_NO_GRAPH_RENDERED);
+  }
+
+  return datasetClient.searchDataset({
+    dataset_id: session.datasetId,
+    query: query.query,
+    limit: query.limit,
+    include_metadata_keys:
+      query.includeMetadataKeys ?? session.metadataSchema.map((field) => field.key),
+  });
+}
+
+interface FocusNodeArgs {
+  state: GraphWorkbenchState;
+  renderer: GraphRenderer;
+  datasetClient: DatasetClient;
+  filterEngine: GraphFilterEngine;
+  nodeId: string;
+}
+
+async function focusNode({
+  state,
+  renderer,
+  datasetClient,
+  filterEngine,
+  nodeId,
+}: FocusNodeArgs): Promise<PositionedGraph> {
+  const session = state.preparedSession;
+
+  if (!session || state.renderMode !== "lod") {
+    throw new Error(ERR_NO_GRAPH_RENDERED);
+  }
+
+  const currentViewState = state.currentViewState ?? {
+    viewport: session.lod.viewport,
+    zoom: DEFAULT_VIEW_SLICE_ZOOM,
+  };
+
+  return refreshVisibleSlice({
+    state,
+    renderer,
+    datasetClient,
+    filterEngine,
+    viewState: currentViewState,
+    options: {
+      focusNodeIdOverride: nodeId,
+      centerOnNodeId: nodeId,
+    },
+  });
 }
 
 function applySliceViewMeta(

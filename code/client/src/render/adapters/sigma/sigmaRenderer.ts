@@ -249,19 +249,20 @@ export class SigmaRenderer implements GraphRenderer {
 
   private rebuildSigma(sliceKeys: string[], graph?: PositionedGraph): void {
     const previousCameraState = this.readCameraState();
-    this.unbindSigmaHandlers();
-    this.sigma?.kill();
-    this.sigma = null;
-    this.pieSliceKeys = sliceKeys;
+    const previousSigma = this.sigma;
+    const sigmaSettings = buildSigmaSettings(
+      this.rendererOptions,
+      piechartProgramClasses(sliceKeys, graph, this.piechartOptions),
+    );
 
+    this.unbindSigmaHandlers();
+    previousSigma?.kill();
     this.sigma = new Sigma(
       this.graph as Graph,
       this.containerElement as HTMLElement,
-      buildSigmaSettings(
-        this.rendererOptions,
-        piechartProgramClasses(sliceKeys, graph, this.piechartOptions),
-      ),
+      sigmaSettings,
     );
+    this.pieSliceKeys = sliceKeys;
     this.restoreCameraState(previousCameraState);
     this.bindSigmaHandlers();
   }

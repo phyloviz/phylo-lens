@@ -23,6 +23,8 @@ from phylo_lens_server.clustering.threshold_hierarchy import (
 from phylo_lens_server.core.models import (
     DomainValidationError,
     PrepareDatasetResult,
+    SearchDatasetQuery,
+    SearchDatasetResponse,
     VisibleSliceQuery,
     VisibleSliceResponse,
 )
@@ -34,6 +36,7 @@ from phylo_lens_server.data.normalizer import (
 from phylo_lens_server.data.parsers import ParseError
 from phylo_lens_server.data.store import DatasetStore
 from phylo_lens_server.services.prepare_dataset import prepare_dataset_for_lod
+from phylo_lens_server.services.search_dataset import search_dataset
 from phylo_lens_server.services.visible_slice import (
     PreparedDatasetNotFoundError,
     get_visible_slice,
@@ -44,6 +47,7 @@ ROUTER_TAG = "dataset"
 
 ROUTE_NORMALIZE = "/normalize"
 ROUTE_PREPARE = "/prepare"
+ROUTE_SEARCH = "/search"
 ROUTE_VIEW_SLICE = "/view-slice"
 
 ENV_STORE_DIR = "PHYLO_LENS_STORE_DIR"
@@ -118,5 +122,25 @@ def view_slice(
         raise visible_slice_error_to_http(exc) from exc
     except HTTPException:
         raise
+    except Exception as exc:  # pragma: no cover
+        raise unexpected_server_error(exc) from exc
+
+
+@router.post(
+    ROUTE_SEARCH,
+    response_model=SearchDatasetResponse,
+    response_model_exclude_none=True,
+)
+def search(
+    query: SearchDatasetQuery,
+    store: DatasetStore = Depends(get_dataset_store),
+) -> SearchDatasetResponse:
+    """Search nodes and metadata in one prepared dataset."""
+    try:
+        return search_dataset(query, store)
+    except PreparedDatasetNotFoundError as exc:
+        raise not_found_error(str(exc)) from exc
+    except ValidationError as exc:
+        raise pydantic_validation_error_to_http(exc) from exc
     except Exception as exc:  # pragma: no cover
         raise unexpected_server_error(exc) from exc

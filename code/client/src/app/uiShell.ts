@@ -1,7 +1,12 @@
-import type { GraphWorkbench } from "./workbench/graphWorkbench";
+import type {
+  GraphWorkbench,
+  RenderNewickOptions,
+} from "./workbench/graphWorkbench";
 import type { VisualMappingOptions } from "../render/visualMappings";
 import {
   buildAncillaryWheelStats,
+  buildMetadataFieldWheelStats,
+  collectMetadataFieldKeys,
   renderAncillaryWheel,
 } from "../components/ancillaryWheel";
 import type { PositionedGraph } from "../contracts/positioned";
@@ -28,6 +33,8 @@ export const ERR_RENDER_FORM_REQUIRED = "Render form is required.";
 export const ERR_NEWICK_INPUT_REQUIRED = "Newick input is required.";
 export const ERR_INVALID_ANCILLARY_JSON =
   "Ancillary JSON must be a valid object with metadata_schema and/or metadata_by_node_id.";
+export const ERR_ANCILLARY_JOIN_COLUMN_REQUIRED =
+  "Ancillary table join column is required.";
 
 const KEY_METADATA_SCHEMA = "metadata_schema";
 const KEY_METADATA_BY_NODE_ID = "metadata_by_node_id";
@@ -45,14 +52,22 @@ interface AncillaryPayload {
 export interface UiShellElements {
   form: HTMLFormElement;
   newickInput: HTMLTextAreaElement;
+  newickFileInput?: HTMLInputElement;
   datasetNameInput?: HTMLInputElement;
   ancillaryInput?: HTMLTextAreaElement;
+  ancillaryFileInput?: HTMLInputElement;
+  ancillaryJoinColumnInput?: HTMLInputElement;
+  ancillaryFormatSelect?: HTMLSelectElement;
   status: HTMLElement;
   ancillaryWheelContainer?: HTMLElement;
   ancillaryModeSelect?: HTMLSelectElement;
   ancillaryNodeSelect?: HTMLSelectElement;
+  metadataPieFieldSelect?: HTMLSelectElement;
   maxNodesInput?: HTMLInputElement;
   initialZoomInput?: HTMLInputElement;
+  searchInput?: HTMLInputElement;
+  searchButton?: HTMLButtonElement;
+  searchResults?: HTMLElement;
 }
 
 export interface UiShellOptions {
@@ -65,33 +80,53 @@ export class UiShellController {
   private readonly workbench: GraphWorkbench;
   private readonly form: HTMLFormElement;
   private readonly newickInput: HTMLTextAreaElement;
+  private readonly newickFileInput?: HTMLInputElement;
   private readonly datasetNameInput?: HTMLInputElement;
   private readonly ancillaryInput?: HTMLTextAreaElement;
+  private readonly ancillaryFileInput?: HTMLInputElement;
+  private readonly ancillaryJoinColumnInput?: HTMLInputElement;
+  private readonly ancillaryFormatSelect?: HTMLSelectElement;
   private readonly statusElement: HTMLElement;
   private readonly ancillaryWheelContainer?: HTMLElement;
   private readonly ancillaryModeSelect?: HTMLSelectElement;
   private readonly ancillaryNodeSelect?: HTMLSelectElement;
+  private readonly metadataPieFieldSelect?: HTMLSelectElement;
   private readonly maxNodesInput?: HTMLInputElement;
   private readonly initialZoomInput?: HTMLInputElement;
+  private readonly searchInput?: HTMLInputElement;
+  private readonly searchButton?: HTMLButtonElement;
+  private readonly searchResults?: HTMLElement;
 
   private lastRenderedGraph: PositionedGraph | null = null;
+  private baseVisualMapping: VisualMappingOptions = {};
+  private currentVisualMapping: VisualMappingOptions = {};
 
   private boundSubmit: ((event: SubmitEvent) => void) | null = null;
   private boundAncillaryModeChange: (() => void) | null = null;
   private boundAncillaryNodeChange: (() => void) | null = null;
+  private boundMetadataPieFieldChange: (() => void) | null = null;
+  private boundSearchClick: (() => void) | null = null;
 
   constructor(options: UiShellOptions) {
     this.workbench = options.workbench;
     this.form = options.elements.form;
     this.newickInput = options.elements.newickInput;
+    this.newickFileInput = options.elements.newickFileInput;
     this.datasetNameInput = options.elements.datasetNameInput;
     this.ancillaryInput = options.elements.ancillaryInput;
+    this.ancillaryFileInput = options.elements.ancillaryFileInput;
+    this.ancillaryJoinColumnInput = options.elements.ancillaryJoinColumnInput;
+    this.ancillaryFormatSelect = options.elements.ancillaryFormatSelect;
     this.statusElement = options.elements.status;
     this.ancillaryWheelContainer = options.elements.ancillaryWheelContainer;
     this.ancillaryModeSelect = options.elements.ancillaryModeSelect;
     this.ancillaryNodeSelect = options.elements.ancillaryNodeSelect;
+    this.metadataPieFieldSelect = options.elements.metadataPieFieldSelect;
     this.maxNodesInput = options.elements.maxNodesInput;
     this.initialZoomInput = options.elements.initialZoomInput;
+    this.searchInput = options.elements.searchInput;
+    this.searchButton = options.elements.searchButton;
+    this.searchResults = options.elements.searchResults;
 
     if (!this.form) {
       throw new Error(ERR_RENDER_FORM_REQUIRED);
@@ -123,6 +158,9 @@ export class UiShellController {
     this.boundAncillaryNodeChange = () => {
       this.renderAncillaryStats();
     };
+    this.boundMetadataPieFieldChange = () => {
+      this.handleMetadataPieFieldChange();
+    };
 
     this.ancillaryModeSelect?.addEventListener(
       "change",
@@ -132,7 +170,16 @@ export class UiShellController {
       "change",
       this.boundAncillaryNodeChange,
     );
+    this.metadataPieFieldSelect?.addEventListener(
+      "change",
+      this.boundMetadataPieFieldChange,
+    );
+    this.boundSearchClick = () => {
+      void this.searchCurrentDataset();
+    };
+    this.searchButton?.addEventListener("click", this.boundSearchClick);
     this.updateNodeSelectionVisibility();
+    this.updateMetadataPieFieldOptions(null);
 
     this.boundSubmit = (event: SubmitEvent) => {
       event.preventDefault();
@@ -144,7 +191,7 @@ export class UiShellController {
 
   // Normalize and render using current user input values.
   async renderCurrentInput(): Promise<void> {
-    const newick = this.newickInput.value.trim();
+    const newick = (await this.getNewickInput()).trim();
     const datasetName = this.datasetNameInput?.value.trim();
     const ancillaryRaw = this.ancillaryInput?.value.trim() ?? "";
 
@@ -157,10 +204,17 @@ export class UiShellController {
 
     try {
       const ancillaryPayload = parseAncillaryPayload(ancillaryRaw);
+      const ancillaryData = await this.getAncillaryDataInput();
+      this.baseVisualMapping = ancillaryPayload.visual_mapping ?? {};
+      this.currentVisualMapping = buildVisualMappingForPieField(
+        this.baseVisualMapping,
+        this.metadataPieFieldSelect?.value ?? "",
+      );
       await this.workbench.renderNewick(newick, datasetName || undefined, {
         metadataSchema: ancillaryPayload.metadata_schema,
         metadataByNodeId: ancillaryPayload.metadata_by_node_id,
-        visualMapping: ancillaryPayload.visual_mapping,
+        ancillaryData,
+        visualMapping: this.currentVisualMapping,
         lod: {
           maxNodes: this.getSelectedMaxNodes(),
           zoom: this.getSelectedInitialZoom(),
@@ -170,7 +224,10 @@ export class UiShellController {
       const message = error instanceof Error ? error.message : "unknown error";
       this.setStatus(`${STATUS_FAILED_PREFIX}: ${message}`);
       this.lastRenderedGraph = null;
+      this.baseVisualMapping = {};
+      this.currentVisualMapping = {};
       this.updateNodeSelector(null);
+      this.updateMetadataPieFieldOptions(null);
       this.renderAncillaryStats();
     }
   }
@@ -199,6 +256,19 @@ export class UiShellController {
         this.boundAncillaryNodeChange,
       );
       this.boundAncillaryNodeChange = null;
+    }
+
+    if (this.boundMetadataPieFieldChange) {
+      this.metadataPieFieldSelect?.removeEventListener(
+        "change",
+        this.boundMetadataPieFieldChange,
+      );
+      this.boundMetadataPieFieldChange = null;
+    }
+
+    if (this.boundSearchClick) {
+      this.searchButton?.removeEventListener("click", this.boundSearchClick);
+      this.boundSearchClick = null;
     }
 
     this.workbench.setGraphRenderedHandler(null);
@@ -234,9 +304,7 @@ export class UiShellController {
 
       renderAncillaryWheel(
         this.ancillaryWheelContainer,
-        buildAncillaryWheelStats(this.lastRenderedGraph, {
-          includeNodeIds: new Set([selectedId]),
-        }),
+        this.buildSelectedWheelStats(new Set([selectedId])),
         `Node '${selectedId}' has no ancillary pie data.`,
       );
       return;
@@ -245,7 +313,7 @@ export class UiShellController {
     // Current mode uses the currently rendered graph snapshot.
     renderAncillaryWheel(
       this.ancillaryWheelContainer,
-      buildAncillaryWheelStats(this.lastRenderedGraph),
+      this.buildSelectedWheelStats(),
     );
   }
 
@@ -253,8 +321,97 @@ export class UiShellController {
     this.setStatus(buildRenderedStatus(graph));
     this.lastRenderedGraph = graph;
     this.updateNodeSelector(graph);
+    this.updateMetadataPieFieldOptions(graph);
     this.updateNodeSelectionVisibility();
     this.renderAncillaryStats();
+  }
+
+  private handleMetadataPieFieldChange(): void {
+    const selectedField = this.metadataPieFieldSelect?.value ?? "";
+    this.currentVisualMapping = buildVisualMappingForPieField(
+      this.baseVisualMapping,
+      selectedField,
+    );
+
+    if (!this.lastRenderedGraph) {
+      this.renderAncillaryStats();
+      return;
+    }
+
+    try {
+      this.workbench.updateVisualMapping(this.currentVisualMapping);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "unknown error";
+      this.setStatus(`${STATUS_FAILED_PREFIX}: ${message}`);
+    }
+  }
+
+  private async searchCurrentDataset(): Promise<void> {
+    const query = this.searchInput?.value.trim() ?? "";
+
+    if (!query) {
+      this.renderSearchResults([]);
+      return;
+    }
+
+    try {
+      const response = await this.workbench.searchNodes({
+        query,
+        limit: 25,
+      });
+      this.renderSearchResults(response.matches);
+      this.setStatus(`Search found ${response.total_count} matches`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "unknown error";
+      this.setStatus(`${STATUS_FAILED_PREFIX}: ${message}`);
+    }
+  }
+
+  private renderSearchResults(
+    matches: Array<{ node_id: string; matched_text: string; score: number }>,
+  ): void {
+    if (!this.searchResults) {
+      return;
+    }
+
+    this.searchResults.innerHTML = "";
+
+    matches.forEach((match) => {
+      const item = document.createElement("button");
+      item.type = "button";
+      item.className = "search-result";
+      item.textContent = match.node_id;
+      item.title = match.matched_text;
+      item.addEventListener("click", () => {
+        void this.focusSearchResult(match.node_id);
+      });
+      this.searchResults?.appendChild(item);
+    });
+  }
+
+  private async focusSearchResult(nodeId: string): Promise<void> {
+    try {
+      await this.workbench.focusNode(nodeId);
+      this.setStatus(`Focused ${nodeId}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "unknown error";
+      this.setStatus(`${STATUS_FAILED_PREFIX}: ${message}`);
+    }
+  }
+
+  private buildSelectedWheelStats(includeNodeIds?: Set<string>) {
+    if (!this.lastRenderedGraph) {
+      return null;
+    }
+
+    const selectedField = this.metadataPieFieldSelect?.value;
+    if (selectedField) {
+      return buildMetadataFieldWheelStats(this.lastRenderedGraph, selectedField, {
+        includeNodeIds,
+      });
+    }
+
+    return buildAncillaryWheelStats(this.lastRenderedGraph, { includeNodeIds });
   }
 
   private getAncillaryMode(): AncillaryMode {
@@ -304,6 +461,38 @@ export class UiShellController {
       selectedMode !== ANCILLARY_MODE_SELECTED;
   }
 
+  private updateMetadataPieFieldOptions(graph: PositionedGraph | null): void {
+    if (!this.metadataPieFieldSelect) {
+      return;
+    }
+
+    const previousValue = this.metadataPieFieldSelect.value;
+    this.metadataPieFieldSelect.innerHTML = "";
+
+    const automaticOption = document.createElement("option");
+    automaticOption.value = "";
+    automaticOption.textContent = "Auto pie fields";
+    this.metadataPieFieldSelect.appendChild(automaticOption);
+
+    if (!graph) {
+      this.metadataPieFieldSelect.disabled = true;
+      return;
+    }
+
+    const keys = collectMetadataFieldKeys(graph);
+    keys.forEach((key) => {
+      const option = document.createElement("option");
+      option.value = key;
+      option.textContent = key;
+      this.metadataPieFieldSelect?.appendChild(option);
+    });
+
+    this.metadataPieFieldSelect.disabled = keys.length === 0;
+    if (keys.includes(previousValue)) {
+      this.metadataPieFieldSelect.value = previousValue;
+    }
+  }
+
   private getSelectedMaxNodes(): number {
     const rawValue = this.maxNodesInput?.value;
     const parsed = Number(rawValue);
@@ -320,6 +509,55 @@ export class UiShellController {
       return DEFAULT_INITIAL_ZOOM;
     }
     return parsed;
+  }
+
+  private async getNewickInput(): Promise<string> {
+    const file = this.newickFileInput?.files?.[0];
+    if (file) {
+      return readTextFile(file);
+    }
+
+    return this.newickInput.value;
+  }
+
+  private async getAncillaryDataInput(): Promise<
+    RenderNewickOptions["ancillaryData"] | undefined
+  > {
+    const file = this.ancillaryFileInput?.files?.[0];
+    if (!file) {
+      return undefined;
+    }
+
+    const joinColumn = this.ancillaryJoinColumnInput?.value.trim();
+    if (!joinColumn) {
+      throw new Error(ERR_ANCILLARY_JOIN_COLUMN_REQUIRED);
+    }
+
+    return {
+      content: await readTextFile(file),
+      join_column: joinColumn,
+      format: this.getAncillaryFormat(file),
+    };
+  }
+
+  private getAncillaryFormat(file: File): "auto" | "csv" | "tsv" {
+    const selectedFormat = this.ancillaryFormatSelect?.value;
+    if (
+      selectedFormat === "auto" ||
+      selectedFormat === "csv" ||
+      selectedFormat === "tsv"
+    ) {
+      return selectedFormat;
+    }
+
+    const filename = file.name.toLowerCase();
+    if (filename.endsWith(".tsv") || filename.endsWith(".txt")) {
+      return "tsv";
+    }
+    if (filename.endsWith(".csv")) {
+      return "csv";
+    }
+    return "auto";
   }
 }
 
@@ -385,4 +623,27 @@ function parseAncillaryPayload(rawInput: string): AncillaryPayload {
         ? (visualMapping as VisualMappingOptions)
         : undefined,
   };
+}
+
+function buildVisualMappingForPieField(
+  baseVisualMapping: VisualMappingOptions,
+  fieldKey: string,
+): VisualMappingOptions {
+  const selectedField = fieldKey.trim();
+  if (!selectedField) {
+    return baseVisualMapping;
+  }
+
+  return {
+    ...baseVisualMapping,
+    pie: {
+      ...(baseVisualMapping.pie ?? {}),
+      enabled: true,
+      fields: [selectedField],
+    },
+  };
+}
+
+function readTextFile(file: File): Promise<string> {
+  return file.text();
 }

@@ -15,6 +15,16 @@ let lastCamera:
       off: (event: string, handler: () => void) => void;
     }
   | null = null;
+let shouldThrowOnPieProgram = false;
+
+vi.mock("@sigma/node-piechart", () => ({
+  createNodePiechartProgram: () => {
+    if (shouldThrowOnPieProgram) {
+      throw new Error("pie program failed");
+    }
+    return class FakePiechartProgram {};
+  },
+}));
 
 vi.mock("sigma", () => {
   class FakeSigma {
@@ -80,6 +90,14 @@ import {
 const CONTAINER_ID = "graph-root";
 
 describe("sigmaRenderer", () => {
+  beforeEach(() => {
+    shouldThrowOnPieProgram = false;
+  });
+
+  beforeEach(() => {
+    shouldThrowOnPieProgram = false;
+  });
+
   it("throws when mounting with a missing container", () => {
     const renderer = new SigmaRenderer();
 
@@ -182,6 +200,45 @@ describe("sigmaRenderer", () => {
       x: [-1000, 1000],
       y: [-500, 500],
     });
+
+    renderer.unmount();
+  });
+
+  it("keeps the existing Sigma instance if pie-program rebuild fails", () => {
+    document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
+
+    const renderer = new SigmaRenderer();
+    renderer.mount({ containerId: CONTAINER_ID });
+    renderer.render({
+      nodes: [{ id: "a", x: 0, y: 0 }],
+      edges: [],
+      viewMeta: { layout: "force", lodLevel: 0 },
+    });
+
+    shouldThrowOnPieProgram = true;
+    expect(() =>
+      renderer.render({
+        nodes: [
+          {
+            id: "a",
+            x: 0,
+            y: 0,
+            attributes: { pie__country__value__canada: 1 },
+          },
+        ],
+        edges: [],
+        viewMeta: { layout: "force", lodLevel: 0 },
+      }),
+    ).toThrow("pie program failed");
+
+    shouldThrowOnPieProgram = false;
+    expect(() =>
+      renderer.render({
+        nodes: [{ id: "a", x: 0, y: 0 }],
+        edges: [],
+        viewMeta: { layout: "force", lodLevel: 0 },
+      }),
+    ).not.toThrow();
 
     renderer.unmount();
   });

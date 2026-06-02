@@ -199,12 +199,52 @@ class VisibleSliceResponse(BaseModel):
     view_meta: VisibleSliceViewMeta
 
 
+class PreparedSearchIndex(BaseModel):
+    """Prepared lookup tables for text/id/metadata node search."""
+
+    node_ids_by_exact_text: dict[str, list[str]] = Field(default_factory=dict)
+    node_ids_by_prefix: dict[str, list[str]] = Field(default_factory=dict)
+    searchable_text_by_node_id: dict[str, str] = Field(default_factory=dict)
+    metadata_by_node_id: dict[str, dict[str, str | float | bool | None]] = Field(
+        default_factory=dict
+    )
+
+
 class PreparedDatasetRecord(BaseModel):
     """Persisted dataset plus hierarchy used by LoD endpoints."""
 
     dataset: CanonicalDataset
     hierarchy: ThresholdHierarchyIndex
     warnings: list[str] = Field(default_factory=list)
+    search_index: PreparedSearchIndex | None = Field(default=None, exclude=True)
+
+
+class SearchDatasetQuery(BaseModel):
+    """Search request over one prepared dataset."""
+
+    dataset_id: str
+    query: str = Field(min_length=1)
+    limit: int = Field(default=50, ge=1, le=500)
+    include_metadata_keys: list[str] = Field(default_factory=list)
+
+
+class SearchDatasetMatch(BaseModel):
+    """One search hit in a prepared dataset."""
+
+    node_id: str
+    score: float = Field(ge=0)
+    matched_text: str
+    metadata: dict[str, str | float | bool | None] = Field(default_factory=dict)
+
+
+class SearchDatasetResponse(BaseModel):
+    """Search results over one prepared dataset."""
+
+    dataset_id: str
+    query: str
+    matches: list[SearchDatasetMatch]
+    total_count: int = Field(ge=0)
+
 
 
 class PrepareDatasetStats(BaseModel):

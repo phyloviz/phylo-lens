@@ -1,6 +1,8 @@
 import {
   type NormalizeResponse,
   type PrepareDatasetResponse,
+  type SearchDatasetQuery,
+  type SearchDatasetResponse,
   SOURCE_FORMAT_EDGELIST,
   SOURCE_FORMAT_NEWICK,
   type VisibleSliceQuery,
@@ -9,12 +11,14 @@ import {
 import {
   isNormalizeResponse,
   isPrepareDatasetResponse,
+  isSearchDatasetResponse,
   isVisibleSliceResponse,
 } from "../validation/datasetGuards";
 import { createHttpClient, type HttpClient } from "./httpClient";
 
 export const ROUTE_NORMALIZE = "/dataset/normalize";
 export const ROUTE_PREPARE = "/dataset/prepare";
+export const ROUTE_SEARCH = "/dataset/search";
 export const ROUTE_VIEW_SLICE = "/dataset/view-slice";
 
 export const ERR_INVALID_RESPONSE = "Invalid normalize response contract.";
@@ -22,6 +26,7 @@ export const ERR_INVALID_PREPARE_RESPONSE =
   "Invalid prepare dataset response contract.";
 export const ERR_INVALID_VISIBLE_SLICE_RESPONSE =
   "Invalid visible slice response contract.";
+export const ERR_INVALID_SEARCH_RESPONSE = "Invalid search response contract.";
 
 export interface NormalizeRequest {
   format: typeof SOURCE_FORMAT_NEWICK | typeof SOURCE_FORMAT_EDGELIST;
@@ -35,6 +40,11 @@ export interface NormalizeRequest {
     string,
     Record<string, string | number | boolean | null>
   >;
+  ancillary_data?: {
+    content: string;
+    join_column: string;
+    format?: "auto" | "csv" | "tsv";
+  };
 }
 
 export interface DatasetClientOptions {
@@ -48,6 +58,9 @@ export interface DatasetClient {
     request: NormalizeRequest,
   ) => Promise<PrepareDatasetResponse>;
   viewSlice: (request: VisibleSliceQuery) => Promise<VisibleSliceResponse>;
+  searchDataset: (
+    request: SearchDatasetQuery,
+  ) => Promise<SearchDatasetResponse>;
 }
 
 export function createDatasetClient(
@@ -66,6 +79,7 @@ export function createDatasetClientFromHttp(http: HttpClient): DatasetClient {
     normalizeDataset: (request) => normalizeDataset(http, request),
     prepareDataset: (request) => prepareDataset(http, request),
     viewSlice: (request) => viewSlice(http, request),
+    searchDataset: (request) => searchDataset(http, request),
   };
 }
 
@@ -112,6 +126,22 @@ export async function viewSlice(
 
   if (!isVisibleSliceResponse(response)) {
     throw new Error(ERR_INVALID_VISIBLE_SLICE_RESPONSE);
+  }
+
+  return response;
+}
+
+export async function searchDataset(
+  http: HttpClient,
+  request: SearchDatasetQuery,
+): Promise<SearchDatasetResponse> {
+  const response = await http.post<SearchDatasetQuery, unknown>(
+    ROUTE_SEARCH,
+    request,
+  );
+
+  if (!isSearchDatasetResponse(response)) {
+    throw new Error(ERR_INVALID_SEARCH_RESPONSE);
   }
 
   return response;

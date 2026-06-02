@@ -13,6 +13,7 @@ import type {
 } from "../src/render/types";
 import { RENDERER_KIND_MOCK } from "../src/render/types";
 import { DefaultRendererFactory } from "../src/render/rendererFactory";
+import { pieCategoricalAttributeKey } from "../src/render/pieMapping";
 import { describe, it, vi, expect } from "vitest";
 
 const BASE_URL = "http://localhost:8000";
@@ -94,10 +95,13 @@ class ClickableTestRenderer implements GraphRenderer {
   private viewChangeHandler: ((state: RenderViewportState) => void) | null =
     null;
   lastCenteredNodeId: string | null = null;
+  lastRenderedGraph: unknown = null;
 
   mount(): void {}
 
-  render(): void {}
+  render(graph: unknown): void {
+    this.lastRenderedGraph = graph;
+  }
 
   setViewChangeHandler(
     handler: ((state: RenderViewportState) => void) | null,
@@ -115,6 +119,7 @@ class ClickableTestRenderer implements GraphRenderer {
     this.nodeClickHandler = null;
     this.viewChangeHandler = null;
     this.lastCenteredNodeId = null;
+    this.lastRenderedGraph = null;
   }
 
   emitNodeClick(state: RenderNodeClickState): void {
@@ -131,7 +136,8 @@ class ClickableTestRenderer implements GraphRenderer {
 }
 
 class RenderUpdatingRenderer extends ClickableTestRenderer {
-  override render(): void {
+  override render(graph: unknown): void {
+    super.render(graph);
     this.emitViewChange({
       viewport: { x: 0, y: 0, width: 1000, height: 600 },
       zoom: 1,
@@ -388,6 +394,97 @@ describe("graphWorkbench", () => {
 
     expect(body.metadata_schema).toEqual([{ key: "trait_a", type: "number" }]);
     expect(body.metadata_by_node_id).toEqual({ root: { trait_a: 10 } });
+
+    workbench.dispose();
+  });
+
+  it("forwards tabular ancillary data and uses normalized metadata for slices", async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(makeJsonResponse(NORMALIZE_RESPONSE))
+      .mockResolvedValueOnce(makeJsonResponse(PREPARE_RESPONSE))
+      .mockResolvedValueOnce(
+        makeJsonResponse(VIEW_SLICE_RESPONSE),
+      ) as unknown as typeof fetch;
+
+    const datasetClient = createDatasetClient({ baseUrl: BASE_URL, fetchImpl });
+    const workbench = createGraphWorkbench({
+      datasetClient,
+      rendererFactory: new DefaultRendererFactory(),
+      rendererKind: RENDERER_KIND_MOCK,
+      renderContext: { containerId: "graph-root" },
+    });
+
+    await workbench.renderNewick(NEWICK_CONTENT, DATASET_NAME, {
+      ancillaryData: {
+        format: "tsv",
+        join_column: "isolate",
+        content: "isolate\tregion\nA\tEU\nB\tAF\n",
+      },
+      lod: { enabled: true },
+    });
+
+    const calls = (fetchImpl as unknown as ReturnType<typeof vi.fn>).mock.calls;
+    const normalizeInit = calls[0]?.[1] as RequestInit | undefined;
+    const prepareInit = calls[1]?.[1] as RequestInit | undefined;
+    const viewSliceInit = calls[2]?.[1] as RequestInit | undefined;
+
+    const expectedAncillaryData = {
+      format: "tsv",
+      join_column: "isolate",
+      content: "isolate\tregion\nA\tEU\nB\tAF\n",
+    };
+
+    expect(JSON.parse(String(normalizeInit?.body ?? "{}"))).toEqual(
+      expect.objectContaining({
+        ancillary_data: expectedAncillaryData,
+      }),
+    );
+    expect(JSON.parse(String(prepareInit?.body ?? "{}"))).toEqual(
+      expect.objectContaining({
+        ancillary_data: expectedAncillaryData,
+      }),
+    );
+    expect(JSON.parse(String(viewSliceInit?.body ?? "{}"))).toEqual(
+      expect.objectContaining({
+        include_metadata_keys: ["region", "distance"],
+      }),
+    );
+
+    workbench.dispose();
+  });
+
+  it("updates graph node pies when visual mapping changes", async () => {
+    const renderer = new ClickableTestRenderer();
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(makeJsonResponse(NORMALIZE_RESPONSE))
+      .mockResolvedValueOnce(makeJsonResponse(PREPARE_RESPONSE))
+      .mockResolvedValueOnce(
+        makeJsonResponse(VIEW_SLICE_RESPONSE),
+      ) as unknown as typeof fetch;
+
+    const datasetClient = createDatasetClient({ baseUrl: BASE_URL, fetchImpl });
+    const workbench = createGraphWorkbench({
+      datasetClient,
+      rendererFactory: new StaticRendererFactory(renderer),
+      rendererKind: RENDERER_KIND_MOCK,
+      renderContext: { containerId: "graph-root" },
+    });
+
+    await workbench.renderNewick(NEWICK_CONTENT, DATASET_NAME, {
+      lod: { enabled: true },
+    });
+
+    const graph = workbench.updateVisualMapping({
+      pie: { enabled: true, fields: ["region"] },
+    });
+
+    const nodeAttributes = graph.nodes.find((node) => node.id === "a")
+      ?.attributes as Record<string, unknown>;
+
+    expect(nodeAttributes[pieCategoricalAttributeKey("region", "EU")]).toBe(1);
+    expect(renderer.lastRenderedGraph).toBe(graph);
 
     workbench.dispose();
   });

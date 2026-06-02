@@ -91,11 +91,7 @@ def parse_newick(content: str) -> ParsedGraph:
     def assign_id(label: str | None, prefix: str, counter: int) -> str:
         """Build a deterministic node id from label or generated prefix."""
         if label:
-            slug = (
-                LABEL_SLUG_PATTERN.sub(LABEL_SLUG_REPLACEMENT, label)
-                .strip(LABEL_SLUG_STRIP_CHARS)
-                .lower()
-            )
+            slug = slugify_label(label)
             base = slug or f"{prefix}_{counter}"
         else:
             base = f"{prefix}_{counter}"
@@ -245,6 +241,15 @@ def parse_newick(content: str) -> ParsedGraph:
         raise ParseError(ERR_NEWICK_TRAILING_CONTENT)
 
     return ParsedGraph(nodes=nodes, edges=edges, warnings=warnings)
+
+
+def slugify_label(label: str) -> str:
+    """Match Newick label normalization for external node metadata joins."""
+    return (
+        LABEL_SLUG_PATTERN.sub(LABEL_SLUG_REPLACEMENT, label)
+        .strip(LABEL_SLUG_STRIP_CHARS)
+        .lower()
+    )
 
 
 def parse_edgelist(content: str) -> ParsedGraph:

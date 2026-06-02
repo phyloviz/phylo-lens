@@ -7,6 +7,7 @@ import type {
   CanonicalDataset,
   NormalizeResponse,
   PrepareDatasetResponse,
+  SearchDatasetResponse,
   VisibleSliceResponse,
 } from "../contracts/models";
 import {
@@ -62,6 +63,13 @@ const KEY_GLOBAL_BOUNDS = "global_bounds";
 const KEY_ZOOM = "zoom";
 const KEY_RETURNED_NODE_COUNT = "returned_node_count";
 const KEY_RETURNED_EDGE_COUNT = "returned_edge_count";
+const KEY_QUERY = "query";
+const KEY_MATCHES = "matches";
+const KEY_TOTAL_COUNT = "total_count";
+const KEY_NODE_ID_MATCH = "node_id";
+const KEY_SCORE = "score";
+const KEY_MATCHED_TEXT = "matched_text";
+const KEY_METADATA = "metadata";
 
 const KEY_FOCUS_CLUSTER_ID = "focus_cluster_id";
 const KEY_FOCUS_CLUSTER_BOUNDS = "focus_cluster_bounds";
@@ -121,6 +129,21 @@ export function isVisibleSliceResponse(
   );
 }
 
+export function isSearchDatasetResponse(
+  value: unknown,
+): value is SearchDatasetResponse {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    isString(value[KEY_DATASET_ID]) &&
+    isString(value[KEY_QUERY]) &&
+    isArrayOf(value[KEY_MATCHES], isSearchDatasetMatch) &&
+    isFiniteNumber(value[KEY_TOTAL_COUNT])
+  );
+}
+
 export function isCanonicalDataset(value: unknown): value is CanonicalDataset {
   if (!isRecord(value)) {
     return false;
@@ -131,6 +154,19 @@ export function isCanonicalDataset(value: unknown): value is CanonicalDataset {
     isArrayOf(value[KEY_NODES], isClientNode) &&
     isArrayOf(value[KEY_EDGES], isClientEdge) &&
     isSource(value[KEY_SOURCE])
+  );
+}
+
+function isSearchDatasetMatch(value: unknown): value is Record<string, unknown> {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    isString(value[KEY_NODE_ID_MATCH]) &&
+    isFiniteNumber(value[KEY_SCORE]) &&
+    isString(value[KEY_MATCHED_TEXT]) &&
+    isRecord(value[KEY_METADATA])
   );
 }
 

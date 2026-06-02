@@ -20,6 +20,7 @@ from phylo_lens_server.core.models import (
 )
 from phylo_lens_server.data.normalizer import NormalizeRequest, normalize_dataset
 from phylo_lens_server.data.store import DatasetStore
+from phylo_lens_server.services.search_index import build_prepared_search_index
 
 ERR_THRESHOLD_ONLY_PREPARE = (
     "Prepare currently supports only weighted datasets with distances for the "
@@ -64,6 +65,7 @@ def prepare_dataset_for_lod(
         dataset=prepared_dataset,
         hierarchy=hierarchy,
         warnings=warnings,
+        search_index=build_prepared_search_index(prepared_dataset),
     )
 
     store_start = time.perf_counter()

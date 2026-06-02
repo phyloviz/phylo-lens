@@ -82,6 +82,8 @@ def validate_canonical_dataset(
 
 def _value_matches_type(value: str | float | bool | None, expected_type: str) -> bool:
     """Check whether a metadata value matches a declared canonical metadata type."""
+    if value is None:
+        return True
     if expected_type == METADATA_TYPE_NULL:
         return value is None
     if expected_type == METADATA_TYPE_BOOLEAN:

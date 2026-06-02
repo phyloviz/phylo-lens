@@ -1,5 +1,6 @@
 export const PIE_ATTRIBUTE_PREFIX = "pie__";
 export const PIE_PALETTE_ATTRIBUTE = "__pie_palette";
+export const PIE_FIELD_VALUE_SEPARATOR = "__value__";
 
 export const DEFAULT_PIE_PALETTE = [
   "#ef4444",
@@ -18,7 +19,7 @@ export interface PieMappingOptions {
   palette?: string[];
 }
 
-// Build dynamic pie slice attributes from numeric ancillary metadata.
+// Build dynamic pie slice attributes from ancillary metadata.
 export function buildPieAttributes(
   metadata: Record<string, string | number | boolean | null>,
   options: PieMappingOptions,
@@ -36,15 +37,49 @@ export function buildPieAttributes(
   const attributes: Record<string, number> = {};
   selectedFields.forEach((fieldKey) => {
     const value = metadata[fieldKey];
-    if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+      attributes[`${PIE_ATTRIBUTE_PREFIX}${fieldKey}`] = value;
       return;
     }
 
-    const attributeKey = `${PIE_ATTRIBUTE_PREFIX}${fieldKey}`;
-    attributes[attributeKey] = value;
+    if (
+      !options.fields ||
+      value === undefined ||
+      value === null ||
+      value === ""
+    ) {
+      return;
+    }
+
+    attributes[pieCategoricalAttributeKey(fieldKey, String(value))] = 1;
   });
 
   return attributes;
+}
+
+export function pieCategoricalAttributeKey(
+  fieldKey: string,
+  value: string,
+): string {
+  return `${PIE_ATTRIBUTE_PREFIX}${safeAttributeToken(fieldKey)}${PIE_FIELD_VALUE_SEPARATOR}${safeAttributeToken(value)}`;
+}
+
+function safeAttributeToken(value: string): string {
+  const readableToken = value
+    .trim()
+    .replaceAll(/[^a-zA-Z0-9_-]+/g, "_")
+    .replaceAll(/^_+|_+$/g, "")
+    .slice(0, 48);
+  return `${readableToken || "blank"}_${hashString(value)}`;
+}
+
+function hashString(value: string): string {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
 }
 
 // Detect all pie attribute keys used by the incoming graph snapshot.

@@ -13,6 +13,7 @@ import {
 import {
   PIE_ATTRIBUTE_PREFIX,
   PIE_PALETTE_ATTRIBUTE,
+  pieCategoricalAttributeKey,
 } from "../src/render/pieMapping";
 
 const DATASET: CanonicalDataset = {
@@ -101,5 +102,52 @@ describe("visualMappings", () => {
     expect(
       (proxyNode?.attributes as Record<string, unknown>)?.is_cluster_proxy,
     ).toBe(true);
+  });
+
+  it("maps selected categorical metadata fields to graph pie slices", () => {
+    const index = buildMetadataIndex(DATASET);
+    const mapped = applyVisualMappings(BASE_GRAPH, DATASET, index, {
+      pie: {
+        fields: ["region"],
+      },
+    });
+
+    const nodeAttributes = mapped.nodes[0]?.attributes as Record<
+      string,
+      unknown
+    >;
+    const pieKeys = Object.keys(nodeAttributes).filter((key) =>
+      key.startsWith(PIE_ATTRIBUTE_PREFIX),
+    );
+
+    const expectedKey = pieCategoricalAttributeKey("region", "EU");
+
+    expect(pieKeys).toEqual([expectedKey]);
+    expect(nodeAttributes[expectedKey]).toBe(1);
+  });
+
+  it("sanitizes real-world categorical values for graph pie attributes", () => {
+    const index = buildMetadataIndex({
+      ...DATASET,
+      metadata_by_node_id: {
+        a: { region: "UK [England]", distance: 10, trait_a: 4 },
+        b: { region: "US", distance: 30, trait_a: 8 },
+      },
+    });
+    const mapped = applyVisualMappings(BASE_GRAPH, DATASET, index, {
+      pie: {
+        fields: ["region"],
+      },
+    });
+
+    const nodeAttributes = mapped.nodes[0]?.attributes as Record<
+      string,
+      unknown
+    >;
+    const expectedKey = pieCategoricalAttributeKey("region", "UK [England]");
+
+    expect(expectedKey).toMatch(/^pie__region_/);
+    expect(expectedKey).not.toContain("[");
+    expect(nodeAttributes[expectedKey]).toBe(1);
   });
 });

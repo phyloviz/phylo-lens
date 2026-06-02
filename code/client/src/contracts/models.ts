@@ -133,6 +133,27 @@ export interface VisibleSliceResponse {
   view_meta: VisibleSliceViewMeta;
 }
 
+export interface SearchDatasetQuery {
+  dataset_id: string;
+  query: string;
+  limit?: number;
+  include_metadata_keys?: string[];
+}
+
+export interface SearchDatasetMatch {
+  node_id: string;
+  score: number;
+  matched_text: string;
+  metadata: Record<string, string | number | boolean | null>;
+}
+
+export interface SearchDatasetResponse {
+  dataset_id: string;
+  query: string;
+  matches: SearchDatasetMatch[];
+  total_count: number;
+}
+
 export interface PrepareDatasetStats extends NormalizeStats {
   hierarchy_ms: number;
   store_ms: number;

@@ -23,6 +23,10 @@ export interface AncillaryWheelStatsOptions {
   includeNodeIds?: Set<string>;
 }
 
+const METADATA_ATTRIBUTE_KEY = "metadata";
+const MAX_METADATA_DISTRIBUTION_SLICES = 12;
+const OTHER_SLICE_LABEL = "Other";
+
 // Aggregate pie-like ancillary attributes into one chart-friendly stats payload.
 export function buildAncillaryWheelStats(
   graph: PositionedGraph,
@@ -86,6 +90,71 @@ export function buildAncillaryWheelStats(
   };
 }
 
+// Aggregate one metadata field into a chart-friendly categorical distribution.
+export function buildMetadataFieldWheelStats(
+  graph: PositionedGraph,
+  fieldKey: string,
+  options: AncillaryWheelStatsOptions = {},
+): AncillaryWheelStats | null {
+  const trimmedFieldKey = fieldKey.trim();
+  if (!trimmedFieldKey) {
+    return null;
+  }
+
+  const countsByValue = new Map<string, number>();
+  const includeNodeIds = options.includeNodeIds;
+  let includedNodeCount = 0;
+
+  graph.nodes.forEach((node) => {
+    if (includeNodeIds && !includeNodeIds.has(node.id)) {
+      return;
+    }
+
+    includedNodeCount += 1;
+    const metadata = readNodeMetadata(node.attributes);
+    const value = metadata?.[trimmedFieldKey];
+    if (value === undefined || value === null || value === "") {
+      return;
+    }
+
+    const label = String(value);
+    countsByValue.set(label, (countsByValue.get(label) ?? 0) + 1);
+  });
+
+  const slices = buildDistributionSlices(countsByValue);
+  const total = slices.reduce((sum, slice) => sum + slice.value, 0);
+  if (total <= 0) {
+    return null;
+  }
+
+  const palette = buildPiePalette(slices.length);
+  return {
+    total,
+    nodeCount: includedNodeCount,
+    slices: slices.map((slice, index) => ({
+      ...slice,
+      percentage: (slice.value / total) * 100,
+      color: palette[index] ?? "#0f766e",
+    })),
+  };
+}
+
+// Return metadata keys visible in the current graph snapshot.
+export function collectMetadataFieldKeys(graph: PositionedGraph): string[] {
+  const keys = new Set<string>();
+
+  graph.nodes.forEach((node) => {
+    const metadata = readNodeMetadata(node.attributes);
+    if (!metadata) {
+      return;
+    }
+
+    Object.keys(metadata).forEach((key) => keys.add(key));
+  });
+
+  return [...keys].sort((left, right) => left.localeCompare(right));
+}
+
 // Render a wheel (donut) and legend for aggregated ancillary percentages.
 export function renderAncillaryWheel(
   container: HTMLElement,
@@ -147,6 +216,45 @@ function resolvePaletteFromGraph(graph: PositionedGraph): string[] | undefined {
   }
 
   return undefined;
+}
+
+function readNodeMetadata(
+  attributes: Record<string, unknown> | undefined,
+): Record<string, string | number | boolean | null> | null {
+  const metadata = attributes?.[METADATA_ATTRIBUTE_KEY];
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+    return null;
+  }
+
+  return metadata as Record<string, string | number | boolean | null>;
+}
+
+function buildDistributionSlices(
+  countsByValue: Map<string, number>,
+): Array<Omit<AncillaryWheelSliceStat, "percentage" | "color">> {
+  const sorted = [...countsByValue.entries()].sort(
+    ([leftLabel, leftCount], [rightLabel, rightCount]) =>
+      rightCount - leftCount || leftLabel.localeCompare(rightLabel),
+  );
+
+  const topSlices = sorted.slice(0, MAX_METADATA_DISTRIBUTION_SLICES);
+  const remaining = sorted.slice(MAX_METADATA_DISTRIBUTION_SLICES);
+  const slices = topSlices.map(([label, value]) => ({
+    key: label,
+    label,
+    value,
+  }));
+
+  const otherValue = remaining.reduce((sum, [, value]) => sum + value, 0);
+  if (otherValue > 0) {
+    slices.push({
+      key: OTHER_SLICE_LABEL,
+      label: OTHER_SLICE_LABEL,
+      value: otherValue,
+    });
+  }
+
+  return slices;
 }
 
 function escapeHtml(input: string): string {

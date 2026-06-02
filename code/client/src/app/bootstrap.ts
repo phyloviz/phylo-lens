@@ -8,15 +8,23 @@ export const DEFAULT_SERVER_BASE_URL = "http://localhost:8000";
 
 export const ID_RENDER_FORM = "render-form";
 export const ID_NEWICK_INPUT = "newick-input";
+export const ID_NEWICK_FILE_INPUT = "newick-file-input";
 export const ID_DATASET_NAME_INPUT = "dataset-name-input";
 export const ID_ANCILLARY_INPUT = "ancillary-input";
+export const ID_ANCILLARY_FILE_INPUT = "ancillary-file-input";
+export const ID_ANCILLARY_JOIN_COLUMN_INPUT = "ancillary-join-column-input";
+export const ID_ANCILLARY_FORMAT = "ancillary-format";
 export const ID_STATUS = "status";
 export const ID_GRAPH_ROOT = "graph-root";
 export const ID_ANCILLARY_WHEEL = "ancillary-wheel";
 export const ID_ANCILLARY_MODE = "ancillary-mode";
 export const ID_ANCILLARY_NODE = "ancillary-node";
+export const ID_METADATA_PIE_FIELD = "metadata-pie-field";
 export const ID_MAX_NODES_INPUT = "max-nodes-input";
 export const ID_INITIAL_ZOOM_INPUT = "initial-zoom-input";
+export const ID_SEARCH_INPUT = "search-input";
+export const ID_SEARCH_BUTTON = "search-button";
+export const ID_SEARCH_RESULTS = "search-results";
 
 export const ERR_MISSING_RENDER_FORM = "Missing render form element.";
 export const ERR_MISSING_NEWICK_INPUT = "Missing Newick input element.";
@@ -32,12 +40,24 @@ export default function bootstrapClientShell(
   const newickInput = document.getElementById(
     ID_NEWICK_INPUT,
   ) as HTMLTextAreaElement | null;
+  const newickFileInput = document.getElementById(
+    ID_NEWICK_FILE_INPUT,
+  ) as HTMLInputElement | null;
   const datasetNameInput = document.getElementById(
     ID_DATASET_NAME_INPUT,
   ) as HTMLInputElement | null;
   const ancillaryInput = document.getElementById(
     ID_ANCILLARY_INPUT,
   ) as HTMLTextAreaElement | null;
+  const ancillaryFileInput = document.getElementById(
+    ID_ANCILLARY_FILE_INPUT,
+  ) as HTMLInputElement | null;
+  const ancillaryJoinColumnInput = document.getElementById(
+    ID_ANCILLARY_JOIN_COLUMN_INPUT,
+  ) as HTMLInputElement | null;
+  const ancillaryFormatSelect = document.getElementById(
+    ID_ANCILLARY_FORMAT,
+  ) as HTMLSelectElement | null;
   const status = document.getElementById(ID_STATUS);
   const ancillaryWheelContainer = document.getElementById(ID_ANCILLARY_WHEEL);
   const ancillaryModeSelect = document.getElementById(
@@ -46,12 +66,22 @@ export default function bootstrapClientShell(
   const ancillaryNodeSelect = document.getElementById(
     ID_ANCILLARY_NODE,
   ) as HTMLSelectElement | null;
+  const metadataPieFieldSelect = document.getElementById(
+    ID_METADATA_PIE_FIELD,
+  ) as HTMLSelectElement | null;
   const maxNodesInput = document.getElementById(
     ID_MAX_NODES_INPUT,
   ) as HTMLInputElement | null;
   const initialZoomInput = document.getElementById(
     ID_INITIAL_ZOOM_INPUT,
   ) as HTMLInputElement | null;
+  const searchInput = document.getElementById(
+    ID_SEARCH_INPUT,
+  ) as HTMLInputElement | null;
+  const searchButton = document.getElementById(
+    ID_SEARCH_BUTTON,
+  ) as HTMLButtonElement | null;
+  const searchResults = document.getElementById(ID_SEARCH_RESULTS);
 
   if (!form) {
     throw new Error(ERR_MISSING_RENDER_FORM);
@@ -78,14 +108,22 @@ export default function bootstrapClientShell(
     elements: {
       form,
       newickInput,
+      newickFileInput: newickFileInput ?? undefined,
       datasetNameInput: datasetNameInput ?? undefined,
       ancillaryInput: ancillaryInput ?? undefined,
+      ancillaryFileInput: ancillaryFileInput ?? undefined,
+      ancillaryJoinColumnInput: ancillaryJoinColumnInput ?? undefined,
+      ancillaryFormatSelect: ancillaryFormatSelect ?? undefined,
       status,
       ancillaryWheelContainer: ancillaryWheelContainer ?? undefined,
       ancillaryModeSelect: ancillaryModeSelect ?? undefined,
       ancillaryNodeSelect: ancillaryNodeSelect ?? undefined,
+      metadataPieFieldSelect: metadataPieFieldSelect ?? undefined,
       maxNodesInput: maxNodesInput ?? undefined,
       initialZoomInput: initialZoomInput ?? undefined,
+      searchInput: searchInput ?? undefined,
+      searchButton: searchButton ?? undefined,
+      searchResults: searchResults ?? undefined,
     },
   });
 

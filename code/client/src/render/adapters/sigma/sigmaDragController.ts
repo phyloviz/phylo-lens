@@ -26,6 +26,17 @@ type SigmaMouseCaptor = {
   off?: (event: string, handler: (payload: MouseEventPayload) => void) => void;
 };
 
+type Point = {
+  x: number;
+  y: number;
+};
+
+type MotionNode = {
+  home: Point;
+  velocity: Point;
+  targetOffset: Point;
+};
+
 interface SigmaDragControllerOptions {
   getGraph: () => Graph | null;
   getSigma: () => Sigma | null;
@@ -33,11 +44,19 @@ interface SigmaDragControllerOptions {
   suppressNodeClicksFor: (durationMs: number) => void;
 }
 
+const REPULSION_RADIUS_PX = 120;
+const REPULSION_STRENGTH_PX = 72;
+const SPRING_STRENGTH = 0.22;
+const VELOCITY_DAMPING = 0.68;
+const REST_THRESHOLD = 0.01;
+
 export class SigmaDragController {
   private readonly options: SigmaDragControllerOptions;
   private draggedNodeId: string | null = null;
   private draggedNodeMoved = false;
   private previousCameraPanningEnabled: boolean | null = null;
+  private animationFrameId: number | null = null;
+  private readonly motionNodes = new Map<string, MotionNode>();
   private readonly boundNodeDragStarted = (payload: SigmaNodeEventPayload) => {
     this.startNodeDrag(payload);
   };
@@ -81,6 +100,7 @@ export class SigmaDragController {
     this.draggedNodeId = null;
     this.draggedNodeMoved = false;
     this.previousCameraPanningEnabled = null;
+    this.releaseMotionNodes();
   }
 
   private startNodeDrag(payload: SigmaNodeEventPayload): void {
@@ -118,12 +138,13 @@ export class SigmaDragController {
 
     graph.setNodeAttribute(this.draggedNodeId, "x", position.x);
     graph.setNodeAttribute(this.draggedNodeId, "y", position.y);
+    this.repelNearbyNodes(payload);
     this.draggedNodeMoved = true;
     this.options.suppressViewChangesFor(250);
     payload.preventSigmaDefault?.();
     sigma.refresh({
       partialGraph: { nodes: [this.draggedNodeId] },
-      skipIndexation: true,
+      skipIndexation: false,
     });
   }
 
@@ -145,4 +166,243 @@ export class SigmaDragController {
     this.reset();
     this.options.suppressViewChangesFor(250);
   }
+
+  private repelNearbyNodes(dragPoint: Point): void {
+    const graph = this.options.getGraph();
+    const sigma = this.options.getSigma();
+
+    if (!graph || !sigma || !this.draggedNodeId) {
+      return;
+    }
+
+    this.clearRepulsionTargets();
+    graph.forEachNode((nodeId) => {
+      if (nodeId === this.draggedNodeId) {
+        return;
+      }
+
+      const home = this.getStableNodePosition(graph, nodeId);
+      if (!home) {
+        return;
+      }
+
+      const viewportPosition = sigma.graphToViewport(home);
+      const distance = distanceBetween(viewportPosition, dragPoint);
+      if (distance >= REPULSION_RADIUS_PX) {
+        return;
+      }
+
+      const direction = directionAwayFromDrag(nodeId, viewportPosition, dragPoint);
+      const pushDistance = computeRepulsion(distance);
+      const targetViewportPosition = {
+        x: viewportPosition.x + direction.x * pushDistance,
+        y: viewportPosition.y + direction.y * pushDistance,
+      };
+      const targetGraphPosition = sigma.viewportToGraph(targetViewportPosition);
+      const motionNode = this.ensureMotionNode(nodeId, home);
+
+      motionNode.targetOffset = {
+        x: targetGraphPosition.x - motionNode.home.x,
+        y: targetGraphPosition.y - motionNode.home.y,
+      };
+    });
+
+    this.scheduleMotion();
+  }
+
+  private clearRepulsionTargets(): void {
+    this.motionNodes.forEach((motionNode) => {
+      motionNode.targetOffset = { x: 0, y: 0 };
+    });
+  }
+
+  private getStableNodePosition(graph: Graph, nodeId: string): Point | null {
+    const existingMotion = this.motionNodes.get(nodeId);
+    if (existingMotion) {
+      return existingMotion.home;
+    }
+
+    const x = graph.getNodeAttribute(nodeId, "x");
+    const y = graph.getNodeAttribute(nodeId, "y");
+    if (!isFiniteNumber(x) || !isFiniteNumber(y)) {
+      return null;
+    }
+
+    return { x, y };
+  }
+
+  private ensureMotionNode(nodeId: string, home: Point): MotionNode {
+    const existingMotion = this.motionNodes.get(nodeId);
+    if (existingMotion) {
+      return existingMotion;
+    }
+
+    const motionNode = {
+      home,
+      velocity: { x: 0, y: 0 },
+      targetOffset: { x: 0, y: 0 },
+    };
+    this.motionNodes.set(nodeId, motionNode);
+    return motionNode;
+  }
+
+  private scheduleMotion(): void {
+    if (this.animationFrameId !== null) {
+      return;
+    }
+
+    this.animationFrameId = window.requestAnimationFrame(() => {
+      this.animationFrameId = null;
+      this.animateMotionNodes();
+    });
+  }
+
+  private animateMotionNodes(): void {
+    const graph = this.options.getGraph();
+    const sigma = this.options.getSigma();
+
+    if (!graph || !sigma) {
+      this.motionNodes.clear();
+      return;
+    }
+
+    const movedNodeIds: string[] = [];
+    this.motionNodes.forEach((motionNode, nodeId) => {
+      if (!graph.hasNode(nodeId)) {
+        this.motionNodes.delete(nodeId);
+        return;
+      }
+
+      const currentPosition = this.getCurrentNodePosition(graph, nodeId);
+      if (!currentPosition) {
+        this.motionNodes.delete(nodeId);
+        return;
+      }
+
+      const targetPosition = {
+        x: motionNode.home.x + motionNode.targetOffset.x,
+        y: motionNode.home.y + motionNode.targetOffset.y,
+      };
+      const nextVelocity = computeSpringVelocity(
+        currentPosition,
+        targetPosition,
+        motionNode.velocity,
+      );
+      const nextPosition = {
+        x: currentPosition.x + nextVelocity.x,
+        y: currentPosition.y + nextVelocity.y,
+      };
+
+      motionNode.velocity = nextVelocity;
+      graph.setNodeAttribute(nodeId, "x", nextPosition.x);
+      graph.setNodeAttribute(nodeId, "y", nextPosition.y);
+      movedNodeIds.push(nodeId);
+
+      if (this.hasComeToRest(motionNode, nextPosition)) {
+        graph.setNodeAttribute(nodeId, "x", motionNode.home.x);
+        graph.setNodeAttribute(nodeId, "y", motionNode.home.y);
+        this.motionNodes.delete(nodeId);
+      }
+    });
+
+    if (movedNodeIds.length > 0) {
+      sigma.refresh({
+        partialGraph: { nodes: movedNodeIds },
+        skipIndexation: false,
+      });
+    }
+
+    if (this.motionNodes.size > 0) {
+      this.scheduleMotion();
+    }
+  }
+
+  private getCurrentNodePosition(graph: Graph, nodeId: string): Point | null {
+    const x = graph.getNodeAttribute(nodeId, "x");
+    const y = graph.getNodeAttribute(nodeId, "y");
+    if (!isFiniteNumber(x) || !isFiniteNumber(y)) {
+      return null;
+    }
+
+    return { x, y };
+  }
+
+  private hasComeToRest(motionNode: MotionNode, position: Point): boolean {
+    if (this.draggedNodeId !== null) {
+      return false;
+    }
+
+    const homeDistance = distanceBetween(position, motionNode.home);
+    const speed = distanceBetween(motionNode.velocity, { x: 0, y: 0 });
+    return homeDistance < REST_THRESHOLD && speed < REST_THRESHOLD;
+  }
+
+  private releaseMotionNodes(): void {
+    this.clearRepulsionTargets();
+    if (this.motionNodes.size > 0) {
+      this.scheduleMotion();
+    }
+  }
+}
+
+function computeRepulsion(distance: number): number {
+  const closeness = 1 - distance / REPULSION_RADIUS_PX;
+  return REPULSION_STRENGTH_PX * closeness * closeness;
+}
+
+function computeSpringVelocity(
+  currentPosition: Point,
+  targetPosition: Point,
+  currentVelocity: Point,
+): Point {
+  return {
+    x:
+      (currentVelocity.x + (targetPosition.x - currentPosition.x) * SPRING_STRENGTH) *
+      VELOCITY_DAMPING,
+    y:
+      (currentVelocity.y + (targetPosition.y - currentPosition.y) * SPRING_STRENGTH) *
+      VELOCITY_DAMPING,
+  };
+}
+
+function directionAwayFromDrag(
+  nodeId: string,
+  nodePosition: Point,
+  dragPoint: Point,
+): Point {
+  const delta = {
+    x: nodePosition.x - dragPoint.x,
+    y: nodePosition.y - dragPoint.y,
+  };
+  const distance = distanceBetween(nodePosition, dragPoint);
+
+  if (distance > 0.001) {
+    return {
+      x: delta.x / distance,
+      y: delta.y / distance,
+    };
+  }
+
+  return stableDirectionFromNodeId(nodeId);
+}
+
+function stableDirectionFromNodeId(nodeId: string): Point {
+  let hash = 0;
+  for (let index = 0; index < nodeId.length; index += 1) {
+    hash = (hash * 31 + nodeId.charCodeAt(index)) >>> 0;
+  }
+
+  const angle = (hash / 0xffffffff) * Math.PI * 2;
+  return {
+    x: Math.cos(angle),
+    y: Math.sin(angle),
+  };
+}
+
+function distanceBetween(left: Point, right: Point): number {
+  return Math.hypot(left.x - right.x, left.y - right.y);
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
 }
