@@ -1,4 +1,5 @@
 import { createNodePiechartProgram } from "@sigma/node-piechart";
+import type { NodeLabelDrawingFunction } from "sigma/rendering";
 import type Graph from "graphology";
 
 import type {
@@ -23,6 +24,7 @@ export const SIGMA_DEFAULT_LABEL_SIZE = 13;
 export const SIGMA_DEFAULT_LABEL_DENSITY = 0.9;
 export const SIGMA_DEFAULT_LABEL_GRID_CELL_SIZE = 90;
 export const SIGMA_DEFAULT_LABEL_RENDERED_SIZE_THRESHOLD = 4;
+export const INTERNAL_NODE_ID_PREFIX = "internal_";
 
 export const SIGMA_NODE_TYPE_DEFAULT = "circle";
 export const SIGMA_NODE_TYPE_TRIANGLE = "triangle";
@@ -70,6 +72,7 @@ export function buildSigmaSettings(
       color: rendererOptions.label?.color ?? SIGMA_DEFAULT_LABEL_COLOR,
     },
     labelSize: rendererOptions.label?.size ?? SIGMA_DEFAULT_LABEL_SIZE,
+    defaultDrawNodeLabel: drawCenteredNodeLabel,
     nodeProgramClasses: {
       [SIGMA_NODE_TYPE_TRIANGLE]: TriangleNodeProgram,
       ...nodeProgramClasses,
@@ -217,6 +220,10 @@ function deriveNodeLabel(
   nodeId: string,
   attributes: Record<string, unknown> | undefined,
 ): string {
+  if (isGeneratedInternalNodeId(nodeId)) {
+    return "";
+  }
+
   const explicitLabel = attributes?.label;
   if (typeof explicitLabel === "string" && explicitLabel.trim().length > 0) {
     return explicitLabel.trim();
@@ -232,4 +239,71 @@ function deriveNodeLabel(
   }
 
   return nodeId;
+}
+
+const drawCenteredNodeLabel: NodeLabelDrawingFunction = (
+  context,
+  data,
+  settings,
+) => {
+  if (!data.label) {
+    return;
+  }
+
+  const label = fitLabelToNode(context, data.label, data.size * 1.75);
+  if (!label) {
+    return;
+  }
+
+  context.save();
+  context.font = `${settings.labelWeight} ${Math.max(
+    8,
+    Math.min(settings.labelSize, data.size * 0.9),
+  )}px ${settings.labelFont}`;
+  context.fillStyle = resolveLabelColor(data, settings);
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.fillText(label, data.x, data.y);
+  context.restore();
+};
+
+function fitLabelToNode(
+  context: CanvasRenderingContext2D,
+  label: string,
+  maxWidth: number,
+): string {
+  if (maxWidth <= 4) {
+    return "";
+  }
+
+  if (context.measureText(label).width <= maxWidth) {
+    return label;
+  }
+
+  let clipped = label;
+  while (clipped.length > 1) {
+    clipped = clipped.slice(0, -1);
+    const candidate = `${clipped}...`;
+    if (context.measureText(candidate).width <= maxWidth) {
+      return candidate;
+    }
+  }
+
+  return "";
+}
+
+function resolveLabelColor(
+  data: Record<string, unknown>,
+  settings: { labelColor: { attribute?: string; color?: string } },
+): string {
+  const attribute = settings.labelColor.attribute;
+  if (attribute && typeof data[attribute] === "string") {
+    return data[attribute];
+  }
+
+  return settings.labelColor.color ?? SIGMA_DEFAULT_LABEL_COLOR;
+}
+
+function isGeneratedInternalNodeId(nodeId: string): boolean {
+  return nodeId.startsWith(INTERNAL_NODE_ID_PREFIX);
 }

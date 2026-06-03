@@ -381,6 +381,61 @@ describe("uiShell", () => {
     shell.unmount();
   });
 
+  it("forwards profile size controls to the visual mapping", async () => {
+    document.body.innerHTML = `
+      <form id="render-form"></form>
+      <textarea id="newick-input"></textarea>
+      <input id="metadata-size-field" type="text" value="profile_count" />
+      <select id="metadata-size-scale">
+        <option value="linear">Linear</option>
+        <option value="log" selected>Logarithmic</option>
+      </select>
+      <div id="status"></div>
+    `;
+
+    const form = document.getElementById("render-form") as HTMLFormElement;
+    const input = document.getElementById(
+      "newick-input",
+    ) as HTMLTextAreaElement;
+    const metadataSizeFieldInput = document.getElementById(
+      "metadata-size-field",
+    ) as HTMLInputElement;
+    const metadataSizeScaleSelect = document.getElementById(
+      "metadata-size-scale",
+    ) as HTMLSelectElement;
+    const status = document.getElementById("status") as HTMLElement;
+
+    input.value = "(A,B)Root;";
+    const fakeWorkbench = makeFakeWorkbench();
+    const shell = new UiShellController({
+      workbench: fakeWorkbench,
+      elements: {
+        form,
+        newickInput: input,
+        metadataSizeFieldInput,
+        metadataSizeScaleSelect,
+        status,
+      },
+    });
+
+    shell.mount();
+    await shell.renderCurrentInput();
+
+    expect(fakeWorkbench.renderNewick).toHaveBeenCalledWith(
+      "(A,B)Root;",
+      undefined,
+      expect.objectContaining({
+        visualMapping: {
+          size: {
+            field: "profile_count",
+            scale: "log",
+          },
+        },
+      }),
+    );
+    shell.unmount();
+  });
+
   it("searches rendered datasets and focuses selected results", async () => {
     document.body.innerHTML = `
       <form id="render-form"></form>

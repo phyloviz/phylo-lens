@@ -265,6 +265,35 @@ def test_search_endpoint_finds_prepared_node_ids_and_metadata(client) -> None:
     assert by_metadata.json()[KEY_MATCHES][0][KEY_NODE_ID] == "a"
 
 
+def test_search_endpoint_keeps_short_numeric_queries_exact(client) -> None:
+    """Ensure one-digit searches do not fan out across numeric metadata values."""
+    client.post(
+        ROUTE_PREPARE,
+        json={
+            "format": FORMAT_NEWICK,
+            "dataset_name": "numeric-search-tree",
+            "content": "(8:1,1274:1)Root;",
+            "metadata_schema": [{"key": "age_yr", "type": "number"}],
+            "metadata_by_node_id": {
+                "8": {"age_yr": 99},
+                "1274": {"age_yr": 8},
+            },
+        },
+    )
+
+    response = client.post(
+        ROUTE_SEARCH,
+        json={
+            "dataset_id": "numeric-search-tree",
+            "query": "8",
+            "include_metadata_keys": ["age_yr"],
+        },
+    )
+
+    assert response.status_code == STATUS_OK
+    assert [match[KEY_NODE_ID] for match in response.json()[KEY_MATCHES]] == ["8"]
+
+
 def test_prepare_and_view_slice_use_threshold_hierarchy_for_weighted_edgelist(
     client,
 ) -> None:

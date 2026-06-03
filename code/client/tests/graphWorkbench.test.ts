@@ -1,5 +1,6 @@
 import {
   ERR_NO_GRAPH_RENDERED,
+  SEARCH_FOCUS_LOD_ZOOM,
   createGraphWorkbench,
 } from "../src/app/workbench/graphWorkbench";
 import type { MetadataField } from "../src/contracts/models";
@@ -208,6 +209,111 @@ describe("graphWorkbench", () => {
       `${BASE_URL}/dataset/prepare`,
       `${BASE_URL}/dataset/view-slice`,
     ]);
+
+    workbench.dispose();
+  });
+
+  it("requests a detail LoD slice and centers searched nodes on focus", async () => {
+    const focusedSliceResponse = {
+      ...VIEW_SLICE_RESPONSE,
+      view_meta: {
+        ...VIEW_SLICE_RESPONSE.view_meta,
+        zoom: SEARCH_FOCUS_LOD_ZOOM,
+      },
+    };
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(makeJsonResponse(NORMALIZE_RESPONSE))
+      .mockResolvedValueOnce(makeJsonResponse(PREPARE_RESPONSE))
+      .mockResolvedValueOnce(makeJsonResponse(VIEW_SLICE_RESPONSE))
+      .mockResolvedValueOnce(
+        makeJsonResponse(focusedSliceResponse),
+      ) as unknown as typeof fetch;
+
+    const datasetClient = createDatasetClient({ baseUrl: BASE_URL, fetchImpl });
+    const renderer = new ClickableTestRenderer();
+    const workbench = createGraphWorkbench({
+      datasetClient,
+      rendererFactory: new StaticRendererFactory(renderer),
+      rendererKind: RENDERER_KIND_MOCK,
+      renderContext: { containerId: "graph-root" },
+    });
+
+    await workbench.renderNewick(NEWICK_CONTENT, DATASET_NAME, {
+      lod: {
+        enabled: true,
+        zoom: 1,
+      },
+    });
+    await workbench.focusNode("b");
+
+    const focusCall = (fetchImpl as unknown as ReturnType<typeof vi.fn>).mock
+      .calls[3];
+    const body = JSON.parse(
+      String((focusCall?.[1] as RequestInit)?.body ?? "{}"),
+    ) as Record<string, unknown>;
+
+    expect(String(focusCall?.[0])).toBe(`${BASE_URL}/dataset/view-slice`);
+    expect(body.focus_node_id).toBe("b");
+    expect(body.zoom).toBe(SEARCH_FOCUS_LOD_ZOOM);
+    expect(renderer.lastCenteredNodeId).toBe("b");
+
+    workbench.dispose();
+  });
+
+  it("searches and focuses locally for full-rendered graphs", async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(
+        makeJsonResponse({
+          ...NORMALIZE_RESPONSE,
+          dataset: {
+            ...NORMALIZE_RESPONSE.dataset,
+            nodes: [{ id: "8" }, { id: "1274" }],
+            edges: [{ id: "e_8_1274_1", source: "8", target: "1274" }],
+            metadata_schema: [{ key: "age_yr", type: "number" }],
+            metadata_by_node_id: {
+              "8": { age_yr: 99 },
+              "1274": { age_yr: 8 },
+            },
+          },
+        }),
+      ) as unknown as typeof fetch;
+
+    const datasetClient = createDatasetClient({ baseUrl: BASE_URL, fetchImpl });
+    const renderer = new ClickableTestRenderer();
+    const workbench = createGraphWorkbench({
+      datasetClient,
+      rendererFactory: new StaticRendererFactory(renderer),
+      rendererKind: RENDERER_KIND_MOCK,
+      renderContext: { containerId: "graph-root" },
+    });
+
+    await workbench.renderNewick("(8:1,1274:1)Root;", DATASET_NAME, {
+      lod: { enabled: false },
+    });
+
+    const numericMatches = await workbench.searchNodes({
+      query: "8",
+      includeMetadataKeys: ["age_yr"],
+    });
+    const metadataMatches = await workbench.searchNodes({
+      query: "99",
+      includeMetadataKeys: ["age_yr"],
+    });
+    await workbench.focusNode("1274");
+
+    expect(numericMatches.matches.map((match) => match.node_id)).toEqual(["8"]);
+    expect(metadataMatches.matches.map((match) => match.node_id)).toEqual([
+      "8",
+    ]);
+    expect(metadataMatches.matches[0]?.metadata).toEqual({ age_yr: 99 });
+    expect(renderer.lastCenteredNodeId).toBe("1274");
+    expect(
+      (fetchImpl as unknown as ReturnType<typeof vi.fn>).mock.calls.map((call) =>
+        String(call[0]),
+      ),
+    ).toEqual([`${BASE_URL}/dataset/normalize`]);
 
     workbench.dispose();
   });

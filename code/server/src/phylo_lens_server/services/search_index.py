@@ -14,10 +14,12 @@ from phylo_lens_server.core.models import (
 TOKEN_PATTERN = re.compile(r"[A-Za-z0-9_]+")
 MIN_PREFIX_LENGTH = 2
 MAX_PREFIX_LENGTH = 32
+SHORT_QUERY_LENGTH = 1
 
 
 def build_prepared_search_index(dataset: CanonicalDataset) -> PreparedSearchIndex:
     """Build compact lookup tables for prepared-dataset search."""
+    exact_ids: dict[str, set[str]] = defaultdict(set)
     exact: dict[str, set[str]] = defaultdict(set)
     prefixes: dict[str, set[str]] = defaultdict(set)
     text_by_node_id: dict[str, str] = {}
@@ -35,9 +37,12 @@ def build_prepared_search_index(dataset: CanonicalDataset) -> PreparedSearchInde
             for prefix in token_prefixes(token):
                 prefixes[prefix].add(node.id)
 
-        exact[normalize_search_text(node.id)].add(node.id)
+        normalized_node_id = normalize_search_text(node.id)
+        exact_ids[normalized_node_id].add(node.id)
+        exact[normalized_node_id].add(node.id)
 
     return PreparedSearchIndex(
+        node_ids_by_exact_id=freeze_index(exact_ids, min_key_length=1),
         node_ids_by_exact_text=freeze_index(exact, min_key_length=1),
         node_ids_by_prefix=freeze_index(prefixes),
         searchable_text_by_node_id=text_by_node_id,
@@ -54,6 +59,13 @@ def search_prepared_index(
     query_tokens = tokenize(normalized_query)
     scores: dict[str, float] = defaultdict(float)
 
+    if normalized_query in index.node_ids_by_exact_id:
+        for node_id in index.node_ids_by_exact_id[normalized_query]:
+            scores[node_id] += 120.0
+
+    if is_short_numeric_query(normalized_query):
+        return build_search_response(dataset_id, query, index, scores)
+
     if normalized_query in index.node_ids_by_exact_text:
         for node_id in index.node_ids_by_exact_text[normalized_query]:
             scores[node_id] += 100.0
@@ -64,6 +76,15 @@ def search_prepared_index(
         for node_id in index.node_ids_by_prefix.get(token, []):
             scores[node_id] += 8.0
 
+    return build_search_response(dataset_id, query, index, scores)
+
+
+def build_search_response(
+    dataset_id: str,
+    query: SearchDatasetQuery,
+    index: PreparedSearchIndex,
+    scores: dict[str, float],
+) -> SearchDatasetResponse:
     if not scores:
         return SearchDatasetResponse(
             dataset_id=dataset_id,
@@ -93,6 +114,13 @@ def search_prepared_index(
         query=query.query,
         matches=matches[: query.limit],
         total_count=len(matches),
+    )
+
+
+def is_short_numeric_query(normalized_query: str) -> bool:
+    return (
+        len(normalized_query) <= SHORT_QUERY_LENGTH
+        and normalized_query.isdecimal()
     )
 
 

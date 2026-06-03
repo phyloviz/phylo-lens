@@ -1,6 +1,7 @@
 export const PIE_ATTRIBUTE_PREFIX = "pie__";
 export const PIE_PALETTE_ATTRIBUTE = "__pie_palette";
 export const PIE_FIELD_VALUE_SEPARATOR = "__value__";
+export const MAX_PIE_SLICE_KEYS = 48;
 
 export const DEFAULT_PIE_PALETTE = [
   "#ef4444",
@@ -19,9 +20,11 @@ export interface PieMappingOptions {
   palette?: string[];
 }
 
+type MetadataRecord = Record<string, string | number | boolean | null>;
+
 // Build dynamic pie slice attributes from ancillary metadata.
 export function buildPieAttributes(
-  metadata: Record<string, string | number | boolean | null>,
+  metadata: MetadataRecord,
   options: PieMappingOptions,
   excludedFields: string[] = [],
 ): Record<string, number> {
@@ -51,10 +54,35 @@ export function buildPieAttributes(
       return;
     }
 
-    attributes[pieCategoricalAttributeKey(fieldKey, String(value))] = 1;
+    categoricalPieValues(value).forEach((category) => {
+      attributes[pieCategoricalAttributeKey(fieldKey, category)] = 1;
+    });
   });
 
   return attributes;
+}
+
+export function categoricalPieValues(
+  value: string | number | boolean | null | undefined,
+): string[] {
+  if (value === undefined || value === null || value === "") {
+    return [];
+  }
+
+  if (typeof value !== "string") {
+    return [String(value)];
+  }
+
+  const parts = value
+    .split(/[;|]/)
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0);
+
+  if (parts.length <= 1) {
+    return [value.trim()].filter((part) => part.length > 0);
+  }
+
+  return [...new Set(parts)];
 }
 
 export function pieCategoricalAttributeKey(
@@ -85,8 +113,9 @@ function hashString(value: string): string {
 // Detect all pie attribute keys used by the incoming graph snapshot.
 export function detectPieSliceKeys(
   nodes: Array<{ attributes?: Record<string, unknown> }>,
+  maxSliceKeys = MAX_PIE_SLICE_KEYS,
 ): string[] {
-  const keys = new Set<string>();
+  const totalsByKey = new Map<string, number>();
   nodes.forEach((node) => {
     const attributes = node.attributes;
     if (!attributes) {
@@ -104,12 +133,19 @@ export function detectPieSliceKeys(
         Number.isFinite(rawValue) &&
         rawValue > 0
       ) {
-        keys.add(key);
+        totalsByKey.set(key, (totalsByKey.get(key) ?? 0) + rawValue);
       }
     });
   });
 
-  return [...keys].sort((left, right) => left.localeCompare(right));
+  return [...totalsByKey.entries()]
+    .sort(
+      ([leftKey, leftTotal], [rightKey, rightTotal]) =>
+        rightTotal - leftTotal || leftKey.localeCompare(rightKey),
+    )
+    .slice(0, Math.max(0, maxSliceKeys))
+    .map(([key]) => key)
+    .sort((left, right) => left.localeCompare(right));
 }
 
 // Build a palette large enough for the detected number of slices.

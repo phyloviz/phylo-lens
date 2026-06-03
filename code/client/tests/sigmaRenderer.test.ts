@@ -1,4 +1,9 @@
 let lastSigmaOptions: Record<string, unknown> | null = null;
+let lastGraph:
+  | {
+      getNodeAttribute: (node: string, attribute: string) => unknown;
+    }
+  | null = null;
 let lastCustomBBox:
   | {
       x: [number, number];
@@ -48,11 +53,14 @@ vi.mock("sigma", () => {
     };
 
     constructor(
-      _graph?: unknown,
+      graph?: {
+        getNodeAttribute: (node: string, attribute: string) => unknown;
+      },
       _container?: unknown,
       options?: Record<string, unknown>,
     ) {
       lastSigmaOptions = options ?? null;
+      lastGraph = graph ?? null;
       lastCamera = this.camera;
     }
 
@@ -136,6 +144,27 @@ describe("sigmaRenderer", () => {
 
     expect(nodeProgramClasses).toBeDefined();
     expect(nodeProgramClasses?.["triangle"]).toBeDefined();
+
+    renderer.unmount();
+  });
+
+  it("uses centered node labels and hides generated internal node ids", () => {
+    document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
+
+    const renderer = new SigmaRenderer();
+    renderer.mount({ containerId: CONTAINER_ID });
+    renderer.render({
+      nodes: [
+        { id: "internal_1", x: 0, y: 0 },
+        { id: "profile_1", x: 1, y: 1 },
+      ],
+      edges: [],
+      viewMeta: { layout: "force", lodLevel: 0 },
+    });
+
+    expect(lastSigmaOptions?.defaultDrawNodeLabel).toBeTypeOf("function");
+    expect(lastGraph?.getNodeAttribute("internal_1", "label")).toBe("");
+    expect(lastGraph?.getNodeAttribute("profile_1", "label")).toBe("profile_1");
 
     renderer.unmount();
   });

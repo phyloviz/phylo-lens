@@ -1,6 +1,7 @@
 import type { PositionedGraph } from "../contracts/positioned";
 import {
   buildPiePalette,
+  categoricalPieValues,
   PIE_ATTRIBUTE_PREFIX,
   PIE_PALETTE_ATTRIBUTE,
 } from "../render/pieMapping";
@@ -21,6 +22,11 @@ export interface AncillaryWheelStats {
 
 export interface AncillaryWheelStatsOptions {
   includeNodeIds?: Set<string>;
+}
+
+export interface MetadataFieldSummary {
+  key: string;
+  uniqueValueCount: number;
 }
 
 const METADATA_ATTRIBUTE_KEY = "metadata";
@@ -117,8 +123,9 @@ export function buildMetadataFieldWheelStats(
       return;
     }
 
-    const label = String(value);
-    countsByValue.set(label, (countsByValue.get(label) ?? 0) + 1);
+    categoricalPieValues(value).forEach((label) => {
+      countsByValue.set(label, (countsByValue.get(label) ?? 0) + 1);
+    });
   });
 
   const slices = buildDistributionSlices(countsByValue);
@@ -141,7 +148,14 @@ export function buildMetadataFieldWheelStats(
 
 // Return metadata keys visible in the current graph snapshot.
 export function collectMetadataFieldKeys(graph: PositionedGraph): string[] {
-  const keys = new Set<string>();
+  return collectMetadataFieldSummaries(graph).map((summary) => summary.key);
+}
+
+// Return metadata fields with approximate cardinality in the current graph.
+export function collectMetadataFieldSummaries(
+  graph: PositionedGraph,
+): MetadataFieldSummary[] {
+  const valuesByKey = new Map<string, Set<string>>();
 
   graph.nodes.forEach((node) => {
     const metadata = readNodeMetadata(node.attributes);
@@ -149,10 +163,20 @@ export function collectMetadataFieldKeys(graph: PositionedGraph): string[] {
       return;
     }
 
-    Object.keys(metadata).forEach((key) => keys.add(key));
+    Object.entries(metadata).forEach(([key, value]) => {
+      const values = categoricalPieValues(value);
+      const valueSet = valuesByKey.get(key) ?? new Set<string>();
+      values.forEach((entry) => valueSet.add(entry));
+      valuesByKey.set(key, valueSet);
+    });
   });
 
-  return [...keys].sort((left, right) => left.localeCompare(right));
+  return [...valuesByKey.entries()]
+    .map(([key, values]) => ({
+      key,
+      uniqueValueCount: values.size,
+    }))
+    .sort((left, right) => left.key.localeCompare(right.key));
 }
 
 // Render a wheel (donut) and legend for aggregated ancillary percentages.

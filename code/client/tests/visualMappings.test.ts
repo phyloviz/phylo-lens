@@ -9,8 +9,12 @@ import type { PositionedGraph } from "../src/contracts/positioned";
 import {
   applyVisualMappings,
   CLUSTER_PROXY_COLOR,
+  MAX_NODE_SIZE,
+  MIN_NODE_SIZE,
 } from "../src/render/visualMappings";
 import {
+  detectPieSliceKeys,
+  MAX_PIE_SLICE_KEYS,
   PIE_ATTRIBUTE_PREFIX,
   PIE_PALETTE_ATTRIBUTE,
   pieCategoricalAttributeKey,
@@ -75,6 +79,45 @@ describe("visualMappings", () => {
     expect(Array.isArray(nodeAttributes?.[PIE_PALETTE_ATTRIBUTE])).toBe(true);
   });
 
+  it("sizes nodes by profile count with linear or logarithmic scaling", () => {
+    // Given
+    const profileDataset: CanonicalDataset = {
+      ...DATASET,
+      nodes: [...DATASET.nodes, { id: "c" }],
+      metadata_schema: [
+        ...DATASET.metadata_schema,
+        { key: "profile_count", type: METADATA_TYPE_NUMBER },
+      ],
+      metadata_by_node_id: {
+        a: { region: "EU", distance: 10, trait_a: 4, profile_count: 10 },
+        b: { region: "US", distance: 30, trait_a: 8, profile_count: 100 },
+        c: { region: "AS", distance: 50, trait_a: 12, profile_count: 1000 },
+      },
+    };
+    const profileGraph: PositionedGraph = {
+      ...BASE_GRAPH,
+      nodes: [...BASE_GRAPH.nodes, { id: "c", x: 200, y: 200 }],
+    };
+    const index = buildMetadataIndex(profileDataset);
+
+    // When
+    const linearMapped = applyVisualMappings(profileGraph, profileDataset, index, {
+      size: { field: "profile_count", scale: "linear" },
+    });
+    const logMapped = applyVisualMappings(profileGraph, profileDataset, index, {
+      size: { field: "profile_count", scale: "log" },
+    });
+
+    // Then
+    expect(linearMapped.nodes[0]?.size).toBe(MIN_NODE_SIZE);
+    expect(linearMapped.nodes[2]?.size).toBe(MAX_NODE_SIZE);
+    expect(logMapped.nodes[0]?.size).toBe(MIN_NODE_SIZE);
+    expect(logMapped.nodes[2]?.size).toBe(MAX_NODE_SIZE);
+    expect(logMapped.nodes[1]?.size ?? 0).toBeGreaterThan(
+      linearMapped.nodes[1]?.size ?? 0,
+    );
+  });
+
   it("styles cluster proxy nodes explicitly", () => {
     const index = buildMetadataIndex(DATASET);
     const proxyGraph: PositionedGraph = {
@@ -124,6 +167,96 @@ describe("visualMappings", () => {
 
     expect(pieKeys).toEqual([expectedKey]);
     expect(nodeAttributes[expectedKey]).toBe(1);
+  });
+
+  it("maps multi-valued categorical metadata to multiple pie slices", () => {
+    // Given
+    const dataset: CanonicalDataset = {
+      ...DATASET,
+      metadata_by_node_id: {
+        a: { region: "Asia;Europe", distance: 10, trait_a: 4 },
+        b: { region: "US", distance: 30, trait_a: 8 },
+      },
+    };
+    const index = buildMetadataIndex(dataset);
+
+    // When
+    const mapped = applyVisualMappings(BASE_GRAPH, dataset, index, {
+      pie: {
+        fields: ["region"],
+      },
+    });
+
+    // Then
+    const nodeAttributes = mapped.nodes[0]?.attributes as Record<
+      string,
+      unknown
+    >;
+    expect(nodeAttributes[pieCategoricalAttributeKey("region", "Asia")]).toBe(
+      1,
+    );
+    expect(nodeAttributes[pieCategoricalAttributeKey("region", "Europe")]).toBe(
+      1,
+    );
+  });
+
+  it("combines multiple selected metadata fields into pie slices", () => {
+    // Given
+    const dataset: CanonicalDataset = {
+      ...DATASET,
+      metadata_schema: [
+        ...DATASET.metadata_schema,
+        { key: "country", type: METADATA_TYPE_STRING },
+      ],
+      metadata_by_node_id: {
+        a: {
+          region: "Europe",
+          country: "Portugal",
+          distance: 10,
+          trait_a: 4,
+        },
+        b: { region: "US", country: "Canada", distance: 30, trait_a: 8 },
+      },
+    };
+    const index = buildMetadataIndex(dataset);
+
+    // When
+    const mapped = applyVisualMappings(BASE_GRAPH, dataset, index, {
+      pie: {
+        fields: ["region", "country"],
+      },
+    });
+
+    // Then
+    const nodeAttributes = mapped.nodes[0]?.attributes as Record<
+      string,
+      unknown
+    >;
+    expect(nodeAttributes[pieCategoricalAttributeKey("region", "Europe")]).toBe(
+      1,
+    );
+    expect(
+      nodeAttributes[pieCategoricalAttributeKey("country", "Portugal")],
+    ).toBe(1);
+  });
+
+  it("caps detected pie slice keys for high-cardinality metadata fields", () => {
+    // Given
+    const nodes = Array.from({ length: MAX_PIE_SLICE_KEYS + 10 }, (_, index) => ({
+      attributes: {
+        [`${PIE_ATTRIBUTE_PREFIX}country_${index}`]: index + 1,
+      },
+    }));
+
+    // When
+    const keys = detectPieSliceKeys(nodes);
+
+    // Then
+    expect(keys).toHaveLength(MAX_PIE_SLICE_KEYS);
+    expect(keys).toContain(
+      `${PIE_ATTRIBUTE_PREFIX}country_${MAX_PIE_SLICE_KEYS + 9}`,
+    );
+    expect(keys).not.toContain(`${PIE_ATTRIBUTE_PREFIX}country_0`);
   });
 
   it("sanitizes real-world categorical values for graph pie attributes", () => {

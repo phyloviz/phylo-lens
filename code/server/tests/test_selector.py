@@ -164,6 +164,28 @@ def test_select_visible_slice_prioritizes_focus_branch_when_bounded() -> None:
     }
 
 
+def test_select_visible_slice_focus_path_accepts_non_representative_node() -> None:
+    dataset, hierarchy = _viewport_relevance_dataset_and_hierarchy()
+
+    response = select_visible_slice(
+        dataset,
+        hierarchy,
+        VisibleSliceQuery(
+            dataset_id=dataset.dataset_id,
+            viewport=Viewport(x=-9, y=0, width=1, height=1),
+            zoom=3.0,
+            max_nodes=4,
+            focus_node_id="right_leaf",
+        ),
+    )
+
+    assert "right_leaf" in {node.id for node in response.nodes}
+    assert any(
+        edge.source == "right" and edge.target == "right_leaf"
+        for edge in response.edges
+    )
+
+
 def test_select_visible_slice_expands_only_viewport_relevant_clusters() -> None:
     dataset, hierarchy = _viewport_relevance_dataset_and_hierarchy()
 

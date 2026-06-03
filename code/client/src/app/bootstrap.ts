@@ -20,6 +20,8 @@ export const ID_ANCILLARY_WHEEL = "ancillary-wheel";
 export const ID_ANCILLARY_MODE = "ancillary-mode";
 export const ID_ANCILLARY_NODE = "ancillary-node";
 export const ID_METADATA_PIE_FIELD = "metadata-pie-field";
+export const ID_METADATA_SIZE_FIELD = "metadata-size-field";
+export const ID_METADATA_SIZE_SCALE = "metadata-size-scale";
 export const ID_MAX_NODES_INPUT = "max-nodes-input";
 export const ID_INITIAL_ZOOM_INPUT = "initial-zoom-input";
 export const ID_SEARCH_INPUT = "search-input";
@@ -68,6 +70,12 @@ export default function bootstrapClientShell(
   ) as HTMLSelectElement | null;
   const metadataPieFieldSelect = document.getElementById(
     ID_METADATA_PIE_FIELD,
+  ) as HTMLSelectElement | null;
+  const metadataSizeFieldInput = document.getElementById(
+    ID_METADATA_SIZE_FIELD,
+  ) as HTMLInputElement | null;
+  const metadataSizeScaleSelect = document.getElementById(
+    ID_METADATA_SIZE_SCALE,
   ) as HTMLSelectElement | null;
   const maxNodesInput = document.getElementById(
     ID_MAX_NODES_INPUT,
@@ -119,6 +127,8 @@ export default function bootstrapClientShell(
       ancillaryModeSelect: ancillaryModeSelect ?? undefined,
       ancillaryNodeSelect: ancillaryNodeSelect ?? undefined,
       metadataPieFieldSelect: metadataPieFieldSelect ?? undefined,
+      metadataSizeFieldInput: metadataSizeFieldInput ?? undefined,
+      metadataSizeScaleSelect: metadataSizeScaleSelect ?? undefined,
       maxNodesInput: maxNodesInput ?? undefined,
       initialZoomInput: initialZoomInput ?? undefined,
       searchInput: searchInput ?? undefined,

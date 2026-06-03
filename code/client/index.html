@@ -62,11 +62,27 @@
       input,
       select,
       textarea {
+        box-sizing: border-box;
+        width: 100%;
         border: 1px solid var(--border);
         border-radius: 10px;
         padding: 10px 12px;
         font: inherit;
         background: white;
+      }
+
+      select[multiple] {
+        height: 46px;
+        min-height: 46px;
+        max-width: 100%;
+        overflow: auto;
+      }
+
+      select[multiple] option {
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
 
       textarea {
@@ -114,8 +130,9 @@
       .wheel-controls {
         margin-top: 14px;
         display: grid;
-        grid-template-columns: repeat(5, minmax(160px, 1fr));
-        gap: 10px;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 14px;
+        align-items: start;
       }
 
       .wheel-controls label {
@@ -342,8 +359,23 @@
             </label>
             <label>
               Pie Field
-              <select id="metadata-pie-field" disabled>
+              <select id="metadata-pie-field" multiple size="1" disabled>
                 <option value="">Auto pie fields</option>
+              </select>
+            </label>
+            <label>
+              Size Field
+              <input
+                id="metadata-size-field"
+                type="text"
+                value="profile_count"
+              />
+            </label>
+            <label>
+              Size Scale
+              <select id="metadata-size-scale">
+                <option value="linear" selected>Linear</option>
+                <option value="log">Logarithmic</option>
               </select>
             </label>
             <label>

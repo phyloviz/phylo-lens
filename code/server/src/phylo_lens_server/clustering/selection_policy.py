@@ -89,13 +89,7 @@ def focus_path_cluster_ids(
     if focus_node_id is None:
         return set()
 
-    representative_node_to_cluster_id = {
-        cluster.representative_node_id: cluster_id
-        for cluster_id, cluster in hierarchy.clusters.items()
-        if cluster.representative_node_id is not None
-    }
-
-    cluster_id = representative_node_to_cluster_id.get(focus_node_id)
+    cluster_id = deepest_cluster_id_containing_node(hierarchy, focus_node_id)
 
     if cluster_id is None:
         return set()
@@ -108,6 +102,24 @@ def focus_path_cluster_ids(
         current_cluster_id = hierarchy.clusters[current_cluster_id].parent_cluster_id
 
     return path
+
+
+def deepest_cluster_id_containing_node(
+    hierarchy: ThresholdHierarchyIndex,
+    node_id: str,
+) -> str | None:
+    matching_clusters = [
+        cluster
+        for cluster in hierarchy.clusters.values()
+        if node_id in cluster.member_node_ids
+    ]
+    if not matching_clusters:
+        return None
+
+    return max(
+        matching_clusters,
+        key=lambda cluster: cluster.distance_threshold_level,
+    ).cluster_id
 
 
 def cluster_path_cluster_ids(

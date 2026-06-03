@@ -2,11 +2,19 @@ import type {
   GraphWorkbench,
   RenderNewickOptions,
 } from "./workbench/graphWorkbench";
-import type { VisualMappingOptions } from "../render/visualMappings";
+import {
+  DEFAULT_PROFILE_COUNT_FIELD,
+  SIZE_SCALE_LINEAR,
+  SIZE_SCALE_LOG,
+} from "../render/visualMappings";
+import type {
+  SizeScale,
+  VisualMappingOptions,
+} from "../render/visualMappings";
 import {
   buildAncillaryWheelStats,
   buildMetadataFieldWheelStats,
-  collectMetadataFieldKeys,
+  collectMetadataFieldSummaries,
   renderAncillaryWheel,
 } from "../components/ancillaryWheel";
 import type { PositionedGraph } from "../contracts/positioned";
@@ -39,6 +47,7 @@ export const ERR_ANCILLARY_JOIN_COLUMN_REQUIRED =
 const KEY_METADATA_SCHEMA = "metadata_schema";
 const KEY_METADATA_BY_NODE_ID = "metadata_by_node_id";
 const KEY_VISUAL_MAPPING = "visual_mapping";
+const HIGH_CARDINALITY_PIE_FIELD_THRESHOLD = 24;
 
 interface AncillaryPayload {
   metadata_schema?: MetadataField[];
@@ -63,6 +72,8 @@ export interface UiShellElements {
   ancillaryModeSelect?: HTMLSelectElement;
   ancillaryNodeSelect?: HTMLSelectElement;
   metadataPieFieldSelect?: HTMLSelectElement;
+  metadataSizeFieldInput?: HTMLInputElement;
+  metadataSizeScaleSelect?: HTMLSelectElement;
   maxNodesInput?: HTMLInputElement;
   initialZoomInput?: HTMLInputElement;
   searchInput?: HTMLInputElement;
@@ -91,6 +102,8 @@ export class UiShellController {
   private readonly ancillaryModeSelect?: HTMLSelectElement;
   private readonly ancillaryNodeSelect?: HTMLSelectElement;
   private readonly metadataPieFieldSelect?: HTMLSelectElement;
+  private readonly metadataSizeFieldInput?: HTMLInputElement;
+  private readonly metadataSizeScaleSelect?: HTMLSelectElement;
   private readonly maxNodesInput?: HTMLInputElement;
   private readonly initialZoomInput?: HTMLInputElement;
   private readonly searchInput?: HTMLInputElement;
@@ -105,6 +118,7 @@ export class UiShellController {
   private boundAncillaryModeChange: (() => void) | null = null;
   private boundAncillaryNodeChange: (() => void) | null = null;
   private boundMetadataPieFieldChange: (() => void) | null = null;
+  private boundSizeMappingChange: (() => void) | null = null;
   private boundSearchClick: (() => void) | null = null;
 
   constructor(options: UiShellOptions) {
@@ -122,6 +136,8 @@ export class UiShellController {
     this.ancillaryModeSelect = options.elements.ancillaryModeSelect;
     this.ancillaryNodeSelect = options.elements.ancillaryNodeSelect;
     this.metadataPieFieldSelect = options.elements.metadataPieFieldSelect;
+    this.metadataSizeFieldInput = options.elements.metadataSizeFieldInput;
+    this.metadataSizeScaleSelect = options.elements.metadataSizeScaleSelect;
     this.maxNodesInput = options.elements.maxNodesInput;
     this.initialZoomInput = options.elements.initialZoomInput;
     this.searchInput = options.elements.searchInput;
@@ -159,7 +175,10 @@ export class UiShellController {
       this.renderAncillaryStats();
     };
     this.boundMetadataPieFieldChange = () => {
-      this.handleMetadataPieFieldChange();
+      this.handleVisualMappingChange();
+    };
+    this.boundSizeMappingChange = () => {
+      this.handleVisualMappingChange();
     };
 
     this.ancillaryModeSelect?.addEventListener(
@@ -173,6 +192,14 @@ export class UiShellController {
     this.metadataPieFieldSelect?.addEventListener(
       "change",
       this.boundMetadataPieFieldChange,
+    );
+    this.metadataSizeFieldInput?.addEventListener(
+      "input",
+      this.boundSizeMappingChange,
+    );
+    this.metadataSizeScaleSelect?.addEventListener(
+      "change",
+      this.boundSizeMappingChange,
     );
     this.boundSearchClick = () => {
       void this.searchCurrentDataset();
@@ -206,10 +233,7 @@ export class UiShellController {
       const ancillaryPayload = parseAncillaryPayload(ancillaryRaw);
       const ancillaryData = await this.getAncillaryDataInput();
       this.baseVisualMapping = ancillaryPayload.visual_mapping ?? {};
-      this.currentVisualMapping = buildVisualMappingForPieField(
-        this.baseVisualMapping,
-        this.metadataPieFieldSelect?.value ?? "",
-      );
+      this.currentVisualMapping = this.buildCurrentVisualMapping();
       await this.workbench.renderNewick(newick, datasetName || undefined, {
         metadataSchema: ancillaryPayload.metadata_schema,
         metadataByNodeId: ancillaryPayload.metadata_by_node_id,
@@ -264,6 +288,18 @@ export class UiShellController {
         this.boundMetadataPieFieldChange,
       );
       this.boundMetadataPieFieldChange = null;
+    }
+
+    if (this.boundSizeMappingChange) {
+      this.metadataSizeFieldInput?.removeEventListener(
+        "input",
+        this.boundSizeMappingChange,
+      );
+      this.metadataSizeScaleSelect?.removeEventListener(
+        "change",
+        this.boundSizeMappingChange,
+      );
+      this.boundSizeMappingChange = null;
     }
 
     if (this.boundSearchClick) {
@@ -326,12 +362,8 @@ export class UiShellController {
     this.renderAncillaryStats();
   }
 
-  private handleMetadataPieFieldChange(): void {
-    const selectedField = this.metadataPieFieldSelect?.value ?? "";
-    this.currentVisualMapping = buildVisualMappingForPieField(
-      this.baseVisualMapping,
-      selectedField,
-    );
+  private handleVisualMappingChange(): void {
+    this.currentVisualMapping = this.buildCurrentVisualMapping();
 
     if (!this.lastRenderedGraph) {
       this.renderAncillaryStats();
@@ -404,11 +436,15 @@ export class UiShellController {
       return null;
     }
 
-    const selectedField = this.metadataPieFieldSelect?.value;
-    if (selectedField) {
-      return buildMetadataFieldWheelStats(this.lastRenderedGraph, selectedField, {
-        includeNodeIds,
-      });
+    const selectedFields = getSelectedOptions(this.metadataPieFieldSelect);
+    if (selectedFields.length > 0) {
+      return buildMetadataFieldWheelStats(
+        this.lastRenderedGraph,
+        selectedFields[0] ?? "",
+        {
+          includeNodeIds,
+        },
+      );
     }
 
     return buildAncillaryWheelStats(this.lastRenderedGraph, { includeNodeIds });
@@ -479,11 +515,13 @@ export class UiShellController {
       return;
     }
 
-    const keys = collectMetadataFieldKeys(graph);
-    keys.forEach((key) => {
+    const summaries = collectMetadataFieldSummaries(graph);
+    const keys = summaries.map((summary) => summary.key);
+    summaries.forEach((summary) => {
       const option = document.createElement("option");
-      option.value = key;
-      option.textContent = key;
+      option.value = summary.key;
+      option.textContent = formatPieFieldOption(summary);
+      option.title = `${summary.key}: ${summary.uniqueValueCount} unique values in the current graph`;
       this.metadataPieFieldSelect?.appendChild(option);
     });
 
@@ -509,6 +547,15 @@ export class UiShellController {
       return DEFAULT_INITIAL_ZOOM;
     }
     return parsed;
+  }
+
+  private buildCurrentVisualMapping(): VisualMappingOptions {
+    return buildVisualMappingForControls(
+      this.baseVisualMapping,
+      getSelectedOptions(this.metadataPieFieldSelect),
+      this.metadataSizeFieldInput?.value,
+      this.metadataSizeScaleSelect?.value,
+    );
   }
 
   private async getNewickInput(): Promise<string> {
@@ -583,6 +630,17 @@ function buildRenderedStatus(graph: PositionedGraph): string {
   return `${STATUS_RENDERED_PREFIX}: ${parts.join(", ")}`;
 }
 
+function formatPieFieldOption(summary: {
+  key: string;
+  uniqueValueCount: number;
+}): string {
+  const suffix =
+    summary.uniqueValueCount > HIGH_CARDINALITY_PIE_FIELD_THRESHOLD
+      ? "many values"
+      : `${summary.uniqueValueCount} values`;
+  return `${summary.key} (${suffix})`;
+}
+
 function parseAncillaryPayload(rawInput: string): AncillaryPayload {
   if (!rawInput) {
     return {};
@@ -625,23 +683,65 @@ function parseAncillaryPayload(rawInput: string): AncillaryPayload {
   };
 }
 
-function buildVisualMappingForPieField(
+function buildVisualMappingForControls(
   baseVisualMapping: VisualMappingOptions,
-  fieldKey: string,
+  fieldKeys: string[],
+  sizeFieldKey: string | undefined,
+  sizeScaleValue: string | undefined,
 ): VisualMappingOptions {
-  const selectedField = fieldKey.trim();
-  if (!selectedField) {
-    return baseVisualMapping;
+  const selectedFields = fieldKeys.map((field) => field.trim()).filter(Boolean);
+  const mapping: VisualMappingOptions = { ...baseVisualMapping };
+  const hasSizeControls =
+    sizeFieldKey !== undefined || sizeScaleValue !== undefined;
+
+  if (hasSizeControls || baseVisualMapping.size || baseVisualMapping.sizeField) {
+    const selectedSizeField =
+      sizeFieldKey?.trim() ||
+      baseVisualMapping.size?.field ||
+      baseVisualMapping.sizeField ||
+      DEFAULT_PROFILE_COUNT_FIELD;
+    mapping.size = {
+      ...(baseVisualMapping.size ?? {}),
+      field: selectedSizeField,
+      scale: normalizeSizeScale(sizeScaleValue, baseVisualMapping.size?.scale),
+    };
+  }
+
+  if (selectedFields.length === 0) {
+    return mapping;
   }
 
   return {
-    ...baseVisualMapping,
+    ...mapping,
     pie: {
       ...(baseVisualMapping.pie ?? {}),
       enabled: true,
-      fields: [selectedField],
+      fields: selectedFields,
     },
   };
+}
+
+function getSelectedOptions(select: HTMLSelectElement | undefined): string[] {
+  if (!select) {
+    return [];
+  }
+
+  return [...select.selectedOptions]
+    .map((option) => option.value)
+    .filter((value) => value.trim().length > 0);
+}
+
+function normalizeSizeScale(
+  value: string | undefined,
+  fallback: SizeScale | undefined,
+): SizeScale {
+  if (value === SIZE_SCALE_LOG) {
+    return SIZE_SCALE_LOG;
+  }
+  if (value === SIZE_SCALE_LINEAR) {
+    return SIZE_SCALE_LINEAR;
+  }
+  return fallback ?? SIZE_SCALE_LINEAR;
 }
 
 function readTextFile(file: File): Promise<string> {

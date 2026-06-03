@@ -49,4 +49,31 @@ describe("ancillaryWheel metadata distributions", () => {
       ["Canada", 1],
     ]);
   });
+
+  it("splits multi-valued metadata when building selected field stats", () => {
+    // Given
+    const graph: PositionedGraph = {
+      ...GRAPH,
+      nodes: [
+        {
+          id: "a",
+          x: 0,
+          y: 0,
+          attributes: {
+            metadata: { country: "Portugal;Spain" },
+          },
+        },
+      ],
+    };
+
+    // When
+    const stats = buildMetadataFieldWheelStats(graph, "country");
+
+    // Then
+    expect(stats?.total).toBe(2);
+    expect(stats?.slices.map((slice) => [slice.label, slice.value])).toEqual([
+      ["Portugal", 1],
+      ["Spain", 1],
+    ]);
+  });
 });
