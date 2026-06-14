@@ -3,14 +3,19 @@ import type {
   RenderNewickOptions,
 } from "./workbench/graphWorkbench";
 import {
+  DEFAULT_COLOR_PALETTE,
   DEFAULT_PROFILE_COUNT_FIELD,
   SIZE_SCALE_LINEAR,
   SIZE_SCALE_LOG,
 } from "../render/visualMappings";
-import type {
-  SizeScale,
-  VisualMappingOptions,
-} from "../render/visualMappings";
+import type { SizeScale, VisualMappingOptions } from "../render/visualMappings";
+import type { GraphDisplayOptions } from "../render/types";
+import {
+  categoricalPieValues,
+  MAX_PIE_SLICE_KEYS,
+  PIE_OTHER_SLICE_COLOR,
+  PIE_OTHER_SLICE_LABEL,
+} from "../render/pieMapping";
 import {
   buildAncillaryWheelStats,
   buildMetadataFieldWheelStats,
@@ -30,6 +35,12 @@ export const DEFAULT_INITIAL_ZOOM = 4;
 export const ANCILLARY_MODE_GLOBAL = "global";
 export const ANCILLARY_MODE_CURRENT = "current";
 export const ANCILLARY_MODE_SELECTED = "selected";
+export const DISPLAY_OPTION_NODE_LABELS = "node-labels";
+export const DISPLAY_OPTION_EDGE_DISTANCE_LABELS = "edge-distance-labels";
+export const DISPLAY_OPTION_DISTANCE_WEIGHTED_EDGES =
+  "distance-weighted-edges";
+export const CATEGORY_COLOR_INPUT_SELECTOR = "[data-category-color]";
+export const CATEGORY_COLOR_SAVE_FILENAME = "phyloviz-category-colors.txt";
 
 export type AncillaryMode =
   | typeof ANCILLARY_MODE_GLOBAL
@@ -74,6 +85,13 @@ export interface UiShellElements {
   metadataPieFieldSelect?: HTMLSelectElement;
   metadataSizeFieldInput?: HTMLInputElement;
   metadataSizeScaleSelect?: HTMLSelectElement;
+  paletteControlsContainer?: HTMLElement;
+  paletteLoadButton?: HTMLButtonElement;
+  paletteLoadInput?: HTMLInputElement;
+  paletteSaveButton?: HTMLButtonElement;
+  displayOptionsSelect?: HTMLSelectElement;
+  lodPlayButton?: HTMLButtonElement;
+  lodPauseButton?: HTMLButtonElement;
   maxNodesInput?: HTMLInputElement;
   initialZoomInput?: HTMLInputElement;
   searchInput?: HTMLInputElement;
@@ -104,6 +122,13 @@ export class UiShellController {
   private readonly metadataPieFieldSelect?: HTMLSelectElement;
   private readonly metadataSizeFieldInput?: HTMLInputElement;
   private readonly metadataSizeScaleSelect?: HTMLSelectElement;
+  private readonly paletteControlsContainer?: HTMLElement;
+  private readonly paletteLoadButton?: HTMLButtonElement;
+  private readonly paletteLoadInput?: HTMLInputElement;
+  private readonly paletteSaveButton?: HTMLButtonElement;
+  private readonly displayOptionsSelect?: HTMLSelectElement;
+  private readonly lodPlayButton?: HTMLButtonElement;
+  private readonly lodPauseButton?: HTMLButtonElement;
   private readonly maxNodesInput?: HTMLInputElement;
   private readonly initialZoomInput?: HTMLInputElement;
   private readonly searchInput?: HTMLInputElement;
@@ -113,12 +138,22 @@ export class UiShellController {
   private lastRenderedGraph: PositionedGraph | null = null;
   private baseVisualMapping: VisualMappingOptions = {};
   private currentVisualMapping: VisualMappingOptions = {};
+  private categoryColorOverrides: Record<string, string> = {};
 
   private boundSubmit: ((event: SubmitEvent) => void) | null = null;
   private boundAncillaryModeChange: (() => void) | null = null;
   private boundAncillaryNodeChange: (() => void) | null = null;
   private boundMetadataPieFieldChange: (() => void) | null = null;
   private boundSizeMappingChange: (() => void) | null = null;
+  private boundCategoryColorChange: (() => void) | null = null;
+  private boundPaletteLoadClick: (() => void) | null = null;
+  private boundPaletteLoadChange: (() => void) | null = null;
+  private boundPaletteSaveClick: (() => void) | null = null;
+  private boundDisplayOptionsPointerDown: ((event: MouseEvent) => void) | null =
+    null;
+  private boundDisplayOptionsChange: (() => void) | null = null;
+  private boundLodPlayClick: (() => void) | null = null;
+  private boundLodPauseClick: (() => void) | null = null;
   private boundSearchClick: (() => void) | null = null;
 
   constructor(options: UiShellOptions) {
@@ -138,6 +173,13 @@ export class UiShellController {
     this.metadataPieFieldSelect = options.elements.metadataPieFieldSelect;
     this.metadataSizeFieldInput = options.elements.metadataSizeFieldInput;
     this.metadataSizeScaleSelect = options.elements.metadataSizeScaleSelect;
+    this.paletteControlsContainer = options.elements.paletteControlsContainer;
+    this.paletteLoadButton = options.elements.paletteLoadButton;
+    this.paletteLoadInput = options.elements.paletteLoadInput;
+    this.paletteSaveButton = options.elements.paletteSaveButton;
+    this.displayOptionsSelect = options.elements.displayOptionsSelect;
+    this.lodPlayButton = options.elements.lodPlayButton;
+    this.lodPauseButton = options.elements.lodPauseButton;
     this.maxNodesInput = options.elements.maxNodesInput;
     this.initialZoomInput = options.elements.initialZoomInput;
     this.searchInput = options.elements.searchInput;
@@ -166,6 +208,7 @@ export class UiShellController {
     if (this.ancillaryWheelContainer) {
       renderAncillaryWheel(this.ancillaryWheelContainer, null);
     }
+    this.renderCategoryColorControls();
 
     this.boundAncillaryModeChange = () => {
       this.updateNodeSelectionVisibility();
@@ -175,10 +218,36 @@ export class UiShellController {
       this.renderAncillaryStats();
     };
     this.boundMetadataPieFieldChange = () => {
+      this.renderCategoryColorControls();
       this.handleVisualMappingChange();
     };
     this.boundSizeMappingChange = () => {
       this.handleVisualMappingChange();
+    };
+    this.boundCategoryColorChange = () => {
+      this.categoryColorOverrides = this.getSelectedCategoryColors() ?? {};
+      this.handleVisualMappingChange();
+    };
+    this.boundPaletteLoadClick = () => {
+      this.paletteLoadInput?.click();
+    };
+    this.boundPaletteLoadChange = () => {
+      void this.handlePaletteLoad();
+    };
+    this.boundPaletteSaveClick = () => {
+      this.handlePaletteSave();
+    };
+    this.boundDisplayOptionsChange = () => {
+      this.handleDisplayOptionsChange();
+    };
+    this.boundDisplayOptionsPointerDown = (event: MouseEvent) => {
+      this.handleDisplayOptionPointerDown(event);
+    };
+    this.boundLodPlayClick = () => {
+      void this.handleLodPlaybackChange(false);
+    };
+    this.boundLodPauseClick = () => {
+      void this.handleLodPlaybackChange(true);
     };
 
     this.ancillaryModeSelect?.addEventListener(
@@ -201,12 +270,40 @@ export class UiShellController {
       "change",
       this.boundSizeMappingChange,
     );
+    this.paletteControlsContainer?.addEventListener(
+      "input",
+      this.boundCategoryColorChange,
+    );
+    this.paletteLoadButton?.addEventListener(
+      "click",
+      this.boundPaletteLoadClick,
+    );
+    this.paletteLoadInput?.addEventListener(
+      "change",
+      this.boundPaletteLoadChange,
+    );
+    this.paletteSaveButton?.addEventListener(
+      "click",
+      this.boundPaletteSaveClick,
+    );
+    this.displayOptionsSelect?.addEventListener(
+      "change",
+      this.boundDisplayOptionsChange,
+    );
+    this.displayOptionsSelect?.addEventListener(
+      "mousedown",
+      this.boundDisplayOptionsPointerDown,
+    );
+    this.lodPlayButton?.addEventListener("click", this.boundLodPlayClick);
+    this.lodPauseButton?.addEventListener("click", this.boundLodPauseClick);
     this.boundSearchClick = () => {
       void this.searchCurrentDataset();
     };
     this.searchButton?.addEventListener("click", this.boundSearchClick);
     this.updateNodeSelectionVisibility();
     this.updateMetadataPieFieldOptions(null);
+    this.updateLodPlaybackControls(false);
+    this.handleDisplayOptionsChange();
 
     this.boundSubmit = (event: SubmitEvent) => {
       event.preventDefault();
@@ -250,8 +347,10 @@ export class UiShellController {
       this.lastRenderedGraph = null;
       this.baseVisualMapping = {};
       this.currentVisualMapping = {};
+      this.categoryColorOverrides = {};
       this.updateNodeSelector(null);
       this.updateMetadataPieFieldOptions(null);
+      this.renderCategoryColorControls();
       this.renderAncillaryStats();
     }
   }
@@ -300,6 +399,67 @@ export class UiShellController {
         this.boundSizeMappingChange,
       );
       this.boundSizeMappingChange = null;
+    }
+
+    if (this.boundCategoryColorChange) {
+      this.paletteControlsContainer?.removeEventListener(
+        "input",
+        this.boundCategoryColorChange,
+      );
+      this.boundCategoryColorChange = null;
+    }
+
+    if (this.boundPaletteLoadChange) {
+      this.paletteLoadInput?.removeEventListener(
+        "change",
+        this.boundPaletteLoadChange,
+      );
+      this.boundPaletteLoadChange = null;
+    }
+
+    if (this.boundPaletteLoadClick) {
+      this.paletteLoadButton?.removeEventListener(
+        "click",
+        this.boundPaletteLoadClick,
+      );
+      this.boundPaletteLoadClick = null;
+    }
+
+    if (this.boundPaletteSaveClick) {
+      this.paletteSaveButton?.removeEventListener(
+        "click",
+        this.boundPaletteSaveClick,
+      );
+      this.boundPaletteSaveClick = null;
+    }
+
+    if (this.boundDisplayOptionsChange) {
+      this.displayOptionsSelect?.removeEventListener(
+        "change",
+        this.boundDisplayOptionsChange,
+      );
+      this.boundDisplayOptionsChange = null;
+    }
+
+    if (this.boundDisplayOptionsPointerDown) {
+      this.displayOptionsSelect?.removeEventListener(
+        "mousedown",
+        this.boundDisplayOptionsPointerDown,
+      );
+      this.boundDisplayOptionsPointerDown = null;
+    }
+
+    if (this.boundLodPlayClick) {
+      this.lodPlayButton?.removeEventListener("click", this.boundLodPlayClick);
+      this.boundLodPlayClick = null;
+    }
+
+    if (this.boundLodPauseClick) {
+      this.lodPauseButton?.removeEventListener(
+        "click",
+        this.boundLodPauseClick,
+      );
+      this.boundLodPauseClick = null;
     }
 
     if (this.boundSearchClick) {
@@ -358,7 +518,9 @@ export class UiShellController {
     this.lastRenderedGraph = graph;
     this.updateNodeSelector(graph);
     this.updateMetadataPieFieldOptions(graph);
+    this.renderCategoryColorControls();
     this.updateNodeSelectionVisibility();
+    this.updateLodPlaybackControls(this.isLodGraph(graph));
     this.renderAncillaryStats();
   }
 
@@ -376,6 +538,80 @@ export class UiShellController {
       const message = error instanceof Error ? error.message : "unknown error";
       this.setStatus(`${STATUS_FAILED_PREFIX}: ${message}`);
     }
+  }
+
+  private handleDisplayOptionsChange(): void {
+    this.workbench.updateDisplayOptions(this.buildCurrentDisplayOptions());
+  }
+
+  private handleDisplayOptionPointerDown(event: MouseEvent): void {
+    if (
+      !this.displayOptionsSelect ||
+      !(event.target instanceof HTMLOptionElement)
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+    event.target.selected = !event.target.selected;
+    this.handleDisplayOptionsChange();
+  }
+
+  private async handleLodPlaybackChange(paused: boolean): Promise<void> {
+    try {
+      await this.workbench.setLodRefreshPaused(paused);
+      this.updateLodPlaybackControls(this.isLodGraph(this.lastRenderedGraph));
+      if (paused) {
+        this.setStatus("LoD paused: navigate freely without slice refreshes");
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "unknown error";
+      this.setStatus(`${STATUS_FAILED_PREFIX}: ${message}`);
+    }
+  }
+
+  private async handlePaletteLoad(): Promise<void> {
+    const file = this.paletteLoadInput?.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    try {
+      const categories = this.getEditableCategoryOrder();
+      const loadedColors = parseCategoryColorPalette(
+        await readTextFile(file),
+        categories,
+      );
+      this.categoryColorOverrides = {
+        ...this.categoryColorOverrides,
+        ...loadedColors,
+      };
+      this.renderCategoryColorControls();
+      this.handleVisualMappingChange();
+      this.setStatus(`Loaded ${Object.keys(loadedColors).length} category colors`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "unknown error";
+      this.setStatus(`${STATUS_FAILED_PREFIX}: ${message}`);
+    } finally {
+      if (this.paletteLoadInput) {
+        this.paletteLoadInput.value = "";
+      }
+    }
+  }
+
+  private handlePaletteSave(): void {
+    const colors = this.getSelectedCategoryColors();
+    const categories = this.getEditableCategoryOrder();
+    if (!colors || categories.length === 0) {
+      this.setStatus(`${STATUS_FAILED_PREFIX}: no category colors to save`);
+      return;
+    }
+
+    downloadTextFile(
+      CATEGORY_COLOR_SAVE_FILENAME,
+      serializeCategoryColorPalette(colors, categories),
+    );
+    this.setStatus(`Saved ${categories.length} category colors`);
   }
 
   private async searchCurrentDataset(): Promise<void> {
@@ -531,6 +767,85 @@ export class UiShellController {
     }
   }
 
+  private renderCategoryColorControls(): void {
+    if (!this.paletteControlsContainer) {
+      return;
+    }
+
+    this.paletteControlsContainer.innerHTML = "";
+    const selectedField = getSelectedOptions(this.metadataPieFieldSelect)[0];
+    if (!this.lastRenderedGraph || !selectedField) {
+      const empty = document.createElement("span");
+      empty.className = "category-color-empty";
+      empty.textContent = "Choose a pie field";
+      this.paletteControlsContainer.appendChild(empty);
+      return;
+    }
+
+    const categories = buildCategorySummaries(
+      this.lastRenderedGraph,
+      selectedField,
+    );
+    if (categories.length === 0) {
+      const empty = document.createElement("span");
+      empty.className = "category-color-empty";
+      empty.textContent = "No categories";
+      this.paletteControlsContainer.appendChild(empty);
+      return;
+    }
+
+    categories.forEach((category, index) => {
+      const color =
+        category.label === PIE_OTHER_SLICE_LABEL
+          ? PIE_OTHER_SLICE_COLOR
+          : this.categoryColorOverrides[category.label] ??
+            category.color ??
+            DEFAULT_COLOR_PALETTE[index % DEFAULT_COLOR_PALETTE.length] ??
+            "#0f766e";
+      const label = document.createElement("label");
+      label.className = "category-color-row";
+      label.title = category.label;
+
+      const input = document.createElement("input");
+      input.type = "color";
+      input.value = color;
+      input.dataset.categoryColor = category.label;
+      input.disabled = category.label === PIE_OTHER_SLICE_LABEL;
+      input.setAttribute("aria-label", `${category.label} color`);
+
+      const name = document.createElement("span");
+      name.className = "category-color-name";
+      name.textContent = category.label;
+
+      const count = document.createElement("span");
+      count.className = "category-color-count";
+      count.textContent = `n = ${category.count}, ${category.percentage.toFixed(1)}%`;
+
+      label.appendChild(input);
+      label.appendChild(name);
+      label.appendChild(count);
+      this.paletteControlsContainer?.appendChild(label);
+    });
+  }
+
+  private updateLodPlaybackControls(lodAvailable: boolean): void {
+    const paused = this.workbench.isLodRefreshPaused();
+
+    if (this.lodPlayButton) {
+      this.lodPlayButton.disabled = !lodAvailable || !paused;
+      this.lodPlayButton.setAttribute("aria-pressed", String(!paused));
+    }
+
+    if (this.lodPauseButton) {
+      this.lodPauseButton.disabled = !lodAvailable || paused;
+      this.lodPauseButton.setAttribute("aria-pressed", String(paused));
+    }
+  }
+
+  private isLodGraph(graph: PositionedGraph | null): boolean {
+    return typeof graph?.viewMeta.sliceNodeCount === "number";
+  }
+
   private getSelectedMaxNodes(): number {
     const rawValue = this.maxNodesInput?.value;
     const parsed = Number(rawValue);
@@ -555,7 +870,59 @@ export class UiShellController {
       getSelectedOptions(this.metadataPieFieldSelect),
       this.metadataSizeFieldInput?.value,
       this.metadataSizeScaleSelect?.value,
+      this.getSelectedCategoryColors(),
     );
+  }
+
+  private getSelectedCategoryColors(): Record<string, string> | undefined {
+    if (!this.paletteControlsContainer) {
+      return undefined;
+    }
+
+    const colorsByCategory: Record<string, string> = {};
+    [
+      ...this.paletteControlsContainer.querySelectorAll<HTMLInputElement>(
+        CATEGORY_COLOR_INPUT_SELECTOR,
+      ),
+    ].forEach((input) => {
+      const category = input.dataset.categoryColor;
+      const color = input.value.trim();
+      if (category && !input.disabled && isHexColor(color)) {
+        colorsByCategory[category] = color;
+      }
+    });
+
+    return Object.keys(colorsByCategory).length > 0
+      ? colorsByCategory
+      : undefined;
+  }
+
+  private getEditableCategoryOrder(): string[] {
+    if (!this.paletteControlsContainer) {
+      return [];
+    }
+
+    return [
+      ...this.paletteControlsContainer.querySelectorAll<HTMLInputElement>(
+        CATEGORY_COLOR_INPUT_SELECTOR,
+      ),
+    ]
+      .filter((input) => !input.disabled && input.dataset.categoryColor)
+      .map((input) => input.dataset.categoryColor as string);
+  }
+
+  private buildCurrentDisplayOptions(): GraphDisplayOptions {
+    const selected = new Set(getSelectedOptions(this.displayOptionsSelect));
+    const hasExplicitSelection = selected.size > 0;
+
+    return {
+      nodeLabels:
+        !hasExplicitSelection || selected.has(DISPLAY_OPTION_NODE_LABELS),
+      edgeDistanceLabels: selected.has(DISPLAY_OPTION_EDGE_DISTANCE_LABELS),
+      distanceWeightedEdges: selected.has(
+        DISPLAY_OPTION_DISTANCE_WEIGHTED_EDGES,
+      ),
+    };
   }
 
   private async getNewickInput(): Promise<string> {
@@ -641,6 +1008,165 @@ function formatPieFieldOption(summary: {
   return `${summary.key} (${suffix})`;
 }
 
+function buildCategorySummaries(
+  graph: PositionedGraph,
+  fieldKey: string,
+): Array<{
+  label: string;
+  count: number;
+  percentage: number;
+  color?: string;
+}> {
+  const countsByCategory = new Map<string, number>();
+  graph.nodes.forEach((node) => {
+    const metadata = readNodeMetadata(node.attributes);
+    const value = metadata?.[fieldKey];
+    categoricalPieValues(value).forEach((category) => {
+      countsByCategory.set(
+        category,
+        (countsByCategory.get(category) ?? 0) + 1,
+      );
+    });
+  });
+
+  const total = [...countsByCategory.values()].reduce(
+    (sum, count) => sum + count,
+    0,
+  );
+  if (total <= 0) {
+    return [];
+  }
+
+  const sorted = [...countsByCategory.entries()].sort(
+    ([leftLabel, leftCount], [rightLabel, rightCount]) =>
+      rightCount - leftCount || leftLabel.localeCompare(rightLabel),
+  );
+  const topCategories = sorted.slice(0, MAX_PIE_SLICE_KEYS);
+  const remainingCategories = sorted.slice(MAX_PIE_SLICE_KEYS);
+  const summaries = topCategories.map(([label, count]) => ({
+    label,
+    count,
+    percentage: (count / total) * 100,
+  }));
+  const otherCount = remainingCategories.reduce(
+    (sum, [, count]) => sum + count,
+    0,
+  );
+
+  if (otherCount > 0) {
+    summaries.push({
+      label: PIE_OTHER_SLICE_LABEL,
+      count: otherCount,
+      percentage: (otherCount / total) * 100,
+    });
+  }
+
+  return summaries;
+}
+
+function readNodeMetadata(
+  attributes: Record<string, unknown> | undefined,
+): Record<string, string | number | boolean | null> | null {
+  const metadata = attributes?.metadata;
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+    return null;
+  }
+
+  return metadata as Record<string, string | number | boolean | null>;
+}
+
+function parseCategoryColorPalette(
+  rawInput: string,
+  categoryOrder: string[],
+): Record<string, string> {
+  const trimmedInput = rawInput.trim();
+  if (!trimmedInput) {
+    return {};
+  }
+
+  if (trimmedInput.startsWith("{")) {
+    return parseNamedCategoryColorPalette(trimmedInput);
+  }
+
+  const colorsByCategory: Record<string, string> = {};
+  trimmedInput
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .forEach((line, index) => {
+      const category = categoryOrder[index];
+      const color = rgbLineToHex(line);
+      if (category && color) {
+        colorsByCategory[category] = color;
+      }
+    });
+
+  return colorsByCategory;
+}
+
+function parseNamedCategoryColorPalette(rawInput: string): Record<string, string> {
+  const parsed: unknown = JSON.parse(rawInput);
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return {};
+  }
+
+  const record = parsed as Record<string, unknown>;
+  const source =
+    record.colors && typeof record.colors === "object" && !Array.isArray(record.colors)
+      ? (record.colors as Record<string, unknown>)
+      : record;
+  const colorsByCategory: Record<string, string> = {};
+  Object.entries(source).forEach(([category, color]) => {
+    if (typeof color === "string" && isHexColor(color)) {
+      colorsByCategory[category] = color;
+    }
+  });
+
+  return colorsByCategory;
+}
+
+function serializeCategoryColorPalette(
+  colorsByCategory: Record<string, string>,
+  categoryOrder: string[],
+): string {
+  return categoryOrder
+    .map((category) => hexToRgbLine(colorsByCategory[category]))
+    .filter((line): line is string => Boolean(line))
+    .join("\n");
+}
+
+function rgbLineToHex(line: string): string | null {
+  const parts = line.split(",").map((part) => Number(part.trim()));
+  if (
+    parts.length !== 3 ||
+    parts.some(
+      (part) =>
+        !Number.isInteger(part) || part < 0 || part > 255,
+    )
+  ) {
+    return null;
+  }
+
+  return `#${parts
+    .map((part) => part.toString(16).padStart(2, "0"))
+    .join("")}`;
+}
+
+function hexToRgbLine(color: string | undefined): string | null {
+  if (!color || !isHexColor(color)) {
+    return null;
+  }
+
+  const red = Number.parseInt(color.slice(1, 3), 16);
+  const green = Number.parseInt(color.slice(3, 5), 16);
+  const blue = Number.parseInt(color.slice(5, 7), 16);
+  return `${red},${green},${blue}`;
+}
+
+function isHexColor(color: string): boolean {
+  return /^#[0-9a-fA-F]{6}$/.test(color);
+}
+
 function parseAncillaryPayload(rawInput: string): AncillaryPayload {
   if (!rawInput) {
     return {};
@@ -688,6 +1214,7 @@ function buildVisualMappingForControls(
   fieldKeys: string[],
   sizeFieldKey: string | undefined,
   sizeScaleValue: string | undefined,
+  categoryColors: Record<string, string> | undefined,
 ): VisualMappingOptions {
   const selectedFields = fieldKeys.map((field) => field.trim()).filter(Boolean);
   const mapping: VisualMappingOptions = { ...baseVisualMapping };
@@ -707,6 +1234,13 @@ function buildVisualMappingForControls(
     };
   }
 
+  if (categoryColors && Object.keys(categoryColors).length > 0) {
+    mapping.pie = {
+      ...(mapping.pie ?? baseVisualMapping.pie ?? {}),
+      categoryColors,
+    };
+  }
+
   if (selectedFields.length === 0) {
     return mapping;
   }
@@ -714,7 +1248,7 @@ function buildVisualMappingForControls(
   return {
     ...mapping,
     pie: {
-      ...(baseVisualMapping.pie ?? {}),
+      ...(mapping.pie ?? baseVisualMapping.pie ?? {}),
       enabled: true,
       fields: selectedFields,
     },
@@ -746,4 +1280,17 @@ function normalizeSizeScale(
 
 function readTextFile(file: File): Promise<string> {
   return file.text();
+}
+
+function downloadTextFile(filename: string, content: string): void {
+  const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.style.display = "none";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }

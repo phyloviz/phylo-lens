@@ -2,8 +2,15 @@ import { UiShellController } from "../src/app/uiShell";
 import type { GraphWorkbench } from "../src/app/workbench/graphWorkbench";
 import type { PositionedGraph } from "../src/contracts/positioned";
 
-function makeFakeWorkbench(renderedGraph: PositionedGraph) {
+function makeFakeWorkbench(
+  renderedGraph: PositionedGraph = {
+    nodes: [],
+    edges: [],
+    viewMeta: { layout: "force", lodLevel: 0 },
+  },
+) {
   let graphRenderedHandler: ((graph: PositionedGraph) => void) | null = null;
+  let lodRefreshPaused = false;
 
   return {
     renderNewick: vi.fn(async () => {
@@ -14,6 +21,12 @@ function makeFakeWorkbench(renderedGraph: PositionedGraph) {
       graphRenderedHandler?.(renderedGraph);
       return renderedGraph;
     }),
+    updateDisplayOptions: vi.fn(),
+    setLodRefreshPaused: vi.fn(async (paused: boolean) => {
+      lodRefreshPaused = paused;
+      return renderedGraph;
+    }),
+    isLodRefreshPaused: vi.fn(() => lodRefreshPaused),
     searchNodes: vi.fn(async () => ({
       dataset_id: "fixture-tree",
       query: "port",
@@ -433,6 +446,327 @@ describe("uiShell", () => {
         },
       }),
     );
+    shell.unmount();
+  });
+
+  it("forwards category color controls through the visual mapping", async () => {
+    document.body.innerHTML = `
+      <form id="render-form"></form>
+      <textarea id="newick-input"></textarea>
+      <select id="metadata-pie-field"></select>
+      <div id="palette-controls"></div>
+      <input id="palette-load-input" type="file" />
+      <button id="palette-save-button" type="button"></button>
+      <div id="status"></div>
+    `;
+
+    const form = document.getElementById("render-form") as HTMLFormElement;
+    const input = document.getElementById(
+      "newick-input",
+    ) as HTMLTextAreaElement;
+    const metadataPieFieldSelect = document.getElementById(
+      "metadata-pie-field",
+    ) as HTMLSelectElement;
+    const paletteControlsContainer = document.getElementById(
+      "palette-controls",
+    ) as HTMLElement;
+    const paletteLoadInput = document.getElementById(
+      "palette-load-input",
+    ) as HTMLInputElement;
+    const paletteSaveButton = document.getElementById(
+      "palette-save-button",
+    ) as HTMLButtonElement;
+    const status = document.getElementById("status") as HTMLElement;
+
+    input.value = "(A,B)Root;";
+    const fakeWorkbench = makeFakeWorkbench({
+      nodes: [
+        {
+          id: "a",
+          x: 0,
+          y: 0,
+          attributes: { metadata: { country: "Portugal" } },
+        },
+        {
+          id: "b",
+          x: 1,
+          y: 1,
+          attributes: { metadata: { country: "Canada" } },
+        },
+        {
+          id: "c",
+          x: 2,
+          y: 2,
+          attributes: { metadata: { country: "Portugal" } },
+        },
+      ],
+      edges: [],
+      viewMeta: { layout: "force", lodLevel: 0 },
+    });
+    const shell = new UiShellController({
+      workbench: fakeWorkbench,
+      elements: {
+        form,
+        newickInput: input,
+        metadataPieFieldSelect,
+        paletteControlsContainer,
+        paletteLoadInput,
+        paletteSaveButton,
+        status,
+      },
+    });
+
+    shell.mount();
+    await shell.renderCurrentInput();
+    metadataPieFieldSelect.value = "country";
+    metadataPieFieldSelect.dispatchEvent(new Event("change"));
+
+    const portugalColor =
+      paletteControlsContainer.querySelector<HTMLInputElement>(
+        "[data-category-color='Portugal']",
+      );
+    expect(portugalColor).not.toBeNull();
+    portugalColor!.value = "#123456";
+    portugalColor!.dispatchEvent(new Event("input", { bubbles: true }));
+
+    expect(fakeWorkbench.updateVisualMapping).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        pie: expect.objectContaining({
+          enabled: true,
+          fields: ["country"],
+          categoryColors: expect.objectContaining({
+            Portugal: "#123456",
+          }),
+        }),
+      }),
+    );
+
+    setInputFiles(paletteLoadInput, [
+      new File(["18,52,86\n171,205,239\n"], "colors.palette"),
+    ]);
+    paletteLoadInput.dispatchEvent(new Event("change"));
+    await vi.waitFor(() => {
+      expect(fakeWorkbench.updateVisualMapping).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          pie: expect.objectContaining({
+            categoryColors: expect.objectContaining({
+              Portugal: "#123456",
+              Canada: "#abcdef",
+            }),
+          }),
+        }),
+      );
+    });
+
+    if (!URL.createObjectURL) {
+      Object.defineProperty(URL, "createObjectURL", {
+        configurable: true,
+        value: () => "blob:palette",
+      });
+    }
+    if (!URL.revokeObjectURL) {
+      Object.defineProperty(URL, "revokeObjectURL", {
+        configurable: true,
+        value: () => undefined,
+      });
+    }
+
+    const createObjectUrl = vi
+      .spyOn(URL, "createObjectURL")
+      .mockReturnValue("blob:palette");
+    const revokeObjectUrl = vi
+      .spyOn(URL, "revokeObjectURL")
+      .mockImplementation(() => undefined);
+    const clickAnchor = vi
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(() => undefined);
+
+    paletteSaveButton.click();
+
+    const savedBlob = createObjectUrl.mock.calls[0]?.[0] as Blob;
+    await expect(savedBlob.text()).resolves.toBe("18,52,86\n171,205,239");
+    expect(clickAnchor).toHaveBeenCalled();
+    expect(revokeObjectUrl).toHaveBeenCalledWith("blob:palette");
+
+    createObjectUrl.mockRestore();
+    revokeObjectUrl.mockRestore();
+    clickAnchor.mockRestore();
+    shell.unmount();
+  });
+
+  it("forwards display option selector changes to the workbench", () => {
+    document.body.innerHTML = `
+      <form id="render-form"></form>
+      <textarea id="newick-input"></textarea>
+      <select id="display-options" multiple>
+        <option value="node-labels" selected>Node labels</option>
+        <option value="edge-distance-labels">Edge distance labels</option>
+        <option value="distance-weighted-edges">Distance-weighted edges</option>
+      </select>
+      <div id="status"></div>
+    `;
+
+    const form = document.getElementById("render-form") as HTMLFormElement;
+    const input = document.getElementById(
+      "newick-input",
+    ) as HTMLTextAreaElement;
+    const displayOptionsSelect = document.getElementById(
+      "display-options",
+    ) as HTMLSelectElement;
+    const status = document.getElementById("status") as HTMLElement;
+
+    const fakeWorkbench = makeFakeWorkbench();
+    const shell = new UiShellController({
+      workbench: fakeWorkbench,
+      elements: {
+        form,
+        newickInput: input,
+        displayOptionsSelect,
+        status,
+      },
+    });
+
+    shell.mount();
+    displayOptionsSelect.options[1]!.selected = true;
+    displayOptionsSelect.options[2]!.selected = true;
+    displayOptionsSelect.dispatchEvent(new Event("change"));
+
+    expect(fakeWorkbench.updateDisplayOptions).toHaveBeenLastCalledWith({
+      nodeLabels: true,
+      edgeDistanceLabels: true,
+      distanceWeightedEdges: true,
+    });
+    shell.unmount();
+  });
+
+  it("toggles display selector options independently on click", () => {
+    document.body.innerHTML = `
+      <form id="render-form"></form>
+      <textarea id="newick-input"></textarea>
+      <select id="display-options" multiple>
+        <option value="node-labels" selected>Node labels</option>
+        <option value="edge-distance-labels">Edge distance labels</option>
+        <option value="distance-weighted-edges">Distance-weighted edges</option>
+      </select>
+      <div id="status"></div>
+    `;
+
+    const form = document.getElementById("render-form") as HTMLFormElement;
+    const input = document.getElementById(
+      "newick-input",
+    ) as HTMLTextAreaElement;
+    const displayOptionsSelect = document.getElementById(
+      "display-options",
+    ) as HTMLSelectElement;
+    const status = document.getElementById("status") as HTMLElement;
+
+    const fakeWorkbench = makeFakeWorkbench();
+    const shell = new UiShellController({
+      workbench: fakeWorkbench,
+      elements: {
+        form,
+        newickInput: input,
+        displayOptionsSelect,
+        status,
+      },
+    });
+
+    shell.mount();
+    displayOptionsSelect.options[1]!.dispatchEvent(
+      new MouseEvent("mousedown", { bubbles: true, cancelable: true }),
+    );
+    displayOptionsSelect.options[2]!.dispatchEvent(
+      new MouseEvent("mousedown", { bubbles: true, cancelable: true }),
+    );
+
+    expect(displayOptionsSelect.options[0]!.selected).toBe(true);
+    expect(displayOptionsSelect.options[1]!.selected).toBe(true);
+    expect(displayOptionsSelect.options[2]!.selected).toBe(true);
+    expect(fakeWorkbench.updateDisplayOptions).toHaveBeenLastCalledWith({
+      nodeLabels: true,
+      edgeDistanceLabels: true,
+      distanceWeightedEdges: true,
+    });
+
+    displayOptionsSelect.options[1]!.dispatchEvent(
+      new MouseEvent("mousedown", { bubbles: true, cancelable: true }),
+    );
+
+    expect(displayOptionsSelect.options[0]!.selected).toBe(true);
+    expect(displayOptionsSelect.options[1]!.selected).toBe(false);
+    expect(displayOptionsSelect.options[2]!.selected).toBe(true);
+    expect(fakeWorkbench.updateDisplayOptions).toHaveBeenLastCalledWith({
+      nodeLabels: true,
+      edgeDistanceLabels: false,
+      distanceWeightedEdges: true,
+    });
+
+    shell.unmount();
+  });
+
+  it("toggles LoD playback controls for rendered LoD graphs", async () => {
+    document.body.innerHTML = `
+      <form id="render-form"></form>
+      <textarea id="newick-input"></textarea>
+      <button id="lod-play-button" type="button"></button>
+      <button id="lod-pause-button" type="button"></button>
+      <div id="status"></div>
+    `;
+
+    const form = document.getElementById("render-form") as HTMLFormElement;
+    const input = document.getElementById(
+      "newick-input",
+    ) as HTMLTextAreaElement;
+    const lodPlayButton = document.getElementById(
+      "lod-play-button",
+    ) as HTMLButtonElement;
+    const lodPauseButton = document.getElementById(
+      "lod-pause-button",
+    ) as HTMLButtonElement;
+    const status = document.getElementById("status") as HTMLElement;
+
+    input.value = "(A,B)Root;";
+    const fakeWorkbench = makeFakeWorkbench({
+      nodes: [{ id: "root", x: 0, y: 0 }],
+      edges: [],
+      viewMeta: {
+        layout: "server",
+        lodLevel: 1,
+        sliceNodeCount: 1,
+      },
+    });
+    const shell = new UiShellController({
+      workbench: fakeWorkbench,
+      elements: {
+        form,
+        newickInput: input,
+        lodPlayButton,
+        lodPauseButton,
+        status,
+      },
+    });
+
+    shell.mount();
+    await shell.renderCurrentInput();
+
+    expect(lodPlayButton.disabled).toBe(true);
+    expect(lodPauseButton.disabled).toBe(false);
+
+    lodPauseButton.click();
+    await Promise.resolve();
+
+    expect(fakeWorkbench.setLodRefreshPaused).toHaveBeenLastCalledWith(true);
+    expect(lodPlayButton.disabled).toBe(false);
+    expect(lodPauseButton.disabled).toBe(true);
+    expect(status.textContent).toContain("LoD paused");
+
+    lodPlayButton.click();
+    await Promise.resolve();
+
+    expect(fakeWorkbench.setLodRefreshPaused).toHaveBeenLastCalledWith(false);
+    expect(lodPlayButton.disabled).toBe(true);
+    expect(lodPauseButton.disabled).toBe(false);
+
     shell.unmount();
   });
 

@@ -21,6 +21,7 @@ import {
   type VisualMappingOptions,
 } from "../../render/visualMappings";
 import type {
+  GraphDisplayOptions,
   GraphRenderer,
   RenderContext,
   RenderNodeClickState,
@@ -62,6 +63,8 @@ export const SEARCH_FOCUS_LOD_ZOOM = 8;
 export const DEFAULT_SEARCH_RESULT_LIMIT = 50;
 export const ERR_NO_GRAPH_RENDERED =
   "No graph has been rendered yet. Render a dataset before applying filters.";
+export const ERR_LOD_PLAYBACK_REQUIRES_LOD =
+  "LoD play/pause controls are available after rendering a LoD dataset.";
 
 const SEARCH_TOKEN_PATTERN = /[A-Za-z0-9_]+/g;
 const MIN_SEARCH_PREFIX_LENGTH = 2;
@@ -107,6 +110,12 @@ export interface GraphWorkbench {
 
   updateVisualMapping: (visualMapping: VisualMappingOptions) => PositionedGraph;
 
+  updateDisplayOptions: (displayOptions: GraphDisplayOptions) => void;
+
+  setLodRefreshPaused: (paused: boolean) => Promise<PositionedGraph | null>;
+
+  isLodRefreshPaused: () => boolean;
+
   searchNodes: (query: {
     query: string;
     limit?: number;
@@ -146,6 +155,8 @@ interface GraphWorkbenchState {
   lastRequestedViewKey: string | null;
   sliceRequestSequence: number;
   currentViewState: RenderViewportState | null;
+  deferredViewState: RenderViewportState | null;
+  lodRefreshPaused: boolean;
   graphRenderedHandler: GraphRenderedHandler | null;
   suppressViewChangesUntil: number;
   expandedClusterIds: Set<string>;
@@ -215,6 +226,24 @@ export function createGraphWorkbench(
         visualMapping,
       }),
 
+    updateDisplayOptions: (displayOptions) => {
+      renderer.updateDisplayOptions?.(displayOptions);
+      if (state.currentGraph) {
+        renderer.render(state.currentGraph);
+      }
+    },
+
+    setLodRefreshPaused: (paused) =>
+      setLodRefreshPaused({
+        state,
+        renderer,
+        datasetClient: options.datasetClient,
+        filterEngine,
+        paused,
+      }),
+
+    isLodRefreshPaused: () => state.lodRefreshPaused,
+
     searchNodes: (query) =>
       searchNodes({
         state,
@@ -254,6 +283,8 @@ function createInitialGraphWorkbenchState(): GraphWorkbenchState {
     lastRequestedViewKey: null,
     sliceRequestSequence: 0,
     currentViewState: null,
+    deferredViewState: null,
+    lodRefreshPaused: false,
     graphRenderedHandler: null,
     suppressViewChangesUntil: 0,
     expandedClusterIds: new Set(),
@@ -295,6 +326,8 @@ function resetWorkbenchForNewDataset(state: GraphWorkbenchState): void {
   state.pendingViewRefreshId = null;
   state.lastRequestedViewKey = null;
   state.currentViewState = null;
+  state.deferredViewState = null;
+  state.lodRefreshPaused = false;
   state.expandedClusterIds.clear();
   state.collapsedClusterIds.clear();
   state.renderMode = null;
@@ -349,6 +382,7 @@ async function renderNewick({
   options = {},
 }: RenderNewickArgs): Promise<PositionedGraph> {
   resetWorkbenchForNewDataset(state);
+  renderer.focusNode?.(null);
 
   const request: NormalizeRequest = {
     format: SOURCE_FORMAT_NEWICK,
@@ -483,6 +517,51 @@ function updateVisualMapping({
   });
 }
 
+interface SetLodRefreshPausedArgs {
+  state: GraphWorkbenchState;
+  renderer: GraphRenderer;
+  datasetClient: DatasetClient;
+  filterEngine: GraphFilterEngine;
+  paused: boolean;
+}
+
+async function setLodRefreshPaused({
+  state,
+  renderer,
+  datasetClient,
+  filterEngine,
+  paused,
+}: SetLodRefreshPausedArgs): Promise<PositionedGraph | null> {
+  if (!state.preparedSession || state.renderMode !== "lod") {
+    throw new Error(ERR_LOD_PLAYBACK_REQUIRES_LOD);
+  }
+
+  if (paused) {
+    state.lodRefreshPaused = true;
+    clearPendingViewRefresh(state);
+    return state.currentGraph;
+  }
+
+  state.lodRefreshPaused = false;
+  clearPendingViewRefresh(state);
+
+  const nextViewState =
+    state.deferredViewState ??
+    state.currentViewState ?? {
+      viewport: state.preparedSession.lod.viewport,
+      zoom: DEFAULT_VIEW_SLICE_ZOOM,
+    };
+  state.deferredViewState = null;
+
+  return refreshVisibleSlice({
+    state,
+    renderer,
+    datasetClient,
+    filterEngine,
+    viewState: nextViewState,
+  });
+}
+
 interface RenderMappedCurrentSliceArgs {
   state: GraphWorkbenchState;
   renderer: GraphRenderer;
@@ -547,6 +626,16 @@ async function handleViewChange({
 
   const effectiveViewport = normalizeViewport(viewState.viewport);
   const effectiveZoom = normalizeZoom(viewState.zoom);
+
+  if (state.lodRefreshPaused) {
+    state.deferredViewState = {
+      viewport: effectiveViewport,
+      zoom: effectiveZoom,
+    };
+    clearPendingViewRefresh(state);
+    return;
+  }
+
   const effectiveMaxNodes = resolveMaxNodesForZoom(
     session.lod.maxNodes,
     effectiveZoom,
@@ -664,6 +753,7 @@ interface RefreshVisibleSliceArgs {
     focusNodeIdOverride?: string;
     focusClusterIdOverride?: string;
     centerOnNodeId?: string;
+    focusRenderedNodeId?: string;
   };
 }
 
@@ -767,6 +857,14 @@ async function refreshVisibleSlice({
     renderer.centerOnNode?.(options.centerOnNodeId);
   }
 
+  if (
+    options.focusRenderedNodeId &&
+    renderedGraph.nodes.find((node) => node.id === options.focusRenderedNodeId) &&
+    renderedGraph.nodes.some((node) => node.id === options.focusRenderedNodeId)
+  ) {
+    renderer.focusNode?.(options.focusRenderedNodeId);
+  }
+
   return renderedGraph;
 }
 
@@ -837,6 +935,7 @@ async function focusNode({
     }
 
     if (graph.nodes.some((node) => node.id === nodeId)) {
+      renderer.focusNode?.(nodeId);
       renderer.centerOnNode?.(nodeId);
     }
 
@@ -865,6 +964,7 @@ async function focusNode({
     options: {
       focusNodeIdOverride: nodeId,
       centerOnNodeId: nodeId,
+      focusRenderedNodeId: nodeId,
     },
   });
 }

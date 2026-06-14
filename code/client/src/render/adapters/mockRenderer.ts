@@ -17,6 +17,7 @@ export class MockRenderer implements GraphRenderer {
   private containerId: string = MOCK_RENDERER_EMPTY_CONTAINER;
   private lastGraph: PositionedGraph | null = null;
   private lastCenteredNodeId: string | null = null;
+  private lastFocusedNodeId: string | null = null;
   private viewChangeHandler: ((state: RenderViewportState) => void) | null =
     null;
   private nodeClickHandler: ((state: RenderNodeClickState) => void) | null =
@@ -27,6 +28,7 @@ export class MockRenderer implements GraphRenderer {
     this.containerId = context.containerId;
     this.lastGraph = null;
     this.lastCenteredNodeId = null;
+    this.lastFocusedNodeId = null;
   }
 
   // Store rendered graph snapshot for assertions and debug checks.
@@ -50,11 +52,16 @@ export class MockRenderer implements GraphRenderer {
     this.lastCenteredNodeId = nodeId;
   }
 
+  focusNode(nodeId: string | null): void {
+    this.lastFocusedNodeId = nodeId;
+  }
+
   // Reset internal references on renderer teardown.
   unmount(): void {
     this.containerId = MOCK_RENDERER_EMPTY_CONTAINER;
     this.lastGraph = null;
     this.lastCenteredNodeId = null;
+    this.lastFocusedNodeId = null;
     this.viewChangeHandler = null;
     this.nodeClickHandler = null;
   }
@@ -70,6 +77,10 @@ export class MockRenderer implements GraphRenderer {
 
   getLastCenteredNodeId(): string | null {
     return this.lastCenteredNodeId;
+  }
+
+  getLastFocusedNodeId(): string | null {
+    return this.lastFocusedNodeId;
   }
 
   emitViewChange(state: RenderViewportState): void {

@@ -1,7 +1,13 @@
 export const PIE_ATTRIBUTE_PREFIX = "pie__";
 export const PIE_PALETTE_ATTRIBUTE = "__pie_palette";
+export const PIE_CATEGORY_COLORS_ATTRIBUTE = "__pie_category_colors";
 export const PIE_FIELD_VALUE_SEPARATOR = "__value__";
-export const MAX_PIE_SLICE_KEYS = 48;
+export const PIE_OTHER_SLICE_KEY = `${PIE_ATTRIBUTE_PREFIX}others`;
+export const PIE_OTHER_SLICE_LABEL = "Others";
+export const PIE_OTHER_SLICE_COLOR = "#d3d3d3";
+// @sigma/node-piechart emits one WebGL shader program per slice set. Keep this
+// conservative so high-cardinality fields such as country do not fail linking.
+export const MAX_PIE_SLICE_KEYS = 16;
 
 export const DEFAULT_PIE_PALETTE = [
   "#ef4444",
@@ -18,6 +24,7 @@ export interface PieMappingOptions {
   enabled?: boolean;
   fields?: string[];
   palette?: string[];
+  categoryColors?: Record<string, string>;
 }
 
 type MetadataRecord = Record<string, string | number | boolean | null>;
@@ -60,6 +67,42 @@ export function buildPieAttributes(
   });
 
   return attributes;
+}
+
+export function buildPieCategoryColorAttributes(
+  metadata: MetadataRecord,
+  options: PieMappingOptions,
+  excludedFields: string[] = [],
+): Record<string, string> {
+  if (options.enabled === false || !options.fields || !options.categoryColors) {
+    return {};
+  }
+
+  const excluded = new Set<string>(excludedFields);
+  const colorsByAttribute: Record<string, string> = {};
+  options.fields
+    .filter((fieldKey) => !excluded.has(fieldKey))
+    .forEach((fieldKey) => {
+      const value = metadata[fieldKey];
+      if (
+        typeof value === "number" ||
+        value === undefined ||
+        value === null ||
+        value === ""
+      ) {
+        return;
+      }
+
+      categoricalPieValues(value).forEach((category) => {
+        const color = options.categoryColors?.[category];
+        if (typeof color === "string" && /^#[0-9a-fA-F]{6}$/.test(color)) {
+          colorsByAttribute[pieCategoricalAttributeKey(fieldKey, category)] =
+            color;
+        }
+      });
+    });
+
+  return colorsByAttribute;
 }
 
 export function categoricalPieValues(
@@ -138,14 +181,20 @@ export function detectPieSliceKeys(
     });
   });
 
-  return [...totalsByKey.entries()]
+  const sortedKeys = [...totalsByKey.entries()]
     .sort(
       ([leftKey, leftTotal], [rightKey, rightTotal]) =>
         rightTotal - leftTotal || leftKey.localeCompare(rightKey),
     )
-    .slice(0, Math.max(0, maxSliceKeys))
-    .map(([key]) => key)
-    .sort((left, right) => left.localeCompare(right));
+    .map(([key]) => key);
+  const safeLimit = Math.max(0, maxSliceKeys);
+  const topKeys = sortedKeys.slice(0, safeLimit);
+
+  if (sortedKeys.length > safeLimit && safeLimit > 0) {
+    topKeys.push(PIE_OTHER_SLICE_KEY);
+  }
+
+  return topKeys.sort((left, right) => left.localeCompare(right));
 }
 
 // Build a palette large enough for the detected number of slices.

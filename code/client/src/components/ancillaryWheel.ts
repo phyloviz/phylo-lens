@@ -2,8 +2,12 @@ import type { PositionedGraph } from "../contracts/positioned";
 import {
   buildPiePalette,
   categoricalPieValues,
+  PIE_CATEGORY_COLORS_ATTRIBUTE,
   PIE_ATTRIBUTE_PREFIX,
+  PIE_OTHER_SLICE_COLOR,
+  PIE_OTHER_SLICE_LABEL,
   PIE_PALETTE_ATTRIBUTE,
+  pieCategoricalAttributeKey,
 } from "../render/pieMapping";
 
 export interface AncillaryWheelSliceStat {
@@ -31,7 +35,6 @@ export interface MetadataFieldSummary {
 
 const METADATA_ATTRIBUTE_KEY = "metadata";
 const MAX_METADATA_DISTRIBUTION_SLICES = 12;
-const OTHER_SLICE_LABEL = "Other";
 
 // Aggregate pie-like ancillary attributes into one chart-friendly stats payload.
 export function buildAncillaryWheelStats(
@@ -76,6 +79,7 @@ export function buildAncillaryWheelStats(
   }
 
   const runtimePalette = resolvePaletteFromGraph(graph);
+  const runtimeCategoryColors = resolvePieCategoryColorsFromGraph(graph);
   const palette = buildPiePalette(keys.length, runtimePalette);
   const slices: AncillaryWheelSliceStat[] = keys.map((key, index) => {
     const value = totalsByKey.get(key) ?? 0;
@@ -85,7 +89,7 @@ export function buildAncillaryWheelStats(
       label: key.replace(PIE_ATTRIBUTE_PREFIX, ""),
       value,
       percentage,
-      color: palette[index] ?? "#0f766e",
+      color: runtimeCategoryColors[key] ?? palette[index] ?? "#0f766e",
     };
   });
 
@@ -135,13 +139,21 @@ export function buildMetadataFieldWheelStats(
   }
 
   const palette = buildPiePalette(slices.length);
+  const runtimeCategoryColors = resolvePieCategoryColorsFromGraph(graph);
   return {
     total,
     nodeCount: includedNodeCount,
     slices: slices.map((slice, index) => ({
       ...slice,
       percentage: (slice.value / total) * 100,
-      color: palette[index] ?? "#0f766e",
+      color:
+        slice.label === PIE_OTHER_SLICE_LABEL
+          ? PIE_OTHER_SLICE_COLOR
+          : (runtimeCategoryColors[
+              pieCategoricalAttributeKey(trimmedFieldKey, slice.label)
+            ] ??
+            palette[index] ??
+            "#0f766e"),
     })),
   };
 }
@@ -242,6 +254,21 @@ function resolvePaletteFromGraph(graph: PositionedGraph): string[] | undefined {
   return undefined;
 }
 
+function resolvePieCategoryColorsFromGraph(
+  graph: PositionedGraph,
+): Record<string, string> {
+  for (const node of graph.nodes) {
+    const colorValue = node.attributes?.[PIE_CATEGORY_COLORS_ATTRIBUTE];
+    if (!colorValue || typeof colorValue !== "object" || Array.isArray(colorValue)) {
+      continue;
+    }
+
+    return colorValue as Record<string, string>;
+  }
+
+  return {};
+}
+
 function readNodeMetadata(
   attributes: Record<string, unknown> | undefined,
 ): Record<string, string | number | boolean | null> | null {
@@ -272,8 +299,8 @@ function buildDistributionSlices(
   const otherValue = remaining.reduce((sum, [, value]) => sum + value, 0);
   if (otherValue > 0) {
     slices.push({
-      key: OTHER_SLICE_LABEL,
-      label: OTHER_SLICE_LABEL,
+      key: PIE_OTHER_SLICE_LABEL,
+      label: PIE_OTHER_SLICE_LABEL,
       value: otherValue,
     });
   }

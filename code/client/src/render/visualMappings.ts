@@ -4,6 +4,8 @@ import { getNodeMetadata } from "../ancillary/metadataIndex";
 import type { MetadataIndexData } from "../ancillary/metadataIndex";
 import {
   buildPieAttributes,
+  buildPieCategoryColorAttributes,
+  PIE_CATEGORY_COLORS_ATTRIBUTE,
   PIE_PALETTE_ATTRIBUTE,
 } from "./pieMapping";
 import type { PieMappingOptions } from "./pieMapping";
@@ -113,6 +115,11 @@ function mapNodeVisuals(
   );
   const color = isClusterProxy ? CLUSTER_PROXY_COLOR : baseColor;
   const size = isClusterProxy ? Math.max(baseSize, proxySize) : baseSize;
+  const pieCategoryColors = buildPieCategoryColorAttributes(
+    metadata,
+    pieOptions,
+    [sizeField],
+  );
 
   return {
     ...node,
@@ -124,6 +131,9 @@ function mapNodeVisuals(
       dataset_id: dataset.dataset_id,
       is_cluster_proxy: isClusterProxy,
       ...buildPieAttributes(metadata, pieOptions, [sizeField]),
+      ...(Object.keys(pieCategoryColors).length > 0
+        ? { [PIE_CATEGORY_COLORS_ATTRIBUTE]: pieCategoryColors }
+        : {}),
       ...(pieOptions.palette && pieOptions.palette.length > 0
         ? { [PIE_PALETTE_ATTRIBUTE]: pieOptions.palette }
         : {}),

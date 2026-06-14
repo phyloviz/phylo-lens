@@ -72,7 +72,7 @@
       }
 
       select[multiple] {
-        height: 46px;
+        height: auto;
         min-height: 46px;
         max-width: 100%;
         overflow: auto;
@@ -163,6 +163,79 @@
 
       .search-result:hover {
         background: #eef2f7;
+      }
+
+      .lod-playback {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(88px, 1fr));
+        gap: 8px;
+      }
+
+      .lod-playback button {
+        width: 100%;
+      }
+
+      .lod-playback button[disabled] {
+        cursor: not-allowed;
+        opacity: 0.55;
+      }
+
+      .category-color-controls {
+        display: grid;
+        gap: 6px;
+        max-height: 180px;
+        overflow: auto;
+      }
+
+      .category-color-actions {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 8px;
+      }
+
+      .category-color-actions input {
+        display: none;
+      }
+
+      .category-color-actions button {
+        width: auto;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: #f8fafc;
+        color: var(--text);
+        padding: 7px 10px;
+        cursor: pointer;
+      }
+
+      .category-color-actions button:hover {
+        background: #eef2f7;
+      }
+
+      .category-color-row {
+        display: grid;
+        grid-template-columns: 32px minmax(80px, 1fr) auto;
+        gap: 8px;
+        align-items: center;
+      }
+
+      .category-color-row input {
+        width: 32px;
+        height: 32px;
+        padding: 0;
+        border-radius: 8px;
+        cursor: pointer;
+      }
+
+      .category-color-name {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .category-color-count,
+      .category-color-empty {
+        color: var(--muted);
+        font-size: 0.82rem;
       }
 
       .ancillary-wheel {
@@ -348,6 +421,17 @@
               />
             </label>
             <label>
+              LoD
+              <span class="lod-playback">
+                <button id="lod-play-button" type="button" disabled>
+                  Play
+                </button>
+                <button id="lod-pause-button" type="button" disabled>
+                  Pause
+                </button>
+              </span>
+            </label>
+            <label>
               Wheel Scope
               <select id="ancillary-mode">
                 <option value="global" selected>
@@ -376,6 +460,31 @@
               <select id="metadata-size-scale">
                 <option value="linear" selected>Linear</option>
                 <option value="log">Logarithmic</option>
+              </select>
+            </label>
+            <label>
+              Category Colors
+              <span class="category-color-actions">
+                <button id="palette-load-button" type="button">Load</button>
+                <input
+                  id="palette-load-input"
+                  type="file"
+                  accept=".txt,.palette,.json,application/json,text/plain"
+                />
+                <button id="palette-save-button" type="button">Save</button>
+              </span>
+              <span id="palette-controls" class="category-color-controls"></span>
+            </label>
+            <label>
+              Options
+              <select id="display-options" multiple size="3">
+                <option value="node-labels" selected>Node labels</option>
+                <option value="edge-distance-labels">
+                  Edge distance labels
+                </option>
+                <option value="distance-weighted-edges">
+                  Distance-weighted edges
+                </option>
               </select>
             </label>
             <label>

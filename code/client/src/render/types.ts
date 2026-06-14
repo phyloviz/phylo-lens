@@ -26,6 +26,12 @@ export interface RenderNodeClickState {
   attributes?: Record<string, unknown>;
 }
 
+export interface GraphDisplayOptions {
+  nodeLabels?: boolean;
+  edgeDistanceLabels?: boolean;
+  distanceWeightedEdges?: boolean;
+}
+
 export interface GraphRenderer {
   mount: (context: RenderContext) => void;
   unmount: () => void;
@@ -40,6 +46,10 @@ export interface GraphRenderer {
   ) => void;
 
   centerOnNode?: (nodeId: string) => void;
+
+  focusNode?: (nodeId: string | null) => void;
+
+  updateDisplayOptions?: (options: GraphDisplayOptions) => void;
 }
 
 export interface RendererFactory {

@@ -96,6 +96,7 @@ class ClickableTestRenderer implements GraphRenderer {
   private viewChangeHandler: ((state: RenderViewportState) => void) | null =
     null;
   lastCenteredNodeId: string | null = null;
+  lastFocusedNodeId: string | null = null;
   lastRenderedGraph: unknown = null;
 
   mount(): void {}
@@ -133,6 +134,10 @@ class ClickableTestRenderer implements GraphRenderer {
 
   centerOnNode(nodeId: string): void {
     this.lastCenteredNodeId = nodeId;
+  }
+
+  focusNode(nodeId: string | null): void {
+    this.lastFocusedNodeId = nodeId;
   }
 }
 
@@ -257,6 +262,7 @@ describe("graphWorkbench", () => {
     expect(body.focus_node_id).toBe("b");
     expect(body.zoom).toBe(SEARCH_FOCUS_LOD_ZOOM);
     expect(renderer.lastCenteredNodeId).toBe("b");
+    expect(renderer.lastFocusedNodeId).toBe("b");
 
     workbench.dispose();
   });
@@ -309,6 +315,7 @@ describe("graphWorkbench", () => {
     ]);
     expect(metadataMatches.matches[0]?.metadata).toEqual({ age_yr: 99 });
     expect(renderer.lastCenteredNodeId).toBe("1274");
+    expect(renderer.lastFocusedNodeId).toBe("1274");
     expect(
       (fetchImpl as unknown as ReturnType<typeof vi.fn>).mock.calls.map((call) =>
         String(call[0]),
@@ -849,6 +856,83 @@ describe("graphWorkbench", () => {
       expect(
         (fetchImpl as unknown as ReturnType<typeof vi.fn>).mock.calls,
       ).toHaveLength(3);
+
+      workbench.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("pauses LoD refresh during navigation and resumes from the latest viewport", async () => {
+    vi.useFakeTimers();
+    try {
+      const resumedSliceResponse = {
+        ...VIEW_SLICE_RESPONSE,
+        view_meta: {
+          ...VIEW_SLICE_RESPONSE.view_meta,
+          viewport: { x: 125, y: 250, width: 420, height: 320 },
+          zoom: 6,
+        },
+      };
+      const fetchImpl = vi
+        .fn()
+        .mockResolvedValueOnce(makeJsonResponse(NORMALIZE_RESPONSE))
+        .mockResolvedValueOnce(makeJsonResponse(PREPARE_RESPONSE))
+        .mockResolvedValueOnce(makeJsonResponse(VIEW_SLICE_RESPONSE))
+        .mockResolvedValueOnce(
+          makeJsonResponse(resumedSliceResponse),
+        ) as unknown as typeof fetch;
+
+      const datasetClient = createDatasetClient({
+        baseUrl: BASE_URL,
+        fetchImpl,
+      });
+      const renderer = new ClickableTestRenderer();
+      const workbench = createGraphWorkbench({
+        datasetClient,
+        rendererFactory: new StaticRendererFactory(renderer),
+        rendererKind: RENDERER_KIND_MOCK,
+        renderContext: { containerId: "graph-root" },
+      });
+
+      await workbench.renderNewick(NEWICK_CONTENT, DATASET_NAME, {
+        lod: {
+          enabled: true,
+          zoom: 4,
+        },
+      });
+      await vi.advanceTimersByTimeAsync(500);
+
+      await workbench.setLodRefreshPaused(true);
+      expect(workbench.isLodRefreshPaused()).toBe(true);
+
+      renderer.emitViewChange({
+        viewport: { x: 125, y: 250, width: 420, height: 320 },
+        zoom: 6,
+      });
+      await vi.advanceTimersByTimeAsync(250);
+
+      expect(
+        (fetchImpl as unknown as ReturnType<typeof vi.fn>).mock.calls,
+      ).toHaveLength(3);
+
+      await workbench.setLodRefreshPaused(false);
+
+      const resumeCall = (fetchImpl as unknown as ReturnType<typeof vi.fn>).mock
+        .calls[3];
+      const body = JSON.parse(
+        String((resumeCall?.[1] as RequestInit)?.body ?? "{}"),
+      ) as Record<string, unknown>;
+
+      expect(workbench.isLodRefreshPaused()).toBe(false);
+      expect(String(resumeCall?.[0])).toBe(`${BASE_URL}/dataset/view-slice`);
+      expect(body.viewport).toEqual({
+        x: 125,
+        y: 250,
+        width: 420,
+        height: 320,
+      });
+      expect(body.zoom).toBe(6);
 
       workbench.dispose();
     } finally {

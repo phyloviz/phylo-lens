@@ -4,13 +4,19 @@ import Sigma from "sigma";
 import type { PositionedGraph } from "../../../contracts/positioned";
 import { RENDERER_KIND_SIGMA } from "../../types";
 import type {
+  GraphDisplayOptions,
   GraphRenderer,
   RenderContext,
   RenderNodeClickState,
   RendererKind,
   RenderViewportState,
 } from "../../types";
-import { detectPieSliceKeys } from "../../pieMapping";
+import {
+  detectPieSliceKeys,
+  PIE_CATEGORY_COLORS_ATTRIBUTE,
+  PIE_OTHER_SLICE_COLOR,
+  PIE_OTHER_SLICE_KEY,
+} from "../../pieMapping";
 import {
   defaultCameraState,
   deriveGraphBounds,
@@ -54,10 +60,11 @@ export class SigmaRenderer implements GraphRenderer {
   private sigma: Sigma | null = null;
   private containerElement: HTMLElement | null = null;
   private pieSliceKeys: string[] = [];
+  private pieProgramSignature = "";
   private graphBounds: GraphBounds | null = null;
   private coordinateBounds: GraphBounds | null = null;
   private piechartOptions: SigmaPiechartOptions;
-  private readonly rendererOptions: SigmaRendererOptions;
+  private rendererOptions: SigmaRendererOptions;
   private readonly dragController: SigmaDragController;
   private viewChangeHandler: ((state: RenderViewportState) => void) | null =
     null;
@@ -65,6 +72,8 @@ export class SigmaRenderer implements GraphRenderer {
     null;
   private suppressViewChangesUntil = 0;
   private suppressNodeClicksUntil = 0;
+  private lastRenderedGraph: PositionedGraph | null = null;
+  private selectedNodeId: string | null = null;
   private readonly boundCameraUpdated = () => {
     this.emitViewChange();
   };
@@ -115,6 +124,7 @@ export class SigmaRenderer implements GraphRenderer {
     }
 
     // Clear previous frame first so Sigma rebuilds never see stale piechart nodes.
+    this.lastRenderedGraph = graph;
     this.graph.clear();
     this.graphBounds = deriveGraphBounds(graph.nodes);
     this.coordinateBounds =
@@ -128,6 +138,7 @@ export class SigmaRenderer implements GraphRenderer {
         node,
         this.pieSliceKeys,
         this.rendererOptions,
+        this.selectedNodeId,
       );
     });
     addPositionedEdges(this.graph, graph, this.rendererOptions);
@@ -168,6 +179,7 @@ export class SigmaRenderer implements GraphRenderer {
       return;
     }
 
+    this.selectedNodeId = nodeId;
     const camera = this.sigma.getCamera() as {
       x?: number;
       y?: number;
@@ -191,6 +203,26 @@ export class SigmaRenderer implements GraphRenderer {
           ? currentState.ratio
           : SIGMA_DEFAULT_CAMERA_ZOOM,
     });
+    this.renderSelectedNodeState();
+  }
+
+  focusNode(nodeId: string | null): void {
+    this.selectedNodeId = nodeId;
+    this.renderSelectedNodeState();
+  }
+
+  updateDisplayOptions(displayOptions: GraphDisplayOptions): void {
+    this.rendererOptions = {
+      ...this.rendererOptions,
+      display: {
+        ...this.rendererOptions.display,
+        ...displayOptions,
+      },
+    };
+
+    if (this.sigma) {
+      this.rebuildSigma(this.pieSliceKeys, this.lastRenderedGraph ?? undefined);
+    }
   }
 
   // Drop container and graph references when renderer is detached.
@@ -201,8 +233,11 @@ export class SigmaRenderer implements GraphRenderer {
     this.graph = null;
     this.containerElement = null;
     this.pieSliceKeys = [];
+    this.pieProgramSignature = "";
     this.graphBounds = null;
     this.coordinateBounds = null;
+    this.lastRenderedGraph = null;
+    this.selectedNodeId = null;
     this.dragController.reset();
   }
 
@@ -242,12 +277,24 @@ export class SigmaRenderer implements GraphRenderer {
     }
 
     const detectedSliceKeys = detectPieSliceKeys(graph.nodes);
-    if (!areStringArraysEqual(this.pieSliceKeys, detectedSliceKeys)) {
-      this.rebuildSigma(detectedSliceKeys, graph);
+    const nextSignature = buildPieProgramSignature(detectedSliceKeys, graph);
+    if (
+      !areStringArraysEqual(this.pieSliceKeys, detectedSliceKeys) ||
+      this.pieProgramSignature !== nextSignature
+    ) {
+      try {
+        this.rebuildSigma(detectedSliceKeys, graph, nextSignature);
+      } catch {
+        this.rebuildSigma([], undefined, "");
+      }
     }
   }
 
-  private rebuildSigma(sliceKeys: string[], graph?: PositionedGraph): void {
+  private rebuildSigma(
+    sliceKeys: string[],
+    graph?: PositionedGraph,
+    signature = buildPieProgramSignature(sliceKeys, graph),
+  ): void {
     const previousCameraState = this.readCameraState();
     const previousSigma = this.sigma;
     const sigmaSettings = buildSigmaSettings(
@@ -263,6 +310,7 @@ export class SigmaRenderer implements GraphRenderer {
       sigmaSettings,
     );
     this.pieSliceKeys = sliceKeys;
+    this.pieProgramSignature = signature;
     this.restoreCameraState(previousCameraState);
     this.bindSigmaHandlers();
   }
@@ -392,6 +440,8 @@ export class SigmaRenderer implements GraphRenderer {
       return;
     }
 
+    this.selectedNodeId = nodeId;
+    this.renderSelectedNodeState();
     this.nodeClickHandler({
       nodeId,
       attributes: this.graph.getNodeAttributes(nodeId) as Record<
@@ -399,6 +449,14 @@ export class SigmaRenderer implements GraphRenderer {
         unknown
       >,
     });
+  }
+
+  private renderSelectedNodeState(): void {
+    if (!this.lastRenderedGraph) {
+      return;
+    }
+
+    this.render(this.lastRenderedGraph);
   }
 
   private readCameraState(): { x?: number; y?: number; ratio?: number } | null {
@@ -424,4 +482,43 @@ export class SigmaRenderer implements GraphRenderer {
     };
     camera.setState(state ?? defaultCameraState());
   }
+}
+
+function buildPieProgramSignature(
+  sliceKeys: readonly string[],
+  graph: PositionedGraph | undefined,
+): string {
+  const categoryColors = resolvePieCategoryColorsFromGraph(graph);
+  return sliceKeys
+    .map((key) => {
+      const color =
+        key === PIE_OTHER_SLICE_KEY
+          ? PIE_OTHER_SLICE_COLOR
+          : categoryColors[key] ?? "";
+      return `${key}:${color}`;
+    })
+    .join("|");
+}
+
+function resolvePieCategoryColorsFromGraph(
+  graph: PositionedGraph | undefined,
+): Record<string, string> {
+  if (!graph) {
+    return {};
+  }
+
+  for (const node of graph.nodes) {
+    const colorValue = node.attributes?.[PIE_CATEGORY_COLORS_ATTRIBUTE];
+    if (
+      !colorValue ||
+      typeof colorValue !== "object" ||
+      Array.isArray(colorValue)
+    ) {
+      continue;
+    }
+
+    return colorValue as Record<string, string>;
+  }
+
+  return {};
 }

@@ -180,6 +180,10 @@ function buildSeededGraph(
     id: edge.id,
     source: edge.source,
     target: edge.target,
+    attributes:
+      typeof edge.distance === "number" && Number.isFinite(edge.distance)
+        ? { distance: edge.distance }
+        : undefined,
   }));
 
   return {

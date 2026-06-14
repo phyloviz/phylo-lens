@@ -22,6 +22,13 @@ export const ID_ANCILLARY_NODE = "ancillary-node";
 export const ID_METADATA_PIE_FIELD = "metadata-pie-field";
 export const ID_METADATA_SIZE_FIELD = "metadata-size-field";
 export const ID_METADATA_SIZE_SCALE = "metadata-size-scale";
+export const ID_PALETTE_CONTROLS = "palette-controls";
+export const ID_PALETTE_LOAD_BUTTON = "palette-load-button";
+export const ID_PALETTE_LOAD_INPUT = "palette-load-input";
+export const ID_PALETTE_SAVE_BUTTON = "palette-save-button";
+export const ID_DISPLAY_OPTIONS = "display-options";
+export const ID_LOD_PLAY_BUTTON = "lod-play-button";
+export const ID_LOD_PAUSE_BUTTON = "lod-pause-button";
 export const ID_MAX_NODES_INPUT = "max-nodes-input";
 export const ID_INITIAL_ZOOM_INPUT = "initial-zoom-input";
 export const ID_SEARCH_INPUT = "search-input";
@@ -77,6 +84,25 @@ export default function bootstrapClientShell(
   const metadataSizeScaleSelect = document.getElementById(
     ID_METADATA_SIZE_SCALE,
   ) as HTMLSelectElement | null;
+  const paletteControlsContainer = document.getElementById(ID_PALETTE_CONTROLS);
+  const paletteLoadButton = document.getElementById(
+    ID_PALETTE_LOAD_BUTTON,
+  ) as HTMLButtonElement | null;
+  const paletteLoadInput = document.getElementById(
+    ID_PALETTE_LOAD_INPUT,
+  ) as HTMLInputElement | null;
+  const paletteSaveButton = document.getElementById(
+    ID_PALETTE_SAVE_BUTTON,
+  ) as HTMLButtonElement | null;
+  const displayOptionsSelect = document.getElementById(
+    ID_DISPLAY_OPTIONS,
+  ) as HTMLSelectElement | null;
+  const lodPlayButton = document.getElementById(
+    ID_LOD_PLAY_BUTTON,
+  ) as HTMLButtonElement | null;
+  const lodPauseButton = document.getElementById(
+    ID_LOD_PAUSE_BUTTON,
+  ) as HTMLButtonElement | null;
   const maxNodesInput = document.getElementById(
     ID_MAX_NODES_INPUT,
   ) as HTMLInputElement | null;
@@ -129,6 +155,13 @@ export default function bootstrapClientShell(
       metadataPieFieldSelect: metadataPieFieldSelect ?? undefined,
       metadataSizeFieldInput: metadataSizeFieldInput ?? undefined,
       metadataSizeScaleSelect: metadataSizeScaleSelect ?? undefined,
+      paletteControlsContainer: paletteControlsContainer ?? undefined,
+      paletteLoadButton: paletteLoadButton ?? undefined,
+      paletteLoadInput: paletteLoadInput ?? undefined,
+      paletteSaveButton: paletteSaveButton ?? undefined,
+      displayOptionsSelect: displayOptionsSelect ?? undefined,
+      lodPlayButton: lodPlayButton ?? undefined,
+      lodPauseButton: lodPauseButton ?? undefined,
       maxNodesInput: maxNodesInput ?? undefined,
       initialZoomInput: initialZoomInput ?? undefined,
       searchInput: searchInput ?? undefined,

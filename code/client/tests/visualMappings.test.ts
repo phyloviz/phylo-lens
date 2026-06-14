@@ -15,6 +15,8 @@ import {
 import {
   detectPieSliceKeys,
   MAX_PIE_SLICE_KEYS,
+  PIE_OTHER_SLICE_KEY,
+  PIE_CATEGORY_COLORS_ATTRIBUTE,
   PIE_ATTRIBUTE_PREFIX,
   PIE_PALETTE_ATTRIBUTE,
   pieCategoricalAttributeKey,
@@ -77,6 +79,31 @@ describe("visualMappings", () => {
 
     expect(pieKeys).toContain(`${PIE_ATTRIBUTE_PREFIX}trait_a`);
     expect(Array.isArray(nodeAttributes?.[PIE_PALETTE_ATTRIBUTE])).toBe(true);
+  });
+
+  it("maps explicit category colors to categorical pie attributes", () => {
+    const index = buildMetadataIndex(DATASET);
+    const mapped = applyVisualMappings(BASE_GRAPH, DATASET, index, {
+      pie: {
+        fields: ["region"],
+        categoryColors: {
+          EU: "#123456",
+          US: "#abcdef",
+        },
+      },
+    });
+
+    const nodeAttributes = mapped.nodes[0]?.attributes as Record<
+      string,
+      unknown
+    >;
+    const categoryColors = nodeAttributes[PIE_CATEGORY_COLORS_ATTRIBUTE] as
+      | Record<string, string>
+      | undefined;
+
+    expect(categoryColors).toMatchObject({
+      [pieCategoricalAttributeKey("region", "EU")]: "#123456",
+    });
   });
 
   it("sizes nodes by profile count with linear or logarithmic scaling", () => {
@@ -240,7 +267,7 @@ describe("visualMappings", () => {
     ).toBe(1);
   });
 
-  it("caps detected pie slice keys for high-cardinality metadata fields", () => {
+  it("caps detected pie slice keys and aggregates the tail as Others", () => {
     // Given
     const nodes = Array.from({ length: MAX_PIE_SLICE_KEYS + 10 }, (_, index) => ({
       attributes: {
@@ -252,10 +279,11 @@ describe("visualMappings", () => {
     const keys = detectPieSliceKeys(nodes);
 
     // Then
-    expect(keys).toHaveLength(MAX_PIE_SLICE_KEYS);
+    expect(keys).toHaveLength(MAX_PIE_SLICE_KEYS + 1);
     expect(keys).toContain(
       `${PIE_ATTRIBUTE_PREFIX}country_${MAX_PIE_SLICE_KEYS + 9}`,
     );
+    expect(keys).toContain(PIE_OTHER_SLICE_KEY);
     expect(keys).not.toContain(`${PIE_ATTRIBUTE_PREFIX}country_0`);
   });
 

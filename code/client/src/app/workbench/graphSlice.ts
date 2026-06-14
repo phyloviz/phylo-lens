@@ -115,15 +115,25 @@ function buildServerPositionedGraph(
 ): PositionedGraph {
   return {
     nodes: dataset.nodes.map(buildServerPositionedNode),
-    edges: dataset.edges.map((edge) => ({
-      id: edge.id,
-      source: edge.source,
-      target: edge.target,
-    })),
+    edges: dataset.edges.map(buildPositionedEdge),
     viewMeta: {
       layout: LAYOUT_SERVER,
       lodLevel: 0,
     },
+  };
+}
+
+function buildPositionedEdge(
+  edge: CanonicalDataset["edges"][number],
+): PositionedGraph["edges"][number] {
+  return {
+    id: edge.id,
+    source: edge.source,
+    target: edge.target,
+    attributes:
+      typeof edge.distance === "number" && Number.isFinite(edge.distance)
+        ? { distance: edge.distance }
+        : undefined,
   };
 }
 
