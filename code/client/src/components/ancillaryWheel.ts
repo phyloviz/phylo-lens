@@ -1,4 +1,5 @@
 import type { PositionedGraph } from "../contracts/positioned";
+import { readNodeMetadata } from "../ancillary/metadataAccess";
 import {
   buildPiePalette,
   categoricalPieValues,
@@ -33,7 +34,6 @@ export interface MetadataFieldSummary {
   uniqueValueCount: number;
 }
 
-const METADATA_ATTRIBUTE_KEY = "metadata";
 const MAX_METADATA_DISTRIBUTION_SLICES = 12;
 
 // Aggregate pie-like ancillary attributes into one chart-friendly stats payload.
@@ -267,17 +267,6 @@ function resolvePieCategoryColorsFromGraph(
   }
 
   return {};
-}
-
-function readNodeMetadata(
-  attributes: Record<string, unknown> | undefined,
-): Record<string, string | number | boolean | null> | null {
-  const metadata = attributes?.[METADATA_ATTRIBUTE_KEY];
-  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
-    return null;
-  }
-
-  return metadata as Record<string, string | number | boolean | null>;
 }
 
 function buildDistributionSlices(

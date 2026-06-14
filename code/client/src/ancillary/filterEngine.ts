@@ -115,7 +115,7 @@ function intersectSets(left: Set<string>, right: Set<string>): Set<string> {
   return intersection;
 }
 
-function hasActiveFilters(filterState: MetadataFilterState): boolean {
+export function hasActiveFilters(filterState: MetadataFilterState): boolean {
   const hasCategorical = filterState.categorical.some(
     (filter) => filter.acceptedValues.length > 0,
   );

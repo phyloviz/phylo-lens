@@ -1,5 +1,6 @@
 import type Graph from "graphology";
 import type Sigma from "sigma";
+import { isFiniteNumber } from "../../../validation/guards";
 
 type MouseEventPayload = {
   x: number;
@@ -401,8 +402,4 @@ function stableDirectionFromNodeId(nodeId: string): Point {
 
 function distanceBetween(left: Point, right: Point): number {
   return Math.hypot(left.x - right.x, left.y - right.y);
-}
-
-function isFiniteNumber(value: unknown): value is number {
-  return typeof value === "number" && Number.isFinite(value);
 }

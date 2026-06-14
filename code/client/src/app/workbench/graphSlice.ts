@@ -13,7 +13,7 @@ import {
   DEFAULT_NODE_GAP,
   buildForceDirectedLayout,
 } from "../../layout/forceDirectedLayout";
-import type { RenderNewickOptions } from "./graphWorkbench.ts";
+import type { RenderNewickOptions } from "./workbenchTypes";
 
 export function serverSpatialBoundsToGraphBounds(
   bounds: SpatialBounds | null | undefined,

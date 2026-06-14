@@ -2,20 +2,10 @@ import type {
   GraphWorkbench,
   RenderNewickOptions,
 } from "./workbench/graphWorkbench";
-import {
-  DEFAULT_COLOR_PALETTE,
-  DEFAULT_PROFILE_COUNT_FIELD,
-  SIZE_SCALE_LINEAR,
-  SIZE_SCALE_LOG,
-} from "../render/visualMappings";
-import type { SizeScale, VisualMappingOptions } from "../render/visualMappings";
+import { DEFAULT_COLOR_PALETTE } from "../render/visualMappings";
+import type { VisualMappingOptions } from "../render/visualMappings";
 import type { GraphDisplayOptions } from "../render/types";
-import {
-  categoricalPieValues,
-  MAX_PIE_SLICE_KEYS,
-  PIE_OTHER_SLICE_COLOR,
-  PIE_OTHER_SLICE_LABEL,
-} from "../render/pieMapping";
+import { PIE_OTHER_SLICE_COLOR, PIE_OTHER_SLICE_LABEL } from "../render/pieMapping";
 import {
   buildAncillaryWheelStats,
   buildMetadataFieldWheelStats,
@@ -23,11 +13,26 @@ import {
   renderAncillaryWheel,
 } from "../components/ancillaryWheel";
 import type { PositionedGraph } from "../contracts/positioned";
-import type { MetadataField } from "../contracts/models";
+import { buildRenderedStatus } from "./shell/status/renderedStatus";
+import {
+  isHexColor,
+  parseCategoryColorPalette,
+  serializeCategoryColorPalette,
+} from "./shell/palette/categoryPalette";
+import {
+  parseAncillaryPayload,
+} from "./shell/inputs/ancillaryPayload";
+import { buildVisualMappingForControls } from "./shell/controls/visualMappingControls";
+import {
+  buildCategorySummaries,
+  formatPieFieldOption,
+} from "./shell/ancillary/categorySummaries";
+
+export { STATUS_RENDERED_PREFIX } from "./shell/status/renderedStatus";
+export { ERR_INVALID_ANCILLARY_JSON } from "./shell/inputs/ancillaryPayload";
 
 export const DEFAULT_STATUS_READY = "Ready";
 export const STATUS_RENDERING_PREFIX = "Rendering";
-export const STATUS_RENDERED_PREFIX = "Rendered";
 export const STATUS_FAILED_PREFIX = "Failed";
 export const DEFAULT_MAX_NODES = 4000;
 export const DEFAULT_INITIAL_ZOOM = 4;
@@ -50,24 +55,8 @@ export type AncillaryMode =
 export const ERR_STATUS_ELEMENT_REQUIRED = "Status element is required.";
 export const ERR_RENDER_FORM_REQUIRED = "Render form is required.";
 export const ERR_NEWICK_INPUT_REQUIRED = "Newick input is required.";
-export const ERR_INVALID_ANCILLARY_JSON =
-  "Ancillary JSON must be a valid object with metadata_schema and/or metadata_by_node_id.";
 export const ERR_ANCILLARY_JOIN_COLUMN_REQUIRED =
   "Ancillary table join column is required.";
-
-const KEY_METADATA_SCHEMA = "metadata_schema";
-const KEY_METADATA_BY_NODE_ID = "metadata_by_node_id";
-const KEY_VISUAL_MAPPING = "visual_mapping";
-const HIGH_CARDINALITY_PIE_FIELD_THRESHOLD = 24;
-
-interface AncillaryPayload {
-  metadata_schema?: MetadataField[];
-  metadata_by_node_id?: Record<
-    string,
-    Record<string, string | number | boolean | null>
-  >;
-  visual_mapping?: VisualMappingOptions;
-}
 
 export interface UiShellElements {
   form: HTMLFormElement;
@@ -975,286 +964,6 @@ export class UiShellController {
   }
 }
 
-function buildRenderedStatus(graph: PositionedGraph): string {
-  const parts = [
-    `${graph.nodes.length} nodes`,
-    `${graph.edges.length} edges`,
-    `rendered depth ${graph.viewMeta.lodLevel}`,
-  ];
-
-  if (typeof graph.viewMeta.sliceNodeCount === "number") {
-    parts.push(`slice ${graph.viewMeta.sliceNodeCount} nodes`);
-  }
-
-  if (typeof graph.viewMeta.collapsedClusterCount === "number") {
-    parts.push(`${graph.viewMeta.collapsedClusterCount} collapsed clusters`);
-  }
-
-  if (typeof graph.viewMeta.zoom === "number") {
-    parts.push(`LoD zoom ${graph.viewMeta.zoom.toFixed(2)}`);
-  }
-
-  return `${STATUS_RENDERED_PREFIX}: ${parts.join(", ")}`;
-}
-
-function formatPieFieldOption(summary: {
-  key: string;
-  uniqueValueCount: number;
-}): string {
-  const suffix =
-    summary.uniqueValueCount > HIGH_CARDINALITY_PIE_FIELD_THRESHOLD
-      ? "many values"
-      : `${summary.uniqueValueCount} values`;
-  return `${summary.key} (${suffix})`;
-}
-
-function buildCategorySummaries(
-  graph: PositionedGraph,
-  fieldKey: string,
-): Array<{
-  label: string;
-  count: number;
-  percentage: number;
-  color?: string;
-}> {
-  const countsByCategory = new Map<string, number>();
-  graph.nodes.forEach((node) => {
-    const metadata = readNodeMetadata(node.attributes);
-    const value = metadata?.[fieldKey];
-    categoricalPieValues(value).forEach((category) => {
-      countsByCategory.set(
-        category,
-        (countsByCategory.get(category) ?? 0) + 1,
-      );
-    });
-  });
-
-  const total = [...countsByCategory.values()].reduce(
-    (sum, count) => sum + count,
-    0,
-  );
-  if (total <= 0) {
-    return [];
-  }
-
-  const sorted = [...countsByCategory.entries()].sort(
-    ([leftLabel, leftCount], [rightLabel, rightCount]) =>
-      rightCount - leftCount || leftLabel.localeCompare(rightLabel),
-  );
-  const topCategories = sorted.slice(0, MAX_PIE_SLICE_KEYS);
-  const remainingCategories = sorted.slice(MAX_PIE_SLICE_KEYS);
-  const summaries = topCategories.map(([label, count]) => ({
-    label,
-    count,
-    percentage: (count / total) * 100,
-  }));
-  const otherCount = remainingCategories.reduce(
-    (sum, [, count]) => sum + count,
-    0,
-  );
-
-  if (otherCount > 0) {
-    summaries.push({
-      label: PIE_OTHER_SLICE_LABEL,
-      count: otherCount,
-      percentage: (otherCount / total) * 100,
-    });
-  }
-
-  return summaries;
-}
-
-function readNodeMetadata(
-  attributes: Record<string, unknown> | undefined,
-): Record<string, string | number | boolean | null> | null {
-  const metadata = attributes?.metadata;
-  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
-    return null;
-  }
-
-  return metadata as Record<string, string | number | boolean | null>;
-}
-
-function parseCategoryColorPalette(
-  rawInput: string,
-  categoryOrder: string[],
-): Record<string, string> {
-  const trimmedInput = rawInput.trim();
-  if (!trimmedInput) {
-    return {};
-  }
-
-  if (trimmedInput.startsWith("{")) {
-    return parseNamedCategoryColorPalette(trimmedInput);
-  }
-
-  const colorsByCategory: Record<string, string> = {};
-  trimmedInput
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .forEach((line, index) => {
-      const category = categoryOrder[index];
-      const color = rgbLineToHex(line);
-      if (category && color) {
-        colorsByCategory[category] = color;
-      }
-    });
-
-  return colorsByCategory;
-}
-
-function parseNamedCategoryColorPalette(rawInput: string): Record<string, string> {
-  const parsed: unknown = JSON.parse(rawInput);
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    return {};
-  }
-
-  const record = parsed as Record<string, unknown>;
-  const source =
-    record.colors && typeof record.colors === "object" && !Array.isArray(record.colors)
-      ? (record.colors as Record<string, unknown>)
-      : record;
-  const colorsByCategory: Record<string, string> = {};
-  Object.entries(source).forEach(([category, color]) => {
-    if (typeof color === "string" && isHexColor(color)) {
-      colorsByCategory[category] = color;
-    }
-  });
-
-  return colorsByCategory;
-}
-
-function serializeCategoryColorPalette(
-  colorsByCategory: Record<string, string>,
-  categoryOrder: string[],
-): string {
-  return categoryOrder
-    .map((category) => hexToRgbLine(colorsByCategory[category]))
-    .filter((line): line is string => Boolean(line))
-    .join("\n");
-}
-
-function rgbLineToHex(line: string): string | null {
-  const parts = line.split(",").map((part) => Number(part.trim()));
-  if (
-    parts.length !== 3 ||
-    parts.some(
-      (part) =>
-        !Number.isInteger(part) || part < 0 || part > 255,
-    )
-  ) {
-    return null;
-  }
-
-  return `#${parts
-    .map((part) => part.toString(16).padStart(2, "0"))
-    .join("")}`;
-}
-
-function hexToRgbLine(color: string | undefined): string | null {
-  if (!color || !isHexColor(color)) {
-    return null;
-  }
-
-  const red = Number.parseInt(color.slice(1, 3), 16);
-  const green = Number.parseInt(color.slice(3, 5), 16);
-  const blue = Number.parseInt(color.slice(5, 7), 16);
-  return `${red},${green},${blue}`;
-}
-
-function isHexColor(color: string): boolean {
-  return /^#[0-9a-fA-F]{6}$/.test(color);
-}
-
-function parseAncillaryPayload(rawInput: string): AncillaryPayload {
-  if (!rawInput) {
-    return {};
-  }
-
-  const parsed: unknown = JSON.parse(rawInput);
-  if (!parsed || typeof parsed !== "object") {
-    throw new Error(ERR_INVALID_ANCILLARY_JSON);
-  }
-
-  const record = parsed as Record<string, unknown>;
-  const metadataSchema = record[KEY_METADATA_SCHEMA];
-  const metadataByNodeId = record[KEY_METADATA_BY_NODE_ID];
-  const visualMapping = record[KEY_VISUAL_MAPPING];
-
-  const hasSchema = Array.isArray(metadataSchema);
-  const hasByNodeId =
-    metadataByNodeId !== undefined &&
-    metadataByNodeId !== null &&
-    typeof metadataByNodeId === "object";
-
-  if (!hasSchema && !hasByNodeId) {
-    throw new Error(ERR_INVALID_ANCILLARY_JSON);
-  }
-
-  return {
-    metadata_schema: hasSchema
-      ? (metadataSchema as MetadataField[])
-      : undefined,
-    metadata_by_node_id: hasByNodeId
-      ? (metadataByNodeId as Record<
-          string,
-          Record<string, string | number | boolean | null>
-        >)
-      : undefined,
-    visual_mapping:
-      visualMapping && typeof visualMapping === "object"
-        ? (visualMapping as VisualMappingOptions)
-        : undefined,
-  };
-}
-
-function buildVisualMappingForControls(
-  baseVisualMapping: VisualMappingOptions,
-  fieldKeys: string[],
-  sizeFieldKey: string | undefined,
-  sizeScaleValue: string | undefined,
-  categoryColors: Record<string, string> | undefined,
-): VisualMappingOptions {
-  const selectedFields = fieldKeys.map((field) => field.trim()).filter(Boolean);
-  const mapping: VisualMappingOptions = { ...baseVisualMapping };
-  const hasSizeControls =
-    sizeFieldKey !== undefined || sizeScaleValue !== undefined;
-
-  if (hasSizeControls || baseVisualMapping.size || baseVisualMapping.sizeField) {
-    const selectedSizeField =
-      sizeFieldKey?.trim() ||
-      baseVisualMapping.size?.field ||
-      baseVisualMapping.sizeField ||
-      DEFAULT_PROFILE_COUNT_FIELD;
-    mapping.size = {
-      ...(baseVisualMapping.size ?? {}),
-      field: selectedSizeField,
-      scale: normalizeSizeScale(sizeScaleValue, baseVisualMapping.size?.scale),
-    };
-  }
-
-  if (categoryColors && Object.keys(categoryColors).length > 0) {
-    mapping.pie = {
-      ...(mapping.pie ?? baseVisualMapping.pie ?? {}),
-      categoryColors,
-    };
-  }
-
-  if (selectedFields.length === 0) {
-    return mapping;
-  }
-
-  return {
-    ...mapping,
-    pie: {
-      ...(mapping.pie ?? baseVisualMapping.pie ?? {}),
-      enabled: true,
-      fields: selectedFields,
-    },
-  };
-}
-
 function getSelectedOptions(select: HTMLSelectElement | undefined): string[] {
   if (!select) {
     return [];
@@ -1263,19 +972,6 @@ function getSelectedOptions(select: HTMLSelectElement | undefined): string[] {
   return [...select.selectedOptions]
     .map((option) => option.value)
     .filter((value) => value.trim().length > 0);
-}
-
-function normalizeSizeScale(
-  value: string | undefined,
-  fallback: SizeScale | undefined,
-): SizeScale {
-  if (value === SIZE_SCALE_LOG) {
-    return SIZE_SCALE_LOG;
-  }
-  if (value === SIZE_SCALE_LINEAR) {
-    return SIZE_SCALE_LINEAR;
-  }
-  return fallback ?? SIZE_SCALE_LINEAR;
 }
 
 function readTextFile(file: File): Promise<string> {
