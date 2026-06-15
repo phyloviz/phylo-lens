@@ -60,6 +60,7 @@ class ParsedGraph:
     nodes: list[str]
     edges: list[ParsedEdge]
     warnings: list[str] = field(default_factory=list)
+    explicit_node_ids: set[str] = field(default_factory=set)
 
 
 @dataclass
@@ -84,6 +85,7 @@ def parse_newick(content: str) -> ParsedGraph:
 
     nodes: list[str] = []
     edges: list[tuple[str, str]] = []
+    explicit_node_ids: set[str] = set()
     stack: list[_PendingInternalNode] = []
     root_id: str | None = None
     expect_subtree = True
@@ -193,6 +195,8 @@ def parse_newick(content: str) -> ParsedGraph:
             branch_length = parse_branch_length_optional()
             node_id = assign_id(label, NODE_PREFIX_LEAF, leaf_counter)
             nodes.append(node_id)
+            if label is not None:
+                explicit_node_ids.add(node_id)
             emit_completed_node(node_id, branch_length)
             expect_subtree = False
             continue
@@ -213,6 +217,8 @@ def parse_newick(content: str) -> ParsedGraph:
             branch_length = parse_branch_length_optional()
             node_id = assign_id(label, NODE_PREFIX_INTERNAL, pending.preorder_index)
             nodes.append(node_id)
+            if label is not None:
+                explicit_node_ids.add(node_id)
             for child_id, child_distance in pending.child_links:
                 edges.append(
                     ParsedEdge(
@@ -240,7 +246,12 @@ def parse_newick(content: str) -> ParsedGraph:
 
         raise ParseError(ERR_NEWICK_TRAILING_CONTENT)
 
-    return ParsedGraph(nodes=nodes, edges=edges, warnings=warnings)
+    return ParsedGraph(
+        nodes=nodes,
+        edges=edges,
+        warnings=warnings,
+        explicit_node_ids=explicit_node_ids,
+    )
 
 
 def slugify_label(label: str) -> str:

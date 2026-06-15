@@ -5,6 +5,7 @@ import type { MetadataIndexData } from "../ancillary/metadataIndex";
 import {
   buildPieAttributes,
   buildPieCategoryColorAttributes,
+  isCategoryCountMetadataKey,
   PIE_CATEGORY_COLORS_ATTRIBUTE,
   PIE_PALETTE_ATTRIBUTE,
 } from "./pieMapping";
@@ -63,7 +64,7 @@ export function applyVisualMappings(
   metadataIndex: MetadataIndexData,
   options: VisualMappingOptions = {},
 ): PositionedGraph {
-  const colorField = options.colorField ?? DEFAULT_COLOR_FIELD;
+  const colorField = resolveColorField(dataset, options.colorField);
   const sizeField =
     options.size?.field ?? options.sizeField ?? DEFAULT_SIZE_FIELD;
   const sizeScale = options.size?.scale ?? SIZE_SCALE_LINEAR;
@@ -89,6 +90,30 @@ export function applyVisualMappings(
   };
 }
 
+function resolveColorField(
+  dataset: CanonicalDataset,
+  requestedColorField: string | undefined,
+): string {
+  if (requestedColorField) {
+    return requestedColorField;
+  }
+
+  const schemaKeys = new Set(dataset.metadata_schema.map((field) => field.key));
+  if (schemaKeys.has(DEFAULT_COLOR_FIELD)) {
+    return DEFAULT_COLOR_FIELD;
+  }
+
+  const fallbackField = dataset.metadata_schema.find(
+    (field) =>
+      field.type !== "number" &&
+      field.type !== "null" &&
+      field.key !== DEFAULT_PROFILE_COUNT_FIELD &&
+      !isCategoryCountMetadataKey(field.key),
+  );
+
+  return fallbackField?.key ?? DEFAULT_COLOR_FIELD;
+}
+
 // Map one positioned node to metadata-aware color, size, and attributes.
 function mapNodeVisuals(
   node: PositionedNode,
@@ -101,6 +126,7 @@ function mapNodeVisuals(
   pieOptions: PieMappingOptions,
 ): PositionedNode {
   const metadata = getNodeMetadata(metadataIndex, node.id);
+  const ancillaryRows = dataset.ancillary_rows_by_node_id?.[node.id] ?? [];
   const baseColor = deriveColor(metadata[colorField], palette);
   const baseSize = deriveSize(
     metadata[sizeField],
@@ -119,6 +145,7 @@ function mapNodeVisuals(
     metadata,
     pieOptions,
     [sizeField],
+    ancillaryRows,
   );
 
   return {
@@ -130,7 +157,7 @@ function mapNodeVisuals(
       metadata,
       dataset_id: dataset.dataset_id,
       is_cluster_proxy: isClusterProxy,
-      ...buildPieAttributes(metadata, pieOptions, [sizeField]),
+      ...buildPieAttributes(metadata, pieOptions, [sizeField], ancillaryRows),
       ...(Object.keys(pieCategoryColors).length > 0
         ? { [PIE_CATEGORY_COLORS_ATTRIBUTE]: pieCategoryColors }
         : {}),

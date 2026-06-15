@@ -7,6 +7,7 @@ export const EMPTY_METADATA_RECORD = {} as Record<
   string,
   string | number | boolean | null
 >;
+const GENERATED_NUMERIC_METADATA_KEYS = ["profile_count"];
 
 export interface NumericStats {
   min: number;
@@ -49,6 +50,18 @@ export function buildMetadataIndex(
       field.key,
       buildCategoricalInvertedIndex(field, byNodeId),
     );
+  });
+  GENERATED_NUMERIC_METADATA_KEYS.forEach((key) => {
+    if (numericStats.has(key)) {
+      return;
+    }
+    const stats = computeNumericStats(
+      { key, type: METADATA_TYPE_NUMBER },
+      byNodeId,
+    );
+    if (stats) {
+      numericStats.set(key, stats);
+    }
   });
 
   return { byNodeId, categoricalInverted, numericStats };

@@ -40,6 +40,26 @@ describe("ancillaryWheel metadata distributions", () => {
     expect(collectMetadataFieldKeys(GRAPH)).toEqual(["age_yr", "country"]);
   });
 
+  it("omits generated profile counts from selectable metadata keys", () => {
+    // Given
+    const graph: PositionedGraph = {
+      ...GRAPH,
+      nodes: [
+        {
+          id: "a",
+          x: 0,
+          y: 0,
+          attributes: {
+            metadata: { country: "Portugal", profile_count: 3 },
+          },
+        },
+      ],
+    };
+
+    // Then
+    expect(collectMetadataFieldKeys(graph)).toEqual(["country"]);
+  });
+
   it("builds categorical pie stats for a selected metadata field", () => {
     const stats = buildMetadataFieldWheelStats(GRAPH, "country");
 
@@ -75,5 +95,37 @@ describe("ancillaryWheel metadata distributions", () => {
       ["Portugal", 1],
       ["Spain", 1],
     ]);
+  });
+
+  it("uses category count metadata for selected field stats", () => {
+    // Given
+    const graph: PositionedGraph = {
+      ...GRAPH,
+      nodes: [
+        {
+          id: "a",
+          x: 0,
+          y: 0,
+          attributes: {
+            metadata: {
+              country: "Portugal;Spain",
+              __category_count__country__value__Portugal: 3,
+              __category_count__country__value__Spain: 1,
+            },
+          },
+        },
+      ],
+    };
+
+    // When
+    const stats = buildMetadataFieldWheelStats(graph, "country");
+
+    // Then
+    expect(stats?.total).toBe(4);
+    expect(stats?.slices.map((slice) => [slice.label, slice.value])).toEqual([
+      ["Portugal", 3],
+      ["Spain", 1],
+    ]);
+    expect(collectMetadataFieldKeys(graph)).toEqual(["country"]);
   });
 });

@@ -13,12 +13,14 @@ import {
   MIN_NODE_SIZE,
 } from "../src/render/visualMappings";
 import {
+  buildPiePalette,
   detectPieSliceKeys,
   MAX_PIE_SLICE_KEYS,
   PIE_OTHER_SLICE_KEY,
   PIE_CATEGORY_COLORS_ATTRIBUTE,
   PIE_ATTRIBUTE_PREFIX,
   PIE_PALETTE_ATTRIBUTE,
+  combinationPieFieldKey,
   pieCategoricalAttributeKey,
 } from "../src/render/pieMapping";
 
@@ -79,6 +81,30 @@ describe("visualMappings", () => {
 
     expect(pieKeys).toContain(`${PIE_ATTRIBUTE_PREFIX}trait_a`);
     expect(Array.isArray(nodeAttributes?.[PIE_PALETTE_ATTRIBUTE])).toBe(true);
+  });
+
+  it("falls back to the first categorical field when region is unavailable", () => {
+    // Given
+    const dataset: CanonicalDataset = {
+      ...DATASET,
+      metadata_schema: [
+        { key: "profile_count", type: METADATA_TYPE_NUMBER },
+        { key: "Location", type: METADATA_TYPE_STRING },
+      ],
+      metadata_by_node_id: {
+        a: { Location: "Portugal", profile_count: 2 },
+        b: { Location: "Australia", profile_count: 1 },
+      },
+    };
+    const index = buildMetadataIndex(dataset);
+
+    // When
+    const mapped = applyVisualMappings(BASE_GRAPH, dataset, index);
+
+    // Then
+    expect(mapped.nodes[0]?.color).toBeDefined();
+    expect(mapped.nodes[1]?.color).toBeDefined();
+    expect(mapped.nodes[0]?.color).not.toBe(mapped.nodes[1]?.color);
   });
 
   it("maps explicit category colors to categorical pie attributes", () => {
@@ -196,6 +222,39 @@ describe("visualMappings", () => {
     expect(nodeAttributes[expectedKey]).toBe(1);
   });
 
+  it("uses categorical count metadata for selected pie fields", () => {
+    // Given
+    const dataset: CanonicalDataset = {
+      ...DATASET,
+      metadata_by_node_id: {
+        a: {
+          region: "EU;US",
+          distance: 10,
+          trait_a: 4,
+          __category_count__region__value__EU: 3,
+          __category_count__region__value__US: 1,
+        },
+        b: { region: "US", distance: 30, trait_a: 8 },
+      },
+    };
+    const index = buildMetadataIndex(dataset);
+
+    // When
+    const mapped = applyVisualMappings(BASE_GRAPH, dataset, index, {
+      pie: {
+        fields: ["region"],
+      },
+    });
+
+    // Then
+    const nodeAttributes = mapped.nodes[0]?.attributes as Record<
+      string,
+      unknown
+    >;
+    expect(nodeAttributes[pieCategoricalAttributeKey("region", "EU")]).toBe(3);
+    expect(nodeAttributes[pieCategoricalAttributeKey("region", "US")]).toBe(1);
+  });
+
   it("maps multi-valued categorical metadata to multiple pie slices", () => {
     // Given
     const dataset: CanonicalDataset = {
@@ -267,6 +326,61 @@ describe("visualMappings", () => {
     ).toBe(1);
   });
 
+  it("uses ancillary isolate rows for multi-field combination pie slices", () => {
+    // Given
+    const dataset: CanonicalDataset = {
+      ...DATASET,
+      metadata_schema: [
+        ...DATASET.metadata_schema,
+        { key: "country", type: METADATA_TYPE_STRING },
+      ],
+      metadata_by_node_id: {
+        a: {
+          region: "Europe",
+          country: "Portugal;Spain",
+          distance: 10,
+          trait_a: 4,
+        },
+        b: { region: "US", country: "Canada", distance: 30, trait_a: 8 },
+      },
+      ancillary_rows_by_node_id: {
+        a: [
+          { region: "Europe", country: "Portugal" },
+          { region: "Europe", country: "Portugal" },
+          { region: "Europe", country: "Spain" },
+        ],
+      },
+    };
+    const index = buildMetadataIndex(dataset);
+
+    // When
+    const mapped = applyVisualMappings(BASE_GRAPH, dataset, index, {
+      pie: {
+        fields: ["region", "country"],
+      },
+    });
+
+    // Then
+    const nodeAttributes = mapped.nodes[0]?.attributes as Record<
+      string,
+      unknown
+    >;
+    const fieldKey = combinationPieFieldKey(["region", "country"]);
+    expect(
+      nodeAttributes[
+        pieCategoricalAttributeKey(fieldKey, "region:Europe country:Portugal")
+      ],
+    ).toBe(2);
+    expect(
+      nodeAttributes[
+        pieCategoricalAttributeKey(fieldKey, "region:Europe country:Spain")
+      ],
+    ).toBe(1);
+    expect(nodeAttributes[pieCategoricalAttributeKey("region", "Europe")]).toBe(
+      undefined,
+    );
+  });
+
   it("caps detected pie slice keys and aggregates the tail as Others", () => {
     // Given
     const nodes = Array.from({ length: MAX_PIE_SLICE_KEYS + 10 }, (_, index) => ({
@@ -279,12 +393,26 @@ describe("visualMappings", () => {
     const keys = detectPieSliceKeys(nodes);
 
     // Then
-    expect(keys).toHaveLength(MAX_PIE_SLICE_KEYS + 1);
+    expect(keys).toHaveLength(MAX_PIE_SLICE_KEYS);
     expect(keys).toContain(
       `${PIE_ATTRIBUTE_PREFIX}country_${MAX_PIE_SLICE_KEYS + 9}`,
     );
     expect(keys).toContain(PIE_OTHER_SLICE_KEY);
+    expect(keys.filter((key) => key !== PIE_OTHER_SLICE_KEY)).toHaveLength(
+      MAX_PIE_SLICE_KEYS - 1,
+    );
     expect(keys).not.toContain(`${PIE_ATTRIBUTE_PREFIX}country_0`);
+  });
+
+  it("generates hex colors for pie palettes beyond the seed colors", () => {
+    // Given / When
+    const palette = buildPiePalette(12);
+
+    // Then
+    expect(palette).toHaveLength(12);
+    expect(palette.every((color) => /^#[0-9a-fA-F]{6}$/.test(color))).toBe(
+      true,
+    );
   });
 
   it("sanitizes real-world categorical values for graph pie attributes", () => {

@@ -20,6 +20,7 @@ STATUS_VALUE_OK = "ok"
 
 KEY_DATASET = "dataset"
 KEY_DATASET_ID = "dataset_id"
+KEY_METADATA_SCHEMA = "metadata_schema"
 KEY_STATS = "stats"
 KEY_NODE_COUNT = "node_count"
 KEY_CACHE_HIT = "cache_hit"
@@ -106,11 +107,21 @@ def test_normalize_endpoint_accepts_tabular_ancillary_data(client) -> None:
     body = response.json()
 
     assert response.status_code == STATUS_OK
-    assert body[KEY_DATASET]["metadata_by_node_id"]["p09"] == {
+    p09_metadata = body[KEY_DATASET]["metadata_by_node_id"]["p09"]
+    assert {
+        key: p09_metadata[key]
+        for key in ("country", "disease", "penner", "profile_count")
+    } == {
         "country": "Unknown",
         "disease": "carrier",
         "penner": 9,
+        "profile_count": 1,
     }
+    schema_keys = {
+        field["key"] for field in body[KEY_DATASET][KEY_METADATA_SCHEMA]
+    }
+    assert "profile_count" not in schema_keys
+    assert not any(key.startswith("__category_count__") for key in schema_keys)
 
 
 def test_normalize_endpoint_rejects_invalid_payload(client) -> None:
@@ -211,6 +222,73 @@ def test_prepare_endpoint_clamps_negative_newick_branch_lengths(client) -> None:
     assert "clamped" in body[KEY_WARNINGS][0]
 
 
+def test_prepare_endpoint_respects_declared_string_schema_for_ancillary_data(
+    client,
+) -> None:
+    """Ensure prepare does not coerce declared string ancillary columns to numbers."""
+    response = client.post(
+        ROUTE_PREPARE,
+        json={
+            "format": FORMAT_NEWICK,
+            "dataset_name": DATASET_API_TREE,
+            "content": "(3157:0.1,2475:0.2);",
+            "metadata_schema": [
+                {"key": "year", "type": "string"},
+                {"key": "sender", "type": "string"},
+                {"key": "id", "type": "string"},
+                {"key": "curator", "type": "string"},
+            ],
+            "ancillary_data": {
+                "format": "tsv",
+                "join_column": "profile",
+                "content": (
+                    "profile\tyear\tsender\tid\tcurator\n"
+                    "3157\t1991\t42\t3157\t7\n"
+                    "2475\t2004\t43\t2475\t8\n"
+                ),
+            },
+        },
+    )
+
+    assert response.status_code == STATUS_OK
+
+
+def test_prepare_endpoint_respects_declared_string_schema_for_direct_metadata(
+    client,
+) -> None:
+    """Ensure prepare coerces direct metadata payloads with declared string schema."""
+    response = client.post(
+        ROUTE_PREPARE,
+        json={
+            "format": FORMAT_NEWICK,
+            "dataset_name": DATASET_API_TREE,
+            "content": "(3157:0.1,2475:0.2);",
+            "metadata_schema": [
+                {"key": "year", "type": "string"},
+                {"key": "sender", "type": "string"},
+                {"key": "id", "type": "string"},
+                {"key": "curator", "type": "string"},
+            ],
+            "metadata_by_node_id": {
+                "3157": {
+                    "year": 1991,
+                    "sender": 42,
+                    "id": 3157,
+                    "curator": 7,
+                },
+                "2475": {
+                    "year": 2004,
+                    "sender": 43,
+                    "id": 2475,
+                    "curator": 8,
+                },
+            },
+        },
+    )
+
+    assert response.status_code == STATUS_OK
+
+
 def test_view_slice_endpoint_rejects_unknown_dataset(client) -> None:
     """Ensure view-slice fails cleanly for unknown prepared dataset ids."""
     response = client.post(
@@ -263,6 +341,56 @@ def test_search_endpoint_finds_prepared_node_ids_and_metadata(client) -> None:
     assert by_id.json()[KEY_MATCHES][0][KEY_METADATA] == {"region": "iberia"}
     assert by_metadata.status_code == STATUS_OK
     assert by_metadata.json()[KEY_MATCHES][0][KEY_NODE_ID] == "a"
+
+
+def test_search_endpoint_hides_internal_metadata_fields(client) -> None:
+    """Ensure generated count fields are not indexed or returned by search."""
+    client.post(
+        ROUTE_PREPARE,
+        json={
+            "format": FORMAT_NEWICK,
+            "dataset_name": "internal-metadata-search-tree",
+            "content": "(ST1:1,ST2:1)Root;",
+            "ancillary_data": {
+                "format": "tsv",
+                "join_column": "ST",
+                "content": (
+                    "ST\tcountry\n"
+                    "ST1\tPortugal\n"
+                    "ST1\tPortugal\n"
+                    "ST2\tCanada\n"
+                ),
+            },
+        },
+    )
+
+    by_public_metadata = client.post(
+        ROUTE_SEARCH,
+        json={
+            "dataset_id": "internal-metadata-search-tree",
+            "query": "port",
+            "include_metadata_keys": [
+                "country",
+                "profile_count",
+                "__category_count__country__value__Portugal",
+            ],
+        },
+    )
+    by_internal_count = client.post(
+        ROUTE_SEARCH,
+        json={
+            "dataset_id": "internal-metadata-search-tree",
+            "query": "2",
+            "include_metadata_keys": ["country", "profile_count"],
+        },
+    )
+
+    assert by_public_metadata.status_code == STATUS_OK
+    assert by_public_metadata.json()[KEY_MATCHES][0][KEY_METADATA] == {
+        "country": "Portugal"
+    }
+    assert by_internal_count.status_code == STATUS_OK
+    assert by_internal_count.json()[KEY_MATCHES] == []
 
 
 def test_search_endpoint_keeps_short_numeric_queries_exact(client) -> None:

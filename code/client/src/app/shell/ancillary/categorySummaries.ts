@@ -1,6 +1,7 @@
 import { readNodeMetadata } from "../../../ancillary/metadataAccess";
 import type { PositionedGraph } from "../../../contracts/positioned";
 import {
+  categoryCountsForField,
   categoricalPieValues,
   MAX_PIE_SLICE_KEYS,
   PIE_OTHER_SLICE_LABEL,
@@ -33,12 +34,24 @@ export function buildCategorySummaries(
   const countsByCategory = new Map<string, number>();
   graph.nodes.forEach((node) => {
     const metadata = readNodeMetadata(node.attributes);
-    const value = metadata?.[fieldKey];
+    if (!metadata) {
+      return;
+    }
+
+    const categoryCounts = categoryCountsForField(metadata, fieldKey);
+    if (categoryCounts.length > 0) {
+      categoryCounts.forEach((entry) => {
+        countsByCategory.set(
+          entry.category,
+          (countsByCategory.get(entry.category) ?? 0) + entry.count,
+        );
+      });
+      return;
+    }
+
+    const value = metadata[fieldKey];
     categoricalPieValues(value).forEach((category) => {
-      countsByCategory.set(
-        category,
-        (countsByCategory.get(category) ?? 0) + 1,
-      );
+      countsByCategory.set(category, (countsByCategory.get(category) ?? 0) + 1);
     });
   });
 
@@ -54,8 +67,12 @@ export function buildCategorySummaries(
     ([leftLabel, leftCount], [rightLabel, rightCount]) =>
       rightCount - leftCount || leftLabel.localeCompare(rightLabel),
   );
-  const topCategories = sorted.slice(0, MAX_PIE_SLICE_KEYS);
-  const remainingCategories = sorted.slice(MAX_PIE_SLICE_KEYS);
+  const hasOverflow = sorted.length > MAX_PIE_SLICE_KEYS;
+  const topCategoryLimit = hasOverflow
+    ? Math.max(0, MAX_PIE_SLICE_KEYS - 1)
+    : MAX_PIE_SLICE_KEYS;
+  const topCategories = sorted.slice(0, topCategoryLimit);
+  const remainingCategories = sorted.slice(topCategoryLimit);
   const summaries = topCategories.map(([label, count]) => ({
     label,
     count,

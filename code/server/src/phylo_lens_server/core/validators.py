@@ -13,11 +13,15 @@ ERR_MISSING_TARGET_TEMPLATE = "Edge '{edge_id}' has missing target node '{target
 ERR_SELF_LOOP_TEMPLATE = "Edge '{edge_id}' is a self-loop and self-loops are disabled."
 
 ERR_METADATA_UNKNOWN_NODE_TEMPLATE = "Metadata references unknown node '{node_id}'."
+ERR_ANCILLARY_ROWS_UNKNOWN_NODE_TEMPLATE = (
+    "Ancillary rows reference unknown node '{node_id}'."
+)
 ERR_METADATA_UNKNOWN_KEY_TEMPLATE = (
     "Metadata key '{key}' is not declared in metadata schema."
 )
 ERR_METADATA_TYPE_TEMPLATE = (
-    "Metadata key '{key}' for node '{node_id}' does not match type '{expected_type}'."
+    "Metadata key '{key}' for node '{node_id}' does not match type "
+    "'{expected_type}' (actual type '{actual_type}', value '{value}')."
 )
 
 METADATA_TYPE_NULL = "null"
@@ -73,8 +77,16 @@ def validate_canonical_dataset(
                         key=key,
                         node_id=node_id,
                         expected_type=expected_type,
+                        actual_type=type(value).__name__,
+                        value=value,
                     )
                 )
+
+    for node_id in dataset.ancillary_rows_by_node_id:
+        if node_id not in node_id_set:
+            errors.append(
+                ERR_ANCILLARY_ROWS_UNKNOWN_NODE_TEMPLATE.format(node_id=node_id)
+            )
 
     if errors:
         raise DomainValidationError(errors)

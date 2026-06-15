@@ -2,7 +2,9 @@ import type { PositionedGraph } from "../contracts/positioned";
 import { readNodeMetadata } from "../ancillary/metadataAccess";
 import {
   buildPiePalette,
+  categoryCountsForField,
   categoricalPieValues,
+  isCategoryCountMetadataKey,
   PIE_CATEGORY_COLORS_ATTRIBUTE,
   PIE_ATTRIBUTE_PREFIX,
   PIE_OTHER_SLICE_COLOR,
@@ -35,6 +37,7 @@ export interface MetadataFieldSummary {
 }
 
 const MAX_METADATA_DISTRIBUTION_SLICES = 12;
+const GENERATED_METADATA_FIELDS = new Set(["profile_count"]);
 
 // Aggregate pie-like ancillary attributes into one chart-friendly stats payload.
 export function buildAncillaryWheelStats(
@@ -122,14 +125,27 @@ export function buildMetadataFieldWheelStats(
 
     includedNodeCount += 1;
     const metadata = readNodeMetadata(node.attributes);
-    const value = metadata?.[trimmedFieldKey];
-    if (value === undefined || value === null || value === "") {
+    if (!metadata) {
       return;
     }
 
-    categoricalPieValues(value).forEach((label) => {
-      countsByValue.set(label, (countsByValue.get(label) ?? 0) + 1);
-    });
+    const categoryCounts = categoryCountsForField(metadata, trimmedFieldKey);
+    if (categoryCounts.length > 0) {
+      categoryCounts.forEach((entry) => {
+        countsByValue.set(
+          entry.category,
+          (countsByValue.get(entry.category) ?? 0) + entry.count,
+        );
+      });
+      return;
+    }
+
+    const value = metadata[trimmedFieldKey];
+    if (value !== undefined && value !== null && value !== "") {
+      categoricalPieValues(value).forEach((label) => {
+        countsByValue.set(label, (countsByValue.get(label) ?? 0) + 1);
+      });
+    }
   });
 
   const slices = buildDistributionSlices(countsByValue);
@@ -176,6 +192,10 @@ export function collectMetadataFieldSummaries(
     }
 
     Object.entries(metadata).forEach(([key, value]) => {
+      if (isGeneratedMetadataField(key)) {
+        return;
+      }
+
       const values = categoricalPieValues(value);
       const valueSet = valuesByKey.get(key) ?? new Set<string>();
       values.forEach((entry) => valueSet.add(entry));
@@ -189,6 +209,10 @@ export function collectMetadataFieldSummaries(
       uniqueValueCount: values.size,
     }))
     .sort((left, right) => left.key.localeCompare(right.key));
+}
+
+function isGeneratedMetadataField(key: string): boolean {
+  return GENERATED_METADATA_FIELDS.has(key) || isCategoryCountMetadataKey(key);
 }
 
 // Render a wheel (donut) and legend for aggregated ancillary percentages.

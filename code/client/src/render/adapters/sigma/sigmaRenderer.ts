@@ -239,7 +239,15 @@ export class SigmaRenderer implements GraphRenderer {
     ) {
       try {
         this.rebuildSigma(detectedSliceKeys, graph, nextSignature);
-      } catch {
+      } catch (error) {
+        console.warn(
+          "Failed to build Sigma piechart program; falling back to default nodes.",
+          {
+            sliceCount: detectedSliceKeys.length,
+            sliceKeys: detectedSliceKeys,
+            error,
+          },
+        );
         this.rebuildSigma([], undefined, "");
       }
     }

@@ -5,9 +5,12 @@ export const PIE_FIELD_VALUE_SEPARATOR = "__value__";
 export const PIE_OTHER_SLICE_KEY = `${PIE_ATTRIBUTE_PREFIX}others`;
 export const PIE_OTHER_SLICE_LABEL = "Others";
 export const PIE_OTHER_SLICE_COLOR = "#d3d3d3";
-// @sigma/node-piechart emits one WebGL shader program per slice set. Keep this
-// conservative so high-cardinality fields such as country do not fail linking.
-export const MAX_PIE_SLICE_KEYS = 16;
+export const CATEGORY_COUNT_FIELD_PREFIX = "__category_count__";
+export const CATEGORY_COUNT_FIELD_SEPARATOR = "__value__";
+// @sigma/node-piechart emits one WebGL shader program per slice set and uses
+// one vertex attribute per slice value. Keep this below common WebGL attribute
+// limits so high-cardinality fields render as top categories + Others.
+export const MAX_PIE_SLICE_KEYS = 12;
 
 export const DEFAULT_PIE_PALETTE = [
   "#ef4444",
@@ -28,12 +31,20 @@ export interface PieMappingOptions {
 }
 
 type MetadataRecord = Record<string, string | number | boolean | null>;
+export type AncillaryRow = Record<string, string | number | boolean | null>;
+
+export interface CategoryCountEntry {
+  fieldKey: string;
+  category: string;
+  count: number;
+}
 
 // Build dynamic pie slice attributes from ancillary metadata.
 export function buildPieAttributes(
   metadata: MetadataRecord,
   options: PieMappingOptions,
   excludedFields: string[] = [],
+  ancillaryRows: AncillaryRow[] = [],
 ): Record<string, number> {
   if (options.enabled === false) {
     return {};
@@ -45,7 +56,28 @@ export function buildPieAttributes(
   );
 
   const attributes: Record<string, number> = {};
+  const combinationCounts = categoryCountsForFieldCombination(
+    ancillaryRows,
+    selectedFields,
+  );
+  if (combinationCounts.length > 0) {
+    combinationCounts.forEach((entry) => {
+      attributes[pieCategoricalAttributeKey(entry.fieldKey, entry.category)] =
+        entry.count;
+    });
+    return attributes;
+  }
+
   selectedFields.forEach((fieldKey) => {
+    const categoryCounts = categoryCountsForField(metadata, fieldKey);
+    if (categoryCounts.length > 0) {
+      categoryCounts.forEach((entry) => {
+        attributes[pieCategoricalAttributeKey(fieldKey, entry.category)] =
+          entry.count;
+      });
+      return;
+    }
+
     const value = metadata[fieldKey];
     if (typeof value === "number" && Number.isFinite(value) && value > 0) {
       attributes[`${PIE_ATTRIBUTE_PREFIX}${fieldKey}`] = value;
@@ -73,6 +105,7 @@ export function buildPieCategoryColorAttributes(
   metadata: MetadataRecord,
   options: PieMappingOptions,
   excludedFields: string[] = [],
+  ancillaryRows: AncillaryRow[] = [],
 ): Record<string, string> {
   if (options.enabled === false || !options.fields || !options.categoryColors) {
     return {};
@@ -80,27 +113,57 @@ export function buildPieCategoryColorAttributes(
 
   const excluded = new Set<string>(excludedFields);
   const colorsByAttribute: Record<string, string> = {};
-  options.fields
-    .filter((fieldKey) => !excluded.has(fieldKey))
-    .forEach((fieldKey) => {
-      const value = metadata[fieldKey];
-      if (
-        typeof value === "number" ||
-        value === undefined ||
-        value === null ||
-        value === ""
-      ) {
-        return;
+  const selectedFields = options.fields.filter(
+    (fieldKey) => !excluded.has(fieldKey),
+  );
+  const combinationCounts = categoryCountsForFieldCombination(
+    ancillaryRows,
+    selectedFields,
+  );
+  if (combinationCounts.length > 0) {
+    combinationCounts.forEach((entry) => {
+      const color = options.categoryColors?.[entry.category];
+      if (typeof color === "string" && /^#[0-9a-fA-F]{6}$/.test(color)) {
+        colorsByAttribute[
+          pieCategoricalAttributeKey(entry.fieldKey, entry.category)
+        ] = color;
       }
+    });
+    return colorsByAttribute;
+  }
 
-      categoricalPieValues(value).forEach((category) => {
-        const color = options.categoryColors?.[category];
+  selectedFields.forEach((fieldKey) => {
+    const categoryCounts = categoryCountsForField(metadata, fieldKey);
+    if (categoryCounts.length > 0) {
+      categoryCounts.forEach((entry) => {
+        const color = options.categoryColors?.[entry.category];
         if (typeof color === "string" && /^#[0-9a-fA-F]{6}$/.test(color)) {
-          colorsByAttribute[pieCategoricalAttributeKey(fieldKey, category)] =
-            color;
+          colorsByAttribute[
+            pieCategoricalAttributeKey(fieldKey, entry.category)
+          ] = color;
         }
       });
+      return;
+    }
+
+    const value = metadata[fieldKey];
+    if (
+      typeof value === "number" ||
+      value === undefined ||
+      value === null ||
+      value === ""
+    ) {
+      return;
+    }
+
+    categoricalPieValues(value).forEach((category) => {
+      const color = options.categoryColors?.[category];
+      if (typeof color === "string" && /^#[0-9a-fA-F]{6}$/.test(color)) {
+        colorsByAttribute[pieCategoricalAttributeKey(fieldKey, category)] =
+          color;
+      }
     });
+  });
 
   return colorsByAttribute;
 }
@@ -133,6 +196,134 @@ export function pieCategoricalAttributeKey(
   value: string,
 ): string {
   return `${PIE_ATTRIBUTE_PREFIX}${safeAttributeToken(fieldKey)}${PIE_FIELD_VALUE_SEPARATOR}${safeAttributeToken(value)}`;
+}
+
+export function categoryCountsForField(
+  metadata: MetadataRecord,
+  fieldKey: string,
+): CategoryCountEntry[] {
+  return Object.entries(metadata)
+    .map(([key, value]) => parseCategoryCountMetadataEntry(key, value))
+    .filter(
+      (entry): entry is CategoryCountEntry =>
+        entry !== null && entry.fieldKey === fieldKey,
+    )
+    .sort(
+      (left, right) =>
+        right.count - left.count || left.category.localeCompare(right.category),
+    );
+}
+
+export function categoryCountsForFieldCombination(
+  rows: AncillaryRow[],
+  fieldKeys: string[],
+): CategoryCountEntry[] {
+  const selectedFields = fieldKeys
+    .map((fieldKey) => fieldKey.trim())
+    .filter(Boolean);
+  if (selectedFields.length <= 1 || rows.length === 0) {
+    return [];
+  }
+
+  const fieldKey = combinationPieFieldKey(selectedFields);
+  const countsByCategory = new Map<string, number>();
+  rows.forEach((row) => {
+    combinationLabelsForRow(row, selectedFields).forEach((category) => {
+      countsByCategory.set(category, (countsByCategory.get(category) ?? 0) + 1);
+    });
+  });
+
+  return [...countsByCategory.entries()]
+    .map(([category, count]) => ({
+      fieldKey,
+      category,
+      count,
+    }))
+    .sort(
+      (left, right) =>
+        right.count - left.count || left.category.localeCompare(right.category),
+    );
+}
+
+export function combinationPieFieldKey(fieldKeys: string[]): string {
+  return fieldKeys
+    .map((fieldKey) => fieldKey.trim())
+    .filter(Boolean)
+    .join(" + ");
+}
+
+function combinationLabelsForRow(
+  row: AncillaryRow,
+  fieldKeys: string[],
+): string[] {
+  const valuesByField = fieldKeys.map((fieldKey) => {
+    const values = categoricalPieValues(row[fieldKey]);
+    return values.map((value) => `${fieldKey}:${value}`);
+  });
+
+  if (valuesByField.some((values) => values.length === 0)) {
+    return [];
+  }
+
+  return valuesByField.reduce<string[]>(
+    (combinations, values) =>
+      combinations.flatMap((combination) =>
+        values.map((value) =>
+          combination.length > 0 ? `${combination} ${value}` : value,
+        ),
+      ),
+    [""],
+  );
+}
+
+export function isCategoryCountMetadataKey(key: string): boolean {
+  return parseCategoryCountMetadataKey(key) !== null;
+}
+
+function parseCategoryCountMetadataEntry(
+  key: string,
+  value: string | number | boolean | null,
+): CategoryCountEntry | null {
+  const parsedKey = parseCategoryCountMetadataKey(key);
+  if (!parsedKey || typeof value !== "number" || !Number.isFinite(value)) {
+    return null;
+  }
+  if (value <= 0) {
+    return null;
+  }
+
+  return {
+    ...parsedKey,
+    count: value,
+  };
+}
+
+function parseCategoryCountMetadataKey(
+  key: string,
+): Omit<CategoryCountEntry, "count"> | null {
+  if (!key.startsWith(CATEGORY_COUNT_FIELD_PREFIX)) {
+    return null;
+  }
+
+  const withoutPrefix = key.slice(CATEGORY_COUNT_FIELD_PREFIX.length);
+  const separatorIndex = withoutPrefix.indexOf(CATEGORY_COUNT_FIELD_SEPARATOR);
+  if (separatorIndex < 0) {
+    return null;
+  }
+
+  const encodedField = withoutPrefix.slice(0, separatorIndex);
+  const encodedCategory = withoutPrefix.slice(
+    separatorIndex + CATEGORY_COUNT_FIELD_SEPARATOR.length,
+  );
+
+  try {
+    return {
+      fieldKey: decodeURIComponent(encodedField),
+      category: decodeURIComponent(encodedCategory),
+    };
+  } catch {
+    return null;
+  }
 }
 
 function safeAttributeToken(value: string): string {
@@ -188,9 +379,13 @@ export function detectPieSliceKeys(
     )
     .map(([key]) => key);
   const safeLimit = Math.max(0, maxSliceKeys);
-  const topKeys = sortedKeys.slice(0, safeLimit);
+  const hasOverflow = sortedKeys.length > safeLimit;
+  const displayedKeyLimit = hasOverflow
+    ? Math.max(0, safeLimit - 1)
+    : safeLimit;
+  const topKeys = sortedKeys.slice(0, displayedKeyLimit);
 
-  if (sortedKeys.length > safeLimit && safeLimit > 0) {
+  if (hasOverflow && safeLimit > 0) {
     topKeys.push(PIE_OTHER_SLICE_KEY);
   }
 
@@ -218,9 +413,56 @@ export function buildPiePalette(
       continue;
     }
 
-    const hue = Math.round((index * 137.508) % 360);
-    colors.push(`hsl(${hue} 70% 52%)`);
+    const hue = (index * 137.508) % 360;
+    colors.push(hslToHex(hue, 70, 52));
   }
 
   return colors;
+}
+
+function hslToHex(
+  hue: number,
+  saturationPercent: number,
+  lightnessPercent: number,
+): string {
+  const saturation = saturationPercent / 100;
+  const lightness = lightnessPercent / 100;
+  const chroma = (1 - Math.abs(2 * lightness - 1)) * saturation;
+  const huePrime = (((hue % 360) + 360) % 360) / 60;
+  const x = chroma * (1 - Math.abs((huePrime % 2) - 1));
+
+  let red = 0;
+  let green = 0;
+  let blue = 0;
+
+  if (huePrime < 1) {
+    red = chroma;
+    green = x;
+  } else if (huePrime < 2) {
+    red = x;
+    green = chroma;
+  } else if (huePrime < 3) {
+    green = chroma;
+    blue = x;
+  } else if (huePrime < 4) {
+    green = x;
+    blue = chroma;
+  } else if (huePrime < 5) {
+    red = x;
+    blue = chroma;
+  } else {
+    red = chroma;
+    blue = x;
+  }
+
+  const match = lightness - chroma / 2;
+  return `#${hexChannel(red + match)}${hexChannel(green + match)}${hexChannel(
+    blue + match,
+  )}`;
+}
+
+function hexChannel(value: number): string {
+  return Math.round(Math.min(1, Math.max(0, value)) * 255)
+    .toString(16)
+    .padStart(2, "0");
 }

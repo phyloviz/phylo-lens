@@ -452,6 +452,9 @@ describe("sigmaRenderer", () => {
   it("falls back to default nodes if pie-program rebuild fails", () => {
     document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
 
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {
+      return undefined;
+    });
     const renderer = new SigmaRenderer();
     renderer.mount({ containerId: CONTAINER_ID });
     renderer.render({
@@ -476,6 +479,14 @@ describe("sigmaRenderer", () => {
       });
     }).not.toThrow();
     expect(lastGraph?.getNodeAttribute("a", "type")).toBe("circle");
+    expect(warnSpy).toHaveBeenCalledWith(
+      "Failed to build Sigma piechart program; falling back to default nodes.",
+      expect.objectContaining({
+        sliceCount: 1,
+        sliceKeys: ["pie__country__value__canada"],
+        error: expect.any(Error),
+      }),
+    );
 
     shouldThrowOnPieProgram = false;
     expect(() =>
@@ -487,6 +498,7 @@ describe("sigmaRenderer", () => {
     ).not.toThrow();
 
     renderer.unmount();
+    warnSpy.mockRestore();
   });
 
   it("rebuilds pie programs when category colors change", () => {
@@ -554,8 +566,43 @@ describe("sigmaRenderer", () => {
       viewMeta: { layout: "force", lodLevel: 0 },
     });
 
+    const latestPieProgram = pieProgramInputs.at(-1);
+    expect(latestPieProgram?.slices).toHaveLength(MAX_PIE_SLICE_KEYS);
+    expect(
+      latestPieProgram?.slices.map((slice) => slice.value.attribute),
+    ).toContain(PIE_OTHER_SLICE_KEY);
     expect(lastGraph?.getNodeAttribute("node_0", PIE_OTHER_SLICE_KEY)).toBe(1);
     expect(lastGraph?.getNodeAttribute("node_0", "type")).toBe("piechart");
+
+    renderer.unmount();
+  });
+
+  it("keeps node piecharts visible for 24-category PHYLOViZ fields", () => {
+    document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
+
+    const categories = Array.from({ length: 24 }, (_, index) => `emm_${index}`);
+    const renderer = new SigmaRenderer();
+    renderer.mount({ containerId: CONTAINER_ID });
+    renderer.render({
+      nodes: categories.map((category, index) => ({
+        id: `node_${index}`,
+        x: index,
+        y: index,
+        attributes: {
+          [`${PIE_ATTRIBUTE_PREFIX}emm_type__value__${category}`]: index + 1,
+        },
+      })),
+      edges: [],
+      viewMeta: { layout: "force", lodLevel: 0 },
+    });
+
+    const latestPieProgram = pieProgramInputs.at(-1);
+    expect(latestPieProgram?.slices).toHaveLength(MAX_PIE_SLICE_KEYS);
+    expect(
+      latestPieProgram?.slices.map((slice) => slice.value.attribute),
+    ).toContain(PIE_OTHER_SLICE_KEY);
+    expect(lastGraph?.getNodeAttribute("node_0", "type")).toBe("piechart");
+    expect(lastGraph?.getNodeAttribute("node_0", PIE_OTHER_SLICE_KEY)).toBe(1);
 
     renderer.unmount();
   });

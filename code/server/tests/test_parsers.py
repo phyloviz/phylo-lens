@@ -68,6 +68,7 @@ def test_parse_newick_generates_deterministic_ids_for_unlabeled_internal_nodes()
         ("internal_3", "c", None),
         ("internal_3", "d", None),
     }
+    assert parsed.explicit_node_ids == {"a", "b", "c", "d"}
 
 
 def test_parse_newick_handles_deep_trees_without_recursion() -> None:
@@ -81,6 +82,7 @@ def test_parse_newick_handles_deep_trees_without_recursion() -> None:
     assert len(parsed.edges) == depth
     assert "a" in parsed.nodes
     assert "internal_1" in parsed.nodes
+    assert parsed.explicit_node_ids == {"a"}
     assert ("internal_1", "internal_2", None) in {
         (edge.source, edge.target, edge.distance) for edge in parsed.edges
     }
@@ -99,6 +101,7 @@ def test_parse_newick_preserves_branch_lengths_on_parent_child_edges() -> None:
         ("n", "b"): 0.20,
         ("n", "c"): 0.30,
     }
+    assert parsed.explicit_node_ids == {"a", "b", "c", "n", "r"}
 
 
 def test_parse_newick_ignores_empty_children_from_trailing_commas() -> None:

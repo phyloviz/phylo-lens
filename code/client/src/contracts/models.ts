@@ -55,6 +55,10 @@ export interface CanonicalDataset {
     string,
     Record<string, string | number | boolean | null>
   >;
+  ancillary_rows_by_node_id?: Record<
+    string,
+    Array<Record<string, string | number | boolean | null>>
+  >;
   source: DatasetSource;
 }
 

@@ -264,6 +264,8 @@ async function renderNewick({
   const normalized = await datasetClient.normalizeDataset(request);
   const metadataSchema = normalized.dataset.metadata_schema;
   const metadataByNodeId = normalized.dataset.metadata_by_node_id;
+  const ancillaryRowsByNodeId =
+    normalized.dataset.ancillary_rows_by_node_id ?? {};
 
   if (!shouldUseLodMode(normalized.dataset, options)) {
     return renderFullDataset({
@@ -282,6 +284,7 @@ async function renderNewick({
     datasetId: preparedDataset.dataset_id,
     metadataSchema,
     metadataByNodeId,
+    ancillaryRowsByNodeId,
     visualMapping: options.visualMapping,
     layout: options.layout,
     lod: {

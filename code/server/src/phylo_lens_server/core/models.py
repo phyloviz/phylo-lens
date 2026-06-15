@@ -75,6 +75,9 @@ class CanonicalDataset(BaseModel):
     metadata_by_node_id: dict[str, dict[str, str | float | bool | None]] = Field(
         default_factory=dict
     )
+    ancillary_rows_by_node_id: dict[
+        str, list[dict[str, str | float | bool | None]]
+    ] = Field(default_factory=dict)
     source: DatasetSource
 
 

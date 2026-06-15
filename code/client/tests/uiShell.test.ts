@@ -394,6 +394,90 @@ describe("uiShell", () => {
     shell.unmount();
   });
 
+  it("toggles multiple pie fields with normal option clicks", async () => {
+    document.body.innerHTML = `
+      <form id="render-form"></form>
+      <textarea id="newick-input"></textarea>
+      <select id="metadata-pie-field" multiple></select>
+      <div id="ancillary-wheel"></div>
+      <div id="palette-controls"></div>
+      <div id="status"></div>
+    `;
+
+    const form = document.getElementById("render-form") as HTMLFormElement;
+    const input = document.getElementById(
+      "newick-input",
+    ) as HTMLTextAreaElement;
+    const metadataPieFieldSelect = document.getElementById(
+      "metadata-pie-field",
+    ) as HTMLSelectElement;
+    const ancillaryWheelContainer = document.getElementById(
+      "ancillary-wheel",
+    ) as HTMLElement;
+    const paletteControlsContainer = document.getElementById(
+      "palette-controls",
+    ) as HTMLElement;
+    const status = document.getElementById("status") as HTMLElement;
+
+    input.value = "(A,B)Root;";
+    const fakeWorkbench = makeFakeWorkbench({
+      nodes: [
+        {
+          id: "a",
+          x: 0,
+          y: 0,
+          attributes: { metadata: { country: "Portugal", source: "blood" } },
+        },
+        {
+          id: "b",
+          x: 1,
+          y: 1,
+          attributes: { metadata: { country: "Canada", source: "csf" } },
+        },
+      ],
+      edges: [],
+      viewMeta: { layout: "force", lodLevel: 0 },
+    });
+    const shell = new UiShellController({
+      workbench: fakeWorkbench,
+      elements: {
+        form,
+        newickInput: input,
+        metadataPieFieldSelect,
+        ancillaryWheelContainer,
+        paletteControlsContainer,
+        status,
+      },
+    });
+
+    shell.mount();
+    await shell.renderCurrentInput();
+    const countryOption = [...metadataPieFieldSelect.options].find(
+      (option) => option.value === "country",
+    ) as HTMLOptionElement;
+    countryOption.dispatchEvent(
+      new MouseEvent("mousedown", { bubbles: true, cancelable: true }),
+    );
+    const sourceOption = [...metadataPieFieldSelect.options].find(
+      (option) => option.value === "source",
+    ) as HTMLOptionElement;
+    sourceOption.dispatchEvent(
+      new MouseEvent("mousedown", { bubbles: true, cancelable: true }),
+    );
+
+    const selectedValues = [...metadataPieFieldSelect.selectedOptions].map(
+      (option) => option.value,
+    );
+    expect(selectedValues).toEqual(["country", "source"]);
+    expect(fakeWorkbench.updateVisualMapping).toHaveBeenLastCalledWith({
+      pie: {
+        enabled: true,
+        fields: ["country", "source"],
+      },
+    });
+    shell.unmount();
+  });
+
   it("forwards profile size controls to the visual mapping", async () => {
     document.body.innerHTML = `
       <form id="render-form"></form>

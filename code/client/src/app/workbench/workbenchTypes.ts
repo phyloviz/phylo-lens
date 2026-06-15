@@ -86,6 +86,7 @@ export interface PreparedDatasetSession {
   datasetId: string;
   metadataSchema: CanonicalDataset["metadata_schema"];
   metadataByNodeId: CanonicalDataset["metadata_by_node_id"];
+  ancillaryRowsByNodeId: CanonicalDataset["ancillary_rows_by_node_id"];
   visualMapping?: VisualMappingOptions;
   layout?: RenderNewickOptions["layout"];
   lod: {

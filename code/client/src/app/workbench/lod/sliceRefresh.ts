@@ -97,6 +97,7 @@ export async function refreshVisibleSlice({
     visibleSlice.edges,
     session.metadataSchema,
     session.metadataByNodeId,
+    session.ancillaryRowsByNodeId,
   );
 
   const previousSliceGraph =

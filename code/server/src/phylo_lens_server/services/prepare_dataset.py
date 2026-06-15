@@ -49,7 +49,7 @@ def prepare_dataset_for_lod(
     if cached is not None:
         return restore_cached_prepared_dataset(cached, store)
 
-    normalized = normalize_dataset(request)
+    normalized = normalize_dataset(request, expose_internal_schema=True)
 
     hierarchy_start = time.perf_counter()
     prepared_dataset, distance_warnings = ensure_prepare_edge_distances(

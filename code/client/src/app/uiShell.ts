@@ -163,6 +163,8 @@ export class UiShellController {
   private boundAncillaryModeChange: (() => void) | null = null;
   private boundAncillaryNodeChange: (() => void) | null = null;
   private boundMetadataPieFieldChange: (() => void) | null = null;
+  private boundMetadataPieFieldPointerDown: ((event: MouseEvent) => void) | null =
+    null;
   private boundSizeMappingChange: (() => void) | null = null;
   private boundCategoryColorChange: (() => void) | null = null;
   private boundPaletteLoadClick: (() => void) | null = null;
@@ -240,6 +242,9 @@ export class UiShellController {
       this.renderCategoryColorControls();
       this.handleVisualMappingChange();
     };
+    this.boundMetadataPieFieldPointerDown = (event: MouseEvent) => {
+      this.handleMetadataPieFieldPointerDown(event);
+    };
     this.boundSizeMappingChange = () => {
       this.handleVisualMappingChange();
     };
@@ -280,6 +285,10 @@ export class UiShellController {
     this.metadataPieFieldSelect?.addEventListener(
       "change",
       this.boundMetadataPieFieldChange,
+    );
+    this.metadataPieFieldSelect?.addEventListener(
+      "mousedown",
+      this.boundMetadataPieFieldPointerDown,
     );
     this.metadataSizeFieldInput?.addEventListener(
       "input",
@@ -406,6 +415,14 @@ export class UiShellController {
         this.boundMetadataPieFieldChange,
       );
       this.boundMetadataPieFieldChange = null;
+    }
+
+    if (this.boundMetadataPieFieldPointerDown) {
+      this.metadataPieFieldSelect?.removeEventListener(
+        "mousedown",
+        this.boundMetadataPieFieldPointerDown,
+      );
+      this.boundMetadataPieFieldPointerDown = null;
     }
 
     if (this.boundSizeMappingChange) {
@@ -563,6 +580,35 @@ export class UiShellController {
     this.workbench.updateDisplayOptions(this.buildCurrentDisplayOptions());
   }
 
+  private handleMetadataPieFieldPointerDown(event: MouseEvent): void {
+    if (
+      !this.metadataPieFieldSelect ||
+      !(event.target instanceof HTMLOptionElement)
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+    const clickedOption = event.target;
+    const selectedValue = clickedOption.value;
+
+    if (selectedValue === "") {
+      [...this.metadataPieFieldSelect.options].forEach((option) => {
+        option.selected = option === clickedOption;
+      });
+    } else {
+      clickedOption.selected = !clickedOption.selected;
+      const automaticOption = [...this.metadataPieFieldSelect.options].find(
+        (option) => option.value === "",
+      );
+      if (automaticOption) {
+        automaticOption.selected = false;
+      }
+    }
+
+    this.boundMetadataPieFieldChange?.();
+  }
+
   private handleDisplayOptionPointerDown(event: MouseEvent): void {
     if (toggleClickedOption(this.displayOptionsSelect, event)) {
       this.handleDisplayOptionsChange();
@@ -671,6 +717,10 @@ export class UiShellController {
     }
 
     const selectedFields = getSelectedOptions(this.metadataPieFieldSelect);
+    if (selectedFields.length > 1) {
+      return buildAncillaryWheelStats(this.lastRenderedGraph, { includeNodeIds });
+    }
+
     if (selectedFields.length > 0) {
       return buildMetadataFieldWheelStats(
         this.lastRenderedGraph,
@@ -696,7 +746,7 @@ export class UiShellController {
       return;
     }
 
-    const previousValue = this.metadataPieFieldSelect.value;
+    const previousValues = new Set(getSelectedOptions(this.metadataPieFieldSelect));
     this.metadataPieFieldSelect.innerHTML = "";
 
     const automaticOption = document.createElement("option");
@@ -720,9 +770,9 @@ export class UiShellController {
     });
 
     this.metadataPieFieldSelect.disabled = keys.length === 0;
-    if (keys.includes(previousValue)) {
-      this.metadataPieFieldSelect.value = previousValue;
-    }
+    [...this.metadataPieFieldSelect.options].forEach((option) => {
+      option.selected = previousValues.has(option.value);
+    });
   }
 
   private renderCategoryColorControls(): void {
@@ -731,11 +781,19 @@ export class UiShellController {
     }
 
     this.paletteControlsContainer.innerHTML = "";
-    const selectedField = getSelectedOptions(this.metadataPieFieldSelect)[0];
+    const selectedFields = getSelectedOptions(this.metadataPieFieldSelect);
+    const selectedField = selectedFields[0];
     if (!this.lastRenderedGraph || !selectedField) {
       const empty = document.createElement("span");
       empty.className = "category-color-empty";
       empty.textContent = "Choose a pie field";
+      this.paletteControlsContainer.appendChild(empty);
+      return;
+    }
+    if (selectedFields.length > 1) {
+      const empty = document.createElement("span");
+      empty.className = "category-color-empty";
+      empty.textContent = "Combination colors use the generated palette";
       this.paletteControlsContainer.appendChild(empty);
       return;
     }

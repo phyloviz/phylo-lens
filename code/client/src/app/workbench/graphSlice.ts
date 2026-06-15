@@ -35,11 +35,17 @@ export function buildSliceDataset(
   edges: CanonicalDataset["edges"],
   metadataSchema: CanonicalDataset["metadata_schema"],
   metadataByNodeId: CanonicalDataset["metadata_by_node_id"],
+  ancillaryRowsByNodeId: CanonicalDataset["ancillary_rows_by_node_id"] = {},
 ): CanonicalDataset {
   const visibleNodeIds = new Set(nodes.map((node) => node.id));
 
   const visibleMetadataByNodeId = Object.fromEntries(
     Object.entries(metadataByNodeId).filter(([nodeId]) =>
+      visibleNodeIds.has(nodeId),
+    ),
+  );
+  const visibleAncillaryRowsByNodeId = Object.fromEntries(
+    Object.entries(ancillaryRowsByNodeId ?? {}).filter(([nodeId]) =>
       visibleNodeIds.has(nodeId),
     ),
   );
@@ -50,6 +56,7 @@ export function buildSliceDataset(
     edges,
     metadata_schema: metadataSchema,
     metadata_by_node_id: visibleMetadataByNodeId,
+    ancillary_rows_by_node_id: visibleAncillaryRowsByNodeId,
     source: {
       format: SOURCE_FORMAT_NEWICK,
       generated_at: new Date(0).toISOString(),

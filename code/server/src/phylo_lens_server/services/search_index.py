@@ -10,6 +10,7 @@ from phylo_lens_server.core.models import (
     SearchDatasetQuery,
     SearchDatasetResponse,
 )
+from phylo_lens_server.core.metadata_keys import is_internal_metadata_key
 
 TOKEN_PATTERN = re.compile(r"[A-Za-z0-9_]+")
 MIN_PREFIX_LENGTH = 2
@@ -26,8 +27,11 @@ def build_prepared_search_index(dataset: CanonicalDataset) -> PreparedSearchInde
 
     for node in dataset.nodes:
         metadata = dataset.metadata_by_node_id.get(node.id, {})
+        public_metadata = public_metadata_values(metadata)
         searchable_values = [node.id]
-        searchable_values.extend(str(value) for value in metadata.values() if value is not None)
+        searchable_values.extend(
+            str(value) for value in public_metadata.values() if value is not None
+        )
         searchable_text = " ".join(searchable_values)
         normalized_text = normalize_search_text(searchable_text)
         text_by_node_id[node.id] = searchable_text
@@ -159,4 +163,18 @@ def selected_metadata(
     if not include_keys:
         return {}
 
-    return {key: metadata[key] for key in include_keys if key in metadata}
+    return {
+        key: metadata[key]
+        for key in include_keys
+        if key in metadata and not is_internal_metadata_key(key)
+    }
+
+
+def public_metadata_values(
+    metadata: dict[str, str | float | bool | None],
+) -> dict[str, str | float | bool | None]:
+    return {
+        key: value
+        for key, value in metadata.items()
+        if not is_internal_metadata_key(key)
+    }

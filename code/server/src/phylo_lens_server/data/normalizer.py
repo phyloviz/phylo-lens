@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 from io import StringIO
 from math import isfinite
+from urllib.parse import quote
 import time
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -16,6 +17,12 @@ from phylo_lens_server.core.models import (
     CanonicalNode,
     DatasetSource,
     MetadataField,
+)
+from phylo_lens_server.core.metadata_keys import (
+    CATEGORY_COUNT_FIELD_PREFIX,
+    PROFILE_COUNT_FIELD,
+    is_internal_metadata_key,
+    public_metadata_schema_dataset,
 )
 from phylo_lens_server.core.validators import validate_canonical_dataset
 from phylo_lens_server.data.parsers import (
@@ -43,6 +50,8 @@ METADATA_TYPE_NULL = "null"
 METADATA_TYPE_BOOLEAN = "boolean"
 METADATA_TYPE_NUMBER = "number"
 
+CATEGORY_COUNT_FIELD_SEPARATOR = "__value__"
+
 ANCILLARY_FORMAT_CSV = "csv"
 ANCILLARY_FORMAT_TSV = "tsv"
 ANCILLARY_FORMAT_AUTO = "auto"
@@ -52,11 +61,9 @@ ERR_ANCILLARY_HEADER = "Ancillary data must include a header row."
 ERR_ANCILLARY_JOIN_COLUMN = (
     "Ancillary join column '{join_column}' was not found in the header."
 )
+ERR_RESERVED_METADATA_KEY = "Metadata key '{key}' is reserved for internal use."
 WARN_ANCILLARY_UNMATCHED_ROW = (
     "Ancillary row {row_index} with {join_column}='{join_value}' did not match a node."
-)
-WARN_ANCILLARY_DUPLICATE_NODE = (
-    "Ancillary row {row_index} maps to duplicate node '{node_id}' and was ignored."
 )
 WARN_ANCILLARY_UNMATCHED_NODE_COUNT = (
     "Ancillary data did not include rows for {count} joinable nodes."
@@ -106,9 +113,17 @@ class NormalizeResult(BaseModel):
     warnings: list[str]
 
 
-def normalize_dataset(request: NormalizeRequest) -> NormalizeResult:
+def normalize_dataset(
+    request: NormalizeRequest,
+    *,
+    expose_internal_schema: bool = False,
+) -> NormalizeResult:
     """Parse input data and produce a validated deterministic canonical dataset."""
     ingest_start = time.perf_counter()
+    _reject_reserved_metadata_keys(
+        request.metadata_schema,
+        request.metadata_by_node_id,
+    )
 
     match request.format:
         case NormalizeFormat.NEWICK:
@@ -153,22 +168,40 @@ def normalize_dataset(request: NormalizeRequest) -> NormalizeResult:
             )
         )
 
-    metadata_by_node_id = dict(request.metadata_by_node_id)
+    declared_metadata_types = _declared_metadata_types(request.metadata_schema)
+    metadata_by_node_id = _coerce_metadata_by_declared_schema(
+        request.metadata_by_node_id,
+        declared_metadata_types,
+    )
+    ancillary_rows_by_node_id: dict[
+        str, list[dict[str, str | float | bool | None]]
+    ] = {}
     if request.ancillary_data is not None:
-        ancillary_metadata, ancillary_warnings = _parse_ancillary_metadata(
+        (
+            ancillary_metadata,
+            ancillary_rows_by_node_id,
+            ancillary_warnings,
+        ) = _parse_ancillary_metadata(
             request.ancillary_data,
             node_ids=_metadata_join_node_ids(
                 request.format,
                 nodes=nodes,
                 edges=canonical_edges,
+                explicit_node_ids=parsed.explicit_node_ids,
             ),
+            declared_schema=request.metadata_schema,
         )
         metadata_by_node_id = {**metadata_by_node_id, **ancillary_metadata}
         warnings.extend(ancillary_warnings)
 
-    metadata_schema = request.metadata_schema
-    if not metadata_schema:
-        metadata_schema = _infer_metadata_schema(metadata_by_node_id)
+    metadata_schema = _merge_metadata_schema(
+        request.metadata_schema,
+        metadata_by_node_id,
+    )
+    metadata_by_node_id = _coerce_metadata_by_declared_schema(
+        metadata_by_node_id,
+        _declared_metadata_types(metadata_schema),
+    )
 
     dataset = CanonicalDataset(
         dataset_id=request.dataset_name,
@@ -176,6 +209,7 @@ def normalize_dataset(request: NormalizeRequest) -> NormalizeResult:
         edges=canonical_edges,
         metadata_schema=metadata_schema,
         metadata_by_node_id=metadata_by_node_id,
+        ancillary_rows_by_node_id=ancillary_rows_by_node_id,
         source=DatasetSource(
             format=request.format.value,
             generated_at=datetime.now(UTC).isoformat(),
@@ -196,7 +230,9 @@ def normalize_dataset(request: NormalizeRequest) -> NormalizeResult:
     )
 
     return NormalizeResult(
-        dataset=dataset,
+        dataset=dataset
+        if expose_internal_schema
+        else public_metadata_schema_dataset(dataset),
         stats=stats,
         warnings=warnings,
     )
@@ -207,21 +243,26 @@ def _metadata_join_node_ids(
     *,
     nodes: list[CanonicalNode],
     edges: list[CanonicalEdge],
+    explicit_node_ids: set[str],
 ) -> set[str]:
-    """Limit Newick table joins to leaves while allowing graph metadata on all nodes."""
+    """Resolve node ids eligible for tabular metadata joins."""
     node_ids = {node.id for node in nodes}
-    if format_name != NormalizeFormat.NEWICK or not edges:
-        return node_ids
+    if format_name == NormalizeFormat.NEWICK:
+        return explicit_node_ids & node_ids
 
-    parent_ids = {edge.source for edge in edges}
-    return node_ids - parent_ids
+    return node_ids
 
 
 def _parse_ancillary_metadata(
     ancillary_data: AncillaryDataRequest,
     *,
     node_ids: set[str],
-) -> tuple[dict[str, dict[str, str | float | bool | None]], list[str]]:
+    declared_schema: list[MetadataField],
+) -> tuple[
+    dict[str, dict[str, str | float | bool | None]],
+    dict[str, list[dict[str, str | float | bool | None]]],
+    list[str],
+]:
     """Parse CSV/TSV ancillary metadata and join rows to canonical node ids."""
     content = ancillary_data.content.strip()
     if not content:
@@ -238,6 +279,7 @@ def _parse_ancillary_metadata(
         raise ParseError(
             ERR_ANCILLARY_JOIN_COLUMN.format(join_column=ancillary_data.join_column)
         )
+    _reject_reserved_ancillary_headers(headers, join_column)
 
     raw_rows: list[tuple[int, str, dict[str, str | None]]] = []
     for row_index, row in enumerate(reader, start=2):
@@ -255,7 +297,8 @@ def _parse_ancillary_metadata(
     field_types = _infer_ancillary_field_types(
         [values for _, _, values in raw_rows],
     )
-    metadata_by_node_id: dict[str, dict[str, str | float | bool | None]] = {}
+    field_types.update(_declared_metadata_types(declared_schema))
+    rows_by_node_id: dict[str, list[dict[str, str | float | bool | None]]] = {}
     warnings: list[str] = []
 
     for row_index, join_value, values in raw_rows:
@@ -270,19 +313,15 @@ def _parse_ancillary_metadata(
             )
             continue
 
-        if node_id in metadata_by_node_id:
-            warnings.append(
-                WARN_ANCILLARY_DUPLICATE_NODE.format(
-                    row_index=row_index,
-                    node_id=node_id,
-                )
-            )
-            continue
-
-        metadata_by_node_id[node_id] = {
+        rows_by_node_id.setdefault(node_id, []).append({
             key: _coerce_ancillary_value(value, field_types[key])
             for key, value in values.items()
-        }
+        })
+
+    metadata_by_node_id = {
+        node_id: _aggregate_ancillary_rows(rows)
+        for node_id, rows in rows_by_node_id.items()
+    }
 
     missing_count = len(node_ids - set(metadata_by_node_id))
     if missing_count:
@@ -290,7 +329,88 @@ def _parse_ancillary_metadata(
             WARN_ANCILLARY_UNMATCHED_NODE_COUNT.format(count=missing_count)
         )
 
-    return metadata_by_node_id, warnings
+    return metadata_by_node_id, rows_by_node_id, warnings
+
+
+def _reject_reserved_metadata_keys(
+    metadata_schema: list[MetadataField],
+    metadata_by_node_id: dict[str, dict[str, str | float | bool | None]],
+) -> None:
+    for field in metadata_schema:
+        _reject_reserved_metadata_key(field.key)
+
+    for metadata in metadata_by_node_id.values():
+        for key in metadata:
+            _reject_reserved_metadata_key(key)
+
+
+def _reject_reserved_ancillary_headers(headers: list[str], join_column: str) -> None:
+    for header in headers:
+        if header == join_column:
+            continue
+        _reject_reserved_metadata_key(header)
+
+
+def _reject_reserved_metadata_key(key: str) -> None:
+    if is_internal_metadata_key(key):
+        raise ParseError(ERR_RESERVED_METADATA_KEY.format(key=key))
+
+
+def _aggregate_ancillary_rows(
+    rows: list[dict[str, str | float | bool | None]],
+) -> dict[str, str | float | bool | None]:
+    """Aggregate multiple isolate rows onto one profile/ST node."""
+    metadata: dict[str, str | float | bool | None] = {
+        PROFILE_COUNT_FIELD: len(rows),
+    }
+    keys = {key for row in rows for key in row}
+
+    for key in keys:
+        values = [row.get(key) for row in rows if row.get(key) is not None]
+        if not values:
+            metadata[key] = None
+            continue
+
+        unique_values = _unique_preserving_order(values)
+        metadata[key] = (
+            unique_values[0]
+            if len(unique_values) == 1
+            else ";".join(str(value) for value in unique_values)
+        )
+
+        counts: dict[str, int] = {}
+        for value in values:
+            category = str(value)
+            counts[category] = counts.get(category, 0) + 1
+        for category, count in counts.items():
+            metadata[_category_count_field_key(key, category)] = count
+
+    return metadata
+
+
+def _unique_preserving_order(
+    values: list[str | float | bool | None],
+) -> list[str | float | bool]:
+    unique_values: list[str | float | bool] = []
+    seen: set[str] = set()
+    for value in values:
+        if value is None:
+            continue
+        comparable = f"{type(value).__name__}:{value}"
+        if comparable in seen:
+            continue
+        seen.add(comparable)
+        unique_values.append(value)
+    return unique_values
+
+
+def _category_count_field_key(field_key: str, category: str) -> str:
+    field_token = quote(field_key, safe="")
+    category_token = quote(category, safe="")
+    return (
+        f"{CATEGORY_COUNT_FIELD_PREFIX}{field_token}"
+        f"{CATEGORY_COUNT_FIELD_SEPARATOR}{category_token}"
+    )
 
 
 def _detect_ancillary_delimiter(content: str, format_name: str) -> str:
@@ -425,6 +545,63 @@ def _infer_metadata_schema(
         MetadataField(key=key, type=metadata_type)
         for key, metadata_type in sorted(inferred.items())
     ]
+
+
+def _merge_metadata_schema(
+    declared_schema: list[MetadataField],
+    metadata_by_node_id: dict[str, dict[str, str | float | bool | None]],
+) -> list[MetadataField]:
+    """Preserve declared metadata fields while adding inferred fields for new keys."""
+    inferred_schema = _infer_metadata_schema(metadata_by_node_id)
+    if not declared_schema:
+        return inferred_schema
+
+    declared_keys = {field.key for field in declared_schema}
+    inferred_additions = [
+        field for field in inferred_schema if field.key not in declared_keys
+    ]
+    return [*declared_schema, *inferred_additions]
+
+
+def _declared_metadata_types(declared_schema: list[MetadataField]) -> dict[str, str]:
+    """Return caller-declared metadata types keyed by field name."""
+    return {field.key: field.type.value for field in declared_schema}
+
+
+def _coerce_metadata_by_declared_schema(
+    metadata_by_node_id: dict[str, dict[str, str | float | bool | None]],
+    declared_types: dict[str, str],
+) -> dict[str, dict[str, str | float | bool | None]]:
+    """Apply caller-declared scalar types to direct node metadata payloads."""
+    if not declared_types:
+        return dict(metadata_by_node_id)
+
+    return {
+        node_id: {
+            key: _coerce_metadata_value_by_type(value, declared_types[key])
+            if key in declared_types
+            else value
+            for key, value in metadata.items()
+        }
+        for node_id, metadata in metadata_by_node_id.items()
+    }
+
+
+def _coerce_metadata_value_by_type(
+    value: str | float | bool | None,
+    metadata_type: str,
+) -> str | float | bool | None:
+    if value is None:
+        return None
+    if metadata_type == METADATA_TYPE_STRING:
+        if isinstance(value, float) and value.is_integer():
+            return str(int(value))
+        return str(value)
+    if metadata_type == METADATA_TYPE_NUMBER and isinstance(value, str):
+        return _coerce_ancillary_value(value, metadata_type)
+    if metadata_type == METADATA_TYPE_BOOLEAN and isinstance(value, str):
+        return _coerce_ancillary_value(value, metadata_type)
+    return value
 
 
 def _detect_metadata_type(value: str | float | bool | None) -> str:
