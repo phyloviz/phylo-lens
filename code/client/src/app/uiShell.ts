@@ -4,7 +4,6 @@ import type {
 } from "./workbench/graphWorkbench";
 import { DEFAULT_COLOR_PALETTE } from "../render/visualMappings";
 import type { VisualMappingOptions } from "../render/visualMappings";
-import type { GraphDisplayOptions } from "../render/types";
 import { PIE_OTHER_SLICE_COLOR, PIE_OTHER_SLICE_LABEL } from "../render/pieMapping";
 import {
   buildAncillaryWheelStats,
@@ -27,6 +26,40 @@ import {
   buildCategorySummaries,
   formatPieFieldOption,
 } from "./shell/ancillary/categorySummaries";
+import {
+  ANCILLARY_MODE_GLOBAL,
+  ANCILLARY_MODE_CURRENT,
+  ANCILLARY_MODE_SELECTED,
+  type AncillaryMode,
+  getAncillaryMode,
+  updateNodeSelectionVisibility,
+  updateNodeSelector,
+} from "./shell/ancillary/nodeSelector";
+import {
+  DISPLAY_OPTION_DISTANCE_WEIGHTED_EDGES,
+  DISPLAY_OPTION_EDGE_DISTANCE_LABELS,
+  DISPLAY_OPTION_NODE_LABELS,
+  buildDisplayOptions,
+  toggleClickedOption,
+} from "./shell/controls/displayOptionsControls";
+import {
+  DEFAULT_INITIAL_ZOOM,
+  DEFAULT_MAX_NODES,
+  isLodGraph,
+  parseInitialZoom,
+  parseMaxNodes,
+  updateLodPlaybackControls,
+} from "./shell/controls/lodControls";
+import { getSelectedOptions } from "./shell/controls/selectOptions";
+import {
+  downloadTextFile,
+  readTextFile,
+  resolveAncillaryFormat,
+} from "./shell/inputs/fileInputs";
+import {
+  renderSearchResults,
+  type SearchResultItem,
+} from "./shell/search/searchResultsView";
 
 export { STATUS_RENDERED_PREFIX } from "./shell/status/renderedStatus";
 export { ERR_INVALID_ANCILLARY_JSON } from "./shell/inputs/ancillaryPayload";
@@ -34,23 +67,20 @@ export { ERR_INVALID_ANCILLARY_JSON } from "./shell/inputs/ancillaryPayload";
 export const DEFAULT_STATUS_READY = "Ready";
 export const STATUS_RENDERING_PREFIX = "Rendering";
 export const STATUS_FAILED_PREFIX = "Failed";
-export const DEFAULT_MAX_NODES = 4000;
-export const DEFAULT_INITIAL_ZOOM = 4;
-
-export const ANCILLARY_MODE_GLOBAL = "global";
-export const ANCILLARY_MODE_CURRENT = "current";
-export const ANCILLARY_MODE_SELECTED = "selected";
-export const DISPLAY_OPTION_NODE_LABELS = "node-labels";
-export const DISPLAY_OPTION_EDGE_DISTANCE_LABELS = "edge-distance-labels";
-export const DISPLAY_OPTION_DISTANCE_WEIGHTED_EDGES =
-  "distance-weighted-edges";
 export const CATEGORY_COLOR_INPUT_SELECTOR = "[data-category-color]";
 export const CATEGORY_COLOR_SAVE_FILENAME = "phyloviz-category-colors.txt";
 
-export type AncillaryMode =
-  | typeof ANCILLARY_MODE_GLOBAL
-  | typeof ANCILLARY_MODE_CURRENT
-  | typeof ANCILLARY_MODE_SELECTED;
+export {
+  ANCILLARY_MODE_GLOBAL,
+  ANCILLARY_MODE_CURRENT,
+  ANCILLARY_MODE_SELECTED,
+  DEFAULT_INITIAL_ZOOM,
+  DEFAULT_MAX_NODES,
+  DISPLAY_OPTION_DISTANCE_WEIGHTED_EDGES,
+  DISPLAY_OPTION_EDGE_DISTANCE_LABELS,
+  DISPLAY_OPTION_NODE_LABELS,
+};
+export type { AncillaryMode };
 
 export const ERR_STATUS_ELEMENT_REQUIRED = "Status element is required.";
 export const ERR_RENDER_FORM_REQUIRED = "Render form is required.";
@@ -337,7 +367,7 @@ export class UiShellController {
       this.baseVisualMapping = {};
       this.currentVisualMapping = {};
       this.categoryColorOverrides = {};
-      this.updateNodeSelector(null);
+      updateNodeSelector(this.ancillaryNodeSelect, null);
       this.updateMetadataPieFieldOptions(null);
       this.renderCategoryColorControls();
       this.renderAncillaryStats();
@@ -475,7 +505,7 @@ export class UiShellController {
       return;
     }
 
-    const mode = this.getAncillaryMode();
+    const mode = getAncillaryMode(this.ancillaryModeSelect);
     if (mode === ANCILLARY_MODE_SELECTED) {
       const selectedId = this.ancillaryNodeSelect?.value;
       if (!selectedId) {
@@ -505,11 +535,11 @@ export class UiShellController {
   private handleGraphRendered(graph: PositionedGraph): void {
     this.setStatus(buildRenderedStatus(graph));
     this.lastRenderedGraph = graph;
-    this.updateNodeSelector(graph);
+    updateNodeSelector(this.ancillaryNodeSelect, graph);
     this.updateMetadataPieFieldOptions(graph);
     this.renderCategoryColorControls();
     this.updateNodeSelectionVisibility();
-    this.updateLodPlaybackControls(this.isLodGraph(graph));
+    this.updateLodPlaybackControls(isLodGraph(graph));
     this.renderAncillaryStats();
   }
 
@@ -534,22 +564,15 @@ export class UiShellController {
   }
 
   private handleDisplayOptionPointerDown(event: MouseEvent): void {
-    if (
-      !this.displayOptionsSelect ||
-      !(event.target instanceof HTMLOptionElement)
-    ) {
-      return;
+    if (toggleClickedOption(this.displayOptionsSelect, event)) {
+      this.handleDisplayOptionsChange();
     }
-
-    event.preventDefault();
-    event.target.selected = !event.target.selected;
-    this.handleDisplayOptionsChange();
   }
 
   private async handleLodPlaybackChange(paused: boolean): Promise<void> {
     try {
       await this.workbench.setLodRefreshPaused(paused);
-      this.updateLodPlaybackControls(this.isLodGraph(this.lastRenderedGraph));
+      this.updateLodPlaybackControls(isLodGraph(this.lastRenderedGraph));
       if (paused) {
         this.setStatus("LoD paused: navigate freely without slice refreshes");
       }
@@ -625,24 +648,10 @@ export class UiShellController {
   }
 
   private renderSearchResults(
-    matches: Array<{ node_id: string; matched_text: string; score: number }>,
+    matches: SearchResultItem[],
   ): void {
-    if (!this.searchResults) {
-      return;
-    }
-
-    this.searchResults.innerHTML = "";
-
-    matches.forEach((match) => {
-      const item = document.createElement("button");
-      item.type = "button";
-      item.className = "search-result";
-      item.textContent = match.node_id;
-      item.title = match.matched_text;
-      item.addEventListener("click", () => {
-        void this.focusSearchResult(match.node_id);
-      });
-      this.searchResults?.appendChild(item);
+    renderSearchResults(this.searchResults, matches, (nodeId) => {
+      void this.focusSearchResult(nodeId);
     });
   }
 
@@ -675,51 +684,11 @@ export class UiShellController {
     return buildAncillaryWheelStats(this.lastRenderedGraph, { includeNodeIds });
   }
 
-  private getAncillaryMode(): AncillaryMode {
-    const mode = this.ancillaryModeSelect?.value;
-    if (
-      mode === ANCILLARY_MODE_GLOBAL ||
-      mode === ANCILLARY_MODE_CURRENT ||
-      mode === ANCILLARY_MODE_SELECTED
-    ) {
-      return mode;
-    }
-    return ANCILLARY_MODE_GLOBAL;
-  }
-
-  private updateNodeSelector(graph: PositionedGraph | null): void {
-    if (!this.ancillaryNodeSelect) {
-      return;
-    }
-
-    this.ancillaryNodeSelect.innerHTML = "";
-    const placeholder = document.createElement("option");
-    placeholder.value = "";
-    placeholder.textContent = "Select node";
-    this.ancillaryNodeSelect.appendChild(placeholder);
-
-    if (!graph) {
-      return;
-    }
-
-    const nodeIds = [...graph.nodes.map((node) => node.id)].sort((a, b) =>
-      a.localeCompare(b),
-    );
-    nodeIds.forEach((nodeId) => {
-      const option = document.createElement("option");
-      option.value = nodeId;
-      option.textContent = nodeId;
-      this.ancillaryNodeSelect?.appendChild(option);
-    });
-  }
-
   private updateNodeSelectionVisibility(): void {
-    if (!this.ancillaryNodeSelect) {
-      return;
-    }
-    const selectedMode = this.getAncillaryMode();
-    this.ancillaryNodeSelect.disabled =
-      selectedMode !== ANCILLARY_MODE_SELECTED;
+    updateNodeSelectionVisibility(
+      this.ancillaryNodeSelect,
+      this.ancillaryModeSelect,
+    );
   }
 
   private updateMetadataPieFieldOptions(graph: PositionedGraph | null): void {
@@ -818,39 +787,20 @@ export class UiShellController {
   }
 
   private updateLodPlaybackControls(lodAvailable: boolean): void {
-    const paused = this.workbench.isLodRefreshPaused();
-
-    if (this.lodPlayButton) {
-      this.lodPlayButton.disabled = !lodAvailable || !paused;
-      this.lodPlayButton.setAttribute("aria-pressed", String(!paused));
-    }
-
-    if (this.lodPauseButton) {
-      this.lodPauseButton.disabled = !lodAvailable || paused;
-      this.lodPauseButton.setAttribute("aria-pressed", String(paused));
-    }
-  }
-
-  private isLodGraph(graph: PositionedGraph | null): boolean {
-    return typeof graph?.viewMeta.sliceNodeCount === "number";
+    updateLodPlaybackControls({
+      playButton: this.lodPlayButton,
+      pauseButton: this.lodPauseButton,
+      lodAvailable,
+      paused: this.workbench.isLodRefreshPaused(),
+    });
   }
 
   private getSelectedMaxNodes(): number {
-    const rawValue = this.maxNodesInput?.value;
-    const parsed = Number(rawValue);
-    if (!Number.isFinite(parsed) || parsed < 10) {
-      return DEFAULT_MAX_NODES;
-    }
-    return Math.round(parsed);
+    return parseMaxNodes(this.maxNodesInput?.value);
   }
 
   private getSelectedInitialZoom(): number {
-    const rawValue = this.initialZoomInput?.value;
-    const parsed = Number(rawValue);
-    if (!Number.isFinite(parsed) || parsed < 0) {
-      return DEFAULT_INITIAL_ZOOM;
-    }
-    return parsed;
+    return parseInitialZoom(this.initialZoomInput?.value);
   }
 
   private buildCurrentVisualMapping(): VisualMappingOptions {
@@ -900,18 +850,8 @@ export class UiShellController {
       .map((input) => input.dataset.categoryColor as string);
   }
 
-  private buildCurrentDisplayOptions(): GraphDisplayOptions {
-    const selected = new Set(getSelectedOptions(this.displayOptionsSelect));
-    const hasExplicitSelection = selected.size > 0;
-
-    return {
-      nodeLabels:
-        !hasExplicitSelection || selected.has(DISPLAY_OPTION_NODE_LABELS),
-      edgeDistanceLabels: selected.has(DISPLAY_OPTION_EDGE_DISTANCE_LABELS),
-      distanceWeightedEdges: selected.has(
-        DISPLAY_OPTION_DISTANCE_WEIGHTED_EDGES,
-      ),
-    };
+  private buildCurrentDisplayOptions() {
+    return buildDisplayOptions(getSelectedOptions(this.displayOptionsSelect));
   }
 
   private async getNewickInput(): Promise<string> {
@@ -939,54 +879,10 @@ export class UiShellController {
     return {
       content: await readTextFile(file),
       join_column: joinColumn,
-      format: this.getAncillaryFormat(file),
+      format: resolveAncillaryFormat(
+        this.ancillaryFormatSelect?.value,
+        file.name,
+      ),
     };
   }
-
-  private getAncillaryFormat(file: File): "auto" | "csv" | "tsv" {
-    const selectedFormat = this.ancillaryFormatSelect?.value;
-    if (
-      selectedFormat === "auto" ||
-      selectedFormat === "csv" ||
-      selectedFormat === "tsv"
-    ) {
-      return selectedFormat;
-    }
-
-    const filename = file.name.toLowerCase();
-    if (filename.endsWith(".tsv") || filename.endsWith(".txt")) {
-      return "tsv";
-    }
-    if (filename.endsWith(".csv")) {
-      return "csv";
-    }
-    return "auto";
-  }
-}
-
-function getSelectedOptions(select: HTMLSelectElement | undefined): string[] {
-  if (!select) {
-    return [];
-  }
-
-  return [...select.selectedOptions]
-    .map((option) => option.value)
-    .filter((value) => value.trim().length > 0);
-}
-
-function readTextFile(file: File): Promise<string> {
-  return file.text();
-}
-
-function downloadTextFile(filename: string, content: string): void {
-  const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  link.style.display = "none";
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
 }

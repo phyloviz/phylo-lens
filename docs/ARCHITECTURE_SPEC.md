@@ -75,14 +75,37 @@ Contains runtime guards for server contracts and typed API clients.
 
 ### `app`
 
-`GraphWorkbench` orchestrates:
+Application orchestration is intentionally split between the shell and the
+workbench.
 
-1. prepare dataset;
-2. request visible slice;
-3. build a positioned graph;
-4. apply visual mappings;
-5. render through the selected renderer;
-6. request new slices on camera changes or proxy drill-down.
+`uiShell.ts` is the browser UI coordinator. It binds DOM controls, forwards
+commands to the workbench, and delegates detailed UI behavior to focused shell
+helpers:
+
+- `shell/inputs`: file reading, download helpers, ancillary payload parsing;
+- `shell/controls`: display options, LoD controls, visual mapping controls;
+- `shell/ancillary`: node selector state and category summaries;
+- `shell/search`: search result rendering;
+- `shell/status`: render status formatting.
+
+`workbench/graphWorkbench.ts` is the graph workflow facade. It keeps the public
+client workflow API stable while delegating implementation details:
+
+- `workbenchTypes.ts`: public and internal workbench contracts;
+- `workbenchState.ts`: session state initialization, reset, pending refresh, and
+  graph-rendered events;
+- `rendering/graphRendering.ts`: visual mapping, metadata filtering, and render
+  handoff;
+- `rendering/graphFilters.ts`: apply/clear metadata filters and update visual
+  mapping;
+- `lod/sliceRefresh.ts`: visible-slice request, positioned graph construction,
+  view metadata, camera focus hooks;
+- `lod/clusterExpansion.ts`: cluster proxy click and expansion state;
+- `search/graphSearch.ts`: local full-graph search.
+
+The workbench owns orchestration, not rendering internals. It prepares or
+normalizes datasets, chooses full vs LoD mode, schedules refreshes on camera
+changes, and calls the renderer adapter through the `GraphRenderer` interface.
 
 ### `render`
 
@@ -93,28 +116,97 @@ Renderer adapter layer. The current production adapter is Sigma:
 - preserves camera state across refreshes;
 - emits camera viewport updates in the server-provided global coordinate space.
 
+The Sigma adapter is split by rendering concern:
+
+- `sigmaRenderer.ts`: mounted adapter lifecycle, Sigma instance ownership,
+  renderer API implementation, event wiring, and rebuild orchestration;
+- `sigmaRendererCameraState.ts`: custom bounds, camera state read/restore, and
+  center-on-node camera updates;
+- `sigmaNodeRendering.ts`: stable barrel for node-rendering helpers;
+- `sigmaSettings.ts`: Sigma settings and node program registration;
+- `sigmaNodeAttributes.ts`: positioned-node to Graphology-node attributes;
+- `sigmaEdgeAttributes.ts`: positioned-edge to Graphology-edge attributes;
+- `sigmaPiePrograms.ts`: dynamic piechart node program construction;
+- `sigmaLabels.ts`: node and edge label drawing;
+- `sigmaRenderingConstants.ts`: rendering constants;
+- `sigmaAttributeUtils.ts`: attribute and role normalization helpers.
+
 ### `ancillary`
 
 Client-side metadata indexing and filtering. This is still local-first; the
 future server-side ancillary path should be added only if metadata transfer or
 filtering becomes a benchmarked bottleneck.
 
+## Client Dependency Flow
+
+```mermaid
+flowchart TD
+  DOM["DOM controls"] --> Shell["app/uiShell.ts"]
+  Shell --> ShellInputs["app/shell/inputs"]
+  Shell --> ShellControls["app/shell/controls"]
+  Shell --> ShellAncillary["app/shell/ancillary"]
+  Shell --> ShellSearch["app/shell/search"]
+  Shell --> Workbench["app/workbench/graphWorkbench.ts"]
+
+  Workbench --> ApiClient["api/datasetClient.ts"]
+  Workbench --> WorkbenchState["app/workbench/workbenchState.ts"]
+  Workbench --> SliceRefresh["app/workbench/lod/sliceRefresh.ts"]
+  Workbench --> Rendering["app/workbench/rendering"]
+  Workbench --> LocalSearch["app/workbench/search/graphSearch.ts"]
+
+  SliceRefresh --> GraphSlice["app/workbench/graphSlice.ts"]
+  Rendering --> VisualMappings["render/visualMappings.ts"]
+  Rendering --> FilterEngine["ancillary/filterEngine.ts"]
+  Workbench --> RendererPort["render/types.ts GraphRenderer"]
+  RendererPort --> SigmaRenderer["render/adapters/sigma/sigmaRenderer.ts"]
+
+  SigmaRenderer --> SigmaCamera["sigmaRendererCameraState.ts"]
+  SigmaRenderer --> SigmaSettings["sigmaSettings.ts"]
+  SigmaRenderer --> SigmaNodes["sigmaNodeAttributes.ts"]
+  SigmaRenderer --> SigmaEdges["sigmaEdgeAttributes.ts"]
+  SigmaRenderer --> SigmaPie["sigmaPiePrograms.ts"]
+```
+
+Imports should follow this direction. Shell helpers must not import the
+workbench. Renderer adapters must not import app modules. Shared contracts stay
+under `contracts`, `render/types`, or API model modules.
+
 ## Runtime Flow
 
-```text
-input dataset
-  -> normalize
-  -> build threshold hierarchy
-  -> compute global coordinates and cluster bounds
-  -> build STR spatial indexes per LoD level
-  -> persist prepared dataset
+```mermaid
+sequenceDiagram
+  participant UI as UI Shell
+  participant WB as GraphWorkbench
+  participant API as Dataset API Client
+  participant Server as Server Data Engine
+  participant R as Sigma Renderer
 
-camera viewport + zoom
-  -> view-slice request
-  -> spatial candidate query
-  -> threshold hierarchy expansion
-  -> visible nodes, visible edges, collapsed clusters
-  -> Sigma render
+  UI->>WB: renderNewick(newick, options)
+  WB->>API: normalizeDataset(request)
+  API->>Server: POST /dataset/normalize
+  Server-->>API: CanonicalDataset
+  API-->>WB: normalized dataset
+
+  alt full render
+    WB->>WB: build full positioned graph
+    WB->>WB: apply visual mappings and filters
+    WB->>R: render(PositionedGraph)
+    R-->>UI: graph rendered callback
+  else LoD render
+    WB->>API: prepareDataset(request)
+    API->>Server: POST /dataset/prepare
+    Server-->>API: prepared dataset id
+    API-->>WB: prepared session
+    WB->>API: viewSlice(viewport, zoom, max_nodes)
+    API->>Server: POST /dataset/view-slice
+    Server-->>API: VisibleSliceResponse
+    API-->>WB: visible slice
+    WB->>WB: build positioned slice graph
+    WB->>WB: apply visual mappings and filters
+    WB->>R: render(PositionedGraph)
+    R-->>WB: camera viewport changes
+    WB->>API: debounced viewSlice(...)
+  end
 ```
 
 ## Core Contracts

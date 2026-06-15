@@ -1,0 +1,31 @@
+export const SIGMA_DEFAULT_NODE_SIZE = 6;
+export const SIGMA_DEFAULT_NODE_COLOR = "#0f766e";
+export const SIGMA_DEFAULT_EDGE_COLOR = "#94a3b8";
+export const SIGMA_DEFAULT_EDGE_SIZE = 1.25;
+export const SIGMA_DISTANCE_EDGE_SIZE_FACTOR = 0.75;
+
+export const PHYLOVIZ_EDGE_TIEBREAK_NONE_COLOR = "#000000";
+export const PHYLOVIZ_EDGE_TIEBREAK_RULE_1_COLOR = "#2563eb";
+export const PHYLOVIZ_EDGE_TIEBREAK_RULE_2_COLOR = "#16a34a";
+export const PHYLOVIZ_EDGE_TIEBREAK_RULE_3_COLOR = "#dc2626";
+export const PHYLOVIZ_EDGE_TIEBREAK_RULE_4_OR_5_COLOR = "#ca8a04";
+export const PHYLOVIZ_EDGE_DLV_COLOR = "#6b7280";
+export const PHYLOVIZ_EDGE_TLV_COLOR = "#d1d5db";
+
+export const PHYLOVIZ_NODE_GROUP_FOUNDER_COLOR = "#86efac";
+export const PHYLOVIZ_NODE_SUBGROUP_FOUNDER_COLOR = "#15803d";
+export const PHYLOVIZ_NODE_COMMON_COLOR = "#93c5fd";
+export const PHYLOVIZ_NODE_SELECTED_COLOR = "#dc2626";
+export const PHYLOVIZ_NODE_SELECTED_BORDER_COLOR = "#ffffff";
+
+export const SIGMA_DEFAULT_LABEL_COLOR = "#0f172a";
+export const SIGMA_DEFAULT_LABEL_SIZE = 13;
+export const SIGMA_DEFAULT_LABEL_DENSITY = 0.9;
+export const SIGMA_DEFAULT_LABEL_GRID_CELL_SIZE = 90;
+export const SIGMA_DEFAULT_LABEL_RENDERED_SIZE_THRESHOLD = 4;
+export const INTERNAL_NODE_ID_PREFIX = "internal_";
+
+export const SIGMA_NODE_TYPE_DEFAULT = "circle";
+export const SIGMA_NODE_TYPE_BORDER = "border";
+export const SIGMA_NODE_TYPE_TRIANGLE = "triangle";
+export const SIGMA_NODE_TYPE_PIECHART = "piechart";

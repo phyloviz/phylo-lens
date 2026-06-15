@@ -11,16 +11,10 @@ import type {
   RendererKind,
   RenderViewportState,
 } from "../../types";
-import {
-  detectPieSliceKeys,
-  PIE_CATEGORY_COLORS_ATTRIBUTE,
-  PIE_OTHER_SLICE_COLOR,
-  PIE_OTHER_SLICE_KEY,
-} from "../../pieMapping";
+import { detectPieSliceKeys } from "../../pieMapping";
 import {
   defaultCameraState,
   deriveGraphBounds,
-  graphCoordinatesToCameraCenter,
   type GraphBounds,
   normalizeGraphBounds,
   SIGMA_DEFAULT_CAMERA_X,
@@ -34,11 +28,18 @@ import {
   addPositionedEdges,
   addPositionedNode,
   areStringArraysEqual,
+  buildPieProgramSignature,
   buildSigmaSettings,
   piechartProgramClasses,
   type SigmaPiechartOptions,
   type SigmaRendererOptions,
 } from "./sigmaNodeRendering";
+import {
+  applyStableCameraBounds,
+  centerCameraOnGraphNode,
+  readCameraState,
+  restoreCameraState,
+} from "./sigmaRendererCameraState";
 
 export {
   SIGMA_DEFAULT_CAMERA_ZOOM,
@@ -130,7 +131,7 @@ export class SigmaRenderer implements GraphRenderer {
     this.coordinateBounds =
       normalizeGraphBounds(graph.viewMeta.globalBounds) ?? this.graphBounds;
     this.ensureSigmaPiePrograms(graph);
-    this.applyStableCameraBounds();
+    applyStableCameraBounds(this.sigma, this.coordinateBounds);
 
     graph.nodes.forEach((node) => {
       addPositionedNode(
@@ -159,50 +160,19 @@ export class SigmaRenderer implements GraphRenderer {
   }
 
   centerOnNode(nodeId: string): void {
-    if (!this.sigma || !this.coordinateBounds || !this.graph?.hasNode(nodeId)) {
-      return;
-    }
-
-    const attributes = this.graph.getNodeAttributes(nodeId) as Record<
-      string,
-      unknown
-    >;
-    const nodeX =
-      typeof attributes.x === "number" && Number.isFinite(attributes.x)
-        ? attributes.x
-        : null;
-    const nodeY =
-      typeof attributes.y === "number" && Number.isFinite(attributes.y)
-        ? attributes.y
-        : null;
-    if (nodeX === null || nodeY === null) {
+    if (
+      !centerCameraOnGraphNode({
+        graph: this.graph,
+        sigma: this.sigma,
+        coordinateBounds: this.coordinateBounds,
+        nodeId,
+        beforeSetState: () => this.suppressViewChangesFor(450),
+      })
+    ) {
       return;
     }
 
     this.selectedNodeId = nodeId;
-    const camera = this.sigma.getCamera() as {
-      x?: number;
-      y?: number;
-      ratio?: number;
-      getState?: () => { x?: number; y?: number; ratio?: number };
-      setState: (state: { x?: number; y?: number; ratio?: number }) => void;
-    };
-    const currentState = camera.getState?.() ?? camera;
-    const nextCenter = graphCoordinatesToCameraCenter(this.coordinateBounds, {
-      x: nodeX,
-      y: nodeY,
-    });
-
-    this.suppressViewChangesFor(450);
-    camera.setState({
-      x: nextCenter.x,
-      y: nextCenter.y,
-      ratio:
-        typeof currentState.ratio === "number" &&
-        Number.isFinite(currentState.ratio)
-          ? currentState.ratio
-          : SIGMA_DEFAULT_CAMERA_ZOOM,
-    });
     this.renderSelectedNodeState();
   }
 
@@ -249,21 +219,6 @@ export class SigmaRenderer implements GraphRenderer {
     this.suppressNodeClicksUntil = Date.now() + durationMs;
   }
 
-  private applyStableCameraBounds(): void {
-    if (!this.sigma) {
-      return;
-    }
-
-    this.sigma.setCustomBBox(
-      this.coordinateBounds
-        ? {
-            x: [this.coordinateBounds.minX, this.coordinateBounds.maxX],
-            y: [this.coordinateBounds.minY, this.coordinateBounds.maxY],
-          }
-        : null,
-    );
-  }
-
   private ensureSigmaPiePrograms(graph: PositionedGraph): void {
     if (!this.graph || !this.containerElement) {
       throw new Error(ERR_SIGMA_NOT_READY);
@@ -295,7 +250,7 @@ export class SigmaRenderer implements GraphRenderer {
     graph?: PositionedGraph,
     signature = buildPieProgramSignature(sliceKeys, graph),
   ): void {
-    const previousCameraState = this.readCameraState();
+    const previousCameraState = readCameraState(this.sigma);
     const previousSigma = this.sigma;
     const sigmaSettings = buildSigmaSettings(
       this.rendererOptions,
@@ -311,7 +266,7 @@ export class SigmaRenderer implements GraphRenderer {
     );
     this.pieSliceKeys = sliceKeys;
     this.pieProgramSignature = signature;
-    this.restoreCameraState(previousCameraState);
+    restoreCameraState(this.sigma, previousCameraState);
     this.bindSigmaHandlers();
   }
 
@@ -459,66 +414,4 @@ export class SigmaRenderer implements GraphRenderer {
     this.render(this.lastRenderedGraph);
   }
 
-  private readCameraState(): { x?: number; y?: number; ratio?: number } | null {
-    if (!this.sigma) {
-      return null;
-    }
-
-    const camera = this.sigma.getCamera() as {
-      getState?: () => { x?: number; y?: number; ratio?: number };
-    };
-    return camera.getState?.() ?? null;
-  }
-
-  private restoreCameraState(
-    state: { x?: number; y?: number; ratio?: number } | null,
-  ): void {
-    if (!this.sigma) {
-      return;
-    }
-
-    const camera = this.sigma.getCamera() as {
-      setState: (state: { x?: number; y?: number; ratio?: number }) => void;
-    };
-    camera.setState(state ?? defaultCameraState());
-  }
-}
-
-function buildPieProgramSignature(
-  sliceKeys: readonly string[],
-  graph: PositionedGraph | undefined,
-): string {
-  const categoryColors = resolvePieCategoryColorsFromGraph(graph);
-  return sliceKeys
-    .map((key) => {
-      const color =
-        key === PIE_OTHER_SLICE_KEY
-          ? PIE_OTHER_SLICE_COLOR
-          : categoryColors[key] ?? "";
-      return `${key}:${color}`;
-    })
-    .join("|");
-}
-
-function resolvePieCategoryColorsFromGraph(
-  graph: PositionedGraph | undefined,
-): Record<string, string> {
-  if (!graph) {
-    return {};
-  }
-
-  for (const node of graph.nodes) {
-    const colorValue = node.attributes?.[PIE_CATEGORY_COLORS_ATTRIBUTE];
-    if (
-      !colorValue ||
-      typeof colorValue !== "object" ||
-      Array.isArray(colorValue)
-    ) {
-      continue;
-    }
-
-    return colorValue as Record<string, string>;
-  }
-
-  return {};
 }
