@@ -146,8 +146,7 @@ def normalize_dataset(
     for parsed_edge in sorted(
         parsed.edges, key=lambda edge: (edge.source, edge.target)
     ):
-        source = parsed_edge.source
-        target = parsed_edge.target
+        source, target = sorted((parsed_edge.source, parsed_edge.target))
         distance = _normalize_edge_distance(
             parsed_edge.distance,
             source=source,

@@ -23,7 +23,6 @@ KEY_DATASET_ID = "dataset_id"
 KEY_METADATA_SCHEMA = "metadata_schema"
 KEY_STATS = "stats"
 KEY_NODE_COUNT = "node_count"
-KEY_CACHE_HIT = "cache_hit"
 KEY_HIERARCHY_MS = "hierarchy_ms"
 KEY_LAYOUT_MS = "layout_ms"
 KEY_LOD_LEVEL = "lod_level"
@@ -449,15 +448,18 @@ def test_prepare_and_view_slice_use_threshold_hierarchy_for_weighted_edgelist(
     body = response.json()
 
     assert response.status_code == STATUS_OK
-    assert [node["id"] for node in body[KEY_NODES]] == ["a", "b", "d"]
-    assert [(edge["source"], edge["target"]) for edge in body["edges"]] == [
-        ("a", "b"),
-        ("a", "d"),
+    proxy_id = "cluster_proxy:threshold_cluster_1_a"
+    assert [node["id"] for node in body[KEY_NODES]] == [proxy_id, "d"]
+    assert [
+        (edge["source"], edge["target"], edge["distance"]) for edge in body["edges"]
+    ] == [
+        (proxy_id, "d", 4.0),
     ]
+    assert all(not edge["id"].startswith("hier_") for edge in body["edges"])
 
 
 def test_prepare_endpoint_reuses_cached_hierarchy_for_repeated_payload(client) -> None:
-    """Ensure repeated prepares skip expensive hierarchy work for the same payload."""
+    """Ensure repeated prepares rebuild and replace the prepared dataset."""
     payload = {
         "format": FORMAT_EDGELIST,
         "dataset_name": DATASET_API_TREE,
@@ -472,27 +474,20 @@ def test_prepare_endpoint_reuses_cached_hierarchy_for_repeated_payload(client) -
 
     assert first_response.status_code == STATUS_OK
     assert second_response.status_code == STATUS_OK
-    assert first_stats[KEY_CACHE_HIT] is False
-    assert second_stats[KEY_CACHE_HIT] is True
     assert first_stats[KEY_HIERARCHY_MS] > 0
-    assert second_stats[KEY_HIERARCHY_MS] == 0.0
-    assert second_stats[KEY_LAYOUT_MS] == 0.0
+    assert second_stats[KEY_HIERARCHY_MS] > 0
+    assert second_stats[KEY_LAYOUT_MS] >= 0
 
 
-def test_prepare_cache_retargets_same_payload_to_new_dataset_id(client) -> None:
-    """Ensure cached prepared records can be reused under a different dataset id."""
-    first_payload = {
+def test_prepare_same_payload_with_new_dataset_id_builds_new_record(client) -> None:
+    """Ensure repeated content can be prepared under a different dataset id."""
+    payload = {
         "format": FORMAT_EDGELIST,
-        "dataset_name": DATASET_API_TREE,
+        "dataset_name": DATASET_API_TREE_COPY,
         "content": WEIGHTED_TREE_CONTENT,
     }
-    second_payload = {
-        **first_payload,
-        "dataset_name": DATASET_API_TREE_COPY,
-    }
 
-    client.post(ROUTE_PREPARE, json=first_payload)
-    prepare_response = client.post(ROUTE_PREPARE, json=second_payload)
+    prepare_response = client.post(ROUTE_PREPARE, json=payload)
     view_response = client.post(
         ROUTE_VIEW_SLICE,
         json={
@@ -505,6 +500,6 @@ def test_prepare_cache_retargets_same_payload_to_new_dataset_id(client) -> None:
 
     assert prepare_response.status_code == STATUS_OK
     assert prepare_response.json()[KEY_DATASET_ID_TOP] == DATASET_API_TREE_COPY
-    assert prepare_response.json()[KEY_STATS][KEY_CACHE_HIT] is True
+    assert prepare_response.json()[KEY_STATS][KEY_HIERARCHY_MS] > 0
     assert view_response.status_code == STATUS_OK
     assert view_response.json()[KEY_DATASET_ID_TOP] == DATASET_API_TREE_COPY

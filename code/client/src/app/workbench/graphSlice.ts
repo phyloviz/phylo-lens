@@ -175,6 +175,7 @@ function buildNodeAttributes(
   return {
     cluster_id: node.cluster_id,
     is_cluster_proxy: node.is_cluster_proxy === true,
+    is_cluster_skeleton: node.is_cluster_skeleton === true,
     subtree_size: node.subtree_size,
     leaf_count: node.leaf_count,
   };

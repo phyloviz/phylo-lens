@@ -56,6 +56,7 @@ export class SigmaDragController {
   private draggedNodeId: string | null = null;
   private draggedNodeMoved = false;
   private previousCameraPanningEnabled: boolean | null = null;
+  private draggedNodeWasFixed: boolean | null = null;
   private animationFrameId: number | null = null;
   private readonly motionNodes = new Map<string, MotionNode>();
   private readonly boundNodeDragStarted = (payload: SigmaNodeEventPayload) => {
@@ -101,6 +102,7 @@ export class SigmaDragController {
     this.draggedNodeId = null;
     this.draggedNodeMoved = false;
     this.previousCameraPanningEnabled = null;
+    this.draggedNodeWasFixed = null;
     this.releaseMotionNodes();
   }
 
@@ -115,6 +117,8 @@ export class SigmaDragController {
 
     this.draggedNodeId = nodeId;
     this.draggedNodeMoved = false;
+    this.draggedNodeWasFixed = graph.getNodeAttribute(nodeId, "fixed") === true;
+    graph.setNodeAttribute(nodeId, "fixed", true);
     this.options.suppressViewChangesFor(250);
     this.previousCameraPanningEnabled = sigma.getSetting?.(
       "enableCameraPanning",
@@ -150,6 +154,7 @@ export class SigmaDragController {
   }
 
   private endNodeDrag(): void {
+    const graph = this.options.getGraph();
     const sigma = this.options.getSigma();
 
     if (!sigma || !this.draggedNodeId) {
@@ -162,6 +167,14 @@ export class SigmaDragController {
 
     if (this.draggedNodeMoved) {
       this.options.suppressNodeClicksFor(250);
+    }
+
+    if (graph?.hasNode(this.draggedNodeId)) {
+      graph.setNodeAttribute(
+        this.draggedNodeId,
+        "fixed",
+        this.draggedNodeWasFixed === true,
+      );
     }
 
     this.reset();

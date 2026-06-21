@@ -29,6 +29,7 @@ export interface CanonicalNode {
   y?: number | null;
   cluster_id?: string | null;
   is_cluster_proxy?: boolean | null;
+  is_cluster_skeleton?: boolean | null;
   subtree_size?: number | null;
   leaf_count?: number | null;
 }

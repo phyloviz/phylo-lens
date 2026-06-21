@@ -8,6 +8,7 @@ import time
 import tracemalloc
 from dataclasses import asdict, dataclass
 
+from phylo_lens_server.clustering.force_directed import apply_force_directed_layout_if_needed
 from phylo_lens_server.clustering.selector import select_visible_slice
 from phylo_lens_server.clustering.threshold_hierarchy import build_threshold_hierarchy
 from phylo_lens_server.core.models import (
@@ -130,22 +131,22 @@ def build_default_query_specs(dataset: CanonicalDataset) -> list[BenchmarkQueryS
     node_count = len(dataset.nodes)
     deepest_focus = dataset.nodes[-1].id
     return [
-      BenchmarkQuerySpec(
-          name="overview",
-          zoom=0.4,
-          max_nodes=min(max(32, node_count), 256),
-      ),
-      BenchmarkQuerySpec(
-          name="mid",
-          zoom=1.8,
-          max_nodes=min(max(128, node_count // 8), 2_000),
-      ),
-      BenchmarkQuerySpec(
-          name="detail_focus",
-          zoom=4.0,
-          max_nodes=min(max(512, node_count // 4), 5_000),
-          focus_node_id=deepest_focus,
-      ),
+        BenchmarkQuerySpec(
+            name="overview",
+            zoom=0.4,
+            max_nodes=min(max(32, node_count), 256),
+        ),
+        BenchmarkQuerySpec(
+            name="mid",
+            zoom=1.8,
+            max_nodes=min(max(128, node_count // 8), 2_000),
+        ),
+        BenchmarkQuerySpec(
+            name="detail_focus",
+            zoom=4.0,
+            max_nodes=min(max(512, node_count // 4), 5_000),
+            focus_node_id=deepest_focus,
+        ),
     ]
 
 
@@ -156,6 +157,7 @@ def benchmark_dataset(
     viewport: Viewport = DEFAULT_VIEWPORT,
 ) -> list[BenchmarkRow]:
     """Benchmark hierarchy build and the default visible-slice query suite."""
+    dataset = apply_force_directed_layout_if_needed(dataset)
     hierarchy_timings_ms: list[float] = []
     hierarchy_peak_mb: list[float] = []
     hierarchy: ThresholdHierarchyIndex | None = None
@@ -164,7 +166,7 @@ def benchmark_dataset(
         gc.collect()
         tracemalloc.start()
         start = time.perf_counter()
-        hierarchy = build_threshold_hierarchy(dataset)
+        hierarchy, _ = build_threshold_hierarchy(dataset)
         hierarchy_timings_ms.append((time.perf_counter() - start) * 1000)
         _, peak_bytes = tracemalloc.get_traced_memory()
         tracemalloc.stop()
@@ -330,9 +332,7 @@ def format_rows_as_table(rows: list[BenchmarkRow]) -> str:
     ]
 
     def _render_line(parts: list[str]) -> str:
-        return " | ".join(
-            part.ljust(widths[index]) for index, part in enumerate(parts)
-        )
+        return " | ".join(part.ljust(widths[index]) for index, part in enumerate(parts))
 
     divider = "-+-".join("-" * width for width in widths)
     lines = [_render_line(headers), divider]

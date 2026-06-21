@@ -17,9 +17,7 @@ import type {
   RenderNodeClickState,
   RenderViewportState,
 } from "../../render/types";
-import {
-  buildFullPositionedGraph,
-} from "./graphSlice";
+import { buildFullPositionedGraph } from "./graphSlice";
 import {
   DEFAULT_VIEWPORT,
   DEFAULT_VIEW_CHANGE_DEBOUNCE_MS,
@@ -334,8 +332,7 @@ async function setLodRefreshPaused({
   state.lodRefreshPaused = false;
   clearPendingViewRefresh(state);
 
-  const nextViewState =
-    state.deferredViewState ??
+  const nextViewState = state.deferredViewState ??
     state.currentViewState ?? {
       viewport: state.preparedSession.lod.viewport,
       zoom: DEFAULT_VIEW_SLICE_ZOOM,
@@ -519,7 +516,8 @@ async function searchNodes({
     query: query.query,
     limit: query.limit,
     include_metadata_keys:
-      query.includeMetadataKeys ?? session.metadataSchema.map((field) => field.key),
+      query.includeMetadataKeys ??
+      session.metadataSchema.map((field) => field.key),
   });
 }
 

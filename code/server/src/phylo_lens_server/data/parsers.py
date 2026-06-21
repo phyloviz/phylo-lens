@@ -220,12 +220,9 @@ def parse_newick(content: str) -> ParsedGraph:
             if label is not None:
                 explicit_node_ids.add(node_id)
             for child_id, child_distance in pending.child_links:
+                source, target = sorted((node_id, child_id))
                 edges.append(
-                    ParsedEdge(
-                        source=node_id,
-                        target=child_id,
-                        distance=child_distance,
-                    )
+                    ParsedEdge(source=source, target=target, distance=child_distance)
                 )
             emit_completed_node(node_id, branch_length)
             continue

@@ -24,6 +24,7 @@ import {
   sigmaRatioToLodZoom,
 } from "./sigmaCamera";
 import { SigmaDragController } from "./sigmaDragController";
+import createSigmaForceMotion from "./sigmaForceMotion";
 import {
   addPositionedEdges,
   addPositionedNode,
@@ -67,6 +68,7 @@ export class SigmaRenderer implements GraphRenderer {
   private piechartOptions: SigmaPiechartOptions;
   private rendererOptions: SigmaRendererOptions;
   private readonly dragController: SigmaDragController;
+  private readonly forceMotion: ReturnType<typeof createSigmaForceMotion>;
   private viewChangeHandler: ((state: RenderViewportState) => void) | null =
     null;
   private nodeClickHandler: ((state: RenderNodeClickState) => void) | null =
@@ -88,6 +90,7 @@ export class SigmaRenderer implements GraphRenderer {
   constructor(options: SigmaRendererOptions = {}) {
     this.rendererOptions = options;
     this.piechartOptions = options.piechart ?? {};
+    this.forceMotion = createSigmaForceMotion(options.forceMotion);
     this.dragController = new SigmaDragController({
       getGraph: () => this.graph,
       getSigma: () => this.sigma,
@@ -125,6 +128,7 @@ export class SigmaRenderer implements GraphRenderer {
     }
 
     // Clear previous frame first so Sigma rebuilds never see stale piechart nodes.
+    this.forceMotion.stop();
     this.lastRenderedGraph = graph;
     this.graph.clear();
     this.graphBounds = deriveGraphBounds(graph.nodes);
@@ -145,6 +149,7 @@ export class SigmaRenderer implements GraphRenderer {
     addPositionedEdges(this.graph, graph, this.rendererOptions);
 
     this.sigma.refresh();
+    this.forceMotion.start(this.graph, graph);
   }
 
   setViewChangeHandler(
@@ -197,6 +202,7 @@ export class SigmaRenderer implements GraphRenderer {
 
   // Drop container and graph references when renderer is detached.
   unmount(): void {
+    this.forceMotion.stop();
     this.unbindSigmaHandlers();
     this.sigma?.kill();
     this.sigma = null;

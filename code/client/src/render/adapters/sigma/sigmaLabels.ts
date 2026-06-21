@@ -20,6 +20,10 @@ export function deriveNodeLabel(
     return explicitLabel.trim();
   }
 
+  if (attributes?.is_cluster_proxy === true) {
+    return "";
+  }
+
   const metadataCandidate = attributes?.metadata;
   if (metadataCandidate && typeof metadataCandidate === "object") {
     const metadata = metadataCandidate as Record<string, unknown>;

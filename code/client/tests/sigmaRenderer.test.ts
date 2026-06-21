@@ -25,6 +25,28 @@ let shouldThrowOnPieProgram = false;
 let pieProgramInputs: Array<{
   slices: Array<{ color: { value: string }; value: { attribute: string } }>;
 }> = [];
+let forceMotionStarts = 0;
+let forceMotionKills = 0;
+let lastForceMotionSettings: Record<string, number> | null = null;
+
+vi.mock("graphology-layout-forceatlas2/worker", () => ({
+  default: class FakeForceSupervisor {
+    constructor(
+      _graph: unknown,
+      options?: { settings?: Record<string, number> },
+    ) {
+      lastForceMotionSettings = options?.settings ?? null;
+    }
+
+    start() {
+      forceMotionStarts += 1;
+    }
+
+    kill() {
+      forceMotionKills += 1;
+    }
+  },
+}));
 
 vi.mock("@sigma/node-piechart", () => ({
   createNodePiechartProgram: (input: {
@@ -113,6 +135,9 @@ describe("sigmaRenderer", () => {
   beforeEach(() => {
     shouldThrowOnPieProgram = false;
     pieProgramInputs = [];
+    forceMotionStarts = 0;
+    forceMotionKills = 0;
+    lastForceMotionSettings = null;
   });
 
   it("throws when mounting with a missing container", () => {
@@ -141,6 +166,92 @@ describe("sigmaRenderer", () => {
     renderer.unmount();
   });
 
+  it("runs live force motion for complete client layouts only", () => {
+    document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
+
+    const renderer = new SigmaRenderer({ forceMotion: { durationMs: 0 } });
+    renderer.mount({ containerId: CONTAINER_ID });
+    renderer.render({
+      nodes: [
+        { id: "root", x: 0, y: 0 },
+        { id: "a", x: 80, y: 100 },
+      ],
+      edges: [{ id: "e_root_a_1", source: "root", target: "a" }],
+      viewMeta: { layout: "force", lodLevel: 0 },
+    });
+
+    expect(forceMotionStarts).toBe(1);
+
+    renderer.render({
+      nodes: [
+        { id: "root", x: 0, y: 0 },
+        { id: "a", x: 80, y: 100 },
+      ],
+      edges: [{ id: "e_root_a_1", source: "root", target: "a" }],
+      viewMeta: { layout: "server", lodLevel: 0 },
+    });
+
+    expect(forceMotionStarts).toBe(1);
+    expect(forceMotionKills).toBe(1);
+    expect(lastForceMotionSettings).toMatchObject({
+      adjustSizes: false,
+      barnesHutOptimize: true,
+      strongGravityMode: false,
+      gravity: 0.02,
+      scalingRatio: 18,
+      slowDown: 10,
+    });
+
+    renderer.unmount();
+  });
+
+  it("allows scale-aware force settings to be overridden", () => {
+    document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
+
+    const renderer = new SigmaRenderer({
+      forceMotion: {
+        durationMs: 0,
+        settings: { gravity: 0.5, scalingRatio: 24 },
+      },
+    });
+    renderer.mount({ containerId: CONTAINER_ID });
+    renderer.render({
+      nodes: [
+        { id: "root", x: 0, y: 0 },
+        { id: "a", x: 80, y: 100 },
+      ],
+      edges: [{ id: "e_root_a_1", source: "root", target: "a" }],
+      viewMeta: { layout: "force", lodLevel: 0 },
+    });
+
+    expect(lastForceMotionSettings).toMatchObject({
+      gravity: 0.5,
+      scalingRatio: 24,
+      slowDown: 10,
+    });
+
+    renderer.unmount();
+  });
+
+  it("can disable live force motion", () => {
+    document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
+
+    const renderer = new SigmaRenderer({ forceMotion: { enabled: false } });
+    renderer.mount({ containerId: CONTAINER_ID });
+    renderer.render({
+      nodes: [
+        { id: "root", x: 0, y: 0 },
+        { id: "a", x: 80, y: 100 },
+      ],
+      edges: [{ id: "e_root_a_1", source: "root", target: "a" }],
+      viewMeta: { layout: "force", lodLevel: 0 },
+    });
+
+    expect(forceMotionStarts).toBe(0);
+
+    renderer.unmount();
+  });
+
   it("registers node programs for selected nodes and expandable cluster proxies", () => {
     document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
 
@@ -158,7 +269,7 @@ describe("sigmaRenderer", () => {
     renderer.unmount();
   });
 
-  it("uses centered node labels and hides generated internal node ids", () => {
+  it("uses centered node labels and hides implementation-only node ids", () => {
     document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
 
     const renderer = new SigmaRenderer();
@@ -167,6 +278,15 @@ describe("sigmaRenderer", () => {
       nodes: [
         { id: "internal_1", x: 0, y: 0 },
         { id: "profile_1", x: 1, y: 1 },
+        {
+          id: "cluster_proxy:threshold_cluster_4_42",
+          x: 2,
+          y: 2,
+          attributes: {
+            cluster_id: "threshold_cluster_4_42",
+            is_cluster_proxy: true,
+          },
+        },
       ],
       edges: [],
       viewMeta: { layout: "force", lodLevel: 0 },
@@ -175,6 +295,12 @@ describe("sigmaRenderer", () => {
     expect(lastSigmaOptions?.defaultDrawNodeLabel).toBeTypeOf("function");
     expect(lastGraph?.getNodeAttribute("internal_1", "label")).toBe("");
     expect(lastGraph?.getNodeAttribute("profile_1", "label")).toBe("profile_1");
+    expect(
+      lastGraph?.getNodeAttribute(
+        "cluster_proxy:threshold_cluster_4_42",
+        "label",
+      ),
+    ).toBe("");
 
     renderer.unmount();
   });
@@ -313,7 +439,7 @@ describe("sigmaRenderer", () => {
     expect(lastGraph?.getNodeAttribute("selected", "color")).toBe("#dc2626");
     expect(lastGraph?.getEdgeAttribute("rule_1", "color")).toBe("#2563eb");
     expect(lastGraph?.getEdgeAttribute("rule_3", "color")).toBe("#dc2626");
-    expect(lastGraph?.getEdgeAttribute("tlv", "color")).toBe("#d1d5db");
+    expect(lastGraph?.getEdgeAttribute("tlv", "color")).toBe("#9ca3af");
 
     renderer.unmount();
   });
@@ -380,7 +506,7 @@ describe("sigmaRenderer", () => {
     });
 
     expect(lastGraph?.getEdgeAttribute("near", "color")).toBe("#232323");
-    expect(lastGraph?.getEdgeAttribute("far", "color")).toBe("#dcdcdc");
+    expect(lastGraph?.getEdgeAttribute("far", "color")).toBe("#969696");
 
     renderer.unmount();
   });

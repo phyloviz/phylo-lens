@@ -10,9 +10,6 @@ from phylo_lens_server.clustering.spatial import (
     viewport_to_bounds,
 )
 from phylo_lens_server.clustering.spatial_index import query_spatial_index
-from phylo_lens_server.clustering.threshold_hierarchy import (
-    THRESHOLD_SYNTHETIC_ROOT_ID,
-)
 from phylo_lens_server.core.models import (
     CanonicalDataset,
     ThresholdHierarchyCluster,
@@ -21,8 +18,9 @@ from phylo_lens_server.core.models import (
 )
 
 DEFAULT_MAX_NODES_FALLBACK = 10_000
-ZOOM_OVERVIEW_THRESHOLD = 0.75
-ZOOM_EXPANSION_THRESHOLD = 1.0
+ZOOM_COARSE_LEVEL = 0.75
+ZOOM_FINE_LEVEL = 3.0
+VIEWPORT_MARGIN_FACTOR = 0.5
 
 
 @dataclass(frozen=True)
@@ -38,8 +36,11 @@ def select_cluster_view(
 ) -> ClusterViewSelection:
     """Choose the hierarchy clusters that should participate in the visible slice."""
     max_nodes = resolve_max_nodes(dataset, query)
-    viewport_bounds = viewport_to_bounds(query.viewport)
     target_level = target_level_for_query(hierarchy, query)
+    viewport_bounds = inflated_bounds(
+        viewport_to_bounds(query.viewport),
+        VIEWPORT_MARGIN_FACTOR,
+    )
     focus_path_cluster_ids_set = focus_path_cluster_ids(
         hierarchy,
         query.focus_node_id,
@@ -147,7 +148,7 @@ def spatial_candidate_cluster_ids_for_viewport(
     if not hierarchy.spatial_index_by_level:
         return None
 
-    candidates = {hierarchy.root_cluster_id}
+    candidates = set(hierarchy.top_cluster_ids)
 
     for level, index in hierarchy.spatial_index_by_level.items():
         if level <= target_level:
@@ -166,24 +167,43 @@ def visible_cluster_order(
     spatial_candidate_cluster_ids: set[str] | None,
 ) -> tuple[list[str], set[str]]:
     expanded_cluster_ids: set[str] = set()
-    visible_cluster_ids = {hierarchy.root_cluster_id}
-    visible_order = [hierarchy.root_cluster_id]
+    visible_cluster_ids = set(hierarchy.top_cluster_ids)
+    visible_order = list(hierarchy.top_cluster_ids)
 
     frontier: list[tuple[FrontierSortKey, str]] = []
-    push_frontier_cluster(
-        frontier=frontier,
-        hierarchy=hierarchy,
-        cluster_id=hierarchy.root_cluster_id,
-        focus_path_cluster_ids=focus_path_cluster_ids,
-        viewport_bounds=viewport_bounds,
-        max_nodes=max_nodes,
-    )
+
+    for cluster_id in hierarchy.top_cluster_ids:
+        push_frontier_cluster(
+            frontier=frontier,
+            hierarchy=hierarchy,
+            cluster_id=cluster_id,
+            focus_path_cluster_ids=focus_path_cluster_ids,
+            viewport_bounds=viewport_bounds,
+            max_nodes=max_nodes,
+        )
 
     while frontier:
         _, cluster_id = heappop(frontier)
         cluster = hierarchy.clusters[cluster_id]
+        force_expand = cluster_id in focus_path_cluster_ids or (
+            cluster_id in query.expanded_cluster_ids
+            or cluster_id == query.focus_cluster_id
+        )
+        view_relevant = is_view_relevant_cluster(
+            hierarchy=hierarchy,
+            cluster_id=cluster_id,
+            focus_path_cluster_ids=focus_path_cluster_ids,
+            viewport_bounds=viewport_bounds,
+            spatial_candidate_cluster_ids=spatial_candidate_cluster_ids,
+        )
 
-        if not should_expand_cluster(hierarchy, query, cluster, target_level):
+        if not should_expand_cluster(
+            query,
+            cluster,
+            target_level,
+            force_expand=force_expand,
+            view_relevant=view_relevant,
+        ):
             continue
 
         children = visible_child_cluster_ids(
@@ -192,13 +212,14 @@ def visible_cluster_order(
             focus_path_cluster_ids=focus_path_cluster_ids,
             viewport_bounds=viewport_bounds,
             spatial_candidate_cluster_ids=spatial_candidate_cluster_ids,
-            force_all_children=should_force_expand_children(query, cluster.cluster_id),
+            force_all_children=True,
         )
 
         if not children:
             continue
 
-        if len(visible_cluster_ids) + len(children) > max_nodes:
+        visible_count = len(visible_cluster_ids - expanded_cluster_ids)
+        if visible_count - 1 + len(children) > max_nodes:
             continue
 
         expanded_cluster_ids.add(cluster_id)
@@ -337,7 +358,7 @@ def is_view_relevant_cluster(
     if cluster_id in focus_path_cluster_ids:
         return True
 
-    if is_synthetic_root(hierarchy, cluster_id):
+    if cluster_id in hierarchy.top_cluster_ids:
         return True
 
     if spatial_candidate_cluster_ids is not None:
@@ -353,10 +374,12 @@ def is_view_relevant_cluster(
 
 
 def should_expand_cluster(
-    hierarchy: ThresholdHierarchyIndex,
     query: VisibleSliceQuery,
     cluster: ThresholdHierarchyCluster,
     target_level: int,
+    *,
+    force_expand: bool = False,
+    view_relevant: bool = True,
 ) -> bool:
     if not cluster.child_cluster_ids:
         return False
@@ -364,26 +387,17 @@ def should_expand_cluster(
     if cluster.cluster_id in query.collapsed_cluster_ids:
         return False
 
-    if is_synthetic_root(hierarchy, cluster.cluster_id):
+    if force_expand:
         return True
+
+    if not view_relevant:
+        return False
 
     if cluster.cluster_id in query.expanded_cluster_ids:
         return True
 
     if query.focus_cluster_id == cluster.cluster_id:
         return True
-
-    if (
-        query.lod_hint is not None
-        and cluster.distance_threshold_level >= query.lod_hint
-    ):
-        return False
-
-    if query.zoom < ZOOM_OVERVIEW_THRESHOLD:
-        return False
-
-    if query.zoom <= ZOOM_EXPANSION_THRESHOLD and cluster.distance_threshold_level >= 1:
-        return False
 
     return cluster.distance_threshold_level < target_level
 
@@ -397,30 +411,25 @@ def target_level_for_query(
     if query.lod_hint is not None:
         return min(max_level, max(0, query.lod_hint))
 
-    if query.zoom <= ZOOM_EXPANSION_THRESHOLD:
-        return 1 if has_synthetic_root(hierarchy) else 0
+    if query.zoom <= ZOOM_COARSE_LEVEL:
+        return 0
 
-    if has_synthetic_root(hierarchy):
-        return min(max_level, max(1, int(query.zoom) + 1))
+    if query.zoom >= ZOOM_FINE_LEVEL:
+        return max_level
 
-    return min(max_level, max(0, int(query.zoom)))
-
-
-def has_synthetic_root(hierarchy: ThresholdHierarchyIndex) -> bool:
-    return hierarchy.root_cluster_id == THRESHOLD_SYNTHETIC_ROOT_ID
-
-
-def is_synthetic_root(
-    hierarchy: ThresholdHierarchyIndex,
-    cluster_id: str,
-) -> bool:
-    return has_synthetic_root(hierarchy) and cluster_id == hierarchy.root_cluster_id
+    zoom_ratio = (query.zoom - ZOOM_COARSE_LEVEL) / (
+        ZOOM_FINE_LEVEL - ZOOM_COARSE_LEVEL
+    )
+    return min(max_level, max(0, round(zoom_ratio**2 * max_level)))
 
 
-def should_force_expand_children(
-    query: VisibleSliceQuery,
-    cluster_id: str,
-) -> bool:
+def inflated_bounds(bounds: BoundsTuple, margin_factor: float) -> BoundsTuple:
+    min_x, max_x, min_y, max_y = bounds
+    margin_x = (max_x - min_x) * margin_factor / 2
+    margin_y = (max_y - min_y) * margin_factor / 2
     return (
-        cluster_id == query.focus_cluster_id or cluster_id in query.expanded_cluster_ids
+        min_x - margin_x,
+        max_x + margin_x,
+        min_y - margin_y,
+        max_y + margin_y,
     )
