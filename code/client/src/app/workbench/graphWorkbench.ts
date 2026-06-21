@@ -369,10 +369,6 @@ async function handleViewChange({
     return;
   }
 
-  if (Date.now() < state.suppressViewChangesUntil) {
-    return;
-  }
-
   const effectiveViewport = normalizeViewport(viewState.viewport);
   const effectiveZoom = normalizeZoom(viewState.zoom);
 
@@ -407,6 +403,10 @@ async function handleViewChange({
 
   clearPendingViewRefresh(state);
 
+  const suppressionDelay = Math.max(
+    0,
+    state.suppressViewChangesUntil - Date.now(),
+  );
   state.pendingViewRefreshId = window.setTimeout(() => {
     state.pendingViewRefreshId = null;
 
@@ -420,7 +420,7 @@ async function handleViewChange({
         zoom: effectiveZoom,
       },
     });
-  }, DEFAULT_VIEW_CHANGE_DEBOUNCE_MS);
+  }, suppressionDelay + DEFAULT_VIEW_CHANGE_DEBOUNCE_MS);
 }
 
 interface HandleNodeClickArgs {

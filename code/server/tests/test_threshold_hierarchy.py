@@ -233,9 +233,10 @@ def test_select_visible_slice_overview_keeps_connected_tree_aggregated() -> None
         hierarchy,
         VisibleSliceQuery(
             dataset_id=DATASET_THRESHOLD,
-            viewport=Viewport(x=0, y=0, width=8000, height=5000),
-            zoom=1.0,
-            max_nodes=10,
+                viewport=Viewport(x=0, y=0, width=8000, height=5000),
+                zoom=1.0,
+                lod_hint=0,
+                max_nodes=10,
         ),
     )
 
@@ -285,9 +286,10 @@ def test_select_visible_slice_threshold_forest_shows_multiple_components_without
         hierarchy,
         VisibleSliceQuery(
             dataset_id=DATASET_THRESHOLD,
-            viewport=Viewport(x=0, y=0, width=5000, height=5000),
-            zoom=0.4,
-            max_nodes=10,
+                viewport=Viewport(x=0, y=0, width=5000, height=5000),
+                zoom=0.4,
+                lod_hint=0,
+                max_nodes=10,
         ),
     )
 

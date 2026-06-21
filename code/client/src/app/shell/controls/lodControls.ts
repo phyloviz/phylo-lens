@@ -1,7 +1,7 @@
 import type { PositionedGraph } from "../../../contracts/positioned";
 
-export const DEFAULT_MAX_NODES = 4000;
-export const DEFAULT_INITIAL_ZOOM = 4;
+export const DEFAULT_MAX_NODES = 6000;
+export const DEFAULT_INITIAL_ZOOM = 1;
 
 export function updateLodPlaybackControls({
   playButton,

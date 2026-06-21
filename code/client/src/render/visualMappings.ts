@@ -24,11 +24,11 @@ export const DEFAULT_COLOR_PALETTE = [
 export const DEFAULT_FALLBACK_COLOR = "#0f766e";
 export const CLUSTER_PROXY_COLOR = "#b45309";
 
-export const DEFAULT_NODE_SIZE = 6;
-export const MIN_NODE_SIZE = 4;
-export const MAX_NODE_SIZE = 14;
-export const CLUSTER_PROXY_MIN_SIZE = 7;
-export const CLUSTER_PROXY_MAX_SIZE = 12;
+export const DEFAULT_NODE_SIZE = 5;
+export const MIN_NODE_SIZE = 3;
+export const MAX_NODE_SIZE = 10;
+export const CLUSTER_PROXY_MIN_SIZE = 6;
+export const CLUSTER_PROXY_MAX_SIZE = 10;
 
 export const DEFAULT_COLOR_FIELD = "region";
 export const DEFAULT_SIZE_FIELD = "distance";

@@ -808,7 +808,7 @@ describe("graphWorkbench", () => {
     workbench.dispose();
   });
 
-  it("keeps the camera stable when refreshing semantic zoom on viewport changes", async () => {
+  it("refreshes semantic zoom without recentering the camera", async () => {
     vi.useFakeTimers();
     try {
       const fetchImpl = vi
@@ -841,7 +841,7 @@ describe("graphWorkbench", () => {
 
       expect(renderer.lastCenteredNodeId).toBeNull();
 
-      await vi.advanceTimersByTimeAsync(150);
+      await vi.advanceTimersByTimeAsync(50);
 
       renderer.emitViewChange({
         viewport: { x: 0, y: 0, width: 1000, height: 600 },
@@ -855,7 +855,14 @@ describe("graphWorkbench", () => {
       expect(renderer.lastCenteredNodeId).toBeNull();
       expect(
         (fetchImpl as unknown as ReturnType<typeof vi.fn>).mock.calls,
-      ).toHaveLength(3);
+      ).toHaveLength(4);
+      const refreshCall = (
+        fetchImpl as unknown as ReturnType<typeof vi.fn>
+      ).mock.calls[3];
+      const refreshBody = JSON.parse(
+        String((refreshCall?.[1] as RequestInit)?.body ?? "{}"),
+      ) as Record<string, unknown>;
+      expect(refreshBody.zoom).toBe(5);
 
       workbench.dispose();
     } finally {

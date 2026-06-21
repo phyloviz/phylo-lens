@@ -1,7 +1,10 @@
 import Graph from "graphology";
 import Sigma from "sigma";
 
-import type { PositionedGraph } from "../../../contracts/positioned";
+import {
+  LAYOUT_SERVER,
+  type PositionedGraph,
+} from "../../../contracts/positioned";
 import { RENDERER_KIND_SIGMA } from "../../types";
 import type {
   GraphDisplayOptions,
@@ -25,6 +28,11 @@ import {
 } from "./sigmaCamera";
 import { SigmaDragController } from "./sigmaDragController";
 import createSigmaForceMotion from "./sigmaForceMotion";
+import {
+  type CachedNodePositionMap,
+  nodeWithCachedOverlapPosition,
+  removeRenderedNodeOverlaps,
+} from "./sigmaNodeOverlap";
 import {
   addPositionedEdges,
   addPositionedNode,
@@ -53,6 +61,7 @@ export type { SigmaPiechartOptions, SigmaRendererOptions };
 export const ERR_CONTAINER_NOT_FOUND =
   "Sigma container not found: {containerId}";
 export const ERR_SIGMA_NOT_READY = "Sigma renderer is not mounted.";
+export const SIGMA_EDGE_LABEL_MAX_CAMERA_RATIO = 0.5;
 
 // Sigma renderer adapter keeps Sigma-specific behavior isolated from core contracts.
 export class SigmaRenderer implements GraphRenderer {
@@ -77,7 +86,9 @@ export class SigmaRenderer implements GraphRenderer {
   private suppressNodeClicksUntil = 0;
   private lastRenderedGraph: PositionedGraph | null = null;
   private selectedNodeId: string | null = null;
+  private overlapPositions: CachedNodePositionMap = new Map();
   private readonly boundCameraUpdated = () => {
+    this.updateEdgeLabelVisibility();
     this.emitViewChange();
   };
   private readonly boundNodeClicked = (payload: {
@@ -136,11 +147,18 @@ export class SigmaRenderer implements GraphRenderer {
       normalizeGraphBounds(graph.viewMeta.globalBounds) ?? this.graphBounds;
     this.ensureSigmaPiePrograms(graph);
     applyStableCameraBounds(this.sigma, this.coordinateBounds);
+    if (graph.viewMeta.layout !== LAYOUT_SERVER) {
+      this.overlapPositions.clear();
+    }
 
     graph.nodes.forEach((node) => {
+      const positionedNode = nodeWithCachedOverlapPosition(
+        node,
+        this.overlapPositions,
+      );
       addPositionedNode(
         this.graph as Graph,
-        node,
+        positionedNode,
         this.pieSliceKeys,
         this.rendererOptions,
         this.selectedNodeId,
@@ -149,7 +167,17 @@ export class SigmaRenderer implements GraphRenderer {
     addPositionedEdges(this.graph, graph, this.rendererOptions);
 
     this.sigma.refresh();
+    const correctedPositions = removeRenderedNodeOverlaps(
+      this.graph,
+      this.sigma,
+      graph,
+    );
+    correctedPositions.forEach((position, nodeId) => {
+      this.overlapPositions.set(nodeId, position);
+    });
+    this.sigma.refresh();
     this.forceMotion.start(this.graph, graph);
+    this.updateEdgeLabelVisibility();
   }
 
   setViewChangeHandler(
@@ -214,6 +242,7 @@ export class SigmaRenderer implements GraphRenderer {
     this.coordinateBounds = null;
     this.lastRenderedGraph = null;
     this.selectedNodeId = null;
+    this.overlapPositions.clear();
     this.dragController.reset();
   }
 
@@ -385,6 +414,30 @@ export class SigmaRenderer implements GraphRenderer {
       viewport,
       zoom: sigmaRatioToLodZoom(ratio),
     });
+  }
+
+  private updateEdgeLabelVisibility(): void {
+    if (!this.sigma) {
+      return;
+    }
+
+    const camera = this.sigma.getCamera() as {
+      ratio?: number;
+      getState?: () => { ratio?: number };
+    };
+    const state = camera.getState?.() ?? camera;
+    const ratio =
+      typeof state.ratio === "number" && Number.isFinite(state.ratio)
+        ? state.ratio
+        : SIGMA_DEFAULT_CAMERA_ZOOM;
+    const shouldRender =
+      this.rendererOptions.display?.edgeDistanceLabels === true &&
+      ratio <= SIGMA_EDGE_LABEL_MAX_CAMERA_RATIO;
+
+    if (this.sigma.getSetting("renderEdgeLabels") !== shouldRender) {
+      this.sigma.setSetting("renderEdgeLabels", shouldRender);
+      this.sigma.scheduleRender();
+    }
   }
 
   private emitNodeClick(payload: {

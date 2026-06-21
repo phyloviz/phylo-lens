@@ -20,6 +20,7 @@ from phylo_lens_server.core.models import (
 DEFAULT_MAX_NODES_FALLBACK = 10_000
 ZOOM_COARSE_LEVEL = 0.75
 ZOOM_FINE_LEVEL = 3.0
+MIN_AUTOMATIC_LOD_LEVEL = 1
 VIEWPORT_MARGIN_FACTOR = 0.5
 
 
@@ -412,7 +413,7 @@ def target_level_for_query(
         return min(max_level, max(0, query.lod_hint))
 
     if query.zoom <= ZOOM_COARSE_LEVEL:
-        return 0
+        return min(max_level, MIN_AUTOMATIC_LOD_LEVEL)
 
     if query.zoom >= ZOOM_FINE_LEVEL:
         return max_level
@@ -420,7 +421,13 @@ def target_level_for_query(
     zoom_ratio = (query.zoom - ZOOM_COARSE_LEVEL) / (
         ZOOM_FINE_LEVEL - ZOOM_COARSE_LEVEL
     )
-    return min(max_level, max(0, round(zoom_ratio**2 * max_level)))
+    return min(
+        max_level,
+        max(
+            MIN_AUTOMATIC_LOD_LEVEL,
+            round(zoom_ratio**2 * max_level),
+        ),
+    )
 
 
 def inflated_bounds(bounds: BoundsTuple, margin_factor: float) -> BoundsTuple:

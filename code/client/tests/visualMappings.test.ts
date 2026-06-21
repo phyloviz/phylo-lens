@@ -9,6 +9,8 @@ import type { PositionedGraph } from "../src/contracts/positioned";
 import {
   applyVisualMappings,
   CLUSTER_PROXY_COLOR,
+  CLUSTER_PROXY_MAX_SIZE,
+  DEFAULT_NODE_SIZE,
   MAX_NODE_SIZE,
   MIN_NODE_SIZE,
 } from "../src/render/visualMappings";
@@ -194,7 +196,8 @@ describe("visualMappings", () => {
     const proxyNode = mapped.nodes[0];
 
     expect(proxyNode?.color).toBe(CLUSTER_PROXY_COLOR);
-    expect((proxyNode?.size ?? 0)).toBeGreaterThan(10);
+    expect((proxyNode?.size ?? 0)).toBeGreaterThan(DEFAULT_NODE_SIZE);
+    expect((proxyNode?.size ?? 0)).toBeLessThanOrEqual(CLUSTER_PROXY_MAX_SIZE);
     expect(
       (proxyNode?.attributes as Record<string, unknown>)?.is_cluster_proxy,
     ).toBe(true);

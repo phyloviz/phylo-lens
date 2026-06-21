@@ -1,6 +1,10 @@
 from collections import Counter
 
-from phylo_lens_server.clustering.selector import select_visible_slice
+from phylo_lens_server.clustering.selector import (
+    select_visible_slice,
+    topology_budget_limit,
+)
+from phylo_lens_server.clustering.selection_policy import target_level_for_query
 from phylo_lens_server.clustering.threshold_hierarchy import build_threshold_hierarchy
 from phylo_lens_server.core.models import Viewport, VisibleSliceQuery
 from phylo_lens_server.data.normalizer import NormalizeRequest, normalize_dataset
@@ -173,3 +177,15 @@ def test_select_visible_slice_does_not_increase_tree_degree() -> None:
         visible_degree.update((edge.source, edge.target))
 
     assert max(visible_degree.values(), default=0) <= max(original_degree.values())
+
+
+def test_topology_budget_allows_small_skeleton_overflow() -> None:
+    assert topology_budget_limit(9000) == 10080
+
+
+def test_automatic_initial_view_starts_at_level_one() -> None:
+    dataset, hierarchy = _threshold_dataset_and_hierarchy()
+
+    assert target_level_for_query(hierarchy, _query(zoom=0.5)) == 1
+    assert target_level_for_query(hierarchy, _query(zoom=1.0)) == 1
+    assert target_level_for_query(hierarchy, _query(zoom=1.0, lod_hint=0)) == 0

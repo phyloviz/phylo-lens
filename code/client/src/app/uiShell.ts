@@ -232,6 +232,12 @@ export class UiShellController {
     this.renderCategoryColorControls();
 
     this.boundAncillaryModeChange = () => {
+      updateNodeSelector(
+        this.ancillaryNodeSelect,
+        getAncillaryMode(this.ancillaryModeSelect) === ANCILLARY_MODE_SELECTED
+          ? this.lastRenderedGraph
+          : null,
+      );
       this.updateNodeSelectionVisibility();
       this.renderAncillaryStats();
     };
@@ -552,7 +558,12 @@ export class UiShellController {
   private handleGraphRendered(graph: PositionedGraph): void {
     this.setStatus(buildRenderedStatus(graph));
     this.lastRenderedGraph = graph;
-    updateNodeSelector(this.ancillaryNodeSelect, graph);
+    updateNodeSelector(
+      this.ancillaryNodeSelect,
+      getAncillaryMode(this.ancillaryModeSelect) === ANCILLARY_MODE_SELECTED
+        ? graph
+        : null,
+    );
     this.updateMetadataPieFieldOptions(graph);
     this.renderCategoryColorControls();
     this.updateNodeSelectionVisibility();

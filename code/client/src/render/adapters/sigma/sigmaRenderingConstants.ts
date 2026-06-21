@@ -1,4 +1,4 @@
-export const SIGMA_DEFAULT_NODE_SIZE = 6;
+export const SIGMA_DEFAULT_NODE_SIZE = 5;
 export const SIGMA_DEFAULT_NODE_COLOR = "#0f766e";
 export const SIGMA_DEFAULT_EDGE_COLOR = "#94a3b8";
 export const SIGMA_DEFAULT_EDGE_SIZE = 1.75;

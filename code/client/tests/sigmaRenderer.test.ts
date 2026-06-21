@@ -101,6 +101,29 @@ vi.mock("sigma", () => {
       return undefined;
     }
 
+    getSetting(key: string) {
+      return lastSigmaOptions?.[key];
+    }
+
+    setSetting(key: string, value: unknown) {
+      if (lastSigmaOptions) {
+        lastSigmaOptions[key] = value;
+      }
+      return this;
+    }
+
+    scheduleRender() {
+      return this;
+    }
+
+    graphToViewport(point: { x: number; y: number }) {
+      return point;
+    }
+
+    viewportToGraph(point: { x: number; y: number }) {
+      return point;
+    }
+
     setCustomBBox(
       bounds: { x: [number, number]; y: [number, number] } | null,
     ) {
@@ -331,12 +354,20 @@ describe("sigmaRenderer", () => {
       viewMeta: { layout: "force", lodLevel: 0 },
     });
 
-    expect(lastSigmaOptions?.renderEdgeLabels).toBe(true);
+    expect(lastSigmaOptions?.renderEdgeLabels).toBe(false);
     expect(lastGraph?.getEdgeAttribute("e_root_a_1", "label")).toBe("2.500");
     expect(lastGraph?.getEdgeAttribute("e_root_a_1", "forceLabel")).toBe(true);
     expect(lastGraph?.getEdgeAttribute("e_root_a_1", "size")).toBeGreaterThan(
       1.25,
     );
+
+    lastCamera?.setState({ ratio: 0.4 });
+    lastCamera?.handler?.();
+    expect(lastSigmaOptions?.renderEdgeLabels).toBe(true);
+
+    lastCamera?.setState({ ratio: 1 });
+    lastCamera?.handler?.();
+    expect(lastSigmaOptions?.renderEdgeLabels).toBe(false);
 
     renderer.unmount();
   });
@@ -382,7 +413,7 @@ describe("sigmaRenderer", () => {
       viewMeta: { layout: "force", lodLevel: 0 },
     });
 
-    expect(lastSigmaOptions?.renderEdgeLabels).toBe(true);
+    expect(lastSigmaOptions?.renderEdgeLabels).toBe(false);
     expect(lastGraph?.getEdgeAttribute("e_root_a_1", "label")).toBe("3");
 
     renderer.unmount();

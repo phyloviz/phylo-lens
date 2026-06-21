@@ -17,6 +17,7 @@ ERR_SELECTOR_DATASET_MISMATCH = (
     "Visible-slice query dataset '{query_dataset_id}' does not match "
     "hierarchy/dataset '{dataset_id}'."
 )
+TOPOLOGY_BUDGET_OVERFLOW_PERCENT = 12
 
 
 class VisibleSliceSelectionError(ValueError):
@@ -42,7 +43,11 @@ def select_visible_slice(
         query=query,
         selection=selection,
     )
-    if not should_try_coarser_level(query, response, resolve_max_nodes(dataset, query)):
+    if not should_try_coarser_level(
+        query,
+        response,
+        resolve_max_nodes(dataset, query),
+    ):
         return response
 
     for level in range(target_level_for_query(hierarchy, query) - 1, -1, -1):
@@ -70,11 +75,24 @@ def should_try_coarser_level(
     max_nodes: int,
 ) -> bool:
     return (
-        len(response.nodes) > max_nodes
+        len(response.nodes) > topology_budget_limit(max_nodes)
         and query.lod_hint is None
         and query.focus_node_id is None
         and query.focus_cluster_id is None
         and not query.expanded_cluster_ids
+    )
+
+
+def topology_budget_limit(max_nodes: int) -> int:
+    """Allow modest skeleton expansion before dropping several LoD levels."""
+    return max(
+        max_nodes,
+        max_nodes
+        + (
+            max_nodes * TOPOLOGY_BUDGET_OVERFLOW_PERCENT
+            + 99
+        )
+        // 100,
     )
 
 

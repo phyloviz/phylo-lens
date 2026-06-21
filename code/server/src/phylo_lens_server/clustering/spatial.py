@@ -73,7 +73,7 @@ def global_bounds_from_top_clusters(
 
 
 def spatial_bounds_to_tuple(bounds: SpatialBounds) -> BoundsTuple:
-    return (bounds.min_x, bounds.max_x, bounds.min_y, bounds.max_y)
+    return bounds.min_x, bounds.max_x, bounds.min_y, bounds.max_y
 
 
 def bounds_intersect(
