@@ -23,6 +23,11 @@ import {
   SIGMA_NODE_TYPE_PIECHART,
   SIGMA_NODE_TYPE_TRIANGLE,
 } from "./sigmaRenderingConstants";
+import {
+  isPhyloVizUnionNode,
+  PHYLOVIZ_UNION_NODE_COLOR,
+  PHYLOVIZ_UNION_NODE_SIZE,
+} from "../../phylovizNodes";
 import type { SigmaRendererOptions } from "./sigmaTypes";
 
 export function addPositionedNode(
@@ -32,28 +37,32 @@ export function addPositionedNode(
   rendererOptions: SigmaRendererOptions,
   selectedNodeId?: string | null,
 ): void {
+  const isUnionNode = isPhyloVizUnionNode(node.id, node.attributes);
   const pieAttributes: Record<string, number> = {};
   const displayedPieKeys = new Set(
     pieSliceKeys.filter((key) => key !== PIE_OTHER_SLICE_KEY),
   );
   pieSliceKeys.forEach((key) => {
-    pieAttributes[key] =
-      key === PIE_OTHER_SLICE_KEY
+    pieAttributes[key] = isUnionNode
+      ? 0
+      : key === PIE_OTHER_SLICE_KEY
         ? deriveOtherPieValue(node.attributes, displayedPieKeys)
         : toPositiveNumber(node.attributes?.[key]);
   });
   const hasPieData = Object.values(pieAttributes).some((value) => value > 0);
   const isClusterProxy = node.attributes?.is_cluster_proxy === true;
-  const isSelectedNode = node.id === selectedNodeId;
+  const isSelectedNode = !isUnionNode && node.id === selectedNodeId;
   const nodeType =
     isSelectedNode
       ? SIGMA_NODE_TYPE_BORDER
-      : hasPieData && pieSliceKeys.length > 0
+        : !isUnionNode && hasPieData && pieSliceKeys.length > 0
         ? SIGMA_NODE_TYPE_PIECHART
         : isClusterProxy
           ? SIGMA_NODE_TYPE_TRIANGLE
           : SIGMA_NODE_TYPE_DEFAULT;
-  const nodeSize = node.size ?? SIGMA_DEFAULT_NODE_SIZE;
+  const nodeSize = isUnionNode
+    ? PHYLOVIZ_UNION_NODE_SIZE
+    : (node.size ?? SIGMA_DEFAULT_NODE_SIZE);
 
   graph.addNode(node.id, {
     x: node.x,
@@ -101,6 +110,12 @@ function deriveNodeColor(
   node: PositionedNode,
   selectedNodeId?: string | null,
 ): string {
+  if (
+    isPhyloVizUnionNode(node.id, node.attributes)
+  ) {
+    return PHYLOVIZ_UNION_NODE_COLOR;
+  }
+
   if (
     node.id === selectedNodeId ||
     isTruthyAttribute(node.attributes, ["selected", "is_selected"])

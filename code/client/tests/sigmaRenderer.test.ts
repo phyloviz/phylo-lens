@@ -299,7 +299,8 @@ describe("sigmaRenderer", () => {
     renderer.mount({ containerId: CONTAINER_ID });
     renderer.render({
       nodes: [
-        { id: "internal_1", x: 0, y: 0 },
+        { id: "union_1", x: 0, y: 0 },
+        { id: "internal_legacy", x: 0.5, y: 0.5 },
         { id: "profile_1", x: 1, y: 1 },
         {
           id: "cluster_proxy:threshold_cluster_4_42",
@@ -316,7 +317,11 @@ describe("sigmaRenderer", () => {
     });
 
     expect(lastSigmaOptions?.defaultDrawNodeLabel).toBeTypeOf("function");
-    expect(lastGraph?.getNodeAttribute("internal_1", "label")).toBe("");
+    expect(lastGraph?.getNodeAttribute("union_1", "label")).toBe("");
+    expect(lastGraph?.getNodeAttribute("union_1", "size")).toBe(0);
+    expect(lastGraph?.getNodeAttribute("union_1", "color")).toBe("#ffffff");
+    expect(lastGraph?.getNodeAttribute("internal_legacy", "label")).toBe("");
+    expect(lastGraph?.getNodeAttribute("internal_legacy", "size")).toBe(0);
     expect(lastGraph?.getNodeAttribute("profile_1", "label")).toBe("profile_1");
     expect(
       lastGraph?.getNodeAttribute(

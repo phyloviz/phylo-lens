@@ -66,6 +66,7 @@ export {
   MAX_DYNAMIC_VIEW_SLICE_NODES,
 } from "./graphViewport";
 export type {
+  GraphNodeClickedHandler,
   GraphRenderedHandler,
   GraphWorkbench,
   GraphWorkbenchOptions,
@@ -177,6 +178,10 @@ export function createGraphWorkbench(
 
     setGraphRenderedHandler: (handler) => {
       state.graphRenderedHandler = handler;
+    },
+
+    setNodeClickedHandler: (handler) => {
+      state.nodeClickedHandler = handler;
     },
 
     dispose: () => {
@@ -438,6 +443,8 @@ async function handleNodeClick({
   filterEngine,
   clickState,
 }: HandleNodeClickArgs): Promise<void> {
+  state.nodeClickedHandler?.(clickState);
+
   const session = state.preparedSession;
 
   if (!session || state.renderMode !== "lod") {

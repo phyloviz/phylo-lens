@@ -10,6 +10,7 @@ function makeFakeWorkbench(
   },
 ) {
   let graphRenderedHandler: ((graph: PositionedGraph) => void) | null = null;
+  let nodeClickedHandler: ((state: { nodeId: string }) => void) | null = null;
   let lodRefreshPaused = false;
 
   return {
@@ -47,6 +48,12 @@ function makeFakeWorkbench(
     setGraphRenderedHandler: vi.fn((handler) => {
       graphRenderedHandler = handler;
     }),
+    setNodeClickedHandler: vi.fn((handler) => {
+      nodeClickedHandler = handler;
+    }),
+    emitNodeClick: (nodeId: string) => {
+      nodeClickedHandler?.({ nodeId });
+    },
     dispose: vi.fn(),
   } as unknown as GraphWorkbench;
 }
@@ -391,6 +398,84 @@ describe("uiShell", () => {
     ]);
     expect(ancillaryWheelContainer.textContent).toContain("Portugal");
     expect(ancillaryWheelContainer.textContent).toContain("Canada");
+    shell.unmount();
+  });
+
+  it("shows a clicked node's pie data in the ancillary wheel", async () => {
+    document.body.innerHTML = `
+      <form id="render-form"></form>
+      <textarea id="newick-input"></textarea>
+      <select id="ancillary-mode">
+        <option value="global">Global</option>
+        <option value="selected">Selected node</option>
+      </select>
+      <select id="ancillary-node"></select>
+      <div id="ancillary-wheel"></div>
+      <div id="status"></div>
+    `;
+
+    const graph: PositionedGraph = {
+      nodes: [
+        {
+          id: "a",
+          x: 0,
+          y: 0,
+          attributes: {
+            pie__Portugal: 3,
+            pie__Canada: 1,
+          },
+        },
+        {
+          id: "b",
+          x: 1,
+          y: 1,
+          attributes: { pie__Canada: 2 },
+        },
+      ],
+      edges: [],
+      viewMeta: { layout: "force", lodLevel: 0 },
+    };
+    const fakeWorkbench = makeFakeWorkbench(graph) as GraphWorkbench & {
+      emitNodeClick: (nodeId: string) => void;
+    };
+    const newickInput = document.getElementById(
+      "newick-input",
+    ) as HTMLTextAreaElement;
+    newickInput.value = "(A,B)Root;";
+    const ancillaryModeSelect = document.getElementById(
+      "ancillary-mode",
+    ) as HTMLSelectElement;
+    const ancillaryNodeSelect = document.getElementById(
+      "ancillary-node",
+    ) as HTMLSelectElement;
+    const ancillaryWheelContainer = document.getElementById(
+      "ancillary-wheel",
+    ) as HTMLElement;
+
+    const shell = new UiShellController({
+      workbench: fakeWorkbench,
+      elements: {
+        form: document.getElementById("render-form") as HTMLFormElement,
+        newickInput,
+        ancillaryModeSelect,
+        ancillaryNodeSelect,
+        ancillaryWheelContainer,
+        status: document.getElementById("status") as HTMLElement,
+      },
+    });
+
+    shell.mount();
+    await shell.renderCurrentInput();
+    fakeWorkbench.emitNodeClick("a");
+
+    expect(ancillaryModeSelect.value).toBe("selected");
+    expect(ancillaryNodeSelect.value).toBe("a");
+    expect(ancillaryNodeSelect.disabled).toBe(false);
+    expect(ancillaryWheelContainer.textContent).toContain("Portugal");
+    expect(ancillaryWheelContainer.textContent).toContain("75.0%");
+    expect(ancillaryWheelContainer.textContent).toContain(
+      "Ancillary distribution across 1 node",
+    );
     shell.unmount();
   });
 
@@ -861,6 +946,12 @@ describe("uiShell", () => {
       <input id="search-input" type="search" />
       <button id="search-button" type="button">Search</button>
       <div id="search-results"></div>
+      <select id="ancillary-mode">
+        <option value="global">Global</option>
+        <option value="selected">Selected node</option>
+      </select>
+      <select id="ancillary-node"></select>
+      <div id="ancillary-wheel"></div>
       <div id="status"></div>
     `;
 
@@ -877,13 +968,32 @@ describe("uiShell", () => {
     const searchResults = document.getElementById(
       "search-results",
     ) as HTMLElement;
+    const ancillaryModeSelect = document.getElementById(
+      "ancillary-mode",
+    ) as HTMLSelectElement;
+    const ancillaryNodeSelect = document.getElementById(
+      "ancillary-node",
+    ) as HTMLSelectElement;
+    const ancillaryWheelContainer = document.getElementById(
+      "ancillary-wheel",
+    ) as HTMLElement;
     const status = document.getElementById("status") as HTMLElement;
 
     input.value = "(A,B)Root;";
     searchInput.value = "port";
 
     const fakeWorkbench = makeFakeWorkbench({
-      nodes: [{ id: "a", x: 0, y: 0 }],
+      nodes: [
+        {
+          id: "a",
+          x: 0,
+          y: 0,
+          attributes: {
+            pie__Portugal: 3,
+            pie__Canada: 1,
+          },
+        },
+      ],
       edges: [],
       viewMeta: { layout: "force", lodLevel: 0 },
     });
@@ -896,6 +1006,9 @@ describe("uiShell", () => {
         searchInput,
         searchButton,
         searchResults,
+        ancillaryModeSelect,
+        ancillaryNodeSelect,
+        ancillaryWheelContainer,
         status,
       },
     });
@@ -917,6 +1030,10 @@ describe("uiShell", () => {
     await Promise.resolve();
 
     expect(fakeWorkbench.focusNode).toHaveBeenCalledWith("a");
+    expect(ancillaryModeSelect.value).toBe("selected");
+    expect(ancillaryNodeSelect.value).toBe("a");
+    expect(ancillaryWheelContainer.textContent).toContain("Portugal");
+    expect(ancillaryWheelContainer.textContent).toContain("75.0%");
     expect(status.textContent).toBe("Focused a");
     shell.unmount();
   });

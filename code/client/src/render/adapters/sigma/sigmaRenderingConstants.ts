@@ -23,7 +23,6 @@ export const SIGMA_DEFAULT_LABEL_SIZE = 13;
 export const SIGMA_DEFAULT_LABEL_DENSITY = 0.9;
 export const SIGMA_DEFAULT_LABEL_GRID_CELL_SIZE = 90;
 export const SIGMA_DEFAULT_LABEL_RENDERED_SIZE_THRESHOLD = 4;
-export const INTERNAL_NODE_ID_PREFIX = "internal_";
 
 export const SIGMA_NODE_TYPE_DEFAULT = "circle";
 export const SIGMA_NODE_TYPE_BORDER = "border";

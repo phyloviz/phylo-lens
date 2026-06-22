@@ -420,6 +420,70 @@ export function buildPiePalette(
   return colors;
 }
 
+export function resolvePieSliceColors(
+  nodes: Array<{ attributes?: Record<string, unknown> }>,
+  sliceKeys: readonly string[] = detectPieSliceKeys(nodes),
+  requestedPalette?: string[],
+): Record<string, string> {
+  const runtimePalette = resolvePiePaletteFromNodes(nodes);
+  const categoryColors = collectPieCategoryColors(nodes);
+  const palette = buildPiePalette(
+    sliceKeys.length,
+    runtimePalette ?? requestedPalette,
+  );
+
+  return Object.fromEntries(
+    sliceKeys.map((key, index) => [
+      key,
+      key === PIE_OTHER_SLICE_KEY
+        ? PIE_OTHER_SLICE_COLOR
+        : categoryColors[key] ?? palette[index] ?? DEFAULT_PIE_PALETTE[0],
+    ]),
+  );
+}
+
+export function collectPieCategoryColors(
+  nodes: Array<{ attributes?: Record<string, unknown> }>,
+): Record<string, string> {
+  const colors: Record<string, string> = {};
+
+  nodes.forEach((node) => {
+    const value = node.attributes?.[PIE_CATEGORY_COLORS_ATTRIBUTE];
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      return;
+    }
+
+    Object.entries(value).forEach(([key, color]) => {
+      if (typeof color === "string" && /^#[0-9a-fA-F]{6}$/.test(color)) {
+        colors[key] = color;
+      }
+    });
+  });
+
+  return colors;
+}
+
+export function resolvePiePaletteFromNodes(
+  nodes: Array<{ attributes?: Record<string, unknown> }>,
+): string[] | undefined {
+  for (const node of nodes) {
+    const value = node.attributes?.[PIE_PALETTE_ATTRIBUTE];
+    if (!Array.isArray(value)) {
+      continue;
+    }
+
+    const colors = value.filter(
+      (color): color is string =>
+        typeof color === "string" && /^#[0-9a-fA-F]{6}$/.test(color),
+    );
+    if (colors.length > 0) {
+      return colors;
+    }
+  }
+
+  return undefined;
+}
+
 function hslToHex(
   hue: number,
   saturationPercent: number,

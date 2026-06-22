@@ -13,6 +13,8 @@ import {
   DEFAULT_NODE_SIZE,
   MAX_NODE_SIZE,
   MIN_NODE_SIZE,
+  PHYLOVIZ_UNION_NODE_COLOR,
+  PHYLOVIZ_UNION_NODE_SIZE,
 } from "../src/render/visualMappings";
 import {
   buildPiePalette,
@@ -201,6 +203,48 @@ describe("visualMappings", () => {
     expect(
       (proxyNode?.attributes as Record<string, unknown>)?.is_cluster_proxy,
     ).toBe(true);
+  });
+
+  it("renders generated union nodes as structural PHYLOViZ junctions", () => {
+    const dataset: CanonicalDataset = {
+      ...DATASET,
+      nodes: [...DATASET.nodes, { id: "union_1" }],
+      metadata_by_node_id: {
+        ...DATASET.metadata_by_node_id,
+        union_1: {
+          region: "EU",
+          distance: 999,
+          trait_a: 50,
+          profile_count: 1000,
+        },
+      },
+    };
+    const graph: PositionedGraph = {
+      ...BASE_GRAPH,
+      nodes: [...BASE_GRAPH.nodes, { id: "union_1", x: 50, y: 50 }],
+    };
+
+    const mapped = applyVisualMappings(
+      graph,
+      dataset,
+      buildMetadataIndex(dataset),
+      {
+        colorField: "region",
+        sizeField: "profile_count",
+        pie: { fields: ["trait_a"] },
+      },
+    );
+    const unionNode = mapped.nodes.find((node) => node.id === "union_1");
+    const attributes = unionNode?.attributes as Record<string, unknown>;
+
+    expect(unionNode?.color).toBe(PHYLOVIZ_UNION_NODE_COLOR);
+    expect(unionNode?.size).toBe(PHYLOVIZ_UNION_NODE_SIZE);
+    expect(attributes.is_union_node).toBe(true);
+    expect(
+      Object.keys(attributes).some((key) =>
+        key.startsWith(PIE_ATTRIBUTE_PREFIX),
+      ),
+    ).toBe(false);
   });
 
   it("maps selected categorical metadata fields to graph pie slices", () => {

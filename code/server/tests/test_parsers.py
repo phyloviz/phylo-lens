@@ -45,14 +45,14 @@ def test_parse_newick_fixture_cases(case: dict[str, object]) -> None:
     )
 
 
-def test_parse_newick_generates_deterministic_ids_for_unlabeled_internal_nodes() -> None:
-    """Confirm streaming parsing preserves preorder internal-id generation."""
+def test_parse_newick_generates_deterministic_ids_for_unlabeled_union_nodes() -> None:
+    """Confirm streaming parsing preserves preorder union-node id generation."""
     parsed = parse_newick("((A,B),(C,D));")
 
     assert set(parsed.nodes) == {
-        "internal_1",
-        "internal_2",
-        "internal_3",
+        "union_1",
+        "union_2",
+        "union_3",
         "a",
         "b",
         "c",
@@ -62,12 +62,12 @@ def test_parse_newick_generates_deterministic_ids_for_unlabeled_internal_nodes()
         (frozenset((edge.source, edge.target)), edge.distance)
         for edge in parsed.edges
     } == {
-        (frozenset(("internal_1", "internal_2")), None),
-        (frozenset(("internal_1", "internal_3")), None),
-        (frozenset(("internal_2", "a")), None),
-        (frozenset(("internal_2", "b")), None),
-        (frozenset(("internal_3", "c")), None),
-        (frozenset(("internal_3", "d")), None),
+        (frozenset(("union_1", "union_2")), None),
+        (frozenset(("union_1", "union_3")), None),
+        (frozenset(("union_2", "a")), None),
+        (frozenset(("union_2", "b")), None),
+        (frozenset(("union_3", "c")), None),
+        (frozenset(("union_3", "d")), None),
     }
     assert parsed.explicit_node_ids == {"a", "b", "c", "d"}
 
@@ -82,9 +82,9 @@ def test_parse_newick_handles_deep_trees_without_recursion() -> None:
     assert len(parsed.nodes) == depth + 1
     assert len(parsed.edges) == depth
     assert "a" in parsed.nodes
-    assert "internal_1" in parsed.nodes
+    assert "union_1" in parsed.nodes
     assert parsed.explicit_node_ids == {"a"}
-    assert ("internal_1", "internal_2", None) in {
+    assert ("union_1", "union_2", None) in {
         (edge.source, edge.target, edge.distance) for edge in parsed.edges
     }
 

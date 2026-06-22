@@ -1,16 +1,16 @@
 import type { PositionedGraph } from "../contracts/positioned";
 import { readNodeMetadata } from "../ancillary/metadataAccess";
 import {
-  buildPiePalette,
   categoryCountsForField,
   categoricalPieValues,
+  detectPieSliceKeys,
   isCategoryCountMetadataKey,
-  PIE_CATEGORY_COLORS_ATTRIBUTE,
   PIE_ATTRIBUTE_PREFIX,
+  PIE_OTHER_SLICE_KEY,
   PIE_OTHER_SLICE_COLOR,
   PIE_OTHER_SLICE_LABEL,
-  PIE_PALETTE_ATTRIBUTE,
   pieCategoricalAttributeKey,
+  resolvePieSliceColors,
 } from "../render/pieMapping";
 
 export interface AncillaryWheelSliceStat {
@@ -46,12 +46,14 @@ export function buildAncillaryWheelStats(
 ): AncillaryWheelStats | null {
   const totalsByKey = new Map<string, number>();
   const includeNodeIds = options.includeNodeIds;
+  let includedNodeCount = 0;
 
   graph.nodes.forEach((node) => {
     if (includeNodeIds && !includeNodeIds.has(node.id)) {
       return;
     }
 
+    includedNodeCount += 1;
     const attributes = node.attributes;
     if (!attributes) {
       return;
@@ -81,10 +83,13 @@ export function buildAncillaryWheelStats(
     return null;
   }
 
-  const runtimePalette = resolvePaletteFromGraph(graph);
-  const runtimeCategoryColors = resolvePieCategoryColorsFromGraph(graph);
-  const palette = buildPiePalette(keys.length, runtimePalette);
-  const slices: AncillaryWheelSliceStat[] = keys.map((key, index) => {
+  const graphSliceKeys = detectPieSliceKeys(graph.nodes);
+  const colors = resolvePieSliceColors(graph.nodes, graphSliceKeys);
+  const displayedKeys = new Set(
+    graphSliceKeys.filter((key) => key !== PIE_OTHER_SLICE_KEY),
+  );
+  const hasOtherSlice = graphSliceKeys.includes(PIE_OTHER_SLICE_KEY);
+  const slices: AncillaryWheelSliceStat[] = keys.map((key) => {
     const value = totalsByKey.get(key) ?? 0;
     const percentage = (value / total) * 100;
     return {
@@ -92,13 +97,18 @@ export function buildAncillaryWheelStats(
       label: key.replace(PIE_ATTRIBUTE_PREFIX, ""),
       value,
       percentage,
-      color: runtimeCategoryColors[key] ?? palette[index] ?? "#0f766e",
+      color:
+        colors[key] ??
+        (hasOtherSlice && !displayedKeys.has(key)
+          ? colors[PIE_OTHER_SLICE_KEY]
+          : undefined) ??
+        "#0f766e",
     };
   });
 
   return {
     total,
-    nodeCount: graph.nodes.length,
+    nodeCount: includedNodeCount,
     slices,
   };
 }
@@ -154,22 +164,31 @@ export function buildMetadataFieldWheelStats(
     return null;
   }
 
-  const palette = buildPiePalette(slices.length);
-  const runtimeCategoryColors = resolvePieCategoryColorsFromGraph(graph);
+  const graphSliceKeys = detectPieSliceKeys(graph.nodes);
+  const colors = resolvePieSliceColors(graph.nodes, graphSliceKeys);
   return {
     total,
     nodeCount: includedNodeCount,
-    slices: slices.map((slice, index) => ({
+    slices: slices.map((slice) => ({
       ...slice,
       percentage: (slice.value / total) * 100,
       color:
         slice.label === PIE_OTHER_SLICE_LABEL
           ? PIE_OTHER_SLICE_COLOR
-          : (runtimeCategoryColors[
-              pieCategoricalAttributeKey(trimmedFieldKey, slice.label)
-            ] ??
-            palette[index] ??
-            "#0f766e"),
+          : (() => {
+              const key = pieCategoricalAttributeKey(
+                trimmedFieldKey,
+                slice.label,
+              );
+              return (
+                colors[key] ??
+                (graphSliceKeys.includes(PIE_OTHER_SLICE_KEY) &&
+                !graphSliceKeys.includes(key)
+                  ? colors[PIE_OTHER_SLICE_KEY]
+                  : undefined) ??
+                "#0f766e"
+              );
+            })(),
     })),
   };
 }
@@ -253,44 +272,13 @@ export function renderAncillaryWheel(
         </div>
       </div>
       <div class="wheel-meta">
-        <p>Ancillary distribution across ${stats.nodeCount} nodes</p>
+        <p>Ancillary distribution across ${stats.nodeCount} ${
+          stats.nodeCount === 1 ? "node" : "nodes"
+        }</p>
         <ul>${legend}</ul>
       </div>
     </div>
   `;
-}
-
-function resolvePaletteFromGraph(graph: PositionedGraph): string[] | undefined {
-  for (const node of graph.nodes) {
-    const paletteValue = node.attributes?.[PIE_PALETTE_ATTRIBUTE];
-    if (!Array.isArray(paletteValue)) {
-      continue;
-    }
-
-    const colors = paletteValue.filter(
-      (value): value is string => typeof value === "string" && value.length > 0,
-    );
-    if (colors.length > 0) {
-      return colors;
-    }
-  }
-
-  return undefined;
-}
-
-function resolvePieCategoryColorsFromGraph(
-  graph: PositionedGraph,
-): Record<string, string> {
-  for (const node of graph.nodes) {
-    const colorValue = node.attributes?.[PIE_CATEGORY_COLORS_ATTRIBUTE];
-    if (!colorValue || typeof colorValue !== "object" || Array.isArray(colorValue)) {
-      continue;
-    }
-
-    return colorValue as Record<string, string>;
-  }
-
-  return {};
 }
 
 function buildDistributionSlices(

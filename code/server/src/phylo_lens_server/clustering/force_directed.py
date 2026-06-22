@@ -14,7 +14,9 @@ DRL_DAMPING_MULTIPLIER = 0.9
 DRL_PHASES = ("init", "liquid", "expansion", "cooldown", "crunch", "simmer")
 
 
-def apply_force_directed_layout_if_needed(dataset: CanonicalDataset) -> CanonicalDataset:
+def apply_force_directed_layout_if_needed(
+    dataset: CanonicalDataset,
+) -> CanonicalDataset:
     """
     This layout is computed once during prepare and then reused by LoD slices.
     """

@@ -20,6 +20,7 @@ export function createInitialGraphWorkbenchState(): GraphWorkbenchState {
     deferredViewState: null,
     lodRefreshPaused: false,
     graphRenderedHandler: null,
+    nodeClickedHandler: null,
     suppressViewChangesUntil: 0,
     expandedClusterIds: new Set(),
     collapsedClusterIds: new Set(),
