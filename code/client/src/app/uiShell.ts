@@ -162,6 +162,8 @@ export class UiShellController {
   private boundSubmit: ((event: SubmitEvent) => void) | null = null;
   private boundAncillaryModeChange: (() => void) | null = null;
   private boundAncillaryNodeChange: (() => void) | null = null;
+  private boundGraphNodeClick: ((state: { nodeId: string }) => void) | null =
+    null;
   private boundMetadataPieFieldChange: (() => void) | null = null;
   private boundMetadataPieFieldPointerDown: ((event: MouseEvent) => void) | null =
     null;
@@ -226,12 +228,22 @@ export class UiShellController {
     this.workbench.setGraphRenderedHandler((graph) => {
       this.handleGraphRendered(graph);
     });
+    this.boundGraphNodeClick = ({ nodeId }) => {
+      this.handleGraphNodeClick(nodeId);
+    };
+    this.workbench.setNodeClickedHandler(this.boundGraphNodeClick);
     if (this.ancillaryWheelContainer) {
       renderAncillaryWheel(this.ancillaryWheelContainer, null);
     }
     this.renderCategoryColorControls();
 
     this.boundAncillaryModeChange = () => {
+      updateNodeSelector(
+        this.ancillaryNodeSelect,
+        getAncillaryMode(this.ancillaryModeSelect) === ANCILLARY_MODE_SELECTED
+          ? this.lastRenderedGraph
+          : null,
+      );
       this.updateNodeSelectionVisibility();
       this.renderAncillaryStats();
     };
@@ -504,6 +516,8 @@ export class UiShellController {
     }
 
     this.workbench.setGraphRenderedHandler(null);
+    this.workbench.setNodeClickedHandler(null);
+    this.boundGraphNodeClick = null;
     this.workbench.dispose();
   }
 
@@ -549,10 +563,44 @@ export class UiShellController {
     );
   }
 
+  private handleGraphNodeClick(nodeId: string): void {
+    if (
+      !this.lastRenderedGraph ||
+      !this.ancillaryWheelContainer ||
+      !this.ancillaryModeSelect ||
+      !this.ancillaryNodeSelect
+    ) {
+      return;
+    }
+
+    const nodeExists = this.lastRenderedGraph.nodes.some(
+      (node) => node.id === nodeId,
+    );
+    if (!nodeExists) {
+      return;
+    }
+
+    const stats = this.buildSelectedWheelStats(new Set([nodeId]));
+    if (!stats) {
+      return;
+    }
+
+    this.ancillaryModeSelect.value = ANCILLARY_MODE_SELECTED;
+    updateNodeSelector(this.ancillaryNodeSelect, this.lastRenderedGraph);
+    this.ancillaryNodeSelect.value = nodeId;
+    this.updateNodeSelectionVisibility();
+    renderAncillaryWheel(this.ancillaryWheelContainer, stats);
+  }
+
   private handleGraphRendered(graph: PositionedGraph): void {
     this.setStatus(buildRenderedStatus(graph));
     this.lastRenderedGraph = graph;
-    updateNodeSelector(this.ancillaryNodeSelect, graph);
+    updateNodeSelector(
+      this.ancillaryNodeSelect,
+      getAncillaryMode(this.ancillaryModeSelect) === ANCILLARY_MODE_SELECTED
+        ? graph
+        : null,
+    );
     this.updateMetadataPieFieldOptions(graph);
     this.renderCategoryColorControls();
     this.updateNodeSelectionVisibility();
@@ -704,6 +752,7 @@ export class UiShellController {
   private async focusSearchResult(nodeId: string): Promise<void> {
     try {
       await this.workbench.focusNode(nodeId);
+      this.handleGraphNodeClick(nodeId);
       this.setStatus(`Focused ${nodeId}`);
     } catch (error) {
       const message = error instanceof Error ? error.message : "unknown error";

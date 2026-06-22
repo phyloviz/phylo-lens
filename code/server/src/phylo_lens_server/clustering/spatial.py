@@ -1,6 +1,10 @@
 from __future__ import annotations
 
-from phylo_lens_server.core.models import SpatialBounds, Viewport
+from phylo_lens_server.core.models import (
+    SpatialBounds,
+    ThresholdHierarchyCluster,
+    Viewport,
+)
 
 SPATIAL_NODE_GAP = 150.0
 SPATIAL_LAYER_GAP = 170.0
@@ -45,8 +49,31 @@ def spatial_bounds_from_cluster_bounds(
     )
 
 
+def global_bounds_from_top_clusters(
+    clusters: dict[str, ThresholdHierarchyCluster],
+    top_cluster_ids: list[str],
+) -> SpatialBounds | None:
+    bounds_list = [
+        clusters[cluster_id].bounds
+        for cluster_id in top_cluster_ids
+        if clusters[cluster_id].bounds is not None
+    ]
+
+    if not bounds_list:
+        return None
+
+    merged = {
+        "min_x": min(bounds["min_x"] for bounds in bounds_list),
+        "max_x": max(bounds["max_x"] for bounds in bounds_list),
+        "min_y": min(bounds["min_y"] for bounds in bounds_list),
+        "max_y": max(bounds["max_y"] for bounds in bounds_list),
+    }
+
+    return spatial_bounds_from_cluster_bounds(merged)
+
+
 def spatial_bounds_to_tuple(bounds: SpatialBounds) -> BoundsTuple:
-    return (bounds.min_x, bounds.max_x, bounds.min_y, bounds.max_y)
+    return bounds.min_x, bounds.max_x, bounds.min_y, bounds.max_y
 
 
 def bounds_intersect(

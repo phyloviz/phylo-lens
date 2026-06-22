@@ -1,8 +1,6 @@
 import bootstrapClientShell from "./app/bootstrap";
+import { runWhenDocumentReady } from "./app/clientBootstrap";
 
-export const WINDOW_EVENT_DOM_READY = "DOMContentLoaded";
-
-// Bootstrap the demo shell once the page DOM is ready.
-document.addEventListener(WINDOW_EVENT_DOM_READY, () => {
-  bootstrapClientShell();
-});
+// Bootstrap immediately when Vite loads this module after DOMContentLoaded
+// (for example after HMR), or wait when the document is still being parsed.
+runWhenDocumentReady(bootstrapClientShell);

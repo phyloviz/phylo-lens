@@ -27,7 +27,9 @@ export function isClusterProxyClick(
 ): boolean {
   return (
     clickState.attributes?.is_cluster_proxy === true ||
-    clickedNode?.attributes?.is_cluster_proxy === true
+    clickedNode?.attributes?.is_cluster_proxy === true ||
+    clickState.attributes?.is_cluster_skeleton === true ||
+    clickedNode?.attributes?.is_cluster_skeleton === true
   );
 }
 

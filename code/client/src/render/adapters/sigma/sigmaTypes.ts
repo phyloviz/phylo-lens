@@ -1,4 +1,5 @@
 import type { GraphDisplayOptions } from "../../types";
+import type { SigmaForceMotionOptions } from "./sigmaForceMotion";
 
 export interface SigmaPiechartOptions {
   enabled?: boolean;
@@ -7,6 +8,7 @@ export interface SigmaPiechartOptions {
 
 export interface SigmaRendererOptions {
   piechart?: SigmaPiechartOptions;
+  forceMotion?: SigmaForceMotionOptions;
   display?: GraphDisplayOptions;
   label?: {
     enabled?: boolean;

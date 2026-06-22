@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from math import cos, pi, sin
 import time
 
-import igraph as ig
-
-from phylo_lens_server.clustering.spatial import spatial_bounds_from_cluster_bounds
+from phylo_lens_server.clustering.spatial import (
+    global_bounds_from_top_clusters,
+    spatial_bounds_from_cluster_bounds,
+)
 from phylo_lens_server.clustering.spatial_index import build_str_spatial_index
 from phylo_lens_server.core.models import (
     CanonicalDataset,
@@ -17,21 +17,15 @@ from phylo_lens_server.core.models import (
 )
 
 THRESHOLD_CLUSTER_ID_PREFIX = "threshold_cluster"
-THRESHOLD_SYNTHETIC_ROOT_ID = "threshold_cluster_root"
 MAX_THRESHOLD_LEVELS = 16
-SPRING_LAYOUT_SEED = 11
-SPRING_LAYOUT_ITERATIONS = 150
-SPRING_LAYOUT_MEDIUM_NODE_COUNT = 1_000
-SPRING_LAYOUT_LARGE_NODE_COUNT = 5_000
-SPRING_LAYOUT_HUGE_NODE_COUNT = 25_000
-SPRING_LAYOUT_MEDIUM_ITERATIONS = 110
-SPRING_LAYOUT_LARGE_ITERATIONS = 80
-SPRING_LAYOUT_HUGE_ITERATIONS = 55
-SPRING_LAYOUT_SCALE = 10.0
 
 ERR_THRESHOLD_EMPTY = "Cannot build threshold hierarchy from an empty dataset."
 ERR_THRESHOLD_MISSING_DISTANCE = (
     "Threshold hierarchy requires every edge to carry a distance value."
+)
+ERR_THRESHOLD_MISSING_POSITION = (
+    "Threshold hierarchy requires prepared node positions. "
+    "Run global layout before building the hierarchy."
 )
 
 
@@ -52,7 +46,6 @@ class ThresholdHierarchyBuildStats:
     thresholds_ms: float
     components_ms: float
     layout_ms: float
-    layout_iterations: int
     cluster_ms: float
     geometry_ms: float
     spatial_index_ms: float
@@ -88,13 +81,7 @@ class _UnionFind:
         return True
 
 
-def build_threshold_hierarchy(dataset: CanonicalDataset) -> ThresholdHierarchyIndex:
-    """Build a threshold-containment hierarchy from one weighted dataset or forest."""
-    hierarchy, _ = build_threshold_hierarchy_with_stats(dataset)
-    return hierarchy
-
-
-def build_threshold_hierarchy_with_stats(
+def build_threshold_hierarchy(
     dataset: CanonicalDataset,
 ) -> tuple[ThresholdHierarchyIndex, ThresholdHierarchyBuildStats]:
     """Build a threshold hierarchy and return phase timings for prepare profiling."""
@@ -110,23 +97,15 @@ def build_threshold_hierarchy_with_stats(
     levels = _build_component_levels(node_ids, weighted_edges, thresholds)
     components_ms = _elapsed_ms(components_start)
 
-    layout_start = time.perf_counter()
-    is_forest = len(levels[0].components) > 1
-    layout_iterations = _spring_layout_iterations(len(node_ids))
-    node_positions = _compute_node_positions(
-        node_ids,
-        weighted_edges,
-        iterations=layout_iterations,
-    )
-    layout_ms = _elapsed_ms(layout_start)
+    node_positions = _node_positions_from_dataset(dataset)
 
     cluster_start = time.perf_counter()
     clusters, cluster_id_by_level_and_component, nodes_by_level = (
-        _build_threshold_clusters(levels, level_offset=1 if is_forest else 0)
+        _build_threshold_clusters(levels)
     )
     _link_threshold_clusters(clusters, nodes_by_level)
-    root_cluster_id = _attach_synthetic_root_if_needed(
-        clusters,
+
+    top_cluster_ids = _resolve_top_cluster_ids(
         levels,
         cluster_id_by_level_and_component,
     )
@@ -135,17 +114,9 @@ def build_threshold_hierarchy_with_stats(
         levels,
         cluster_id_by_level_and_component,
     )
-    if root_cluster_id is not None:
-        root_cluster = clusters[root_cluster_id]
-        root_cluster.representative_node_id = root_cluster.member_node_ids[0]
-    if root_cluster_id is None:
-        root_cluster_id = _resolve_root_cluster_id(
-            levels,
-            cluster_id_by_level_and_component,
-        )
-    root_cluster_id = _collapse_redundant_threshold_clusters(
+    top_cluster_ids = _collapse_redundant_threshold_clusters(
         clusters,
-        root_cluster_id,
+        top_cluster_ids,
     )
     cluster_ms = _elapsed_ms(cluster_start)
 
@@ -159,15 +130,10 @@ def build_threshold_hierarchy_with_stats(
 
     hierarchy = ThresholdHierarchyIndex(
         dataset_id=dataset.dataset_id,
-        root_cluster_id=root_cluster_id,
+        top_cluster_ids=top_cluster_ids,
         clusters=clusters,
-        global_bounds=spatial_bounds_from_cluster_bounds(
-            clusters[root_cluster_id].bounds
-        ),
-        max_distance_threshold_level=_max_distance_threshold_level(
-            clusters,
-            root_cluster_id,
-        ),
+        global_bounds=global_bounds_from_top_clusters(clusters, top_cluster_ids),
+        max_distance_threshold_level=_max_distance_threshold_level(clusters),
         cluster_ids_by_level=_cluster_ids_by_level(clusters),
         spatial_index_by_level=spatial_index_by_level,
     )
@@ -175,8 +141,7 @@ def build_threshold_hierarchy_with_stats(
         topology_ms=round(topology_ms, 3),
         thresholds_ms=round(thresholds_ms, 3),
         components_ms=round(components_ms, 3),
-        layout_ms=round(layout_ms, 3),
-        layout_iterations=layout_iterations,
+        layout_ms=0.0,
         cluster_ms=round(cluster_ms, 3),
         geometry_ms=round(geometry_ms, 3),
         spatial_index_ms=round(spatial_index_ms, 3),
@@ -213,8 +178,6 @@ def _validated_weighted_topology(
 
 def _build_threshold_clusters(
     levels: list[_ComponentLevel],
-    *,
-    level_offset: int = 0,
 ) -> tuple[
     dict[str, ThresholdHierarchyCluster],
     dict[tuple[int, tuple[str, ...]], str],
@@ -237,7 +200,7 @@ def _build_threshold_clusters(
                     representative_node_id=component[0],
                     member_node_ids=list(component),
                     subtree_size=len(component),
-                    distance_threshold_level=level.level + level_offset,
+                    distance_threshold_level=level.level,
                     distance_threshold=level.distance_threshold,
                 )
 
@@ -300,13 +263,14 @@ def _choose_threshold_representatives(
             clusters[cluster_id].representative_node_id = representative_node_id
 
 
-def _resolve_root_cluster_id(
+def _resolve_top_cluster_ids(
     levels: list[_ComponentLevel],
     cluster_id_by_level_and_component: dict[tuple[int, tuple[str, ...]], str],
-) -> str:
-    root_level = levels[0]
-    return cluster_id_by_level_and_component[
-        (root_level.level, root_level.components[0])
+) -> list[str]:
+    top_level = levels[0]
+    return [
+        cluster_id_by_level_and_component[(top_level.level, component)]
+        for component in top_level.components
     ]
 
 
@@ -390,72 +354,52 @@ def _cluster_id_for_component(level: int, representative_node_id: str) -> str:
     return f"{THRESHOLD_CLUSTER_ID_PREFIX}_{level}_{representative_node_id}"
 
 
-def _attach_synthetic_root_if_needed(
-    clusters: dict[str, ThresholdHierarchyCluster],
-    levels: list[_ComponentLevel],
-    cluster_id_by_level_and_component: dict[tuple[int, tuple[str, ...]], str],
-) -> str | None:
-    root_level = levels[0]
-    if len(root_level.components) <= 1:
-        return None
-
-    child_cluster_ids = [
-        cluster_id_by_level_and_component[(root_level.level, component)]
-        for component in root_level.components
-    ]
-    member_node_ids = sorted(
-        node_id for component in root_level.components for node_id in component
-    )
-    clusters[THRESHOLD_SYNTHETIC_ROOT_ID] = ThresholdHierarchyCluster(
-        cluster_id=THRESHOLD_SYNTHETIC_ROOT_ID,
-        child_cluster_ids=child_cluster_ids,
-        representative_node_id=member_node_ids[0],
-        member_node_ids=member_node_ids,
-        subtree_size=len(member_node_ids),
-        distance_threshold_level=0,
-        distance_threshold=root_level.distance_threshold,
-    )
-    for child_cluster_id in child_cluster_ids:
-        clusters[child_cluster_id].parent_cluster_id = THRESHOLD_SYNTHETIC_ROOT_ID
-    return THRESHOLD_SYNTHETIC_ROOT_ID
-
-
 def _collapse_redundant_threshold_clusters(
     clusters: dict[str, ThresholdHierarchyCluster],
-    root_cluster_id: str,
-) -> str:
+    top_cluster_ids: list[str],
+) -> list[str]:
     reachable_cluster_ids: set[str] = set()
     redundant_cluster_ids: set[str] = set()
 
     def collapse(cluster_id: str) -> str:
         cluster = clusters[cluster_id]
+
         collapsed_child_ids = [
             collapse(child_id) for child_id in cluster.child_cluster_ids
         ]
         cluster.child_cluster_ids = collapsed_child_ids
+
         for child_cluster_id in collapsed_child_ids:
             clusters[child_cluster_id].parent_cluster_id = cluster_id
 
         while len(cluster.child_cluster_ids) == 1:
             child_cluster_id = cluster.child_cluster_ids[0]
             child_cluster = clusters[child_cluster_id]
+
             if child_cluster.member_node_ids != cluster.member_node_ids:
                 break
+
             redundant_cluster_ids.add(child_cluster_id)
             cluster.child_cluster_ids = list(child_cluster.child_cluster_ids)
+
             for grandchild_cluster_id in cluster.child_cluster_ids:
                 clusters[grandchild_cluster_id].parent_cluster_id = cluster_id
 
         reachable_cluster_ids.add(cluster_id)
         return cluster_id
 
-    collapse(root_cluster_id)
+    collapsed_top_cluster_ids = [collapse(cluster_id) for cluster_id in top_cluster_ids]
+
     for redundant_cluster_id in redundant_cluster_ids:
         clusters.pop(redundant_cluster_id, None)
+
     for cluster_id in list(clusters):
-        if cluster_id not in reachable_cluster_ids and cluster_id != root_cluster_id:
+        if cluster_id not in reachable_cluster_ids:
             clusters.pop(cluster_id, None)
-    return root_cluster_id
+
+    return [
+        cluster_id for cluster_id in collapsed_top_cluster_ids if cluster_id in clusters
+    ]
 
 
 def _assign_cluster_geometry(
@@ -540,14 +484,9 @@ def _assign_cluster_geometry(
 
 def _max_distance_threshold_level(
     clusters: dict[str, ThresholdHierarchyCluster],
-    root_cluster_id: str,
 ) -> int:
     return max(
-        (
-            cluster.distance_threshold_level
-            for cluster_id, cluster in clusters.items()
-            if cluster_id != root_cluster_id or cluster.parent_cluster_id is not None
-        ),
+        (cluster.distance_threshold_level for cluster in clusters.values()),
         default=0,
     )
 
@@ -594,66 +533,16 @@ def _spatial_entries_by_level(
     return entries_by_level
 
 
-def _compute_node_positions(
-    node_ids: list[str],
-    weighted_edges: list[tuple[float, int, int]],
-    *,
-    iterations: int | None = None,
+def _node_positions_from_dataset(
+    dataset: CanonicalDataset,
 ) -> dict[str, tuple[float, float]]:
-    if len(node_ids) == 1:
-        node_id = node_ids[0]
-        return {node_id: (0.0, 0.0)}
-
-    graph = ig.Graph(
-        n=len(node_ids),
-        edges=[
-            (source_index, target_index)
-            for _, source_index, target_index in weighted_edges
-        ],
-        directed=False,
-    )
-    weights = [_spring_weight(distance) for distance, _, _ in weighted_edges]
-    if hasattr(graph, "layout_with_sfdp"):
-        layout = graph.layout_with_sfdp(weights=weights)
-    else:
-        layout = graph.layout_fruchterman_reingold(
-            weights=weights,
-            niter=(
-                iterations
-                if iterations is not None
-                else _spring_layout_iterations(len(node_ids))
-            ),
-            seed=_initial_layout_seed(len(node_ids)),
-        )
-    return {
-        node_ids[node_index]: (
-            float(position[0]) * SPRING_LAYOUT_SCALE,
-            float(position[1]) * SPRING_LAYOUT_SCALE,
-        )
-        for node_index, position in enumerate(layout)
+    positions = {
+        node.id: (node.x, node.y)
+        for node in dataset.nodes
+        if node.x is not None and node.y is not None
     }
 
+    if len(positions) != len(dataset.nodes):
+        raise ThresholdHierarchyBuildError(ERR_THRESHOLD_MISSING_POSITION)
 
-def _spring_layout_iterations(node_count: int) -> int:
-    if node_count >= SPRING_LAYOUT_HUGE_NODE_COUNT:
-        return SPRING_LAYOUT_HUGE_ITERATIONS
-    if node_count >= SPRING_LAYOUT_LARGE_NODE_COUNT:
-        return SPRING_LAYOUT_LARGE_ITERATIONS
-    if node_count >= SPRING_LAYOUT_MEDIUM_NODE_COUNT:
-        return SPRING_LAYOUT_MEDIUM_ITERATIONS
-    return SPRING_LAYOUT_ITERATIONS
-
-
-def _spring_weight(distance: float) -> float:
-    return 1.0 / max(distance, 1e-6)
-
-
-def _initial_layout_seed(node_count: int) -> list[tuple[float, float]]:
-    angle_offset = (SPRING_LAYOUT_SEED % 360) * (pi / 180)
-    return [
-        (
-            cos(angle_offset + (2 * pi * index / max(node_count, 1))),
-            sin(angle_offset + (2 * pi * index / max(node_count, 1))),
-        )
-        for index in range(node_count)
-    ]
+    return positions

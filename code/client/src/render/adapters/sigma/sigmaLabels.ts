@@ -2,22 +2,24 @@ import type {
   EdgeLabelDrawingFunction,
   NodeLabelDrawingFunction,
 } from "sigma/rendering";
-import {
-  INTERNAL_NODE_ID_PREFIX,
-  SIGMA_DEFAULT_LABEL_COLOR,
-} from "./sigmaRenderingConstants";
+import { isPhyloVizUnionNode } from "../../phylovizNodes";
+import { SIGMA_DEFAULT_LABEL_COLOR } from "./sigmaRenderingConstants";
 
 export function deriveNodeLabel(
   nodeId: string,
   attributes: Record<string, unknown> | undefined,
 ): string {
-  if (isGeneratedInternalNodeId(nodeId)) {
+  if (isPhyloVizUnionNode(nodeId, attributes)) {
     return "";
   }
 
   const explicitLabel = attributes?.label;
   if (typeof explicitLabel === "string" && explicitLabel.trim().length > 0) {
     return explicitLabel.trim();
+  }
+
+  if (attributes?.is_cluster_proxy === true) {
+    return "";
   }
 
   const metadataCandidate = attributes?.metadata;
@@ -139,8 +141,4 @@ function resolveEdgeLabelColor(
   }
 
   return settings.edgeLabelColor.color ?? SIGMA_DEFAULT_LABEL_COLOR;
-}
-
-function isGeneratedInternalNodeId(nodeId: string): boolean {
-  return nodeId.startsWith(INTERNAL_NODE_ID_PREFIX);
 }

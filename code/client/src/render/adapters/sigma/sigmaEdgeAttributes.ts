@@ -159,7 +159,9 @@ function grayscaleForDistance(
           1,
           Math.max(0, (distance - range.min) / (range.max - range.min)),
         );
-  const channel = Math.round(35 + normalized * 185);
+  // Keep the distance ordering, but avoid near-white links disappearing on
+  // Sigma's white canvas.
+  const channel = Math.round(35 + normalized * 115);
   const hex = channel.toString(16).padStart(2, "0");
   return `#${hex}${hex}${hex}`;
 }

@@ -16,6 +16,7 @@ import type {
 import type { VisualMappingOptions } from "../../render/visualMappings";
 import type {
   GraphDisplayOptions,
+  RenderNodeClickState,
   RenderContext,
   RenderViewportState,
   RendererFactory,
@@ -49,6 +50,7 @@ export interface GraphWorkbenchOptions {
 }
 
 export type GraphRenderedHandler = (graph: PositionedGraph) => void;
+export type GraphNodeClickedHandler = (state: RenderNodeClickState) => void;
 
 export interface GraphWorkbench {
   renderNewick: (
@@ -78,6 +80,8 @@ export interface GraphWorkbench {
   focusNode: (nodeId: string) => Promise<PositionedGraph>;
 
   setGraphRenderedHandler: (handler: GraphRenderedHandler | null) => void;
+
+  setNodeClickedHandler: (handler: GraphNodeClickedHandler | null) => void;
 
   dispose: () => void;
 }
@@ -113,6 +117,7 @@ export interface GraphWorkbenchState {
   deferredViewState: RenderViewportState | null;
   lodRefreshPaused: boolean;
   graphRenderedHandler: GraphRenderedHandler | null;
+  nodeClickedHandler: GraphNodeClickedHandler | null;
   suppressViewChangesUntil: number;
   expandedClusterIds: Set<string>;
   collapsedClusterIds: Set<string>;

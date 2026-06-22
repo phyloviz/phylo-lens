@@ -45,10 +45,10 @@ def test_normalize_newick_preserves_edge_distances() -> None:
     )
 
     assert [(edge.source, edge.target, edge.distance) for edge in result.dataset.edges] == [
-        ("n", "b", 0.2),
-        ("n", "c", 0.3),
-        ("r", "a", 0.1),
-        ("r", "n", 0.4),
+        ("a", "r", 0.1),
+        ("b", "n", 0.2),
+        ("c", "n", 0.3),
+        ("n", "r", 0.4),
     ]
 
 
@@ -63,8 +63,8 @@ def test_normalize_clamps_negative_newick_branch_lengths() -> None:
     )
 
     assert [(edge.source, edge.target, edge.distance) for edge in result.dataset.edges] == [
-        ("r", "a", 0.0),
-        ("r", "b", 0.2),
+        ("a", "r", 0.0),
+        ("b", "r", 0.2),
     ]
     assert "clamped" in result.warnings[0]
 
@@ -401,8 +401,8 @@ def test_normalize_final_metadata_respects_merged_schema_types() -> None:
     assert result.dataset.metadata_by_node_id["2475"]["sender"] == "43"
 
 
-def test_normalize_newick_does_not_join_generated_internal_node_ids() -> None:
-    """Confirm unlabeled internal ids are not treated as user data identifiers."""
+def test_normalize_newick_does_not_join_generated_union_node_ids() -> None:
+    """Confirm generated union-node ids are not treated as user identifiers."""
     result = normalize_dataset(
         NormalizeRequest(
             format=FORMAT_NEWICK,
@@ -414,7 +414,7 @@ def test_normalize_newick_does_not_join_generated_internal_node_ids() -> None:
                 "content": (
                     "id\tcountry\n"
                     "A\tPortugal\n"
-                    "internal_2\tSpain\n"
+                    "union_2\tSpain\n"
                     "Root\tFrance\n"
                 ),
             },
@@ -423,7 +423,7 @@ def test_normalize_newick_does_not_join_generated_internal_node_ids() -> None:
 
     assert set(result.dataset.metadata_by_node_id) == {"a", "root"}
     assert (
-        "Ancillary row 3 with id='internal_2' did not match a node."
+        "Ancillary row 3 with id='union_2' did not match a node."
         in result.warnings
     )
     assert (
@@ -442,7 +442,7 @@ def test_normalize_single_unlabeled_newick_does_not_join_generated_id() -> None:
             ancillary_data={
                 "format": "tsv",
                 "join_column": "id",
-                "content": "id\tcountry\ninternal_1\tPortugal\n",
+                "content": "id\tcountry\nunion_1\tPortugal\n",
             },
         )
     )

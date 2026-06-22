@@ -3,9 +3,10 @@ import { type PositionedGraph } from "../../contracts/positioned";
 
 export const DEFAULT_VIEW_SLICE_ZOOM = 1;
 export const DEFAULT_VIEW_SLICE_MAX_NODES = 6000;
-export const DEFAULT_VIEW_CHANGE_DEBOUNCE_MS = 180;
-export const DEFAULT_RENDER_VIEW_SUPPRESSION_MS = 450;
-export const MAX_DYNAMIC_VIEW_SLICE_NODES = 12_010;
+export const DEFAULT_VIEW_CHANGE_DEBOUNCE_MS = 100;
+export const DEFAULT_RENDER_VIEW_SUPPRESSION_MS = 150;
+export const MAX_DYNAMIC_VIEW_SLICE_NODES = 9000;
+export const VIEW_SLICE_NODE_GROWTH_PER_ZOOM = 0.35;
 
 export const DEFAULT_VIEWPORT: Viewport = {
   x: 0,
@@ -61,7 +62,9 @@ export function resolveMaxNodesForZoom(
     return baseMaxNodes;
   }
 
-  const zoomFactor = 1 + (zoom - DEFAULT_VIEW_SLICE_ZOOM) * 0.5;
+  const zoomFactor =
+    1 +
+    (zoom - DEFAULT_VIEW_SLICE_ZOOM) * VIEW_SLICE_NODE_GROWTH_PER_ZOOM;
 
   return Math.min(
     MAX_DYNAMIC_VIEW_SLICE_NODES,

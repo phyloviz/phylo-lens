@@ -28,12 +28,9 @@ export function buildSigmaSettings(
   nodeProgramClasses: SigmaNodeProgramClasses = {},
 ): Record<string, unknown> {
   const nodeLabelsEnabled = rendererOptions.display?.nodeLabels !== false;
-  const edgeDistanceLabelsEnabled =
-    rendererOptions.display?.edgeDistanceLabels === true;
-
   return {
     renderLabels: rendererOptions.label?.enabled !== false && nodeLabelsEnabled,
-    renderEdgeLabels: edgeDistanceLabelsEnabled,
+    renderEdgeLabels: false,
     minCameraRatio: SIGMA_MIN_CAMERA_RATIO,
     maxCameraRatio: SIGMA_MAX_CAMERA_RATIO,
     zoomingRatio: SIGMA_ZOOMING_RATIO,

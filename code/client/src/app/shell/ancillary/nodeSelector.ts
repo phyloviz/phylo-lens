@@ -31,6 +31,7 @@ export function updateNodeSelector(
     return;
   }
 
+  const previousValue = nodeSelect.value;
   nodeSelect.innerHTML = "";
   const placeholder = document.createElement("option");
   placeholder.value = "";
@@ -50,6 +51,10 @@ export function updateNodeSelector(
     option.textContent = nodeId;
     nodeSelect.appendChild(option);
   });
+
+  if (nodeIds.includes(previousValue)) {
+    nodeSelect.value = previousValue;
+  }
 }
 
 export function updateNodeSelectionVisibility(

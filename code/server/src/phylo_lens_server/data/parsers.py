@@ -26,7 +26,7 @@ HEADER_TARGET = "target"
 HEADER_TO = "to"
 
 NODE_PREFIX_LEAF = "leaf"
-NODE_PREFIX_INTERNAL = "internal"
+NODE_PREFIX_UNION = "union"
 
 ERR_NEWICK_EMPTY = "Newick content is empty."
 ERR_NEWICK_TRAILING_CONTENT = "Unexpected content after Newick tree terminator."
@@ -64,7 +64,7 @@ class ParsedGraph:
 
 
 @dataclass
-class _PendingInternalNode:
+class _PendingUnionNode:
     preorder_index: int
     child_links: list[tuple[str, float | None]] = field(default_factory=list)
 
@@ -80,13 +80,13 @@ def parse_newick(content: str) -> ParsedGraph:
 
     used_ids: dict[str, int] = {}
     leaf_counter = 0
-    internal_counter = 0
+    union_counter = 0
     warnings: list[str] = []
 
     nodes: list[str] = []
     edges: list[tuple[str, str]] = []
     explicit_node_ids: set[str] = set()
-    stack: list[_PendingInternalNode] = []
+    stack: list[_PendingUnionNode] = []
     root_id: str | None = None
     expect_subtree = True
 
@@ -171,8 +171,8 @@ def parse_newick(content: str) -> ParsedGraph:
                 break
 
             if current == TOKEN_OPEN_PAREN:
-                internal_counter += 1
-                stack.append(_PendingInternalNode(preorder_index=internal_counter))
+                union_counter += 1
+                stack.append(_PendingUnionNode(preorder_index=union_counter))
                 index += 1
                 continue
 
@@ -215,17 +215,14 @@ def parse_newick(content: str) -> ParsedGraph:
             pending = stack.pop()
             label = parse_label_optional()
             branch_length = parse_branch_length_optional()
-            node_id = assign_id(label, NODE_PREFIX_INTERNAL, pending.preorder_index)
+            node_id = assign_id(label, NODE_PREFIX_UNION, pending.preorder_index)
             nodes.append(node_id)
             if label is not None:
                 explicit_node_ids.add(node_id)
             for child_id, child_distance in pending.child_links:
+                source, target = sorted((node_id, child_id))
                 edges.append(
-                    ParsedEdge(
-                        source=node_id,
-                        target=child_id,
-                        distance=child_distance,
-                    )
+                    ParsedEdge(source=source, target=target, distance=child_distance)
                 )
             emit_completed_node(node_id, branch_length)
             continue

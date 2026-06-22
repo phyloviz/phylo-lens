@@ -44,12 +44,13 @@ class CanonicalNode(BaseModel):
     y: float | None = None
     cluster_id: str | None = None
     is_cluster_proxy: bool | None = None
+    is_cluster_skeleton: bool | None = None
     subtree_size: int | None = Field(default=None, ge=1)
     leaf_count: int | None = Field(default=None, ge=1)
 
 
 class CanonicalEdge(BaseModel):
-    """Canonical directed edge representation linking two canonical node ids."""
+    """Canonical edge endpoint representation linking two canonical node ids."""
 
     id: str = Field(min_length=1)
     source: str = Field(min_length=1)
@@ -75,9 +76,9 @@ class CanonicalDataset(BaseModel):
     metadata_by_node_id: dict[str, dict[str, str | float | bool | None]] = Field(
         default_factory=dict
     )
-    ancillary_rows_by_node_id: dict[
-        str, list[dict[str, str | float | bool | None]]
-    ] = Field(default_factory=dict)
+    ancillary_rows_by_node_id: dict[str, list[dict[str, str | float | bool | None]]] = (
+        Field(default_factory=dict)
+    )
     source: DatasetSource
 
 
@@ -130,7 +131,7 @@ class ThresholdHierarchyIndex(BaseModel):
 
     kind: Literal[HierarchyKind.THRESHOLD] = HierarchyKind.THRESHOLD
     dataset_id: str = Field(min_length=1)
-    root_cluster_id: str = Field(min_length=1)
+    top_cluster_ids: list[str]
     clusters: dict[str, ThresholdHierarchyCluster]
     global_bounds: SpatialBounds | None = None
     max_distance_threshold_level: int = Field(default=0, ge=0)
@@ -250,13 +251,11 @@ class SearchDatasetResponse(BaseModel):
     total_count: int = Field(ge=0)
 
 
-
 class PrepareDatasetStats(BaseModel):
     """Timings and counts captured while preparing a dataset for LoD queries."""
 
     node_count: int = Field(ge=0)
     edge_count: int = Field(ge=0)
-    cache_hit: bool = False
     ingest_ms: float = Field(ge=0)
     normalize_ms: float = Field(ge=0)
     hierarchy_ms: float = Field(ge=0)
@@ -264,7 +263,6 @@ class PrepareDatasetStats(BaseModel):
     thresholds_ms: float | None = Field(default=None, ge=0)
     components_ms: float | None = Field(default=None, ge=0)
     layout_ms: float | None = Field(default=None, ge=0)
-    layout_iterations: int | None = Field(default=None, ge=0)
     cluster_ms: float | None = Field(default=None, ge=0)
     geometry_ms: float | None = Field(default=None, ge=0)
     spatial_index_ms: float | None = Field(default=None, ge=0)

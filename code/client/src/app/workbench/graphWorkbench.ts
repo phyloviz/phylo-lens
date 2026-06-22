@@ -17,9 +17,7 @@ import type {
   RenderNodeClickState,
   RenderViewportState,
 } from "../../render/types";
-import {
-  buildFullPositionedGraph,
-} from "./graphSlice";
+import { buildFullPositionedGraph } from "./graphSlice";
 import {
   DEFAULT_VIEWPORT,
   DEFAULT_VIEW_CHANGE_DEBOUNCE_MS,
@@ -68,6 +66,7 @@ export {
   MAX_DYNAMIC_VIEW_SLICE_NODES,
 } from "./graphViewport";
 export type {
+  GraphNodeClickedHandler,
   GraphRenderedHandler,
   GraphWorkbench,
   GraphWorkbenchOptions,
@@ -179,6 +178,10 @@ export function createGraphWorkbench(
 
     setGraphRenderedHandler: (handler) => {
       state.graphRenderedHandler = handler;
+    },
+
+    setNodeClickedHandler: (handler) => {
+      state.nodeClickedHandler = handler;
     },
 
     dispose: () => {
@@ -334,8 +337,7 @@ async function setLodRefreshPaused({
   state.lodRefreshPaused = false;
   clearPendingViewRefresh(state);
 
-  const nextViewState =
-    state.deferredViewState ??
+  const nextViewState = state.deferredViewState ??
     state.currentViewState ?? {
       viewport: state.preparedSession.lod.viewport,
       zoom: DEFAULT_VIEW_SLICE_ZOOM,
@@ -369,10 +371,6 @@ async function handleViewChange({
   const session = state.preparedSession;
 
   if (!session || state.renderMode !== "lod") {
-    return;
-  }
-
-  if (Date.now() < state.suppressViewChangesUntil) {
     return;
   }
 
@@ -410,6 +408,10 @@ async function handleViewChange({
 
   clearPendingViewRefresh(state);
 
+  const suppressionDelay = Math.max(
+    0,
+    state.suppressViewChangesUntil - Date.now(),
+  );
   state.pendingViewRefreshId = window.setTimeout(() => {
     state.pendingViewRefreshId = null;
 
@@ -423,7 +425,7 @@ async function handleViewChange({
         zoom: effectiveZoom,
       },
     });
-  }, DEFAULT_VIEW_CHANGE_DEBOUNCE_MS);
+  }, suppressionDelay + DEFAULT_VIEW_CHANGE_DEBOUNCE_MS);
 }
 
 interface HandleNodeClickArgs {
@@ -441,6 +443,8 @@ async function handleNodeClick({
   filterEngine,
   clickState,
 }: HandleNodeClickArgs): Promise<void> {
+  state.nodeClickedHandler?.(clickState);
+
   const session = state.preparedSession;
 
   if (!session || state.renderMode !== "lod") {
@@ -519,7 +523,8 @@ async function searchNodes({
     query: query.query,
     limit: query.limit,
     include_metadata_keys:
-      query.includeMetadataKeys ?? session.metadataSchema.map((field) => field.key),
+      query.includeMetadataKeys ??
+      session.metadataSchema.map((field) => field.key),
   });
 }
 
