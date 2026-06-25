@@ -3,6 +3,11 @@ let lastGraph:
   | {
       getNodeAttribute: (node: string, attribute: string) => unknown;
       getEdgeAttribute: (edge: string, attribute: string) => unknown;
+      setNodeAttribute: (
+        node: string,
+        attribute: string,
+        value: unknown,
+      ) => void;
     }
   | null = null;
 let lastCustomBBox:
@@ -28,6 +33,8 @@ let pieProgramInputs: Array<{
 let forceMotionStarts = 0;
 let forceMotionKills = 0;
 let lastForceMotionSettings: Record<string, number> | null = null;
+let animationFrameCallback: FrameRequestCallback | null = null;
+let animationFrameId = 0;
 
 vi.mock("graphology-layout-forceatlas2/worker", () => ({
   default: class FakeForceSupervisor {
@@ -161,6 +168,20 @@ describe("sigmaRenderer", () => {
     forceMotionStarts = 0;
     forceMotionKills = 0;
     lastForceMotionSettings = null;
+    animationFrameCallback = null;
+    animationFrameId = 0;
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+      animationFrameCallback = callback;
+      animationFrameId += 1;
+      return animationFrameId;
+    });
+    vi.spyOn(window, "cancelAnimationFrame").mockImplementation(() => {
+      animationFrameCallback = null;
+    });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it("throws when mounting with a missing container", () => {
@@ -288,6 +309,62 @@ describe("sigmaRenderer", () => {
     expect(nodeProgramClasses).toBeDefined();
     expect(nodeProgramClasses?.["border"]).toBeDefined();
     expect(nodeProgramClasses?.["triangle"]).toBeDefined();
+
+    renderer.unmount();
+  });
+
+  it("points cluster proxy triangle tips at their incident tree edges", () => {
+    document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
+
+    const renderer = new SigmaRenderer();
+    renderer.mount({ containerId: CONTAINER_ID });
+    renderer.render({
+      nodes: [
+        { id: "root", x: 0, y: 0 },
+        {
+          id: "cluster",
+          x: 0,
+          y: 10,
+          attributes: { is_cluster_proxy: true },
+        },
+      ],
+      edges: [{ id: "root-cluster", source: "root", target: "cluster" }],
+      viewMeta: { layout: "server", lodLevel: 0 },
+    });
+
+    expect(lastGraph?.getNodeAttribute("cluster", "type")).toBe("triangle");
+    expect(lastGraph?.getNodeAttribute("cluster", "triangleRotation")).toBeCloseTo(
+      -Math.PI / 2,
+    );
+
+    renderer.unmount();
+  });
+
+  it("keeps cluster proxy triangle tips aligned while force motion moves nodes", () => {
+    document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
+
+    const renderer = new SigmaRenderer({ forceMotion: { durationMs: 0 } });
+    renderer.mount({ containerId: CONTAINER_ID });
+    renderer.render({
+      nodes: [
+        { id: "root", x: 0, y: 0 },
+        {
+          id: "cluster",
+          x: 0,
+          y: 10,
+          attributes: { is_cluster_proxy: true },
+        },
+      ],
+      edges: [{ id: "root-cluster", source: "root", target: "cluster" }],
+      viewMeta: { layout: "force", lodLevel: 0 },
+    });
+
+    lastGraph?.setNodeAttribute("root", "x", 10);
+    animationFrameCallback?.(16);
+
+    expect(lastGraph?.getNodeAttribute("cluster", "triangleRotation")).toBeCloseTo(
+      Math.atan2(-10, 10),
+    );
 
     renderer.unmount();
   });

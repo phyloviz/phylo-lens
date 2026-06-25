@@ -1,10 +1,7 @@
 import Graph from "graphology";
 import Sigma from "sigma";
 
-import {
-  LAYOUT_SERVER,
-  type PositionedGraph,
-} from "../../../contracts/positioned";
+import type { PositionedGraph } from "../../../contracts/positioned";
 import { RENDERER_KIND_SIGMA } from "../../types";
 import type {
   GraphDisplayOptions,
@@ -28,11 +25,6 @@ import {
 } from "./sigmaCamera";
 import { SigmaDragController } from "./sigmaDragController";
 import createSigmaForceMotion from "./sigmaForceMotion";
-import {
-  type CachedNodePositionMap,
-  nodeWithCachedOverlapPosition,
-  removeRenderedNodeOverlaps,
-} from "./sigmaNodeOverlap";
 import {
   addPositionedEdges,
   addPositionedNode,
@@ -86,7 +78,6 @@ export class SigmaRenderer implements GraphRenderer {
   private suppressNodeClicksUntil = 0;
   private lastRenderedGraph: PositionedGraph | null = null;
   private selectedNodeId: string | null = null;
-  private overlapPositions: CachedNodePositionMap = new Map();
   private readonly boundCameraUpdated = () => {
     this.updateEdgeLabelVisibility();
     this.emitViewChange();
@@ -101,7 +92,9 @@ export class SigmaRenderer implements GraphRenderer {
   constructor(options: SigmaRendererOptions = {}) {
     this.rendererOptions = options;
     this.piechartOptions = options.piechart ?? {};
-    this.forceMotion = createSigmaForceMotion(options.forceMotion);
+    this.forceMotion = createSigmaForceMotion(options.forceMotion, {
+      onTick: () => this.updateClusterTriangleRotations(),
+    });
     this.dragController = new SigmaDragController({
       getGraph: () => this.graph,
       getSigma: () => this.sigma,
@@ -147,15 +140,8 @@ export class SigmaRenderer implements GraphRenderer {
       normalizeGraphBounds(graph.viewMeta.globalBounds) ?? this.graphBounds;
     this.ensureSigmaPiePrograms(graph);
     applyStableCameraBounds(this.sigma, this.coordinateBounds);
-    if (graph.viewMeta.layout !== LAYOUT_SERVER) {
-      this.overlapPositions.clear();
-    }
 
-    graph.nodes.forEach((node) => {
-      const positionedNode = nodeWithCachedOverlapPosition(
-        node,
-        this.overlapPositions,
-      );
+    graph.nodes.forEach((positionedNode) => {
       addPositionedNode(
         this.graph as Graph,
         positionedNode,
@@ -165,16 +151,7 @@ export class SigmaRenderer implements GraphRenderer {
       );
     });
     addPositionedEdges(this.graph, graph, this.rendererOptions);
-
-    this.sigma.refresh();
-    const correctedPositions = removeRenderedNodeOverlaps(
-      this.graph,
-      this.sigma,
-      graph,
-    );
-    correctedPositions.forEach((position, nodeId) => {
-      this.overlapPositions.set(nodeId, position);
-    });
+    this.updateClusterTriangleRotations();
     this.sigma.refresh();
     this.forceMotion.start(this.graph, graph);
     this.updateEdgeLabelVisibility();
@@ -242,7 +219,6 @@ export class SigmaRenderer implements GraphRenderer {
     this.coordinateBounds = null;
     this.lastRenderedGraph = null;
     this.selectedNodeId = null;
-    this.overlapPositions.clear();
     this.dragController.reset();
   }
 
@@ -481,4 +457,47 @@ export class SigmaRenderer implements GraphRenderer {
     this.render(this.lastRenderedGraph);
   }
 
+  private updateClusterTriangleRotations(): void {
+    if (!this.graph || !this.lastRenderedGraph) {
+      return;
+    }
+
+    applyClusterTriangleRotations(this.graph, this.lastRenderedGraph.edges);
+    this.sigma?.scheduleRender();
+  }
+}
+
+function applyClusterTriangleRotations(
+  graph: Graph,
+  edges: PositionedGraph["edges"],
+): void {
+  edges.forEach((edge) => {
+    if (!graph.hasNode(edge.source) || !graph.hasNode(edge.target)) {
+      return;
+    }
+
+    const source = graph.getNodeAttributes(edge.source);
+    const target = graph.getNodeAttributes(edge.target);
+
+    if (source.is_cluster_proxy === true) {
+      graph.setNodeAttribute(
+        edge.source,
+        "triangleRotation",
+        Math.atan2(
+          Number(target.y) - Number(source.y),
+          Number(target.x) - Number(source.x),
+        ),
+      );
+    }
+    if (target.is_cluster_proxy === true) {
+      graph.setNodeAttribute(
+        edge.target,
+        "triangleRotation",
+        Math.atan2(
+          Number(source.y) - Number(target.y),
+          Number(source.x) - Number(target.x),
+        ),
+      );
+    }
+  });
 }
