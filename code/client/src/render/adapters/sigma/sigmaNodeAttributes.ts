@@ -36,6 +36,7 @@ export function addPositionedNode(
   pieSliceKeys: readonly string[],
   rendererOptions: SigmaRendererOptions,
   selectedNodeId?: string | null,
+  triangleRotation = 0,
 ): void {
   const isUnionNode = isPhyloVizUnionNode(node.id, node.attributes);
   const pieAttributes: Record<string, number> = {};
@@ -81,6 +82,7 @@ export function addPositionedNode(
     borderColor: isSelectedNode
       ? PHYLOVIZ_NODE_SELECTED_BORDER_COLOR
       : undefined,
+    triangleRotation,
     forceLabel: isSelectedNode || undefined,
   });
 }

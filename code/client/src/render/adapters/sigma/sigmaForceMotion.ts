@@ -25,14 +25,20 @@ export interface SigmaForceMotionOptions {
   settings?: ForceAtlas2Settings;
 }
 
+export interface SigmaForceMotionCallbacks {
+  onTick?: () => void;
+}
+
 export default function createSigmaForceMotion(
   options: SigmaForceMotionOptions = {},
+  callbacks: SigmaForceMotionCallbacks = {},
 ): {
   start: (graph: Graph, positionedGraph: PositionedGraph) => void;
   stop: () => void;
 } {
   let supervisor: ForceAtlas2Supervisor | null = null;
   let stopTimerId: number | null = null;
+  let tickFrameId: number | null = null;
 
   return {
     start: start,
@@ -59,6 +65,7 @@ export default function createSigmaForceMotion(
       },
     });
     supervisor.start();
+    tick();
 
     const durationMs = options.durationMs ?? DEFAULT_FORCE_MOTION_DURATION_MS;
     if (durationMs > 0) {
@@ -75,8 +82,18 @@ export default function createSigmaForceMotion(
       stopTimerId = null;
     }
 
+    if (tickFrameId !== null) {
+      window.cancelAnimationFrame(tickFrameId);
+      tickFrameId = null;
+    }
+
     supervisor?.kill();
     supervisor = null;
+  }
+
+  function tick(): void {
+    callbacks.onTick?.();
+    tickFrameId = window.requestAnimationFrame(tick);
   }
 }
 
