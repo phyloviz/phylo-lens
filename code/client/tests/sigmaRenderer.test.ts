@@ -151,6 +151,7 @@ import {
   SIGMA_MAX_LOD_ZOOM,
   SigmaRenderer,
   sigmaCameraToViewportState,
+  sigmaCameraToSemanticViewState,
   sigmaRatioToLodZoom,
 } from "../src/render/adapters/sigma/sigmaRenderer";
 import {
@@ -645,6 +646,29 @@ describe("sigmaRenderer", () => {
       y: 150,
       width: 200,
       height: 150,
+    });
+  });
+
+  it("derives semantic view state from normalized sigma camera state", () => {
+    expect(
+      sigmaCameraToSemanticViewState(
+        { minX: -120, maxX: 280, minY: 0, maxY: 300 },
+        { x: -10, y: 2, ratio: 0.25 },
+      ),
+    ).toEqual({
+      camera: {
+        x: 0,
+        y: 1,
+        ratio: 0.25,
+      },
+      viewport: {
+        x: -120,
+        y: 300,
+        width: 100,
+        height: 75,
+      },
+      lodZoom: 3,
+      edgeDistanceLabelsVisible: true,
     });
   });
 

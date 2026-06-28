@@ -4,14 +4,9 @@ import {
   defaultCameraState,
   graphCoordinatesToCameraCenter,
   type GraphBounds,
+  type SigmaCameraState,
   SIGMA_DEFAULT_CAMERA_ZOOM,
 } from "./sigmaCamera";
-
-export interface SigmaCameraState {
-  x?: number;
-  y?: number;
-  ratio?: number;
-}
 
 export function applyStableCameraBounds(
   sigma: Sigma | null,

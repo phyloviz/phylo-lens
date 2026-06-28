@@ -127,6 +127,25 @@ def test_select_visible_slice_expands_requested_cluster() -> None:
     }
 
 
+def test_select_visible_slice_materializes_explicit_cluster_members_at_layout_positions() -> None:
+    dataset, hierarchy = _threshold_dataset_and_hierarchy()
+    cluster_id = hierarchy.top_cluster_ids[0]
+    positions_by_node_id = {node.id: (node.x, node.y) for node in dataset.nodes}
+
+    response = select_visible_slice(
+        dataset,
+        hierarchy,
+        _query(zoom=0.4, max_nodes=4, expanded_cluster_ids=[cluster_id]),
+    )
+
+    assert [node.id for node in response.nodes] == ["a", "b", "c", "d"]
+    assert all(node.is_cluster_proxy is not True for node in response.nodes)
+    assert {
+        node.id: (node.x, node.y)
+        for node in response.nodes
+    } == positions_by_node_id
+
+
 def test_select_visible_slice_collapsed_cluster_wins_over_expanded_cluster() -> None:
     dataset, hierarchy = _threshold_dataset_and_hierarchy()
     cluster_id = next(

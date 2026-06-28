@@ -8,12 +8,30 @@ export const SIGMA_MAX_LOD_ZOOM = 8;
 export const SIGMA_ZOOMING_RATIO = 1.4;
 export const SIGMA_DEFAULT_CAMERA_X = 0.5;
 export const SIGMA_DEFAULT_CAMERA_Y = 0.5;
+export const SIGMA_EDGE_LABEL_MAX_CAMERA_RATIO = 0.5;
 
 export interface GraphBounds {
   minX: number;
   maxX: number;
   minY: number;
   maxY: number;
+}
+
+export interface SigmaCameraState {
+  x?: number;
+  y?: number;
+  ratio?: number;
+}
+
+export interface SigmaSemanticViewState {
+  camera: {
+    x: number;
+    y: number;
+    ratio: number;
+  };
+  viewport: RenderViewportState["viewport"];
+  lodZoom: number;
+  edgeDistanceLabelsVisible: boolean;
 }
 
 export function defaultCameraState(): { x: number; y: number; ratio: number } {
@@ -35,22 +53,41 @@ export function sigmaRatioToLodZoom(ratio: number): number {
 
 export function sigmaCameraToViewportState(
   bounds: GraphBounds,
-  camera: { x?: number; y?: number; ratio?: number },
+  camera: SigmaCameraState,
 ): RenderViewportState["viewport"] {
-  const spanX = Math.max(bounds.maxX - bounds.minX, 1);
-  const spanY = Math.max(bounds.maxY - bounds.minY, 1);
-  const normalizedX = clampUnit(camera.x ?? SIGMA_DEFAULT_CAMERA_X);
-  const normalizedY = clampUnit(camera.y ?? SIGMA_DEFAULT_CAMERA_Y);
-  const ratio =
-    typeof camera.ratio === "number" && Number.isFinite(camera.ratio)
-      ? Math.max(camera.ratio, SIGMA_MIN_CAMERA_RATIO)
-      : SIGMA_DEFAULT_CAMERA_ZOOM;
+  return sigmaNormalizedCameraToViewportState(
+    bounds,
+    normalizeSigmaCameraState(camera),
+  );
+}
+
+export function sigmaCameraToSemanticViewState(
+  bounds: GraphBounds,
+  camera: SigmaCameraState,
+): SigmaSemanticViewState {
+  const normalizedCamera = normalizeSigmaCameraState(camera);
 
   return {
-    x: bounds.minX + normalizedX * spanX,
-    y: bounds.minY + normalizedY * spanY,
-    width: spanX * ratio,
-    height: spanY * ratio,
+    camera: normalizedCamera,
+    viewport: sigmaNormalizedCameraToViewportState(bounds, normalizedCamera),
+    lodZoom: sigmaRatioToLodZoom(normalizedCamera.ratio),
+    edgeDistanceLabelsVisible:
+      normalizedCamera.ratio <= SIGMA_EDGE_LABEL_MAX_CAMERA_RATIO,
+  };
+}
+
+export function normalizeSigmaCameraState(camera: SigmaCameraState): {
+  x: number;
+  y: number;
+  ratio: number;
+} {
+  return {
+    x: clampUnit(camera.x ?? SIGMA_DEFAULT_CAMERA_X),
+    y: clampUnit(camera.y ?? SIGMA_DEFAULT_CAMERA_Y),
+    ratio:
+      typeof camera.ratio === "number" && Number.isFinite(camera.ratio)
+        ? Math.max(camera.ratio, SIGMA_MIN_CAMERA_RATIO)
+        : SIGMA_DEFAULT_CAMERA_ZOOM,
   };
 }
 
@@ -113,4 +150,19 @@ function clampUnit(value: number): number {
     return 0.5;
   }
   return Math.min(1, Math.max(0, value));
+}
+
+function sigmaNormalizedCameraToViewportState(
+  bounds: GraphBounds,
+  camera: { x: number; y: number; ratio: number },
+): RenderViewportState["viewport"] {
+  const spanX = Math.max(bounds.maxX - bounds.minX, 1);
+  const spanY = Math.max(bounds.maxY - bounds.minY, 1);
+
+  return {
+    x: bounds.minX + camera.x * spanX,
+    y: bounds.minY + camera.y * spanY,
+    width: spanX * camera.ratio,
+    height: spanY * camera.ratio,
+  };
 }

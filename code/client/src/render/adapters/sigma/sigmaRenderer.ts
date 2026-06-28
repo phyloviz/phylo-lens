@@ -17,11 +17,8 @@ import {
   deriveGraphBounds,
   type GraphBounds,
   normalizeGraphBounds,
-  SIGMA_DEFAULT_CAMERA_X,
-  SIGMA_DEFAULT_CAMERA_Y,
-  SIGMA_DEFAULT_CAMERA_ZOOM,
-  sigmaCameraToViewportState,
-  sigmaRatioToLodZoom,
+  type SigmaSemanticViewState,
+  sigmaCameraToSemanticViewState,
 } from "./sigmaCamera";
 import { SigmaDragController } from "./sigmaDragController";
 import createSigmaForceMotion from "./sigmaForceMotion";
@@ -46,6 +43,7 @@ export {
   SIGMA_DEFAULT_CAMERA_ZOOM,
   SIGMA_MAX_LOD_ZOOM,
   sigmaCameraToViewportState,
+  sigmaCameraToSemanticViewState,
   sigmaRatioToLodZoom,
 } from "./sigmaCamera";
 export type { SigmaPiechartOptions, SigmaRendererOptions };
@@ -53,7 +51,6 @@ export type { SigmaPiechartOptions, SigmaRendererOptions };
 export const ERR_CONTAINER_NOT_FOUND =
   "Sigma container not found: {containerId}";
 export const ERR_SIGMA_NOT_READY = "Sigma renderer is not mounted.";
-export const SIGMA_EDGE_LABEL_MAX_CAMERA_RATIO = 0.5;
 
 // Sigma renderer adapter keeps Sigma-specific behavior isolated from core contracts.
 export class SigmaRenderer implements GraphRenderer {
@@ -79,8 +76,7 @@ export class SigmaRenderer implements GraphRenderer {
   private lastRenderedGraph: PositionedGraph | null = null;
   private selectedNodeId: string | null = null;
   private readonly boundCameraUpdated = () => {
-    this.updateEdgeLabelVisibility();
-    this.emitViewChange();
+    this.handleCameraUpdated();
   };
   private readonly boundNodeClicked = (payload: {
     node?: string;
@@ -154,7 +150,7 @@ export class SigmaRenderer implements GraphRenderer {
     this.updateClusterTriangleRotations();
     this.sigma.refresh();
     this.forceMotion.start(this.graph, graph);
-    this.updateEdgeLabelVisibility();
+    this.updateEdgeLabelVisibility(this.readSemanticViewState());
   }
 
   setViewChangeHandler(
@@ -355,18 +351,15 @@ export class SigmaRenderer implements GraphRenderer {
     sigma?.off?.("clickNode", this.boundNodeClicked);
   }
 
-  private emitViewChange(): void {
-    if (Date.now() < this.suppressViewChangesUntil) {
-      return;
-    }
+  private handleCameraUpdated(): void {
+    const viewState = this.readSemanticViewState();
+    this.updateEdgeLabelVisibility(viewState);
+    this.emitViewChange(viewState);
+  }
 
-    if (
-      !this.viewChangeHandler ||
-      !this.sigma ||
-      !this.containerElement ||
-      !this.coordinateBounds
-    ) {
-      return;
+  private readSemanticViewState(): SigmaSemanticViewState | null {
+    if (!this.sigma || !this.coordinateBounds) {
+      return null;
     }
 
     const camera = this.sigma.getCamera() as {
@@ -375,40 +368,37 @@ export class SigmaRenderer implements GraphRenderer {
       ratio?: number;
       getState?: () => { x?: number; y?: number; ratio?: number };
     };
-    const state = camera.getState?.() ?? camera;
-    const ratio =
-      typeof state.ratio === "number" && Number.isFinite(state.ratio)
-        ? state.ratio
-        : SIGMA_DEFAULT_CAMERA_ZOOM;
-    const viewport = sigmaCameraToViewportState(this.coordinateBounds, {
-      x: typeof state.x === "number" ? state.x : SIGMA_DEFAULT_CAMERA_X,
-      y: typeof state.y === "number" ? state.y : SIGMA_DEFAULT_CAMERA_Y,
-      ratio,
-    });
-
-    this.viewChangeHandler({
-      viewport,
-      zoom: sigmaRatioToLodZoom(ratio),
-    });
+    return sigmaCameraToSemanticViewState(
+      this.coordinateBounds,
+      camera.getState?.() ?? camera,
+    );
   }
 
-  private updateEdgeLabelVisibility(): void {
-    if (!this.sigma) {
+  private emitViewChange(viewState: SigmaSemanticViewState | null): void {
+    if (Date.now() < this.suppressViewChangesUntil) {
       return;
     }
 
-    const camera = this.sigma.getCamera() as {
-      ratio?: number;
-      getState?: () => { ratio?: number };
-    };
-    const state = camera.getState?.() ?? camera;
-    const ratio =
-      typeof state.ratio === "number" && Number.isFinite(state.ratio)
-        ? state.ratio
-        : SIGMA_DEFAULT_CAMERA_ZOOM;
+    if (!this.viewChangeHandler || !this.containerElement || !viewState) {
+      return;
+    }
+
+    this.viewChangeHandler({
+      viewport: viewState.viewport,
+      zoom: viewState.lodZoom,
+    });
+  }
+
+  private updateEdgeLabelVisibility(
+    viewState: SigmaSemanticViewState | null,
+  ): void {
+    if (!this.sigma || !viewState) {
+      return;
+    }
+
     const shouldRender =
       this.rendererOptions.display?.edgeDistanceLabels === true &&
-      ratio <= SIGMA_EDGE_LABEL_MAX_CAMERA_RATIO;
+      viewState.edgeDistanceLabelsVisible;
 
     if (this.sigma.getSetting("renderEdgeLabels") !== shouldRender) {
       this.sigma.setSetting("renderEdgeLabels", shouldRender);

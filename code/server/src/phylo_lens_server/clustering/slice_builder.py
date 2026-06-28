@@ -31,11 +31,17 @@ def build_visible_slice_response(
     selection: ClusterViewSelection,
 ) -> VisibleSliceResponse:
     node_by_id = {node.id: node for node in dataset.nodes}
+    materialized_expanded_cluster_ids = expandable_materialized_cluster_ids(
+        hierarchy,
+        query,
+        len(dataset.nodes),
+    )
     visible_nodes, rendered_cluster_ids = build_visible_nodes(
         hierarchy=hierarchy,
         node_by_id=node_by_id,
         visible_order=selection.visible_order,
         expanded_cluster_ids=selection.expanded_cluster_ids,
+        materialized_cluster_ids=materialized_expanded_cluster_ids,
     )
     visible_nodes, visible_edges = build_topology_preserving_visible_graph(
         dataset=dataset,
@@ -47,7 +53,8 @@ def build_visible_slice_response(
         collapsed_cluster(hierarchy, cluster_id)
         for cluster_id in sorted(rendered_cluster_ids)
         if hierarchy.clusters[cluster_id].subtree_size > 1
-        and cluster_id not in selection.expanded_cluster_ids
+        and cluster_id
+        not in selection.expanded_cluster_ids | materialized_expanded_cluster_ids
     ]
     log_visible_hubs(hierarchy, visible_nodes, visible_edges)
 
@@ -77,12 +84,31 @@ def build_visible_nodes(
     node_by_id: dict[str, CanonicalNode],
     visible_order: list[str],
     expanded_cluster_ids: set[str],
+    materialized_cluster_ids: set[str],
 ) -> tuple[list[CanonicalNode], set[str]]:
     visible_nodes: list[CanonicalNode] = []
     visible_node_ids: set[str] = set()
     rendered_cluster_ids: set[str] = set()
 
     for cluster_id in visible_order:
+        if cluster_has_materialized_ancestor(
+            hierarchy,
+            cluster_id,
+            materialized_cluster_ids,
+        ):
+            continue
+
+        if cluster_id in materialized_cluster_ids:
+            if append_cluster_members(
+                visible_nodes,
+                visible_node_ids,
+                hierarchy,
+                node_by_id,
+                cluster_id,
+            ):
+                rendered_cluster_ids.add(cluster_id)
+            continue
+
         is_cluster_proxy = is_cluster_proxy_cluster(
             hierarchy,
             cluster_id,
@@ -102,6 +128,72 @@ def build_visible_nodes(
             rendered_cluster_ids.add(cluster_id)
 
     return visible_nodes, rendered_cluster_ids
+
+
+def expandable_materialized_cluster_ids(
+    hierarchy: ThresholdHierarchyIndex,
+    query: VisibleSliceQuery,
+    fallback_max_nodes: int,
+) -> set[str]:
+    max_nodes = query.max_nodes or fallback_max_nodes
+    collapsed_cluster_ids = set(query.collapsed_cluster_ids)
+
+    return {
+        cluster_id
+        for cluster_id in query.expanded_cluster_ids
+        if cluster_id in hierarchy.clusters
+        and cluster_id not in collapsed_cluster_ids
+        and hierarchy.clusters[cluster_id].subtree_size <= max_nodes
+    }
+
+
+def cluster_has_materialized_ancestor(
+    hierarchy: ThresholdHierarchyIndex,
+    cluster_id: str,
+    materialized_cluster_ids: set[str],
+) -> bool:
+    current_cluster_id = hierarchy.clusters[cluster_id].parent_cluster_id
+
+    while current_cluster_id is not None:
+        if current_cluster_id in materialized_cluster_ids:
+            return True
+        current_cluster_id = hierarchy.clusters[current_cluster_id].parent_cluster_id
+
+    return False
+
+
+def append_cluster_members(
+    visible_nodes: list[CanonicalNode],
+    visible_node_ids: set[str],
+    hierarchy: ThresholdHierarchyIndex,
+    node_by_id: dict[str, CanonicalNode],
+    cluster_id: str,
+) -> bool:
+    appended = False
+    cluster = hierarchy.clusters[cluster_id]
+
+    for member_node_id in cluster.member_node_ids:
+        if member_node_id in visible_node_ids:
+            continue
+        base_node = node_by_id.get(member_node_id)
+        if base_node is None:
+            continue
+
+        visible_nodes.append(
+            base_node.model_copy(
+                update={
+                    "cluster_id": cluster_id,
+                    "is_cluster_proxy": False,
+                    "is_cluster_skeleton": False,
+                    "subtree_size": None,
+                    "leaf_count": None,
+                }
+            )
+        )
+        visible_node_ids.add(member_node_id)
+        appended = True
+
+    return appended
 
 
 def append_cluster_node(
