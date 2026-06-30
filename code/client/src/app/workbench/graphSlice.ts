@@ -1,13 +1,8 @@
 import {
   type CanonicalDataset,
   SOURCE_FORMAT_NEWICK,
-  type SpatialBounds,
 } from "../../contracts/models";
-import {
-  LAYOUT_SERVER,
-  type PositionedGraph,
-  type PositionedGraphBounds,
-} from "../../contracts/positioned";
+import { LAYOUT_SERVER, type PositionedGraph } from "../../contracts/positioned";
 import {
   DEFAULT_LAYER_GAP,
   DEFAULT_NODE_GAP,
@@ -15,20 +10,6 @@ import {
 } from "../../layout/forceDirectedLayout";
 import type { RenderNewickOptions } from "./workbenchTypes";
 
-export function serverSpatialBoundsToGraphBounds(
-  bounds: SpatialBounds | null | undefined,
-): PositionedGraphBounds | undefined {
-  if (!bounds) {
-    return undefined;
-  }
-
-  return {
-    minX: bounds.min_x,
-    maxX: bounds.max_x,
-    minY: bounds.min_y,
-    maxY: bounds.max_y,
-  };
-}
 export function buildSliceDataset(
   datasetId: string,
   nodes: CanonicalDataset["nodes"],
@@ -94,7 +75,6 @@ export function emptyGraph(): PositionedGraph {
       lodLevel: 0,
       sliceNodeCount: 0,
       sliceEdgeCount: 0,
-      collapsedClusterCount: 0,
     },
   };
 }

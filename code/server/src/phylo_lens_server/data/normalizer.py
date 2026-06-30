@@ -146,7 +146,8 @@ def normalize_dataset(
     for parsed_edge in sorted(
         parsed.edges, key=lambda edge: (edge.source, edge.target)
     ):
-        source, target = sorted((parsed_edge.source, parsed_edge.target))
+        source = parsed_edge.source
+        target = parsed_edge.target
         distance = _normalize_edge_distance(
             parsed_edge.distance,
             source=source,
@@ -312,10 +313,12 @@ def _parse_ancillary_metadata(
             )
             continue
 
-        rows_by_node_id.setdefault(node_id, []).append({
-            key: _coerce_ancillary_value(value, field_types[key])
-            for key, value in values.items()
-        })
+        rows_by_node_id.setdefault(node_id, []).append(
+            {
+                key: _coerce_ancillary_value(value, field_types[key])
+                for key, value in values.items()
+            }
+        )
 
     metadata_by_node_id = {
         node_id: _aggregate_ancillary_rows(rows)
@@ -324,9 +327,7 @@ def _parse_ancillary_metadata(
 
     missing_count = len(node_ids - set(metadata_by_node_id))
     if missing_count:
-        warnings.append(
-            WARN_ANCILLARY_UNMATCHED_NODE_COUNT.format(count=missing_count)
-        )
+        warnings.append(WARN_ANCILLARY_UNMATCHED_NODE_COUNT.format(count=missing_count))
 
     return metadata_by_node_id, rows_by_node_id, warnings
 

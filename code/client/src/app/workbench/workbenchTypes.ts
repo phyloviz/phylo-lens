@@ -1,7 +1,4 @@
-import type {
-  DatasetClient,
-  NormalizeRequest,
-} from "../../api/datasetClient";
+import type { GraphV2Client } from "../../api/graphV2Client";
 import type {
   CanonicalDataset,
   SearchDatasetResponse,
@@ -26,7 +23,11 @@ import type {
 export interface RenderNewickOptions {
   metadataSchema?: CanonicalDataset["metadata_schema"];
   metadataByNodeId?: CanonicalDataset["metadata_by_node_id"];
-  ancillaryData?: NormalizeRequest["ancillary_data"];
+  ancillaryData?: {
+    format: "auto" | "csv" | "tsv";
+    content: string;
+    join_column?: string;
+  };
   visualMapping?: VisualMappingOptions;
   layout?: {
     forceIterations?: number;
@@ -42,7 +43,7 @@ export interface RenderNewickOptions {
 }
 
 export interface GraphWorkbenchOptions {
-  datasetClient: DatasetClient;
+  graphV2Client: GraphV2Client;
   rendererFactory: RendererFactory;
   rendererKind: RendererKind;
   renderContext: RenderContext;
@@ -88,6 +89,7 @@ export interface GraphWorkbench {
 
 export interface PreparedDatasetSession {
   datasetId: string;
+  layoutVersion?: string;
   metadataSchema: CanonicalDataset["metadata_schema"];
   metadataByNodeId: CanonicalDataset["metadata_by_node_id"];
   ancillaryRowsByNodeId: CanonicalDataset["ancillary_rows_by_node_id"];
@@ -119,7 +121,5 @@ export interface GraphWorkbenchState {
   graphRenderedHandler: GraphRenderedHandler | null;
   nodeClickedHandler: GraphNodeClickedHandler | null;
   suppressViewChangesUntil: number;
-  expandedClusterIds: Set<string>;
-  collapsedClusterIds: Set<string>;
   renderMode: RenderMode | null;
 }

@@ -44,11 +44,13 @@ def test_normalize_newick_preserves_edge_distances() -> None:
         )
     )
 
-    assert [(edge.source, edge.target, edge.distance) for edge in result.dataset.edges] == [
-        ("a", "r", 0.1),
-        ("b", "n", 0.2),
-        ("c", "n", 0.3),
-        ("n", "r", 0.4),
+    assert [
+        (edge.source, edge.target, edge.distance) for edge in result.dataset.edges
+    ] == [
+        ("n", "b", 0.2),
+        ("n", "c", 0.3),
+        ("r", "a", 0.1),
+        ("r", "n", 0.4),
     ]
 
 
@@ -62,9 +64,11 @@ def test_normalize_clamps_negative_newick_branch_lengths() -> None:
         )
     )
 
-    assert [(edge.source, edge.target, edge.distance) for edge in result.dataset.edges] == [
-        ("a", "r", 0.0),
-        ("b", "r", 0.2),
+    assert [
+        (edge.source, edge.target, edge.distance) for edge in result.dataset.edges
+    ] == [
+        ("r", "a", 0.0),
+        ("r", "b", 0.2),
     ]
     assert "clamped" in result.warnings[0]
 
@@ -94,7 +98,9 @@ def test_normalize_edgelist_preserves_optional_edge_distance() -> None:
         )
     )
 
-    assert [(edge.source, edge.target, edge.distance) for edge in result.dataset.edges] == [
+    assert [
+        (edge.source, edge.target, edge.distance) for edge in result.dataset.edges
+    ] == [
         ("a", "b", 0.5),
         ("b", "c", 1.25),
     ]
@@ -163,8 +169,7 @@ def test_normalize_newick_joins_ancillary_data_by_labeled_internal_node() -> Non
     assert result.dataset.metadata_by_node_id["st4"]["country"] == "Portugal"
     assert result.dataset.metadata_by_node_id["st5"]["country"] == "Spain"
     assert (
-        "Ancillary data did not include rows for 2 joinable nodes."
-        in result.warnings
+        "Ancillary data did not include rows for 2 joinable nodes." in result.warnings
     )
 
 
@@ -216,12 +221,7 @@ def test_normalize_hides_derived_fields_from_public_schema() -> None:
             ancillary_data={
                 "format": "tsv",
                 "join_column": "ST",
-                "content": (
-                    "ST\tcountry\n"
-                    "ST1\tPortugal\n"
-                    "ST1\tSpain\n"
-                    "ST2\tCanada\n"
-                ),
+                "content": ("ST\tcountry\nST1\tPortugal\nST1\tSpain\nST2\tCanada\n"),
             },
         )
     )
@@ -320,9 +320,7 @@ def test_normalize_ancillary_data_respects_declared_string_field_types() -> None
                 "format": "tsv",
                 "join_column": "id",
                 "content": (
-                    "id\tyear\tsender\tcurator\n"
-                    "3157\t1991\t42\t7\n"
-                    "2475\t2004\t42\t8\n"
+                    "id\tyear\tsender\tcurator\n3157\t1991\t42\t7\n2475\t2004\t42\t8\n"
                 ),
             },
         )
@@ -387,10 +385,7 @@ def test_normalize_final_metadata_respects_merged_schema_types() -> None:
             ancillary_data={
                 "format": "tsv",
                 "join_column": "id",
-                "content": (
-                    "id\tyear\tsender\tcurator\n"
-                    "2475\t2004\t43\t8\n"
-                ),
+                "content": ("id\tyear\tsender\tcurator\n2475\t2004\t43\t8\n"),
             },
         )
     )
@@ -411,24 +406,15 @@ def test_normalize_newick_does_not_join_generated_union_node_ids() -> None:
             ancillary_data={
                 "format": "tsv",
                 "join_column": "id",
-                "content": (
-                    "id\tcountry\n"
-                    "A\tPortugal\n"
-                    "union_2\tSpain\n"
-                    "Root\tFrance\n"
-                ),
+                "content": ("id\tcountry\nA\tPortugal\nunion_2\tSpain\nRoot\tFrance\n"),
             },
         )
     )
 
     assert set(result.dataset.metadata_by_node_id) == {"a", "root"}
+    assert "Ancillary row 3 with id='union_2' did not match a node." in result.warnings
     assert (
-        "Ancillary row 3 with id='union_2' did not match a node."
-        in result.warnings
-    )
-    assert (
-        "Ancillary data did not include rows for 2 joinable nodes."
-        in result.warnings
+        "Ancillary data did not include rows for 2 joinable nodes." in result.warnings
     )
 
 

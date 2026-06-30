@@ -3,10 +3,6 @@ import logging
 from fastapi import HTTPException
 from pydantic import ValidationError
 
-from phylo_lens_server.clustering.selector import VisibleSliceSelectionError
-from phylo_lens_server.clustering.threshold_hierarchy import (
-    ThresholdHierarchyBuildError,
-)
 from phylo_lens_server.core.models import DomainValidationError
 from phylo_lens_server.data.parsers import ParseError
 
@@ -38,22 +34,6 @@ def pydantic_validation_error_to_http(exc: ValidationError) -> HTTPException:
     return HTTPException(
         status_code=STATUS_UNPROCESSABLE_ENTITY,
         detail={"errors": exc.errors()},
-    )
-
-
-def threshold_hierarchy_error_to_http(
-    exc: ThresholdHierarchyBuildError,
-) -> HTTPException:
-    return HTTPException(
-        status_code=STATUS_UNPROCESSABLE_ENTITY,
-        detail=str(exc),
-    )
-
-
-def visible_slice_error_to_http(exc: VisibleSliceSelectionError) -> HTTPException:
-    return HTTPException(
-        status_code=STATUS_BAD_REQUEST,
-        detail=str(exc),
     )
 
 

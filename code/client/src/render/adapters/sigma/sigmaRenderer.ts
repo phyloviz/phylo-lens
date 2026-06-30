@@ -1,6 +1,10 @@
 import Graph from "graphology";
 import Sigma from "sigma";
 
+import type {
+  GraphV2Client,
+  GraphV2ViewportResponse,
+} from "../../../api/graphV2Client";
 import type { PositionedGraph } from "../../../contracts/positioned";
 import { RENDERER_KIND_SIGMA } from "../../types";
 import type {
@@ -38,6 +42,7 @@ import {
   readCameraState,
   restoreCameraState,
 } from "./sigmaRendererCameraState";
+import { GraphViewerV2 } from "./GraphViewerV2";
 
 export {
   SIGMA_DEFAULT_CAMERA_ZOOM,
@@ -67,6 +72,7 @@ export class SigmaRenderer implements GraphRenderer {
   private rendererOptions: SigmaRendererOptions;
   private readonly dragController: SigmaDragController;
   private readonly forceMotion: ReturnType<typeof createSigmaForceMotion>;
+  private graphViewerV2: GraphViewerV2 | null = null;
   private viewChangeHandler: ((state: RenderViewportState) => void) | null =
     null;
   private nodeClickHandler: ((state: RenderNodeClickState) => void) | null =
@@ -128,6 +134,7 @@ export class SigmaRenderer implements GraphRenderer {
     }
 
     // Clear previous frame first so Sigma rebuilds never see stale piechart nodes.
+    this.stopGraphV2ViewportSync();
     this.forceMotion.stop();
     this.lastRenderedGraph = graph;
     this.graph.clear();
@@ -203,6 +210,7 @@ export class SigmaRenderer implements GraphRenderer {
 
   // Drop container and graph references when renderer is detached.
   unmount(): void {
+    this.stopGraphV2ViewportSync();
     this.forceMotion.stop();
     this.unbindSigmaHandlers();
     this.sigma?.kill();
@@ -216,6 +224,39 @@ export class SigmaRenderer implements GraphRenderer {
     this.lastRenderedGraph = null;
     this.selectedNodeId = null;
     this.dragController.reset();
+  }
+
+  startGraphV2ViewportSync(options: {
+    client: GraphV2Client;
+    datasetId: string;
+    layoutVersion?: string | null;
+    maxNodes?: number;
+    onViewportLoaded?: (response: GraphV2ViewportResponse) => void;
+    onError?: (error: unknown) => void;
+  }): void {
+    if (!this.graph || !this.sigma) {
+      throw new Error(ERR_SIGMA_NOT_READY);
+    }
+
+    this.forceMotion.stop();
+    this.graph.clear();
+    this.graphViewerV2?.unmount();
+    this.graphViewerV2 = new GraphViewerV2({
+      datasetId: options.datasetId,
+      layoutVersion: options.layoutVersion,
+      client: options.client,
+      graph: this.graph,
+      sigma: this.sigma,
+      maxNodes: options.maxNodes,
+      onViewportLoaded: options.onViewportLoaded,
+      onError: options.onError,
+    });
+    this.graphViewerV2.mount();
+  }
+
+  stopGraphV2ViewportSync(): void {
+    this.graphViewerV2?.unmount();
+    this.graphViewerV2 = null;
   }
 
   private suppressViewChangesFor(durationMs: number): void {

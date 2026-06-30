@@ -22,8 +22,6 @@ export function createInitialGraphWorkbenchState(): GraphWorkbenchState {
     graphRenderedHandler: null,
     nodeClickedHandler: null,
     suppressViewChangesUntil: 0,
-    expandedClusterIds: new Set(),
-    collapsedClusterIds: new Set(),
     renderMode: null,
   };
 }
@@ -43,8 +41,6 @@ export function resetWorkbenchForNewDataset(
   state.currentViewState = null;
   state.deferredViewState = null;
   state.lodRefreshPaused = false;
-  state.expandedClusterIds.clear();
-  state.collapsedClusterIds.clear();
   state.renderMode = null;
 }
 

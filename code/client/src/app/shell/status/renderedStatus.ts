@@ -13,10 +13,6 @@ export function buildRenderedStatus(graph: PositionedGraph): string {
     parts.push(`slice ${graph.viewMeta.sliceNodeCount} nodes`);
   }
 
-  if (typeof graph.viewMeta.collapsedClusterCount === "number") {
-    parts.push(`${graph.viewMeta.collapsedClusterCount} collapsed clusters`);
-  }
-
   if (typeof graph.viewMeta.zoom === "number") {
     parts.push(`LoD zoom ${graph.viewMeta.zoom.toFixed(2)}`);
   }

@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
-from phylo_lens_server.api.routes import router as dataset_router
+from phylo_lens_server.api.v2_graph import router as graph_v2_router
 
 APP_TITLE = "PhyloLens Server"
 APP_VERSION = "0.1.0"
@@ -42,7 +42,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(dataset_router)
+app.include_router(graph_v2_router)
 
 
 @app.get(ROUTE_HEALTH)

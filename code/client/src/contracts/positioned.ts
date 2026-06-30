@@ -40,7 +40,6 @@ export interface PositionedGraph {
     lodLevel: number;
     sliceNodeCount?: number;
     sliceEdgeCount?: number;
-    collapsedClusterCount?: number;
     zoom?: number;
     globalBounds?: PositionedGraphBounds;
   };

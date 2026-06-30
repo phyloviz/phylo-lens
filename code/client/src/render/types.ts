@@ -1,4 +1,8 @@
 import type { PositionedGraph } from "../contracts/positioned";
+import type {
+  GraphV2Client,
+  GraphV2ViewportResponse,
+} from "../api/graphV2Client";
 
 export const RENDERER_KIND_SIGMA = "sigma";
 export const RENDERER_KIND_MOCK = "mock";
@@ -50,6 +54,17 @@ export interface GraphRenderer {
   focusNode?: (nodeId: string | null) => void;
 
   updateDisplayOptions?: (options: GraphDisplayOptions) => void;
+
+  startGraphV2ViewportSync?: (options: {
+    client: GraphV2Client;
+    datasetId: string;
+    layoutVersion?: string | null;
+    maxNodes?: number;
+    onViewportLoaded?: (response: GraphV2ViewportResponse) => void;
+    onError?: (error: unknown) => void;
+  }) => void;
+
+  stopGraphV2ViewportSync?: () => void;
 }
 
 export interface RendererFactory {
