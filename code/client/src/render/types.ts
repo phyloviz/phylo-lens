@@ -3,6 +3,7 @@ import type {
   GraphV2Client,
   GraphV2ViewportResponse,
 } from "../api/graphV2Client";
+import type { ViewportSyncSettings } from "./adapters/sigma/graphViewerV2Sync";
 
 export const RENDERER_KIND_SIGMA = "sigma";
 export const RENDERER_KIND_MOCK = "mock";
@@ -62,9 +63,12 @@ export interface GraphRenderer {
     maxNodes?: number;
     onViewportLoaded?: (response: GraphV2ViewportResponse) => void;
     onError?: (error: unknown) => void;
+    getRenderSettings?: () => ViewportSyncSettings;
   }) => void;
 
   stopGraphV2ViewportSync?: () => void;
+
+  refreshGraphV2ViewportSync?: () => void;
 }
 
 export interface RendererFactory {

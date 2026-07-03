@@ -7,10 +7,7 @@ import {
   isRecord,
   isString,
 } from "../validation/guards";
-import {
-  SOURCE_FORMAT_EDGELIST,
-  SOURCE_FORMAT_NEWICK,
-} from "../contracts/models";
+import { SOURCE_FORMAT_NEWICK } from "../contracts/models";
 import { createHttpClient, type HttpClient } from "./httpClient";
 
 export const ROUTE_GRAPH_V2_PREPARE = "/api/v2/graph/prepare";
@@ -22,8 +19,15 @@ export const ERR_INVALID_GRAPH_V2_VIEWPORT_RESPONSE =
 
 export type GraphV2LayoutStatus = "pending" | "refining" | "ready" | "failed";
 
+export type GraphV2MetadataValue = string | number | boolean | null;
+
+export interface GraphV2MetadataField {
+  key: string;
+  type: string;
+}
+
 export interface NormalizeRequest {
-  format: typeof SOURCE_FORMAT_NEWICK | typeof SOURCE_FORMAT_EDGELIST;
+  format: typeof SOURCE_FORMAT_NEWICK;
   dataset_name: string;
   content: string;
   options?: {
@@ -72,6 +76,7 @@ export interface GraphV2ViewportNode {
   layout_status: GraphV2LayoutStatus;
   member_count: number;
   is_representative: boolean;
+  metadata?: Record<string, GraphV2MetadataValue> | null;
 }
 
 export interface GraphV2ViewportEdge {
@@ -91,6 +96,7 @@ export interface GraphV2ViewportResponse {
   total_node_count: number;
   nodes: GraphV2ViewportNode[];
   edges: GraphV2ViewportEdge[];
+  metadata_schema?: GraphV2MetadataField[];
 }
 
 export interface GraphV2ClientOptions {
@@ -181,7 +187,8 @@ export function isGraphV2ViewportResponse(
     isBoolean(value.truncated) &&
     isFiniteNumber(value.total_node_count) &&
     isArrayOf(value.nodes, isGraphV2ViewportNode) &&
-    isArrayOf(value.edges, isGraphV2ViewportEdge)
+    isArrayOf(value.edges, isGraphV2ViewportEdge) &&
+    isOptionalGraphV2MetadataSchema(value.metadata_schema)
   );
 }
 
@@ -194,8 +201,42 @@ function isGraphV2ViewportNode(value: unknown): value is GraphV2ViewportNode {
     isFiniteNumber(value.y) &&
     isGraphV2LayoutStatus(value.layout_status) &&
     isFiniteNumber(value.member_count) &&
-    isBoolean(value.is_representative)
+    isBoolean(value.is_representative) &&
+    isOptionalGraphV2Metadata(value.metadata)
   );
+}
+
+function isGraphV2MetadataValue(
+  value: unknown,
+): value is GraphV2MetadataValue {
+  return (
+    value === null ||
+    isString(value) ||
+    isBoolean(value) ||
+    isFiniteNumber(value)
+  );
+}
+
+function isOptionalGraphV2Metadata(
+  value: unknown,
+): value is Record<string, GraphV2MetadataValue> | null | undefined {
+  if (value === undefined || value === null) {
+    return true;
+  }
+
+  return isRecord(value) && Object.values(value).every(isGraphV2MetadataValue);
+}
+
+function isGraphV2MetadataField(
+  value: unknown,
+): value is GraphV2MetadataField {
+  return isRecord(value) && isString(value.key) && isString(value.type);
+}
+
+function isOptionalGraphV2MetadataSchema(
+  value: unknown,
+): value is GraphV2MetadataField[] | undefined {
+  return value === undefined || isArrayOf(value, isGraphV2MetadataField);
 }
 
 function isGraphV2ViewportEdge(value: unknown): value is GraphV2ViewportEdge {

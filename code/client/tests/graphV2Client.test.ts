@@ -63,6 +63,108 @@ describe("graphV2Client", () => {
     );
   });
 
+  it("accepts node metadata and a metadata schema", () => {
+    const withMetadata = {
+      ...VIEWPORT_FIXTURE,
+      metadata_schema: [
+        { key: "region", type: "string" },
+        { key: "distance", type: "number" },
+      ],
+      nodes: [
+        {
+          ...VIEWPORT_FIXTURE.nodes[0],
+          metadata: {
+            region: "eu",
+            distance: 3,
+            resistant: true,
+            missing: null,
+          },
+        },
+      ],
+    };
+
+    expect(isGraphV2ViewportResponse(withMetadata)).toBe(true);
+  });
+
+  it("treats absent node metadata and metadata schema as valid", () => {
+    // metadata omitted entirely, and explicit null, are both permitted.
+    expect(isGraphV2ViewportResponse(VIEWPORT_FIXTURE)).toBe(true);
+    expect(
+      isGraphV2ViewportResponse({
+        ...VIEWPORT_FIXTURE,
+        nodes: [{ ...VIEWPORT_FIXTURE.nodes[0], metadata: null }],
+      }),
+    ).toBe(true);
+  });
+
+  it("permits internal-key metadata to pass the guard untouched", () => {
+    // Internal aggregation keys are not stripped by the client guard; they are
+    // scalar values and downstream code filters them from public views.
+    const withInternalKeys = {
+      ...VIEWPORT_FIXTURE,
+      nodes: [
+        {
+          ...VIEWPORT_FIXTURE.nodes[0],
+          metadata: {
+            profile_count: 5,
+            "__category_count__region__value__eu": 3,
+            region: "eu",
+          },
+        },
+      ],
+    };
+
+    expect(isGraphV2ViewportResponse(withInternalKeys)).toBe(true);
+  });
+
+  it("rejects non-scalar node metadata values", () => {
+    const nestedObject = {
+      ...VIEWPORT_FIXTURE,
+      nodes: [
+        {
+          ...VIEWPORT_FIXTURE.nodes[0],
+          metadata: { region: { nested: "eu" } },
+        },
+      ],
+    };
+    const arrayValue = {
+      ...VIEWPORT_FIXTURE,
+      nodes: [
+        {
+          ...VIEWPORT_FIXTURE.nodes[0],
+          metadata: { regions: ["eu", "us"] },
+        },
+      ],
+    };
+    const nonFiniteNumber = {
+      ...VIEWPORT_FIXTURE,
+      nodes: [
+        {
+          ...VIEWPORT_FIXTURE.nodes[0],
+          metadata: { distance: Number.NaN },
+        },
+      ],
+    };
+
+    expect(isGraphV2ViewportResponse(nestedObject)).toBe(false);
+    expect(isGraphV2ViewportResponse(arrayValue)).toBe(false);
+    expect(isGraphV2ViewportResponse(nonFiniteNumber)).toBe(false);
+  });
+
+  it("rejects malformed metadata schema entries", () => {
+    const missingType = {
+      ...VIEWPORT_FIXTURE,
+      metadata_schema: [{ key: "region" }],
+    };
+    const notAnArray = {
+      ...VIEWPORT_FIXTURE,
+      metadata_schema: { region: "string" },
+    };
+
+    expect(isGraphV2ViewportResponse(missingType)).toBe(false);
+    expect(isGraphV2ViewportResponse(notAnArray)).toBe(false);
+  });
+
   it("posts prepare requests to the v2 endpoint", async () => {
     const fetchSpy = vi.fn(async (input: RequestInfo | URL) => {
       expect(String(input)).toBe(`${BASE_URL}${ROUTE_GRAPH_V2_PREPARE}`);

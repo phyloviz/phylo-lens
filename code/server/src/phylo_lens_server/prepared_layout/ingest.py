@@ -11,9 +11,22 @@ from phylo_lens_server.prepared_layout.models import (
     PreparedLayoutArtifacts,
 )
 
+# Upper bound on the number of distance thresholds (LoD tiers) we precompute per
+# dataset. Each threshold is a full connected-components pass, so this caps
+# ingest cost and the on-disk tier count; 16 spans overview→finest with room to
+# spare for the target progression below.
 MAX_CLUSTER_THRESHOLDS = 16
+# Floor for the coarsest ("overview") tier's representative count. Below this the
+# overview would collapse too much of the tree to stay legible on first paint, so
+# small graphs are floored here (bounded by their own node count).
 MIN_OVERVIEW_REPRESENTATIVES = 300
+# Ceiling for the overview representative count. Past ~800 nodes the initial
+# force layout stops reading as an overview and starts costing real render time,
+# so larger graphs are capped here regardless of node count.
 MAX_OVERVIEW_REPRESENTATIVES = 800
+# Overview size grows with sqrt(node_count) (area-proportional detail, not
+# linear) scaled by this factor. 7 places a 10k-node tree near the 700 mark,
+# comfortably inside the [300, 800] band above.
 SMALL_GRAPH_OVERVIEW_FACTOR = 7
 CLUSTER_ID_PREFIX = "distance_cluster"
 
@@ -131,6 +144,14 @@ def selected_distance_thresholds(
 
 
 def representative_targets(node_count: int, max_thresholds: int) -> tuple[int, ...]:
+    """Representative counts for the LoD tiers, coarse→fine.
+
+    Produces up to three anchor tiers — overview, a geometric-mean "medium", and
+    the full graph — then de-duplicates. The medium tier sits at the geometric
+    mean of overview and node_count so the jump from overview to full detail is
+    split evenly on a log scale (one zoom step never dumps the whole tree at
+    once). Empty when there is nothing to represent.
+    """
     if node_count <= 0 or max_thresholds <= 0:
         return ()
     if node_count <= MIN_OVERVIEW_REPRESENTATIVES:

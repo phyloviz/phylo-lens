@@ -17,7 +17,6 @@ class SourceFormat(StrEnum):
     """Supported dataset source families in the current server contract."""
 
     NEWICK = "newick"
-    EDGELIST = "edgelist"
     TYPING_DATA = "typing_data"
 
 

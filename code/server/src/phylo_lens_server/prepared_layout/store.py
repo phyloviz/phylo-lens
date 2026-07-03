@@ -1,11 +1,17 @@
 from __future__ import annotations
 
+from collections import Counter
+from dataclasses import replace
+import json
 from pathlib import Path
 import sqlite3
 
+from phylo_lens_server.core.metadata_keys import is_internal_metadata_key
 from phylo_lens_server.prepared_layout.models import (
     ClusterLayout,
     LayoutBounds,
+    LayoutStatus,
+    MetadataSchemaField,
     NodeLayoutPosition,
     PreparedLayoutArtifacts,
     PreparedEdge,
@@ -15,6 +21,64 @@ from phylo_lens_server.prepared_layout.models import (
 )
 
 DEFAULT_DB_NAME = "prepared_layout.sqlite3"
+
+MetadataValue = str | float | bool | None
+MetadataMap = dict[str, MetadataValue]
+
+
+def aggregate_layout_status(statuses: set[LayoutStatus]) -> LayoutStatus:
+    """Collapse per-row layout statuses into one status for a viewport.
+
+    Precedence keeps degraded layouts honest: a failed row wins, then a
+    ``"degraded"`` (circular-fallback) row, so a fallback layout never surfaces
+    as ``"ready"``. A viewport is ``"ready"`` only when every row is ready; a
+    non-empty mix is ``"refining"``; an empty set is ``"pending"``.
+    """
+    if not statuses:
+        return "pending"
+    if "failed" in statuses:
+        return "failed"
+    if "degraded" in statuses:
+        return "degraded"
+    if statuses == {"ready"}:
+        return "ready"
+    return "refining"
+
+
+def aggregate_cluster_metadata(
+    member_metadata: list[MetadataMap],
+    schema: tuple[tuple[str, str], ...],
+) -> MetadataMap:
+    """Reduce member metadata to one value per field for a cluster representative.
+
+    Numeric fields use the mean of non-null values; every other field type uses
+    the most common non-null value with a deterministic alphabetical tie-break.
+    """
+    aggregate: MetadataMap = {}
+    for key, field_type in schema:
+        values = [
+            metadata[key]
+            for metadata in member_metadata
+            if metadata.get(key) is not None
+        ]
+        if not values:
+            continue
+        if field_type == "number":
+            numeric = [
+                value
+                for value in values
+                if isinstance(value, (int, float)) and not isinstance(value, bool)
+            ]
+            if numeric:
+                aggregate[key] = sum(numeric) / len(numeric)
+            continue
+        counts = Counter(values)
+        best_count = max(counts.values())
+        aggregate[key] = min(
+            (value for value, count in counts.items() if count == best_count),
+            key=str,
+        )
+    return aggregate
 
 
 def optional_node_bounds_filter(
@@ -79,6 +143,9 @@ class PreparedLayoutStore:
                 "prepared_clusters",
                 "datasets",
                 "cluster_edges",
+                "node_metadata",
+                "cluster_metadata",
+                "metadata_schema",
             ):
                 if not self._table_exists(connection, table):
                     continue
@@ -167,6 +234,88 @@ class PreparedLayoutStore:
                     for edge in artifacts.dataset.edges
                 ],
             )
+            self._persist_metadata(connection, artifacts)
+
+    def _persist_metadata(
+        self,
+        connection: sqlite3.Connection,
+        artifacts: PreparedLayoutArtifacts,
+    ) -> None:
+        dataset_id = artifacts.dataset.dataset_id
+        layout_version = artifacts.layout_version
+        public_fields = tuple(
+            (field.key, str(field.type))
+            for field in artifacts.dataset.metadata_schema
+            if not is_internal_metadata_key(field.key)
+        )
+        public_keys = {key for key, _ in public_fields}
+
+        connection.executemany(
+            """
+            insert into metadata_schema(
+                dataset_id, layout_version, field_key, field_type
+            )
+            values (?, ?, ?, ?)
+            on conflict(dataset_id, layout_version, field_key) do update set
+                field_type = excluded.field_type
+            """,
+            [
+                (dataset_id, layout_version, key, field_type)
+                for key, field_type in public_fields
+            ],
+        )
+
+        metadata_by_node = artifacts.dataset.metadata_by_node_id
+        public_metadata_by_node = {
+            node_id: {
+                key: value
+                for key, value in metadata.items()
+                if key in public_keys
+            }
+            for node_id, metadata in metadata_by_node.items()
+        }
+        connection.executemany(
+            """
+            insert into node_metadata(
+                dataset_id, layout_version, node_id, metadata_json
+            )
+            values (?, ?, ?, ?)
+            on conflict(dataset_id, layout_version, node_id) do update set
+                metadata_json = excluded.metadata_json
+            """,
+            [
+                (dataset_id, layout_version, node_id, json.dumps(metadata))
+                for node_id, metadata in public_metadata_by_node.items()
+            ],
+        )
+
+        connection.executemany(
+            """
+            insert into cluster_metadata(
+                dataset_id, layout_version, cluster_id, metadata_json
+            )
+            values (?, ?, ?, ?)
+            on conflict(dataset_id, layout_version, cluster_id) do update set
+                metadata_json = excluded.metadata_json
+            """,
+            [
+                (
+                    dataset_id,
+                    layout_version,
+                    cluster.cluster_id,
+                    json.dumps(
+                        aggregate_cluster_metadata(
+                            [
+                                public_metadata_by_node.get(node_id, {})
+                                for node_id in cluster.member_node_ids
+                            ],
+                            public_fields,
+                        )
+                    ),
+                )
+                for cluster in artifacts.clusters
+            ],
+        )
 
     def save_layouts(
         self,
@@ -216,15 +365,13 @@ class PreparedLayoutStore:
                 """
                 insert into node_positions(
                     dataset_id, layout_version, cluster_id, node_id,
-                    x, y, lod_min, lod_max, status
+                    x, y, status
                 )
-                values (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                values (?, ?, ?, ?, ?, ?, ?)
                 on conflict(dataset_id, layout_version, cluster_id, node_id)
                 do update set
                     x = excluded.x,
                     y = excluded.y,
-                    lod_min = excluded.lod_min,
-                    lod_max = excluded.lod_max,
                     status = excluded.status
                 """,
                 [
@@ -235,8 +382,6 @@ class PreparedLayoutStore:
                         position.node_id,
                         position.x,
                         position.y,
-                        position.lod_min,
-                        position.lod_max,
                         position.status,
                     )
                     for position in node_positions
@@ -249,7 +394,7 @@ class PreparedLayoutStore:
                     update datasets set status = ?
                     where dataset_id = ? and layout_version = ?
                     """,
-                    ("ready", first.dataset_id, first.layout_version),
+                    (first.status, first.dataset_id, first.layout_version),
                 )
 
     def save_prepared_edges(self, prepared_edges: tuple[PreparedEdge, ...]) -> None:
@@ -337,7 +482,7 @@ class PreparedLayoutStore:
         with self._connect() as connection:
             rows = connection.execute(
                 """
-                select cluster_id, node_id, x, y, lod_min, lod_max, status
+                select cluster_id, node_id, x, y, status
                 from node_positions
                 where dataset_id = ? and layout_version = ?
                 order by cluster_id, node_id
@@ -353,8 +498,6 @@ class PreparedLayoutStore:
                 node_id=row["node_id"],
                 x=row["x"],
                 y=row["y"],
-                lod_min=row["lod_min"],
-                lod_max=row["lod_max"],
                 status=row["status"],
             )
             for row in rows
@@ -387,6 +530,20 @@ class PreparedLayoutStore:
         lod_level: int | None = None,
         cluster_id: str | None = None,
     ) -> ViewportReadResult:
+        """Read one viewport, choosing among four mutually exclusive read paths.
+
+        1. ``cluster_id`` set: expand a single cluster into its member nodes.
+        2. ``lod_level == 0`` with no bounds: the coarse overview, which reads
+           cluster representatives for the coarsest threshold (or falls back to
+           distinct node positions when the tree resolves to one cluster).
+        3. no threshold for this level: individual "ready" nodes within bounds.
+        4. otherwise: cluster representatives for the level's threshold, within
+           bounds.
+
+        Bounds filtering applies to the representative and ready-node paths; the
+        cluster-expansion path (1) intentionally ignores bounds so an opened
+        cluster always returns all of its members.
+        """
         with self._connect() as connection:
             if cluster_id:
                 nodes, total_node_count = self._read_cluster_member_nodes(
@@ -402,22 +559,28 @@ class PreparedLayoutStore:
                     layout_version=layout_version,
                     node_ids={node.node_id for node in nodes},
                 )
-                statuses = {node.layout_status for node in nodes}
-                layout_status = (
-                    "ready"
-                    if statuses == {"ready"}
-                    else "refining"
-                    if statuses
-                    else "pending"
+                layout_status = aggregate_layout_status(
+                    {node.layout_status for node in nodes}
+                )
+                enriched = self._attach_node_metadata(
+                    connection,
+                    dataset_id=dataset_id,
+                    layout_version=layout_version,
+                    nodes=tuple(nodes),
                 )
                 return ViewportReadResult(
                     dataset_id=dataset_id,
                     layout_version=layout_version,
-                    nodes=tuple(nodes),
+                    nodes=enriched,
                     edges=tuple(edges),
                     total_node_count=total_node_count,
-                    truncated=total_node_count > len(nodes),
+                    truncated=total_node_count > len(enriched),
                     layout_status=layout_status,
+                    metadata_schema=self._load_metadata_schema(
+                        connection,
+                        dataset_id=dataset_id,
+                        layout_version=layout_version,
+                    ),
                 )
 
             threshold = self._threshold_for_lod_level(
@@ -484,9 +647,20 @@ class PreparedLayoutStore:
                     node_ids={node.node_id for node in nodes},
                 )
 
-        statuses = {node.layout_status for node in nodes}
-        layout_status = (
-            "ready" if statuses == {"ready"} else "refining" if statuses else "pending"
+            nodes = self._attach_node_metadata(
+                connection,
+                dataset_id=dataset_id,
+                layout_version=layout_version,
+                nodes=nodes,
+            )
+            metadata_schema = self._load_metadata_schema(
+                connection,
+                dataset_id=dataset_id,
+                layout_version=layout_version,
+            )
+
+        layout_status = aggregate_layout_status(
+            {node.layout_status for node in nodes}
         )
         return ViewportReadResult(
             dataset_id=dataset_id,
@@ -496,6 +670,91 @@ class PreparedLayoutStore:
             total_node_count=total_node_count,
             truncated=total_node_count > len(nodes),
             layout_status=layout_status,
+            metadata_schema=metadata_schema,
+        )
+
+    def _attach_node_metadata(
+        self,
+        connection: sqlite3.Connection,
+        *,
+        dataset_id: str,
+        layout_version: str,
+        nodes: tuple[ViewportNode, ...],
+    ) -> tuple[ViewportNode, ...]:
+        if not nodes:
+            return nodes
+        node_ids = {node.node_id for node in nodes if not node.is_representative}
+        cluster_ids = {node.cluster_id for node in nodes if node.is_representative}
+        node_metadata = self._load_metadata_rows(
+            connection,
+            table="node_metadata",
+            key_column="node_id",
+            dataset_id=dataset_id,
+            layout_version=layout_version,
+            keys=node_ids,
+        )
+        cluster_metadata = self._load_metadata_rows(
+            connection,
+            table="cluster_metadata",
+            key_column="cluster_id",
+            dataset_id=dataset_id,
+            layout_version=layout_version,
+            keys=cluster_ids,
+        )
+        enriched: list[ViewportNode] = []
+        for node in nodes:
+            metadata = (
+                cluster_metadata.get(node.cluster_id)
+                if node.is_representative
+                else node_metadata.get(node.node_id)
+            )
+            enriched.append(replace(node, metadata=metadata) if metadata else node)
+        return tuple(enriched)
+
+    def _load_metadata_rows(
+        self,
+        connection: sqlite3.Connection,
+        *,
+        table: str,
+        key_column: str,
+        dataset_id: str,
+        layout_version: str,
+        keys: set[str],
+    ) -> dict[str, MetadataMap]:
+        if not keys:
+            return {}
+        placeholders = ",".join("?" for _ in keys)
+        rows = connection.execute(
+            f"""
+            select {key_column} as row_key, metadata_json
+            from {table}
+            where dataset_id = ?
+              and layout_version = ?
+              and {key_column} in ({placeholders})
+            """,
+            (dataset_id, layout_version, *sorted(keys)),
+        ).fetchall()
+        return {row["row_key"]: json.loads(row["metadata_json"]) for row in rows}
+
+    def _load_metadata_schema(
+        self,
+        connection: sqlite3.Connection,
+        *,
+        dataset_id: str,
+        layout_version: str,
+    ) -> tuple[MetadataSchemaField, ...]:
+        rows = connection.execute(
+            """
+            select field_key, field_type
+            from metadata_schema
+            where dataset_id = ? and layout_version = ?
+            order by field_key
+            """,
+            (dataset_id, layout_version),
+        ).fetchall()
+        return tuple(
+            MetadataSchemaField(key=row["field_key"], type=row["field_type"])
+            for row in rows
         )
 
     def _read_lod_zero_without_bounds(
@@ -713,8 +972,6 @@ class PreparedLayoutStore:
                 from node_positions
                 where dataset_id = ?
                   and layout_version = ?
-                  and lod_min <= 0
-                  and lod_max >= 0
                 group by node_id, x, y
             )
             order by node_id
@@ -986,10 +1243,32 @@ class PreparedLayoutStore:
                     node_id text not null,
                     x real not null,
                     y real not null,
-                    lod_min integer not null,
-                    lod_max integer not null,
                     status text not null,
                     primary key(dataset_id, layout_version, cluster_id, node_id)
+                );
+
+                create table if not exists node_metadata(
+                    dataset_id text not null,
+                    layout_version text not null,
+                    node_id text not null,
+                    metadata_json text not null,
+                    primary key(dataset_id, layout_version, node_id)
+                );
+
+                create table if not exists cluster_metadata(
+                    dataset_id text not null,
+                    layout_version text not null,
+                    cluster_id text not null,
+                    metadata_json text not null,
+                    primary key(dataset_id, layout_version, cluster_id)
+                );
+
+                create table if not exists metadata_schema(
+                    dataset_id text not null,
+                    layout_version text not null,
+                    field_key text not null,
+                    field_type text not null,
+                    primary key(dataset_id, layout_version, field_key)
                 );
 
                 create index if not exists idx_node_positions_xy

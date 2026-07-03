@@ -1,5 +1,4 @@
 export const SOURCE_FORMAT_NEWICK = "newick";
-export const SOURCE_FORMAT_EDGELIST = "edgelist";
 export const SOURCE_FORMAT_TYPING_DATA = "typing_data";
 
 export const METADATA_TYPE_STRING = "string";
@@ -9,7 +8,6 @@ export const METADATA_TYPE_NULL = "null";
 
 export type SourceFormat =
   | typeof SOURCE_FORMAT_NEWICK
-  | typeof SOURCE_FORMAT_EDGELIST
   | typeof SOURCE_FORMAT_TYPING_DATA;
 
 export type MetadataType =

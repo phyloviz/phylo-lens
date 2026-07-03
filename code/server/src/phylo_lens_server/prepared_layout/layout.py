@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from math import cos, hypot, pi, sin
 from random import Random
 import shlex
@@ -11,9 +12,12 @@ from phylo_lens_server.core.models import CanonicalDataset, CanonicalEdge
 from phylo_lens_server.prepared_layout.models import (
     ClusterLayout,
     LayoutBounds,
+    LayoutStatus,
     NodeLayoutPosition,
     PreparedLayoutArtifacts,
 )
+
+logger = logging.getLogger(__name__)
 
 LAYOUT_RANDOM_SEED = 23
 GLOBAL_TARGET_EDGE_LENGTH = 85.0
@@ -28,7 +32,7 @@ def compute_prepared_layouts(
     artifacts: PreparedLayoutArtifacts,
 ) -> tuple[tuple[ClusterLayout, ...], tuple[NodeLayoutPosition, ...]]:
     """Materialize every LOD as a projection of one Graphviz global layout."""
-    global_positions = compute_global_node_positions(artifacts.dataset)
+    global_positions, layout_status = compute_global_node_positions(artifacts.dataset)
 
     cluster_layouts: list[ClusterLayout] = []
     node_positions: list[NodeLayoutPosition] = []
@@ -51,7 +55,7 @@ def compute_prepared_layouts(
                 y=representative_position[1],
                 radius=cluster_radius(member_positions, representative_position),
                 bounds=bounds,
-                status="ready",
+                status=layout_status,
             )
         )
         node_positions.extend(
@@ -62,9 +66,7 @@ def compute_prepared_layouts(
                 node_id=node_id,
                 x=position[0],
                 y=position[1],
-                lod_min=0,
-                lod_max=999,
-                status="ready",
+                status=layout_status,
             )
             for node_id, position in sorted(member_positions.items())
         )
@@ -74,22 +76,33 @@ def compute_prepared_layouts(
 
 def compute_global_node_positions(
     dataset: CanonicalDataset,
-) -> dict[str, tuple[float, float]]:
+) -> tuple[dict[str, tuple[float, float]], LayoutStatus]:
+    """Return the global node layout and a status describing how it was produced.
+
+    A force-directed layout from Graphviz is reported as ``"ready"``. When the
+    ``sfdp`` binary is missing or fails, positions come from a circular fallback
+    that ignores tree topology, so the layout is reported as ``"degraded"`` to
+    keep it distinguishable from a real layout downstream. Trivial graphs (zero
+    or one node) need no force layout and are reported as ``"ready"``.
+    """
     node_ids = tuple(sorted(node.id for node in dataset.nodes))
     if not node_ids:
-        return {}
+        return {}, "ready"
     if len(node_ids) == 1:
-        return {node_ids[0]: (0.0, 0.0)}
+        return {node_ids[0]: (0.0, 0.0)}, "ready"
 
     graphviz_positions = graphviz_sfdp_positions(node_ids, tuple(dataset.edges))
     if graphviz_positions is not None:
-        return normalize_global_positions(
-            graphviz_positions,
-            edge_indices(node_ids, dataset.edges),
-            GLOBAL_TARGET_EDGE_LENGTH,
+        return (
+            normalize_global_positions(
+                graphviz_positions,
+                edge_indices(node_ids, dataset.edges),
+                GLOBAL_TARGET_EDGE_LENGTH,
+            ),
+            "ready",
         )
 
-    return jittered_positions(node_ids, GLOBAL_TARGET_EDGE_LENGTH)
+    return jittered_positions(node_ids, GLOBAL_TARGET_EDGE_LENGTH), "degraded"
 
 
 def graphviz_sfdp_positions(
@@ -97,6 +110,11 @@ def graphviz_sfdp_positions(
     edges: tuple[CanonicalEdge, ...],
 ) -> dict[str, tuple[float, float]] | None:
     if shutil.which(GRAPHVIZ_SFDP_COMMAND) is None:
+        logger.warning(
+            "Graphviz '%s' not found on PATH; falling back to a circular layout. "
+            "Install Graphviz to enable force-directed layouts.",
+            GRAPHVIZ_SFDP_COMMAND,
+        )
         return None
 
     payload = graphviz_dot_payload(node_ids, edges)
@@ -109,11 +127,23 @@ def graphviz_sfdp_positions(
             check=True,
             timeout=GRAPHVIZ_LAYOUT_TIMEOUT_SECONDS,
         )
-    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
+    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:
+        logger.warning(
+            "Graphviz '%s' layout failed (%s); falling back to a circular layout.",
+            GRAPHVIZ_SFDP_COMMAND,
+            type(error).__name__,
+        )
         return None
 
     positions = parse_graphviz_plain_positions(completed.stdout)
     if set(positions) != set(node_ids):
+        logger.warning(
+            "Graphviz '%s' returned positions for %d of %d nodes; "
+            "falling back to a circular layout.",
+            GRAPHVIZ_SFDP_COMMAND,
+            len(positions),
+            len(node_ids),
+        )
         return None
     return positions
 

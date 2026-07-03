@@ -87,6 +87,45 @@ export function addPositionedNode(
   });
 }
 
+// Flip synced nodes to the piechart node type once the piechart program for
+// `sliceKeys` has been registered. Mirrors addPositionedNode's pie handling for
+// the LoD sync path, where attributes are written directly to graphology and
+// nodes cannot be re-added through addPositionedNode. Ensures every displayed
+// slice key (plus the aggregated Others bucket) is present on each pie node so
+// the @sigma/node-piechart program can read them.
+export function applyPieChartNodeTypes(
+  graph: Graph,
+  sliceKeys: readonly string[],
+): void {
+  if (sliceKeys.length === 0) {
+    return;
+  }
+
+  const displayedPieKeys = new Set(
+    sliceKeys.filter((key) => key !== PIE_OTHER_SLICE_KEY),
+  );
+  graph.forEachNode((nodeId, rawAttributes) => {
+    const attributes = rawAttributes as Record<string, unknown>;
+    const isUnionNode = isPhyloVizUnionNode(nodeId, attributes);
+    let hasPieData = false;
+    sliceKeys.forEach((key) => {
+      const value = isUnionNode
+        ? 0
+        : key === PIE_OTHER_SLICE_KEY
+          ? deriveOtherPieValue(attributes, displayedPieKeys)
+          : toPositiveNumber(attributes[key]);
+      graph.setNodeAttribute(nodeId, key, value);
+      if (value > 0) {
+        hasPieData = true;
+      }
+    });
+
+    if (!isUnionNode && hasPieData) {
+      graph.setNodeAttribute(nodeId, "type", SIGMA_NODE_TYPE_PIECHART);
+    }
+  });
+}
+
 function deriveOtherPieValue(
   attributes: Record<string, unknown> | undefined,
   displayedPieKeys: Set<string>,

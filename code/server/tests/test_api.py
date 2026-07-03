@@ -1,11 +1,17 @@
+import shutil
+
 import pytest
 from fastapi.testclient import TestClient
 
 from phylo_lens_server.api.v2_graph import get_prepared_layout_store
 from phylo_lens_server.main import app
+from phylo_lens_server.prepared_layout.layout import GRAPHVIZ_SFDP_COMMAND
 from phylo_lens_server.prepared_layout.store import PreparedLayoutStore
 from phylo_lens_server.prepared_layout.worker import PreparedLayoutWorker
 from phylo_lens_server.data.normalizer import NormalizeRequest, normalize_dataset
+
+SFDP_AVAILABLE = shutil.which(GRAPHVIZ_SFDP_COMMAND) is not None
+EXPECTED_LAYOUT_STATUS = "ready" if SFDP_AVAILABLE else "degraded"
 
 ROUTE_HEALTH = "/health"
 ROUTE_GRAPH_V2_PREPARE = "/api/v2/graph/prepare"
@@ -16,8 +22,8 @@ STATUS_NOT_FOUND = 404
 
 DATASET_API_TREE = "api-tree"
 DATASET_UNKNOWN = "missing-tree"
-FORMAT_EDGELIST = "edgelist"
-WEIGHTED_TREE_CONTENT = "source,target,distance\na,b,1\nb,c,2\nc,d,4\n"
+FORMAT_NEWICK = "newick"
+WEIGHTED_TREE_CONTENT = "(((d:4)c:2)b:1)a;"
 
 
 @pytest.fixture
@@ -47,7 +53,7 @@ def test_graph_v2_prepare_materializes_layout_for_viewport_reads(client) -> None
     prepare_response = client.post(
         ROUTE_GRAPH_V2_PREPARE,
         json={
-            "format": FORMAT_EDGELIST,
+            "format": FORMAT_NEWICK,
             "dataset_name": DATASET_API_TREE,
             "content": WEIGHTED_TREE_CONTENT,
         },
@@ -57,7 +63,7 @@ def test_graph_v2_prepare_materializes_layout_for_viewport_reads(client) -> None
     assert prepare_response.status_code == STATUS_OK
     assert prepare_body["dataset_id"] == DATASET_API_TREE
     assert prepare_body["layout_version"]
-    assert prepare_body["layout_status"] == "ready"
+    assert prepare_body["layout_status"] == EXPECTED_LAYOUT_STATUS
 
     viewport_response = client.post(
         ROUTE_GRAPH_V2_VIEWPORT,
@@ -72,6 +78,29 @@ def test_graph_v2_prepare_materializes_layout_for_viewport_reads(client) -> None
 
     assert viewport_response.status_code == STATUS_OK
     assert {node["id"] for node in viewport_body["nodes"]} >= {"a", "b", "c", "d"}
+
+
+def test_graph_v2_prepare_reports_degraded_status_when_sfdp_is_missing(
+    client, monkeypatch
+) -> None:
+    monkeypatch.setattr(
+        "phylo_lens_server.prepared_layout.layout.shutil.which",
+        lambda command: None,
+    )
+
+    prepare_response = client.post(
+        ROUTE_GRAPH_V2_PREPARE,
+        json={
+            "format": FORMAT_NEWICK,
+            "dataset_name": DATASET_API_TREE,
+            "content": WEIGHTED_TREE_CONTENT,
+        },
+    )
+    prepare_body = prepare_response.json()
+
+    assert prepare_response.status_code == STATUS_OK
+    assert prepare_body["layout_status"] == "degraded"
+    assert any("sfdp" in warning for warning in prepare_body["warnings"])
 
 
 def test_graph_v2_viewport_lod_zero_without_bounds_falls_back_from_single_cluster(
@@ -96,7 +125,7 @@ def test_graph_v2_viewport_lod_zero_without_bounds_falls_back_from_single_cluste
 
     assert response.status_code == STATUS_OK
     assert body["lod_level"] == 0
-    assert body["layout_status"] == "ready"
+    assert body["layout_status"] == EXPECTED_LAYOUT_STATUS
     assert body["total_node_count"] == 10
     assert len(body["nodes"]) == 10
     assert len(body["edges"]) == 9
@@ -240,7 +269,7 @@ def test_graph_v2_viewport_rejects_unknown_prepared_layout(client) -> None:
 def normalize_weighted_api_tree():
     normalized = normalize_dataset(
         NormalizeRequest(
-            format=FORMAT_EDGELIST,
+            format=FORMAT_NEWICK,
             dataset_name=DATASET_API_TREE,
             content=WEIGHTED_TREE_CONTENT,
         )
@@ -267,12 +296,13 @@ def normalize_weighted_api_tree():
 
 
 def normalize_unit_distance_chain():
-    content = "source,target,distance\n" + "\n".join(
-        f"n{index},n{index + 1},1" for index in range(9)
-    )
+    content = "n9"
+    for index in range(8, -1, -1):
+        content = f"({content}:1)n{index}"
+    content = f"{content};"
     normalized = normalize_dataset(
         NormalizeRequest(
-            format=FORMAT_EDGELIST,
+            format=FORMAT_NEWICK,
             dataset_name=DATASET_API_TREE,
             content=content,
         )
@@ -293,12 +323,13 @@ def normalize_unit_distance_chain():
 
 
 def large_clustered_tree():
-    content = "source,target,distance\n" + "\n".join(
-        f"n{index},n{index + 1},{(index % 7) + 1}" for index in range(999)
-    )
+    content = "n999"
+    for index in range(998, -1, -1):
+        content = f"({content}:{(index % 7) + 1})n{index}"
+    content = f"{content};"
     normalized = normalize_dataset(
         NormalizeRequest(
-            format=FORMAT_EDGELIST,
+            format=FORMAT_NEWICK,
             dataset_name="large-clustered-tree",
             content=content,
         )

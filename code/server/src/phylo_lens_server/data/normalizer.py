@@ -27,7 +27,6 @@ from phylo_lens_server.core.metadata_keys import (
 from phylo_lens_server.core.validators import validate_canonical_dataset
 from phylo_lens_server.data.parsers import (
     ParseError,
-    parse_edgelist,
     parse_newick,
     slugify_label,
 )
@@ -37,7 +36,6 @@ class NormalizeFormat(StrEnum):
     """Supported input formats for dataset normalization requests."""
 
     NEWICK = "newick"
-    EDGELIST = "edgelist"
     # TYPING_DATA = "typing_data"
 
 
@@ -128,8 +126,6 @@ def normalize_dataset(
     match request.format:
         case NormalizeFormat.NEWICK:
             parsed = parse_newick(request.content)
-        case NormalizeFormat.EDGELIST:
-            parsed = parse_edgelist(request.content)
 
         # If a invalid format is provided, raise a ParseError which will be handled by the caller to return a 400 response.
         case _:

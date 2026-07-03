@@ -1,4 +1,12 @@
-from phylo_lens_server.core.models import CanonicalDataset
+import shutil
+
+import pytest
+
+from phylo_lens_server.core.models import (
+    CanonicalDataset,
+    MetadataField,
+    MetadataType,
+)
 from phylo_lens_server.data.normalizer import NormalizeRequest, normalize_dataset
 from phylo_lens_server.prepared_layout.ingest import (
     PreparedLayoutIngestError,
@@ -8,24 +16,31 @@ from phylo_lens_server.prepared_layout.ingest import (
 )
 from phylo_lens_server.prepared_layout.layout import (
     GLOBAL_TARGET_EDGE_LENGTH,
+    GRAPHVIZ_SFDP_COMMAND,
     compute_prepared_layouts,
     parse_graphviz_plain_positions,
 )
-from phylo_lens_server.prepared_layout.store import PreparedLayoutStore
+
+SFDP_AVAILABLE = shutil.which(GRAPHVIZ_SFDP_COMMAND) is not None
+EXPECTED_LAYOUT_STATUS = "ready" if SFDP_AVAILABLE else "degraded"
+from phylo_lens_server.prepared_layout.store import (
+    PreparedLayoutStore,
+    aggregate_cluster_metadata,
+)
 from phylo_lens_server.prepared_layout.worker import (
     PreparedLayoutWorker,
     compute_prepared_edges,
 )
 
-FORMAT_EDGELIST = "edgelist"
+FORMAT_NEWICK = "newick"
 DATASET_ID = "prepared-layout-tree"
-WEIGHTED_TREE = "source,target,distance\na,b,1\nb,c,1\nc,d,3\nc,e,4\n"
+WEIGHTED_TREE = "(((d:3,e:4)c:1)b:1)a;"
 
 
 def _dataset() -> CanonicalDataset:
     result = normalize_dataset(
         NormalizeRequest(
-            format=FORMAT_EDGELIST,
+            format=FORMAT_NEWICK,
             dataset_name=DATASET_ID,
             content=WEIGHTED_TREE,
         )
@@ -50,12 +65,13 @@ def _dataset() -> CanonicalDataset:
 
 
 def _varied_chain_dataset(node_count: int) -> CanonicalDataset:
-    content = "source,target,distance\n" + "\n".join(
-        f"n{index},n{index + 1},{index + 1}" for index in range(node_count - 1)
-    )
+    content = f"n{node_count - 1}"
+    for index in range(node_count - 2, -1, -1):
+        content = f"({content}:{index + 1})n{index}"
+    content = f"{content};"
     result = normalize_dataset(
         NormalizeRequest(
-            format=FORMAT_EDGELIST,
+            format=FORMAT_NEWICK,
             dataset_name=f"chain-{node_count}",
             content=content,
         )
@@ -76,18 +92,18 @@ def _varied_chain_dataset(node_count: int) -> CanonicalDataset:
 
 
 def _branching_dataset() -> CanonicalDataset:
-    rows = ["source,target,distance"]
+    branches = []
     for branch in range(6):
-        previous = "root"
-        for depth in range(1, 8):
-            node_id = f"b{branch}_{depth}"
-            rows.append(f"{previous},{node_id},{depth}")
-            previous = node_id
+        chain = f"b{branch}_7"
+        for depth in range(6, 0, -1):
+            chain = f"({chain}:{depth + 1})b{branch}_{depth}"
+        branches.append(f"{chain}:1")
+    content = f"({','.join(branches)})root;"
     result = normalize_dataset(
         NormalizeRequest(
-            format=FORMAT_EDGELIST,
+            format=FORMAT_NEWICK,
             dataset_name="branching-tree",
-            content="\n".join(rows),
+            content=content,
         )
     )
     return result.dataset
@@ -143,6 +159,14 @@ def test_prepare_layout_artifacts_materializes_singletons_at_each_lod() -> None:
     )
 
 
+@pytest.mark.skipif(
+    not SFDP_AVAILABLE,
+    reason=(
+        "Force-directed spread requires the Graphviz 'sfdp' binary; without it "
+        "the layout falls back to a circular arrangement that cannot satisfy the "
+        "spread assertions."
+    ),
+)
 def test_open_force_tree_layout_spreads_branching_tree_on_both_axes() -> None:
     dataset = _branching_dataset()
     artifacts = prepare_layout_artifacts(dataset)
@@ -157,6 +181,21 @@ def test_open_force_tree_layout_spreads_branching_tree_on_both_axes() -> None:
     assert y_span > 0
     assert min(x_span, y_span) > max(x_span, y_span) * 0.2
     assert max(x_span, y_span) > GLOBAL_TARGET_EDGE_LENGTH * 10
+
+
+def test_layout_reports_degraded_status_when_sfdp_is_missing(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "phylo_lens_server.prepared_layout.layout.shutil.which",
+        lambda command: None,
+    )
+
+    artifacts = prepare_layout_artifacts(_dataset())
+    cluster_layouts, node_positions = compute_prepared_layouts(artifacts)
+
+    assert cluster_layouts
+    assert node_positions
+    assert all(layout.status == "degraded" for layout in cluster_layouts)
+    assert all(position.status == "degraded" for position in node_positions)
 
 
 def test_tree_layout_scales_to_large_chains_quickly() -> None:
@@ -230,8 +269,10 @@ def test_prepared_layout_worker_persists_ready_cluster_and_node_positions(
 
     assert cluster_layouts
     assert node_positions
-    assert all(layout.status == "ready" for layout in cluster_layouts)
-    assert all(position.status == "ready" for position in node_positions)
+    assert all(layout.status == EXPECTED_LAYOUT_STATUS for layout in cluster_layouts)
+    assert all(
+        position.status == EXPECTED_LAYOUT_STATUS for position in node_positions
+    )
     assert result.prepared_edges
     assert {position.node_id for position in node_positions} >= {
         "a",
@@ -283,12 +324,168 @@ def test_prepared_layout_worker_can_run_on_background_thread(tmp_path) -> None:
     assert store.load_node_positions(DATASET_ID, result.artifacts.layout_version)
 
 
+INTERNAL_COUNT_KEY = "__category_count__region__value__north"
+
+
+def _dataset_with_metadata() -> CanonicalDataset:
+    dataset = _dataset()
+    metadata_by_node_id = {
+        "a": {"region": "north", "score": 10, "flag": True, INTERNAL_COUNT_KEY: 2},
+        "b": {"region": "north", "score": 20, "flag": True, INTERNAL_COUNT_KEY: 2},
+        "c": {"region": "south", "score": 30, "flag": False, INTERNAL_COUNT_KEY: 2},
+        "d": {"region": "south", "score": 5, "flag": False, INTERNAL_COUNT_KEY: 2},
+        "e": {"region": "east", "score": 15, "flag": True, INTERNAL_COUNT_KEY: 2},
+    }
+    return dataset.model_copy(
+        update={
+            "metadata_schema": [
+                MetadataField(key="region", type=MetadataType.STRING),
+                MetadataField(key="score", type=MetadataType.NUMBER),
+                MetadataField(key="flag", type=MetadataType.BOOLEAN),
+                MetadataField(key=INTERNAL_COUNT_KEY, type=MetadataType.NUMBER),
+            ],
+            "metadata_by_node_id": metadata_by_node_id,
+        }
+    )
+
+
+def test_aggregate_cluster_metadata_uses_mode_for_categorical_and_mean_for_numeric() -> (
+    None
+):
+    member_metadata = [
+        {"region": "north", "score": 10, "flag": True},
+        {"region": "north", "score": 20, "flag": True},
+        {"region": "south", "score": 30, "flag": False, "missing": None},
+    ]
+    schema = (("region", "string"), ("score", "number"), ("flag", "boolean"))
+
+    aggregate = aggregate_cluster_metadata(member_metadata, schema)
+
+    assert aggregate["region"] == "north"
+    assert aggregate["score"] == 20.0
+    assert aggregate["flag"] is True
+
+
+def test_aggregate_cluster_metadata_skips_null_only_and_breaks_ties_alphabetically() -> (
+    None
+):
+    member_metadata = [
+        {"region": "zulu", "empty": None},
+        {"region": "alpha", "empty": None},
+    ]
+    schema = (("region", "string"), ("empty", "string"))
+
+    aggregate = aggregate_cluster_metadata(member_metadata, schema)
+
+    assert aggregate["region"] == "alpha"
+    assert "empty" not in aggregate
+
+
+def test_viewport_cluster_members_carry_public_node_metadata(tmp_path) -> None:
+    store = PreparedLayoutStore(tmp_path)
+    worker = PreparedLayoutWorker(store)
+    result = worker.prepare_dataset(_dataset_with_metadata())
+    abc_cluster = next(
+        cluster
+        for cluster in result.artifacts.clusters
+        if cluster.member_node_ids == ("a", "b", "c")
+    )
+
+    read = store.read_viewport(
+        dataset_id=DATASET_ID,
+        layout_version=result.artifacts.layout_version,
+        xmin=None,
+        xmax=None,
+        ymin=None,
+        ymax=None,
+        max_nodes=50,
+        cluster_id=abc_cluster.cluster_id,
+    )
+    metadata_by_id = {node.node_id: node.metadata for node in read.nodes}
+
+    assert metadata_by_id["a"] == {"region": "north", "score": 10, "flag": True}
+    assert metadata_by_id["c"] == {"region": "south", "score": 30, "flag": False}
+    assert all(
+        INTERNAL_COUNT_KEY not in (node.metadata or {}) for node in read.nodes
+    )
+    schema_keys = {field.key for field in read.metadata_schema}
+    assert schema_keys == {"region", "score", "flag"}
+
+
+def _chain_dataset_with_metadata(node_count: int) -> CanonicalDataset:
+    dataset = _varied_chain_dataset(node_count).model_copy(
+        update={"dataset_id": DATASET_ID}
+    )
+    regions = ("north", "south", "east")
+    metadata_by_node_id = {
+        f"n{index}": {
+            "region": regions[index % len(regions)],
+            "score": index,
+            "flag": index % 2 == 0,
+            INTERNAL_COUNT_KEY: 1,
+        }
+        for index in range(node_count)
+    }
+    return dataset.model_copy(
+        update={
+            "metadata_schema": [
+                MetadataField(key="region", type=MetadataType.STRING),
+                MetadataField(key="score", type=MetadataType.NUMBER),
+                MetadataField(key="flag", type=MetadataType.BOOLEAN),
+                MetadataField(key=INTERNAL_COUNT_KEY, type=MetadataType.NUMBER),
+            ],
+            "metadata_by_node_id": metadata_by_node_id,
+        }
+    )
+
+
+def test_viewport_representatives_carry_cluster_metadata_aggregate(tmp_path) -> None:
+    store = PreparedLayoutStore(tmp_path)
+    worker = PreparedLayoutWorker(store)
+    dataset = _chain_dataset_with_metadata(60)
+    result = worker.prepare_dataset(dataset)
+    members_by_cluster = {
+        cluster.cluster_id: cluster.member_node_ids
+        for cluster in result.artifacts.clusters
+    }
+    public_metadata = {
+        node_id: {
+            key: value
+            for key, value in metadata.items()
+            if key != INTERNAL_COUNT_KEY
+        }
+        for node_id, metadata in dataset.metadata_by_node_id.items()
+    }
+    public_schema = (("region", "string"), ("score", "number"), ("flag", "boolean"))
+
+    read = store.read_viewport(
+        dataset_id=DATASET_ID,
+        layout_version=result.artifacts.layout_version,
+        xmin=None,
+        xmax=None,
+        ymin=None,
+        ymax=None,
+        max_nodes=500,
+        lod_level=0,
+    )
+    representatives = [node for node in read.nodes if node.is_representative]
+
+    assert representatives
+    for node in representatives:
+        expected = aggregate_cluster_metadata(
+            [public_metadata[nid] for nid in members_by_cluster[node.cluster_id]],
+            public_schema,
+        )
+        assert node.metadata == expected
+        assert INTERNAL_COUNT_KEY not in (node.metadata or {})
+
+
 def test_prepare_layout_rejects_missing_distances() -> None:
     dataset = normalize_dataset(
         NormalizeRequest(
-            format=FORMAT_EDGELIST,
+            format=FORMAT_NEWICK,
             dataset_name="missing-distance",
-            content="source,target\na,b\n",
+            content="(a,b);",
         )
     ).dataset
 

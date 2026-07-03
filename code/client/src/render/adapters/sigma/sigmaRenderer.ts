@@ -29,9 +29,11 @@ import createSigmaForceMotion from "./sigmaForceMotion";
 import {
   addPositionedEdges,
   addPositionedNode,
+  applyPieChartNodeTypes,
   areStringArraysEqual,
   buildPieProgramSignature,
   buildSigmaSettings,
+  type PieNodeView,
   piechartProgramClasses,
   type SigmaPiechartOptions,
   type SigmaRendererOptions,
@@ -43,6 +45,7 @@ import {
   restoreCameraState,
 } from "./sigmaRendererCameraState";
 import { GraphViewerV2 } from "./GraphViewerV2";
+import type { ViewportSyncSettings } from "./graphViewerV2Sync";
 
 export {
   SIGMA_DEFAULT_CAMERA_ZOOM,
@@ -204,7 +207,7 @@ export class SigmaRenderer implements GraphRenderer {
     };
 
     if (this.sigma) {
-      this.rebuildSigma(this.pieSliceKeys, this.lastRenderedGraph ?? undefined);
+      this.rebuildSigma(this.pieSliceKeys, this.lastRenderedGraph?.nodes ?? []);
     }
   }
 
@@ -233,6 +236,7 @@ export class SigmaRenderer implements GraphRenderer {
     maxNodes?: number;
     onViewportLoaded?: (response: GraphV2ViewportResponse) => void;
     onError?: (error: unknown) => void;
+    getRenderSettings?: () => ViewportSyncSettings;
   }): void {
     if (!this.graph || !this.sigma) {
       throw new Error(ERR_SIGMA_NOT_READY);
@@ -250,6 +254,8 @@ export class SigmaRenderer implements GraphRenderer {
       maxNodes: options.maxNodes,
       onViewportLoaded: options.onViewportLoaded,
       onError: options.onError,
+      getRenderSettings: options.getRenderSettings,
+      onGraphSynced: () => this.syncPieProgramsFromGraph(),
     });
     this.graphViewerV2.mount();
   }
@@ -257,6 +263,55 @@ export class SigmaRenderer implements GraphRenderer {
   stopGraphV2ViewportSync(): void {
     this.graphViewerV2?.unmount();
     this.graphViewerV2 = null;
+  }
+
+  refreshGraphV2ViewportSync(): void {
+    this.graphViewerV2?.refreshNow();
+  }
+
+  // Register piechart programs for the live LoD graph and flip pie nodes to the
+  // piechart type once the program exists. Invoked after each viewport sync via
+  // GraphViewerV2's onGraphSynced hook, before Sigma refreshes. Mirrors the
+  // legacy ensureSigmaPiePrograms flow but reads slice keys from the graphology
+  // graph (sync writes attributes directly rather than via addPositionedNode).
+  private syncPieProgramsFromGraph(): void {
+    if (!this.graph || !this.sigma || !this.containerElement) {
+      return;
+    }
+
+    // Bail before materializing node views when pies are off (the default),
+    // so a disabled-pie session does no O(N) work per viewport sync. The one
+    // remaining cost is a single teardown when leaving an enabled state.
+    if (this.piechartOptions.enabled === false) {
+      if (this.pieSliceKeys.length > 0) {
+        this.rebuildSigma([], []);
+      }
+      return;
+    }
+
+    const nodeViews = graphNodeViews(this.graph);
+    const detectedSliceKeys = detectPieSliceKeys(nodeViews);
+    const nextSignature = buildPieProgramSignature(detectedSliceKeys, nodeViews);
+    if (
+      !areStringArraysEqual(this.pieSliceKeys, detectedSliceKeys) ||
+      this.pieProgramSignature !== nextSignature
+    ) {
+      try {
+        this.rebuildSigma(detectedSliceKeys, nodeViews, nextSignature);
+      } catch (error) {
+        console.warn(
+          "Failed to build Sigma piechart program; falling back to default nodes.",
+          {
+            sliceCount: detectedSliceKeys.length,
+            sliceKeys: detectedSliceKeys,
+            error,
+          },
+        );
+        this.rebuildSigma([], [], "");
+      }
+    }
+
+    applyPieChartNodeTypes(this.graph, this.pieSliceKeys);
   }
 
   private suppressViewChangesFor(durationMs: number): void {
@@ -280,13 +335,16 @@ export class SigmaRenderer implements GraphRenderer {
     }
 
     const detectedSliceKeys = detectPieSliceKeys(graph.nodes);
-    const nextSignature = buildPieProgramSignature(detectedSliceKeys, graph);
+    const nextSignature = buildPieProgramSignature(
+      detectedSliceKeys,
+      graph.nodes,
+    );
     if (
       !areStringArraysEqual(this.pieSliceKeys, detectedSliceKeys) ||
       this.pieProgramSignature !== nextSignature
     ) {
       try {
-        this.rebuildSigma(detectedSliceKeys, graph, nextSignature);
+        this.rebuildSigma(detectedSliceKeys, graph.nodes, nextSignature);
       } catch (error) {
         console.warn(
           "Failed to build Sigma piechart program; falling back to default nodes.",
@@ -296,21 +354,21 @@ export class SigmaRenderer implements GraphRenderer {
             error,
           },
         );
-        this.rebuildSigma([], undefined, "");
+        this.rebuildSigma([], [], "");
       }
     }
   }
 
   private rebuildSigma(
     sliceKeys: string[],
-    graph?: PositionedGraph,
-    signature = buildPieProgramSignature(sliceKeys, graph),
+    nodes: readonly PieNodeView[] = [],
+    signature = buildPieProgramSignature(sliceKeys, nodes),
   ): void {
     const previousCameraState = readCameraState(this.sigma);
     const previousSigma = this.sigma;
     const sigmaSettings = buildSigmaSettings(
       this.rendererOptions,
-      piechartProgramClasses(sliceKeys, graph, this.piechartOptions),
+      piechartProgramClasses(sliceKeys, nodes, this.piechartOptions),
     );
 
     this.unbindSigmaHandlers();
@@ -324,6 +382,10 @@ export class SigmaRenderer implements GraphRenderer {
     this.pieProgramSignature = signature;
     restoreCameraState(this.sigma, previousCameraState);
     this.bindSigmaHandlers();
+    // Keep the live LoD viewer bound to the rebuilt instance so its camera and
+    // click handlers survive program registration. No-op in the render() path,
+    // where viewport sync is stopped before any rebuild.
+    this.graphViewerV2?.rebindSigma(this.sigma);
   }
 
   private bindSigmaHandlers(): void {
@@ -496,6 +558,14 @@ export class SigmaRenderer implements GraphRenderer {
     applyClusterTriangleRotations(this.graph, this.lastRenderedGraph.edges);
     this.sigma?.scheduleRender();
   }
+}
+
+// Project the live graphology graph into the node-attribute views the pie
+// helpers consume, matching the shape produced by the legacy positioned graph.
+function graphNodeViews(graph: Graph): PieNodeView[] {
+  return graph.mapNodes((_nodeId, attributes) => ({
+    attributes: attributes as Record<string, unknown>,
+  }));
 }
 
 function applyClusterTriangleRotations(

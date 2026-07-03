@@ -86,6 +86,11 @@ class GraphViewportQuery(BaseModel):
         return self
 
 
+class GraphMetadataField(BaseModel):
+    key: str
+    type: str
+
+
 class GraphViewportNode(BaseModel):
     id: str
     cluster_id: str
@@ -94,6 +99,7 @@ class GraphViewportNode(BaseModel):
     layout_status: LayoutStatus
     member_count: int = Field(default=1, ge=1)
     is_representative: bool = False
+    metadata: dict[str, str | float | bool | None] | None = None
 
 
 class GraphViewportEdge(BaseModel):
@@ -113,6 +119,7 @@ class GraphViewportResponse(BaseModel):
     total_node_count: int
     nodes: list[GraphViewportNode]
     edges: list[GraphViewportEdge]
+    metadata_schema: list[GraphMetadataField] = Field(default_factory=list)
 
 
 @lru_cache(maxsize=1)
@@ -141,14 +148,21 @@ def prepare_graph_v2(
             normalized.dataset,
         )
         result = PreparedLayoutWorker(store).prepare_dataset(dataset)
+        layout_warnings: list[str] = []
+        if result.layout_status == "degraded":
+            layout_warnings.append(
+                "Graphviz 'sfdp' was unavailable; produced a circular fallback "
+                "layout instead of a force-directed one. Install Graphviz and "
+                "re-prepare for a topology-aware layout."
+            )
         return GraphV2PrepareResponse(
             dataset_id=dataset.dataset_id,
             layout_version=result.artifacts.layout_version,
             node_count=len(dataset.nodes),
             edge_count=len(dataset.edges),
             cluster_count=len(result.artifacts.clusters),
-            layout_status="ready",
-            warnings=[*normalized.warnings, *distance_warnings],
+            layout_status=result.layout_status,
+            warnings=[*normalized.warnings, *distance_warnings, *layout_warnings],
         )
 
     except ParseError as exc:
@@ -223,6 +237,7 @@ def read_graph_viewport(
                     layout_status=node.layout_status,
                     member_count=node.member_count,
                     is_representative=node.is_representative,
+                    metadata=node.metadata,
                 )
                 for node in result.nodes
             ],
@@ -234,6 +249,10 @@ def read_graph_viewport(
                     distance=edge.distance,
                 )
                 for edge in result.edges
+            ],
+            metadata_schema=[
+                GraphMetadataField(key=field.key, type=field.type)
+                for field in result.metadata_schema
             ],
         )
     except HTTPException:

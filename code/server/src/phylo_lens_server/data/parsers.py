@@ -14,17 +14,6 @@ TOKEN_COMMA = ","
 TOKEN_COLON = ":"
 TOKEN_TERMINATOR = ";"
 
-DELIMITER_TAB = "\t"
-DELIMITER_COMMA = ","
-DELIMITER_SPACE = " "
-LINE_COMMENT_PREFIX = "#"
-WHITESPACE_SPLIT_REGEX = r"\s+"
-
-HEADER_SOURCE = "source"
-HEADER_FROM = "from"
-HEADER_TARGET = "target"
-HEADER_TO = "to"
-
 NODE_PREFIX_LEAF = "leaf"
 NODE_PREFIX_UNION = "union"
 
@@ -32,10 +21,6 @@ ERR_NEWICK_EMPTY = "Newick content is empty."
 ERR_NEWICK_TRAILING_CONTENT = "Unexpected content after Newick tree terminator."
 ERR_NEWICK_MISSING_CLOSE = "Missing ')' in Newick content."
 ERR_NEWICK_BRANCH_LENGTH = "Invalid Newick branch length near index {index}."
-ERR_EDGELIST_EMPTY = "Edge-list content is empty."
-ERR_EDGELIST_ROW_COLUMNS = "Edge-list row {index} must have at least two columns."
-ERR_EDGELIST_ROW_EMPTY = "Edge-list row {index} has empty source or target."
-ERR_EDGELIST_ROW_DISTANCE = "Edge-list row {index} has invalid distance value."
 WARN_DUPLICATE_LABEL = (
     "Label '{label}' is duplicated, generated deterministic suffix for uniqueness."
 )
@@ -257,65 +242,3 @@ def slugify_label(label: str) -> str:
         .strip(LABEL_SLUG_STRIP_CHARS)
         .lower()
     )
-
-
-def parse_edgelist(content: str) -> ParsedGraph:
-    """Parse edge-list text into canonical source-target tuples."""
-    raw_lines = [line.strip() for line in content.splitlines() if line.strip()]
-    lines = [line for line in raw_lines if not line.startswith(LINE_COMMENT_PREFIX)]
-    if not lines:
-        raise ParseError(ERR_EDGELIST_EMPTY)
-
-    delimiter = _detect_delimiter(lines[0])
-    rows = [_split_line(line, delimiter) for line in lines]
-
-    first = [item.strip().lower() for item in rows[0]]
-    has_header = (
-        len(first) >= 2
-        and first[0] in {HEADER_SOURCE, HEADER_FROM}
-        and first[1]
-        in {
-            HEADER_TARGET,
-            HEADER_TO,
-        }
-    )
-    if has_header:
-        rows = rows[1:]
-
-    nodes: set[str] = set()
-    edges: list[ParsedEdge] = []
-
-    for index, row in enumerate(rows, start=1):
-        if len(row) < 2:
-            raise ParseError(ERR_EDGELIST_ROW_COLUMNS.format(index=index))
-        source = row[0].strip()
-        target = row[1].strip()
-        if not source or not target:
-            raise ParseError(ERR_EDGELIST_ROW_EMPTY.format(index=index))
-        distance: float | None = None
-        if len(row) >= 3 and row[2].strip():
-            try:
-                distance = float(row[2].strip())
-            except ValueError as exc:
-                raise ParseError(ERR_EDGELIST_ROW_DISTANCE.format(index=index)) from exc
-        nodes.add(source)
-        nodes.add(target)
-        edges.append(ParsedEdge(source=source, target=target, distance=distance))
-
-    return ParsedGraph(nodes=sorted(nodes), edges=edges, warnings=[])
-
-
-def _detect_delimiter(line: str) -> str:
-    """Pick a delimiter based on first-row content heuristics."""
-    if DELIMITER_TAB in line:
-        return DELIMITER_TAB
-    if DELIMITER_COMMA in line:
-        return DELIMITER_COMMA
-    return DELIMITER_SPACE
-
-
-def _split_line(line: str, delimiter: str) -> list[str]:
-    """Split one edge-list row into normalized columns."""
-    if delimiter == DELIMITER_SPACE:
-        return [part for part in re.split(WHITESPACE_SPLIT_REGEX, line.strip()) if part]
-    return [part.strip() for part in line.split(delimiter)]

@@ -26,6 +26,45 @@ export const EMPTY_METADATA_FILTER_STATE: MetadataFilterState = {
   numeric: [],
 };
 
+type FilterableMetadata =
+  | Record<string, string | number | boolean | null>
+  | null
+  | undefined;
+
+// Single source of truth for matching one node's metadata against a filter state.
+export function matchesFilterState(
+  metadata: FilterableMetadata,
+  filterState: MetadataFilterState,
+): boolean {
+  for (const filter of filterState.categorical) {
+    if (filter.acceptedValues.length === 0) {
+      continue;
+    }
+    const value = metadata?.[filter.fieldKey];
+    if (value === undefined || value === null) {
+      return false;
+    }
+    if (!filter.acceptedValues.includes(String(value))) {
+      return false;
+    }
+  }
+
+  for (const filter of filterState.numeric) {
+    const value = metadata?.[filter.fieldKey];
+    if (typeof value !== "number") {
+      return false;
+    }
+    if (filter.min !== undefined && value < filter.min) {
+      return false;
+    }
+    if (filter.max !== undefined && value > filter.max) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 export interface GraphFilterEngine {
   apply(
     graph: PositionedGraph,
@@ -82,25 +121,18 @@ function applyFilters(
     selectedNodeIds = intersectSets(selectedNodeIds, matchingIds);
   });
 
-  filterState.numeric.forEach((filter) => {
+  if (filterState.numeric.length > 0) {
+    const numericOnly: MetadataFilterState = {
+      categorical: [],
+      numeric: filterState.numeric,
+    };
     selectedNodeIds.forEach((nodeId) => {
       const metadata = getNodeMetadata(metadataIndex, nodeId);
-      const rawValue = metadata[filter.fieldKey];
-      if (typeof rawValue !== "number") {
-        selectedNodeIds.delete(nodeId);
-        return;
-      }
-
-      if (filter.min !== undefined && rawValue < filter.min) {
-        selectedNodeIds.delete(nodeId);
-        return;
-      }
-
-      if (filter.max !== undefined && rawValue > filter.max) {
+      if (!matchesFilterState(metadata, numericOnly)) {
         selectedNodeIds.delete(nodeId);
       }
     });
-  });
+  }
 
   return selectedNodeIds;
 }

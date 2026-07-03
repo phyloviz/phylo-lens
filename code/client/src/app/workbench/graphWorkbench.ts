@@ -4,11 +4,12 @@ import type {
   NormalizeRequest,
 } from "../../api/graphV2Client";
 import {
+  type CanonicalDataset,
   type SearchDatasetResponse,
   SOURCE_FORMAT_NEWICK,
 } from "../../contracts/models";
 import { type PositionedGraph } from "../../contracts/positioned";
-import { ClientGraphFilterEngine } from "../../ancillary/filterEngine";
+import { buildMetadataIndex } from "../../ancillary/metadataIndex";
 import type {
   GraphRenderer,
   RenderNodeClickState,
@@ -38,7 +39,6 @@ import {
   createInitialGraphWorkbenchState,
   resetWorkbenchForNewDataset,
 } from "./workbenchState";
-import { searchFullRenderedDataset } from "./search/graphSearch";
 
 export {
   DEFAULT_RENDER_VIEW_SUPPRESSION_MS,
@@ -65,7 +65,6 @@ export function createGraphWorkbench(
   options: GraphWorkbenchOptions,
 ): GraphWorkbench {
   const state = createInitialGraphWorkbenchState();
-  const filterEngine = options.filterEngine ?? new ClientGraphFilterEngine();
 
   const renderer = options.rendererFactory.createRenderer(options.rendererKind);
   renderer.mount(options.renderContext);
@@ -98,7 +97,6 @@ export function createGraphWorkbench(
       applyMetadataFilters({
         state,
         renderer,
-        filterEngine,
         filterState,
       }),
 
@@ -112,7 +110,6 @@ export function createGraphWorkbench(
       updateVisualMapping({
         state,
         renderer,
-        filterEngine,
         visualMapping,
       }),
 
@@ -215,6 +212,11 @@ async function renderNewick({
       onViewportLoaded: (response) => {
         updateStateFromGraphV2Viewport(state, response);
       },
+      getRenderSettings: () => ({
+        visualMapping: state.preparedSession?.visualMapping,
+        filterState: state.activeFilters,
+        metadataSchema: state.preparedSession?.metadataSchema,
+      }),
     });
 
     const placeholderGraph = emptyGraph();
@@ -290,19 +292,6 @@ async function searchNodes({
 }: SearchNodesArgs): Promise<SearchDatasetResponse> {
   const session = state.preparedSession;
 
-  if (state.renderMode === "full") {
-    if (!state.currentSliceDataset) {
-      throw new Error(ERR_NO_GRAPH_RENDERED);
-    }
-
-    return searchFullRenderedDataset({
-      dataset: state.currentSliceDataset,
-      query: query.query,
-      limit: query.limit ?? DEFAULT_SEARCH_RESULT_LIMIT,
-      includeMetadataKeys: query.includeMetadataKeys,
-    });
-  }
-
   if (!session || state.renderMode !== "lod") {
     throw new Error(ERR_NO_GRAPH_RENDERED);
   }
@@ -327,20 +316,6 @@ async function focusNode({
   nodeId,
 }: FocusNodeArgs): Promise<PositionedGraph> {
   const session = state.preparedSession;
-
-  if (state.renderMode === "full") {
-    const graph = state.currentGraph ?? state.currentSliceGraph;
-    if (!graph) {
-      throw new Error(ERR_NO_GRAPH_RENDERED);
-    }
-
-    if (graph.nodes.some((node) => node.id === nodeId)) {
-      renderer.focusNode?.(nodeId);
-      renderer.centerOnNode?.(nodeId);
-    }
-
-    return graph;
-  }
 
   if (!session || state.renderMode !== "lod") {
     throw new Error(ERR_NO_GRAPH_RENDERED);
@@ -397,8 +372,73 @@ function updateStateFromGraphV2Viewport(
     },
   };
 
+  const metadataSignature = viewportMetadataSignature(response);
+  if (
+    metadataSignature !== state.metadataIndexSignature ||
+    state.metadataIndex === null ||
+    state.currentSliceDataset === null
+  ) {
+    const syntheticDataset = buildViewportDataset(state, response);
+    state.currentSliceDataset = syntheticDataset;
+    state.metadataIndex = buildMetadataIndex(syntheticDataset);
+    state.metadataIndexSignature = metadataSignature;
+  }
   state.currentGraph = graph;
   state.currentSliceGraph = graph;
   state.currentPositionedSliceGraph = graph;
   state.graphRenderedHandler?.(graph);
+}
+
+// A viewport's metadata index is fully determined by the dataset, layout
+// version, LoD level, and the exact node-id set: the prepared layout is
+// immutable, so identical keys always yield identical aggregated metadata.
+// Reusing the prior index across redundant syncs (camera settle, repeated
+// refreshes, unchanged pans) skips the multi-pass rebuild without ever serving
+// stale stats.
+function viewportMetadataSignature(response: GraphV2ViewportResponse): string {
+  const nodeIds = response.nodes.map((node) => node.id).sort();
+  return [
+    response.dataset_id,
+    response.layout_version,
+    response.lod_level ?? "",
+    nodeIds.length,
+    nodeIds.join(","),
+  ].join("|");
+}
+
+// Build a per-viewport CanonicalDataset so stats/search read live metadata.
+function buildViewportDataset(
+  state: GraphWorkbenchState,
+  response: GraphV2ViewportResponse,
+): CanonicalDataset {
+  const metadataByNodeId: CanonicalDataset["metadata_by_node_id"] = {};
+  response.nodes.forEach((node) => {
+    if (node.metadata) {
+      metadataByNodeId[node.id] = node.metadata;
+    }
+  });
+
+  return {
+    dataset_id: response.dataset_id,
+    nodes: response.nodes.map((node) => ({
+      id: node.id,
+      x: node.x,
+      y: node.y,
+      cluster_id: node.cluster_id,
+      is_cluster_proxy: node.is_representative,
+      subtree_size: node.member_count,
+    })),
+    edges: response.edges.map((edge) => ({
+      id: edge.id,
+      source: edge.source,
+      target: edge.target,
+      distance: edge.distance ?? null,
+    })),
+    metadata_schema: state.preparedSession?.metadataSchema ?? [],
+    metadata_by_node_id: metadataByNodeId,
+    source: {
+      format: SOURCE_FORMAT_NEWICK,
+      generated_at: new Date().toISOString(),
+    },
+  };
 }

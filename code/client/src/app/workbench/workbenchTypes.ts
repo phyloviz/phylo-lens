@@ -6,10 +6,7 @@ import type {
 } from "../../contracts/models";
 import type { PositionedGraph } from "../../contracts/positioned";
 import type { MetadataIndexData } from "../../ancillary/metadataIndex";
-import type {
-  GraphFilterEngine,
-  MetadataFilterState,
-} from "../../ancillary/filterEngine";
+import type { MetadataFilterState } from "../../ancillary/filterEngine";
 import type { VisualMappingOptions } from "../../render/visualMappings";
 import type {
   GraphDisplayOptions,
@@ -47,7 +44,6 @@ export interface GraphWorkbenchOptions {
   rendererFactory: RendererFactory;
   rendererKind: RendererKind;
   renderContext: RenderContext;
-  filterEngine?: GraphFilterEngine;
 }
 
 export type GraphRenderedHandler = (graph: PositionedGraph) => void;
@@ -102,7 +98,7 @@ export interface PreparedDatasetSession {
   };
 }
 
-export type RenderMode = "full" | "lod";
+export type RenderMode = "lod";
 
 export interface GraphWorkbenchState {
   currentSliceDataset: CanonicalDataset | null;
@@ -110,6 +106,7 @@ export interface GraphWorkbenchState {
   currentSliceGraph: PositionedGraph | null;
   currentGraph: PositionedGraph | null;
   metadataIndex: MetadataIndexData | null;
+  metadataIndexSignature: string | null;
   activeFilters: MetadataFilterState;
   preparedSession: PreparedDatasetSession | null;
   pendingViewRefreshId: number | null;

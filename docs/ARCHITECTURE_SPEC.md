@@ -37,7 +37,6 @@ Defines Pydantic contracts and domain validation errors:
 Parses and normalizes input data:
 
 - Newick input, including optional branch lengths;
-- edge-list input, including optional `distance`;
 - deterministic node/edge ordering;
 - metadata schema and per-node metadata alignment;
 - file-backed prepared dataset storage.

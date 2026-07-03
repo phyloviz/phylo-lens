@@ -6,6 +6,7 @@ from phylo_lens_server.core.models import CanonicalDataset
 from phylo_lens_server.prepared_layout.ingest import prepare_layout_artifacts
 from phylo_lens_server.prepared_layout.layout import compute_prepared_layouts
 from phylo_lens_server.prepared_layout.models import (
+    LayoutStatus,
     PreparedEdge,
     PreparedLayoutArtifacts,
     PreparedLayoutResult,
@@ -33,11 +34,19 @@ class PreparedLayoutWorker:
         cluster_layouts, node_positions = compute_prepared_layouts(artifacts)
         self.store.save_layouts(cluster_layouts, node_positions)
         self.store.save_prepared_edges(prepared_edges)
+        layout_status: LayoutStatus = (
+            cluster_layouts[0].status
+            if cluster_layouts
+            else node_positions[0].status
+            if node_positions
+            else "ready"
+        )
         return PreparedLayoutResult(
             artifacts=artifacts,
             cluster_layouts=cluster_layouts,
             node_positions=node_positions,
             prepared_edges=prepared_edges,
+            layout_status=layout_status,
         )
 
     def submit_prepare_dataset(

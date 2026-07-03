@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from phylo_lens_server.data.parsers import ParseError, parse_edgelist, parse_newick
+from phylo_lens_server.data.parsers import ParseError, parse_newick
 
 FIXTURES_DIRNAME = "fixtures"
 NEWICK_CASES_FILENAME = "newick_cases.json"
@@ -117,14 +117,3 @@ def test_parse_newick_ignores_empty_children_from_trailing_commas() -> None:
     }
     assert all(edge.distance is not None for edge in parsed.edges)
     assert len(parsed.warnings) == 3
-
-
-def test_parse_edgelist_accepts_optional_distance_column() -> None:
-    """Confirm edge-list rows may carry an optional numeric distance."""
-    parsed = parse_edgelist("source,target,distance\na,b,0.5\nb,c,1.25\n")
-
-    assert parsed.nodes == ["a", "b", "c"]
-    assert [(edge.source, edge.target, edge.distance) for edge in parsed.edges] == [
-        ("a", "b", 0.5),
-        ("b", "c", 1.25),
-    ]

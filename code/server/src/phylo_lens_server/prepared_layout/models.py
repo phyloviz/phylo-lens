@@ -5,7 +5,7 @@ from typing import Literal
 
 from phylo_lens_server.core.models import CanonicalDataset
 
-LayoutStatus = Literal["pending", "refining", "ready", "failed"]
+LayoutStatus = Literal["pending", "refining", "ready", "degraded", "failed"]
 
 
 @dataclass(frozen=True)
@@ -59,8 +59,6 @@ class NodeLayoutPosition:
     node_id: str
     x: float
     y: float
-    lod_min: int
-    lod_max: int
     status: LayoutStatus
 
 
@@ -81,6 +79,13 @@ class PreparedLayoutResult:
     cluster_layouts: tuple[ClusterLayout, ...] = field(default_factory=tuple)
     node_positions: tuple[NodeLayoutPosition, ...] = field(default_factory=tuple)
     prepared_edges: tuple[PreparedEdge, ...] = field(default_factory=tuple)
+    layout_status: LayoutStatus = "ready"
+
+
+@dataclass(frozen=True)
+class MetadataSchemaField:
+    key: str
+    type: str
 
 
 @dataclass(frozen=True)
@@ -92,6 +97,7 @@ class ViewportNode:
     layout_status: LayoutStatus
     member_count: int = 1
     is_representative: bool = False
+    metadata: dict[str, str | float | bool | None] | None = None
 
 
 @dataclass(frozen=True)
@@ -111,3 +117,4 @@ class ViewportReadResult:
     total_node_count: int
     truncated: bool
     layout_status: LayoutStatus
+    metadata_schema: tuple[MetadataSchemaField, ...] = ()
