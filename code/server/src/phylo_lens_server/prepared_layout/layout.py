@@ -22,17 +22,39 @@ logger = logging.getLogger(__name__)
 LAYOUT_RANDOM_SEED = 23
 GLOBAL_TARGET_EDGE_LENGTH = 85.0
 GRAPHVIZ_SFDP_COMMAND = "sfdp"
-GRAPHVIZ_LAYOUT_TIMEOUT_SECONDS = 15
-GRAPHVIZ_DEFAULT_EDGE_LENGTH = 2.5
+# Edge length passed to Graphviz is a ratio-preserving multiple of the
+# per-graph median distance, clamped to keep long-branch outliers and
+# zero-distance edges from destabilizing the force layout.
+GRAPHVIZ_TARGET_EDGE_LENGTH = 2.5
 GRAPHVIZ_MIN_EDGE_LENGTH = 0.5
 GRAPHVIZ_MAX_EDGE_LENGTH = 12.0
+
+# Layout cost scales with node count; cap iterations and wall time so a very
+# large graph degrades to the fallback deterministically instead of hanging.
+GRAPHVIZ_BASE_TIMEOUT_SECONDS = 15
+GRAPHVIZ_MAX_TIMEOUT_SECONDS = 60
+GRAPHVIZ_BASE_MAXITER = 100
+GRAPHVIZ_MIN_MAXITER = 40
+
+# Reasons a layout degraded to the circular fallback, surfaced to the API so
+# the client warning reflects the real cause instead of assuming a missing binary.
+LAYOUT_DEGRADED_SFDP_MISSING = "sfdp_missing"
+LAYOUT_DEGRADED_SFDP_FAILED = "sfdp_failed"
+LAYOUT_DEGRADED_SFDP_TIMEOUT = "sfdp_timeout"
+LAYOUT_DEGRADED_SFDP_INCOMPLETE = "sfdp_incomplete"
 
 
 def compute_prepared_layouts(
     artifacts: PreparedLayoutArtifacts,
-) -> tuple[tuple[ClusterLayout, ...], tuple[NodeLayoutPosition, ...]]:
-    """Materialize every LOD as a projection of one Graphviz global layout."""
-    global_positions, layout_status = compute_global_node_positions(artifacts.dataset)
+) -> tuple[tuple[ClusterLayout, ...], tuple[NodeLayoutPosition, ...], str | None]:
+    """Materialize every LOD as a projection of one Graphviz global layout.
+
+    Returns the cluster layouts, node positions, and a degrade reason (or
+    ``None`` when the force layout succeeded).
+    """
+    global_positions, layout_status, degraded_reason = compute_global_node_positions(
+        artifacts.dataset
+    )
 
     cluster_layouts: list[ClusterLayout] = []
     node_positions: list[NodeLayoutPosition] = []
@@ -71,27 +93,27 @@ def compute_prepared_layouts(
             for node_id, position in sorted(member_positions.items())
         )
 
-    return tuple(cluster_layouts), tuple(node_positions)
+    return tuple(cluster_layouts), tuple(node_positions), degraded_reason
 
 
 def compute_global_node_positions(
     dataset: CanonicalDataset,
-) -> tuple[dict[str, tuple[float, float]], LayoutStatus]:
-    """Return the global node layout and a status describing how it was produced.
+) -> tuple[dict[str, tuple[float, float]], LayoutStatus, str | None]:
+    """Return the global node layout, a status, and a degrade reason (or None).
 
     A force-directed layout from Graphviz is reported as ``"ready"``. When the
-    ``sfdp`` binary is missing or fails, positions come from a circular fallback
-    that ignores tree topology, so the layout is reported as ``"degraded"`` to
-    keep it distinguishable from a real layout downstream. Trivial graphs (zero
-    or one node) need no force layout and are reported as ``"ready"``.
+    ``sfdp`` binary is missing, times out, or fails, positions come from a
+    circular fallback that ignores tree topology, so the layout is reported as
+    ``"degraded"`` and the reason identifies which failure occurred. Trivial
+    graphs (zero or one node) need no force layout and are reported ``"ready"``.
     """
     node_ids = tuple(sorted(node.id for node in dataset.nodes))
     if not node_ids:
-        return {}, "ready"
+        return {}, "ready", None
     if len(node_ids) == 1:
-        return {node_ids[0]: (0.0, 0.0)}, "ready"
+        return {node_ids[0]: (0.0, 0.0)}, "ready", None
 
-    graphviz_positions = graphviz_sfdp_positions(node_ids, tuple(dataset.edges))
+    graphviz_positions, reason = graphviz_sfdp_positions(node_ids, tuple(dataset.edges))
     if graphviz_positions is not None:
         return (
             normalize_global_positions(
@@ -100,24 +122,37 @@ def compute_global_node_positions(
                 GLOBAL_TARGET_EDGE_LENGTH,
             ),
             "ready",
+            None,
         )
 
-    return jittered_positions(node_ids, GLOBAL_TARGET_EDGE_LENGTH), "degraded"
+    return jittered_positions(node_ids, GLOBAL_TARGET_EDGE_LENGTH), "degraded", reason
+
+
+def sfdp_maxiter(node_count: int) -> int:
+    """Fewer iterations for larger graphs so wall time stays bounded."""
+    scaled = GRAPHVIZ_BASE_MAXITER - node_count // 200
+    return max(GRAPHVIZ_MIN_MAXITER, scaled)
+
+
+def sfdp_timeout_seconds(node_count: int) -> int:
+    """Allow more wall time for larger graphs, capped to avoid unbounded hangs."""
+    scaled = GRAPHVIZ_BASE_TIMEOUT_SECONDS + node_count // 500
+    return min(GRAPHVIZ_MAX_TIMEOUT_SECONDS, scaled)
 
 
 def graphviz_sfdp_positions(
     node_ids: tuple[str, ...],
     edges: tuple[CanonicalEdge, ...],
-) -> dict[str, tuple[float, float]] | None:
+) -> tuple[dict[str, tuple[float, float]] | None, str | None]:
     if shutil.which(GRAPHVIZ_SFDP_COMMAND) is None:
         logger.warning(
             "Graphviz '%s' not found on PATH; falling back to a circular layout. "
             "Install Graphviz to enable force-directed layouts.",
             GRAPHVIZ_SFDP_COMMAND,
         )
-        return None
+        return None, LAYOUT_DEGRADED_SFDP_MISSING
 
-    payload = graphviz_dot_payload(node_ids, edges)
+    payload = graphviz_dot_payload(node_ids, edges, maxiter=sfdp_maxiter(len(node_ids)))
     try:
         completed = subprocess.run(
             [GRAPHVIZ_SFDP_COMMAND, "-Tplain"],
@@ -125,15 +160,23 @@ def graphviz_sfdp_positions(
             text=True,
             capture_output=True,
             check=True,
-            timeout=GRAPHVIZ_LAYOUT_TIMEOUT_SECONDS,
+            timeout=sfdp_timeout_seconds(len(node_ids)),
         )
-    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:
+    except subprocess.TimeoutExpired:
+        logger.warning(
+            "Graphviz '%s' layout timed out for %d nodes; "
+            "falling back to a circular layout.",
+            GRAPHVIZ_SFDP_COMMAND,
+            len(node_ids),
+        )
+        return None, LAYOUT_DEGRADED_SFDP_TIMEOUT
+    except (OSError, subprocess.CalledProcessError) as error:
         logger.warning(
             "Graphviz '%s' layout failed (%s); falling back to a circular layout.",
             GRAPHVIZ_SFDP_COMMAND,
             type(error).__name__,
         )
-        return None
+        return None, LAYOUT_DEGRADED_SFDP_FAILED
 
     positions = parse_graphviz_plain_positions(completed.stdout)
     if set(positions) != set(node_ids):
@@ -144,23 +187,26 @@ def graphviz_sfdp_positions(
             len(positions),
             len(node_ids),
         )
-        return None
-    return positions
+        return None, LAYOUT_DEGRADED_SFDP_INCOMPLETE
+    return positions, None
 
 
 def graphviz_dot_payload(
     node_ids: tuple[str, ...],
     edges: tuple[CanonicalEdge, ...],
+    *,
+    maxiter: int = GRAPHVIZ_BASE_MAXITER,
 ) -> str:
+    known_node_ids = set(node_ids)
+    reference_distance = reference_edge_distance(edges, known_node_ids)
     lines = [
         "graph {",
         (
             "  graph [layout=sfdp, overlap=scale, splines=false, "
-            "outputorder=edgesfirst, maxiter=100];"
+            f"outputorder=edgesfirst, maxiter={maxiter}];"
         ),
         '  node [shape=point, width=0.04, height=0.04, label=""];',
     ]
-    known_node_ids = set(node_ids)
     for node_id in node_ids:
         lines.append(f"  {quote_dot_id(node_id)};")
     for edge in edges:
@@ -169,19 +215,40 @@ def graphviz_dot_payload(
         lines.append(
             "  "
             f"{quote_dot_id(edge.source)} -- {quote_dot_id(edge.target)} "
-            f"[len={graphviz_edge_length(edge.distance):.6g}];"
+            f"[len={graphviz_edge_length(edge.distance, reference_distance):.6g}];"
         )
     lines.append("}")
     return "\n".join(lines)
 
 
-def graphviz_edge_length(distance: float | None) -> float:
-    if distance is None:
-        return GRAPHVIZ_DEFAULT_EDGE_LENGTH
-    return min(
-        GRAPHVIZ_MAX_EDGE_LENGTH,
-        max(GRAPHVIZ_MIN_EDGE_LENGTH, GRAPHVIZ_DEFAULT_EDGE_LENGTH + distance),
-    )
+def reference_edge_distance(
+    edges: tuple[CanonicalEdge, ...],
+    known_node_ids: set[str],
+) -> float:
+    """Median of positive edge distances, used to normalize ``len=`` by scale."""
+    distances = [
+        edge.distance
+        for edge in edges
+        if edge.source in known_node_ids
+        and edge.target in known_node_ids
+        and edge.distance is not None
+        and edge.distance > 0.0
+    ]
+    return median(distances) if distances else 0.0
+
+
+def graphviz_edge_length(distance: float | None, reference_distance: float) -> float:
+    """Ratio-preserving edge length: a multiple of ``distance / reference``.
+
+    Using a multiplicative scale keeps relative branch lengths intact (a branch
+    twice as long stays twice as long), unlike an additive offset which crushes
+    small differences toward uniformity. Absent or non-positive distances and a
+    missing reference fall back to the target length; the clamp bounds outliers.
+    """
+    if distance is None or distance <= 0.0 or reference_distance <= 0.0:
+        return GRAPHVIZ_TARGET_EDGE_LENGTH
+    scaled = GRAPHVIZ_TARGET_EDGE_LENGTH * (distance / reference_distance)
+    return min(GRAPHVIZ_MAX_EDGE_LENGTH, max(GRAPHVIZ_MIN_EDGE_LENGTH, scaled))
 
 
 def parse_graphviz_plain_positions(output: str) -> dict[str, tuple[float, float]]:

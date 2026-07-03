@@ -80,6 +80,7 @@ class PreparedLayoutResult:
     node_positions: tuple[NodeLayoutPosition, ...] = field(default_factory=tuple)
     prepared_edges: tuple[PreparedEdge, ...] = field(default_factory=tuple)
     layout_status: LayoutStatus = "ready"
+    layout_degraded_reason: str | None = None
 
 
 @dataclass(frozen=True)

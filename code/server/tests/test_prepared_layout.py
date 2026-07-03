@@ -17,6 +17,7 @@ from phylo_lens_server.prepared_layout.ingest import (
 from phylo_lens_server.prepared_layout.layout import (
     GLOBAL_TARGET_EDGE_LENGTH,
     GRAPHVIZ_SFDP_COMMAND,
+    LAYOUT_DEGRADED_SFDP_MISSING,
     compute_prepared_layouts,
     parse_graphviz_plain_positions,
 )
@@ -170,7 +171,7 @@ def test_prepare_layout_artifacts_materializes_singletons_at_each_lod() -> None:
 def test_open_force_tree_layout_spreads_branching_tree_on_both_axes() -> None:
     dataset = _branching_dataset()
     artifacts = prepare_layout_artifacts(dataset)
-    cluster_layouts, _node_positions = compute_prepared_layouts(artifacts)
+    cluster_layouts, _node_positions, _reason = compute_prepared_layouts(artifacts)
     xs = [layout.x for layout in cluster_layouts]
     ys = [layout.y for layout in cluster_layouts]
     x_span = max(xs) - min(xs)
@@ -190,18 +191,19 @@ def test_layout_reports_degraded_status_when_sfdp_is_missing(monkeypatch) -> Non
     )
 
     artifacts = prepare_layout_artifacts(_dataset())
-    cluster_layouts, node_positions = compute_prepared_layouts(artifacts)
+    cluster_layouts, node_positions, reason = compute_prepared_layouts(artifacts)
 
     assert cluster_layouts
     assert node_positions
     assert all(layout.status == "degraded" for layout in cluster_layouts)
     assert all(position.status == "degraded" for position in node_positions)
+    assert reason == LAYOUT_DEGRADED_SFDP_MISSING
 
 
 def test_tree_layout_scales_to_large_chains_quickly() -> None:
     dataset = _varied_chain_dataset(1_000)
     artifacts = prepare_layout_artifacts(dataset)
-    cluster_layouts, node_positions = compute_prepared_layouts(artifacts)
+    cluster_layouts, node_positions, _reason = compute_prepared_layouts(artifacts)
 
     assert cluster_layouts
     assert node_positions
@@ -210,7 +212,7 @@ def test_tree_layout_scales_to_large_chains_quickly() -> None:
 def test_ghost_layout_uses_global_coordinates_for_clusters_and_members() -> None:
     dataset = _dataset()
     artifacts = prepare_layout_artifacts(dataset)
-    cluster_layouts, node_positions = compute_prepared_layouts(artifacts)
+    cluster_layouts, node_positions, _reason = compute_prepared_layouts(artifacts)
     cluster_by_id = {cluster.cluster_id: cluster for cluster in artifacts.clusters}
     position_by_cluster_and_node = {
         (position.cluster_id, position.node_id): position for position in node_positions

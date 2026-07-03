@@ -85,8 +85,11 @@ def prepare_layout_artifacts(
     thresholds = selected_distance_thresholds(node_ids, dataset.edges, max_thresholds)
     clusters = distance_clusters(dataset, node_ids, thresholds)
     clusters_by_id = {cluster.cluster_id: cluster for cluster in clusters}
+    sorted_edges = sort_edges_by_distance(dataset.edges)
     for threshold in thresholds:
-        partition = partition_for_threshold(dataset, node_ids, threshold)
+        partition = partition_for_threshold(
+            dataset, node_ids, threshold, sorted_edges=sorted_edges
+        )
         for cluster_id in sorted(set(partition.values())):
             if cluster_id in clusters_by_id:
                 continue
@@ -269,17 +272,28 @@ def distance_clusters(
     )
 
 
+def sort_edges_by_distance(
+    edges: list[CanonicalEdge],
+) -> tuple[CanonicalEdge, ...]:
+    """Order edges by ``(distance, id)`` once for reuse across thresholds."""
+    return tuple(sorted(edges, key=lambda edge: (edge.distance or 0.0, edge.id)))
+
+
 def partition_for_threshold(
     dataset: CanonicalDataset,
     node_ids: tuple[str, ...],
     threshold: float,
+    *,
+    sorted_edges: tuple[CanonicalEdge, ...] | None = None,
 ) -> dict[str, str]:
     node_index_by_id = {node_id: index for index, node_id in enumerate(node_ids)}
     union_find = _UnionFind.create(len(node_ids))
-    for edge in sorted(
-        dataset.edges,
-        key=lambda item: (item.distance or 0.0, item.id),
-    ):
+    # Connected components are independent of union order, so a caller iterating
+    # many thresholds can sort once (see ``sort_edges_by_distance``) and pass the
+    # result in to avoid re-sorting the full edge list per threshold.
+    if sorted_edges is None:
+        sorted_edges = sort_edges_by_distance(dataset.edges)
+    for edge in sorted_edges:
         if (edge.distance or 0.0) <= threshold:
             union_find.union(
                 node_index_by_id[edge.source],

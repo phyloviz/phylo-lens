@@ -31,7 +31,9 @@ class PreparedLayoutWorker:
         artifacts = prepare_layout_artifacts(dataset)
         self.store.save_artifacts(artifacts)
         prepared_edges = compute_prepared_edges(artifacts)
-        cluster_layouts, node_positions = compute_prepared_layouts(artifacts)
+        cluster_layouts, node_positions, degraded_reason = compute_prepared_layouts(
+            artifacts
+        )
         self.store.save_layouts(cluster_layouts, node_positions)
         self.store.save_prepared_edges(prepared_edges)
         layout_status: LayoutStatus = (
@@ -47,6 +49,7 @@ class PreparedLayoutWorker:
             node_positions=node_positions,
             prepared_edges=prepared_edges,
             layout_status=layout_status,
+            layout_degraded_reason=degraded_reason,
         )
 
     def submit_prepare_dataset(

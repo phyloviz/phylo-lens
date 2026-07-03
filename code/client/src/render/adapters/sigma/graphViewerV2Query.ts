@@ -5,7 +5,10 @@ import type {
   SigmaViewportLike,
 } from "./graphViewerV2Types";
 
-export const DEFAULT_GRAPH_VIEWER_V2_DEBOUNCE_MS = 250;
+// Settle delay before a server viewport query fires after panning within the
+// same LOD level. LOD-level changes bypass this (they refresh immediately), so
+// this only governs same-level pan responsiveness against extra server queries.
+export const DEFAULT_GRAPH_VIEWER_V2_DEBOUNCE_MS = 120;
 export const DEFAULT_GRAPH_VIEWER_V2_MAX_NODES = 2_500;
 export const GRAPH_VIEWER_V2_VIEWPORT_PADDING_RATIO = 0.5;
 export const GRAPH_VIEWER_V2_DETAIL_RATIO_THRESHOLD = 0.8;

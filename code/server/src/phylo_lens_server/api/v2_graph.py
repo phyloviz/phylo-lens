@@ -27,6 +27,12 @@ from phylo_lens_server.data.normalizer import (
     normalize_dataset,
 )
 from phylo_lens_server.data.parsers import ParseError
+from phylo_lens_server.prepared_layout.layout import (
+    LAYOUT_DEGRADED_SFDP_FAILED,
+    LAYOUT_DEGRADED_SFDP_INCOMPLETE,
+    LAYOUT_DEGRADED_SFDP_MISSING,
+    LAYOUT_DEGRADED_SFDP_TIMEOUT,
+)
 from phylo_lens_server.prepared_layout.models import LayoutStatus
 from phylo_lens_server.prepared_layout.store import PreparedLayoutStore
 from phylo_lens_server.prepared_layout.worker import PreparedLayoutWorker
@@ -44,6 +50,35 @@ HARD_MAX_VIEWPORT_NODES = 20_000
 
 router = APIRouter(prefix=ROUTER_PREFIX, tags=[ROUTER_TAG])
 logger = logging.getLogger(__name__)
+
+_LAYOUT_DEGRADED_WARNINGS = {
+    LAYOUT_DEGRADED_SFDP_MISSING: (
+        "Graphviz 'sfdp' was unavailable; produced a circular fallback layout "
+        "instead of a force-directed one. Install Graphviz and re-prepare for a "
+        "topology-aware layout."
+    ),
+    LAYOUT_DEGRADED_SFDP_TIMEOUT: (
+        "Graphviz 'sfdp' timed out on this graph; produced a circular fallback "
+        "layout instead of a force-directed one. The graph may be too large for "
+        "the configured layout budget."
+    ),
+    LAYOUT_DEGRADED_SFDP_FAILED: (
+        "Graphviz 'sfdp' failed to run; produced a circular fallback layout "
+        "instead of a force-directed one."
+    ),
+    LAYOUT_DEGRADED_SFDP_INCOMPLETE: (
+        "Graphviz 'sfdp' returned an incomplete layout; produced a circular "
+        "fallback layout instead of a force-directed one."
+    ),
+}
+_LAYOUT_DEGRADED_WARNING_FALLBACK = (
+    "The layout degraded to a circular fallback instead of a force-directed one."
+)
+
+
+def layout_degraded_warning(reason: str | None) -> str:
+    """Map a layout degrade reason to a client-facing warning message."""
+    return _LAYOUT_DEGRADED_WARNINGS.get(reason, _LAYOUT_DEGRADED_WARNING_FALLBACK)
 
 
 class GraphV2PrepareResponse(BaseModel):
@@ -151,9 +186,7 @@ def prepare_graph_v2(
         layout_warnings: list[str] = []
         if result.layout_status == "degraded":
             layout_warnings.append(
-                "Graphviz 'sfdp' was unavailable; produced a circular fallback "
-                "layout instead of a force-directed one. Install Graphviz and "
-                "re-prepare for a topology-aware layout."
+                layout_degraded_warning(result.layout_degraded_reason)
             )
         return GraphV2PrepareResponse(
             dataset_id=dataset.dataset_id,
