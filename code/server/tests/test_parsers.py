@@ -116,4 +116,26 @@ def test_parse_newick_ignores_empty_children_from_trailing_commas() -> None:
         ("root", "y"): 4.0,
     }
     assert all(edge.distance is not None for edge in parsed.edges)
-    assert len(parsed.warnings) == 3
+    # Trailing commas before ')' or ';' are a benign phylolib dialect quirk and
+    # must not inflate the warning list (previously O(N) empty-child warnings).
+    assert parsed.warnings == []
+
+
+def test_parse_newick_warns_on_genuine_empty_child() -> None:
+    """Confirm a genuine empty child position (double comma) still warns."""
+    parsed = parse_newick("(A:1,,B:1)Root;")
+
+    edge_by_pair = {(edge.source, edge.target): edge.distance for edge in parsed.edges}
+    assert edge_by_pair == {
+        ("root", "a"): 1.0,
+        ("root", "b"): 1.0,
+    }
+    assert len(parsed.warnings) == 1
+
+
+def test_parse_newick_does_not_flag_meaningless_underscore_labels_as_explicit() -> None:
+    """Confirm '_' junction labels slugify to empty and are not join-eligible."""
+    parsed = parse_newick("(4365:0.5,4601:0.5,)_:0.5;")
+
+    assert parsed.explicit_node_ids == {"4365", "4601"}
+    assert parsed.warnings == []

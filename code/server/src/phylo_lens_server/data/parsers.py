@@ -75,22 +75,32 @@ def parse_newick(content: str) -> ParsedGraph:
     root_id: str | None = None
     expect_subtree = True
 
-    def assign_id(label: str | None, prefix: str, counter: int) -> str:
-        """Build a deterministic node id from label or generated prefix."""
+    def assign_id(label: str | None, prefix: str, counter: int) -> tuple[str, bool]:
+        """Build a deterministic node id from label or generated prefix.
+
+        Returns the id and whether a meaningful (non-empty) label slug was used.
+        A label like ``_`` slugifies to an empty string and is treated as an
+        anonymous junction, so it does not count as an explicit label.
+        """
+        used_slug = False
         if label:
             slug = slugify_label(label)
-            base = slug or f"{prefix}_{counter}"
+            if slug:
+                base = slug
+                used_slug = True
+            else:
+                base = f"{prefix}_{counter}"
         else:
             base = f"{prefix}_{counter}"
 
         if base in used_ids:
             used_ids[base] += 1
-            if label:
+            if used_slug:
                 warnings.append(WARN_DUPLICATE_LABEL.format(label=label))
-            return f"{base}_{used_ids[base]}"
+            return f"{base}_{used_ids[base]}", used_slug
 
         used_ids[base] = 1
-        return base
+        return base, used_slug
 
     def peek() -> str | None:
         if index >= content_length:
@@ -171,16 +181,20 @@ def parse_newick(content: str) -> ParsedGraph:
             if current == TOKEN_CLOSE_PAREN:
                 if not stack:
                     raise ParseError(ERR_NEWICK_TRAILING_CONTENT)
-                warnings.append(WARN_NEWICK_EMPTY_CHILD.format(index=index))
+                # A trailing separator before ')' (e.g. "(A,B,)") is a benign
+                # phylolib dialect quirk, not an empty child. Only warn when the
+                # group has no children at all (a genuinely empty "()").
+                if not stack[-1].child_links:
+                    warnings.append(WARN_NEWICK_EMPTY_CHILD.format(index=index))
                 expect_subtree = False
                 continue
 
             leaf_counter += 1
             label = parse_label_optional()
             branch_length = parse_branch_length_optional()
-            node_id = assign_id(label, NODE_PREFIX_LEAF, leaf_counter)
+            node_id, used_slug = assign_id(label, NODE_PREFIX_LEAF, leaf_counter)
             nodes.append(node_id)
-            if label is not None:
+            if used_slug:
                 explicit_node_ids.add(node_id)
             emit_completed_node(node_id, branch_length)
             expect_subtree = False
@@ -200,9 +214,11 @@ def parse_newick(content: str) -> ParsedGraph:
             pending = stack.pop()
             label = parse_label_optional()
             branch_length = parse_branch_length_optional()
-            node_id = assign_id(label, NODE_PREFIX_UNION, pending.preorder_index)
+            node_id, used_slug = assign_id(
+                label, NODE_PREFIX_UNION, pending.preorder_index
+            )
             nodes.append(node_id)
-            if label is not None:
+            if used_slug:
                 explicit_node_ids.add(node_id)
             for child_id, child_distance in pending.child_links:
                 edges.append(
