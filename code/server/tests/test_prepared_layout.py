@@ -482,6 +482,108 @@ def test_viewport_representatives_carry_cluster_metadata_aggregate(tmp_path) -> 
         assert INTERNAL_COUNT_KEY not in (node.metadata or {})
 
 
+def test_detail_viewport_keeps_boundary_edges_and_offscreen_neighbors(
+    tmp_path,
+) -> None:
+    store = PreparedLayoutStore(tmp_path)
+    worker = PreparedLayoutWorker(store)
+    result = worker.prepare_dataset(_dataset())
+    layout_version = result.artifacts.layout_version
+
+    # Discover the computed positions via an unbounded detail read.
+    full = store.read_viewport(
+        dataset_id=DATASET_ID,
+        layout_version=layout_version,
+        xmin=None,
+        xmax=None,
+        ymin=None,
+        ymax=None,
+        max_nodes=50,
+        lod_level=1,
+    )
+    positions = {node.node_id: (node.x, node.y) for node in full.nodes}
+    assert set(positions) == {"a", "b", "c", "d", "e"}
+    assert {edge.edge_id for edge in full.edges} == {
+        "e_a_b_1",
+        "e_b_c_1",
+        "e_c_d_1",
+        "e_c_e_1",
+    }
+
+    # A tight box around only "c" — its three edges (to b, d, e) all straddle
+    # the viewport boundary.
+    cx, cy = positions["c"]
+    read = store.read_viewport(
+        dataset_id=DATASET_ID,
+        layout_version=layout_version,
+        xmin=cx - 1e-6,
+        xmax=cx + 1e-6,
+        ymin=cy - 1e-6,
+        ymax=cy + 1e-6,
+        max_nodes=50,
+        lod_level=1,
+    )
+
+    returned_node_ids = {node.node_id for node in read.nodes}
+    returned_edge_ids = {edge.edge_id for edge in read.edges}
+
+    # Boundary edges survive instead of being dropped for an off-screen endpoint.
+    assert {"e_b_c_1", "e_c_d_1", "e_c_e_1"} <= returned_edge_ids
+    # And every endpoint of a returned edge is present as a node, so the client
+    # keeps them.
+    for edge in read.edges:
+        assert edge.source in returned_node_ids
+        assert edge.target in returned_node_ids
+    # The off-screen neighbors were surfaced alongside the in-viewport node.
+    assert {"c", "b", "d", "e"} <= returned_node_ids
+
+
+def test_detail_viewport_keeps_boundary_edges_when_node_budget_is_saturated(
+    tmp_path,
+) -> None:
+    store = PreparedLayoutStore(tmp_path)
+    worker = PreparedLayoutWorker(store)
+    result = worker.prepare_dataset(_dataset())
+    layout_version = result.artifacts.layout_version
+
+    full = store.read_viewport(
+        dataset_id=DATASET_ID,
+        layout_version=layout_version,
+        xmin=None,
+        xmax=None,
+        ymin=None,
+        ymax=None,
+        max_nodes=50,
+        lod_level=1,
+    )
+    positions = {node.node_id: (node.x, node.y) for node in full.nodes}
+    cx, cy = positions["c"]
+
+    # max_nodes=1 makes the in-viewport slice saturate the budget with only
+    # "c". Previously this collapsed the neighbor budget to zero and dropped
+    # every boundary edge again; now the off-screen neighbors are surfaced in
+    # full so the boundary edges survive.
+    read = store.read_viewport(
+        dataset_id=DATASET_ID,
+        layout_version=layout_version,
+        xmin=cx - 1e-6,
+        xmax=cx + 1e-6,
+        ymin=cy - 1e-6,
+        ymax=cy + 1e-6,
+        max_nodes=1,
+        lod_level=1,
+    )
+
+    returned_node_ids = {node.node_id for node in read.nodes}
+    returned_edge_ids = {edge.edge_id for edge in read.edges}
+
+    assert {"e_b_c_1", "e_c_d_1", "e_c_e_1"} <= returned_edge_ids
+    for edge in read.edges:
+        assert edge.source in returned_node_ids
+        assert edge.target in returned_node_ids
+    assert {"c", "b", "d", "e"} <= returned_node_ids
+
+
 def test_prepare_layout_rejects_missing_distances() -> None:
     dataset = normalize_dataset(
         NormalizeRequest(

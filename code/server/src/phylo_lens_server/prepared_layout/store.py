@@ -391,7 +391,7 @@ class PreparedLayoutStore:
                 first = cluster_layouts[0]
                 connection.execute(
                     """
-                    update datasets set status = ?
+                    update datasets set status = ?, updated_at = current_timestamp
                     where dataset_id = ? and layout_version = ?
                     """,
                     (first.status, first.dataset_id, first.layout_version),
@@ -609,12 +609,56 @@ class PreparedLayoutStore:
                     max_nodes=max_nodes,
                 )
                 nodes: tuple[ViewportNode, ...] = tuple(ready_nodes)
-                edges = self._read_edges_for_nodes(
+                viewport_node_ids = {node.node_id for node in nodes}
+                edges = self._read_edges_touching_nodes(
                     connection,
                     dataset_id=dataset_id,
                     layout_version=layout_version,
-                    node_ids={node.node_id for node in nodes},
+                    node_ids=viewport_node_ids,
                 )
+                # Edges straddling the viewport boundary reference a neighbor
+                # just off-screen. Surface those neighbor positions so the
+                # client keeps the boundary edges instead of dropping them for
+                # a missing endpoint. These neighbors are a connectivity aid,
+                # not part of the in-viewport slice, so they are surfaced in
+                # full even when the viewport slice already fills ``max_nodes``.
+                # Capping them to the leftover budget (which collapses to zero
+                # in dense viewports) is what previously dropped boundary edges
+                # again. Neighbors are a small fraction of the slice, so the
+                # bounded overflow is acceptable.
+                neighbor_ids = {
+                    endpoint
+                    for edge in edges
+                    for endpoint in (edge.source, edge.target)
+                    if endpoint not in viewport_node_ids
+                }
+                neighbors = tuple(
+                    self._read_node_positions_by_ids(
+                        connection,
+                        dataset_id=dataset_id,
+                        layout_version=layout_version,
+                        node_ids=neighbor_ids,
+                        max_nodes=len(neighbor_ids),
+                    )
+                    if neighbor_ids
+                    else ()
+                )
+                nodes = nodes + neighbors
+                # Drop edges whose off-screen endpoint could not be surfaced
+                # (budget exhausted) so both endpoints of every returned edge
+                # are always present for the client.
+                present_ids = viewport_node_ids | {
+                    node.node_id for node in neighbors
+                }
+                edges = [
+                    edge
+                    for edge in edges
+                    if edge.source in present_ids and edge.target in present_ids
+                ]
+                # Count surfaced neighbors into the total so the truncation
+                # check keeps reflecting whether the in-viewport slice was
+                # capped.
+                total_node_count += len(neighbors)
             else:
                 nodes = tuple(
                     self._read_cluster_representatives(
@@ -1160,9 +1204,119 @@ class PreparedLayoutStore:
             for row in rows
         ]
 
+    def _read_edges_touching_nodes(
+        self,
+        connection: sqlite3.Connection,
+        *,
+        dataset_id: str,
+        layout_version: str,
+        node_ids: set[str],
+    ) -> list[ViewportEdge]:
+        """Edges with at least one endpoint in ``node_ids``.
+
+        Unlike :meth:`_read_edges_for_nodes`, which requires both endpoints in
+        the set, this keeps edges that straddle the viewport boundary so a
+        bounds-filtered slice stays connected to its off-screen neighbors.
+        """
+        if not node_ids:
+            return []
+        placeholders = ",".join("?" for _ in node_ids)
+        params = [
+            dataset_id,
+            layout_version,
+            *sorted(node_ids),
+            *sorted(node_ids),
+        ]
+        rows = connection.execute(
+            f"""
+            select edge_id, source_node_id, target_node_id, distance
+            from graph_edges
+            where dataset_id = ?
+              and layout_version = ?
+              and (source_node_id in ({placeholders})
+                   or target_node_id in ({placeholders}))
+            order by source_node_id, target_node_id, edge_id
+            """,
+            params,
+        ).fetchall()
+        return [
+            ViewportEdge(
+                edge_id=row["edge_id"],
+                source=row["source_node_id"],
+                target=row["target_node_id"],
+                distance=row["distance"],
+            )
+            for row in rows
+        ]
+
+    def _read_node_positions_by_ids(
+        self,
+        connection: sqlite3.Connection,
+        *,
+        dataset_id: str,
+        layout_version: str,
+        node_ids: set[str],
+        max_nodes: int,
+    ) -> list[ViewportNode]:
+        """Fetch positions for specific node ids at the finest partition.
+
+        Used to surface off-screen boundary-edge neighbors so the client keeps
+        edges that cross the viewport edge. Capped by ``max_nodes`` so the
+        connectivity aid never overruns the viewport node budget.
+        """
+        if not node_ids or max_nodes <= 0:
+            return []
+        placeholders = ",".join("?" for _ in node_ids)
+        rows = connection.execute(
+            f"""
+            with base_threshold as (
+                select min(threshold) as value
+                from prepared_clusters
+                where dataset_id = ? and layout_version = ?
+            )
+            select np.node_id, np.cluster_id, np.x, np.y, np.status
+            from node_positions np
+            join prepared_clusters pc
+              on pc.dataset_id = np.dataset_id
+             and pc.layout_version = np.layout_version
+             and pc.cluster_id = np.cluster_id
+            where np.dataset_id = ?
+              and np.layout_version = ?
+              and pc.threshold = (select value from base_threshold)
+              and np.node_id in ({placeholders})
+            order by np.cluster_id, np.node_id
+            limit ?
+            """,
+            (
+                dataset_id,
+                layout_version,
+                dataset_id,
+                layout_version,
+                *sorted(node_ids),
+                max_nodes,
+            ),
+        ).fetchall()
+        return [
+            ViewportNode(
+                node_id=row["node_id"],
+                cluster_id=row["cluster_id"],
+                x=row["x"],
+                y=row["y"],
+                layout_status=row["status"],
+                member_count=1,
+            )
+            for row in rows
+        ]
+
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self.path)
         connection.row_factory = sqlite3.Row
+        # WAL lets viewport readers proceed against the last committed snapshot
+        # while a prepare write is in flight; NORMAL trades a fsync-per-commit
+        # for the WAL checkpoint's durability, which is the right balance for a
+        # rebuildable materialized-layout cache.
+        connection.execute("pragma journal_mode=WAL")
+        connection.execute("pragma synchronous=NORMAL")
         return connection
 
     def _table_exists(self, connection: sqlite3.Connection, table_name: str) -> bool:

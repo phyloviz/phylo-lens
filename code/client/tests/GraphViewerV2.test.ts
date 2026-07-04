@@ -5,9 +5,11 @@ import {
   buildGraphV2ViewportQuery,
   DEFAULT_GRAPH_VIEWER_V2_NODE_SIZE,
   expandViewportBounds,
+  GRAPH_VIEWER_V2_LOD_CHANGE_DEBOUNCE_MS,
   GRAPH_VIEWER_V2_MAX_MEMBER_SIZE_BOOST,
   GRAPH_VIEWER_V2_NODE_COLOR,
   GRAPH_VIEWER_V2_REPRESENTATIVE_COLOR,
+  GRAPH_VIEWER_V2_SMALL_TREE_NODE_THRESHOLD,
   GraphViewerV2,
   nodeSizeForMemberCount,
   reconcileGraphologyViewport,
@@ -277,11 +279,16 @@ describe("GraphViewerV2", () => {
     expect(camera.off).toHaveBeenCalled();
   });
 
-  it("immediately fetches detailed nodes when Sigma ratio crosses the zoom-in threshold", async () => {
+  it("fetches detailed nodes on a short debounce when the ratio crosses the zoom-in threshold", async () => {
     const graph = new Graph();
     const { sigma, setRatio, emitCameraUpdated } = fakeSigma(1.2);
+    // A large tree keeps semantic zooming active (small trees bypass it).
+    const largeTreeResponse = {
+      ...VIEWPORT_RESPONSE,
+      total_node_count: GRAPH_VIEWER_V2_SMALL_TREE_NODE_THRESHOLD + 1,
+    };
     const client: GraphV2Client = {
-      readViewport: vi.fn(async () => VIEWPORT_RESPONSE),
+      readViewport: vi.fn(async () => largeTreeResponse),
     };
     const viewer = new GraphViewerV2({
       datasetId: "tree",
@@ -299,8 +306,13 @@ describe("GraphViewerV2", () => {
 
     setRatio(0.79);
     emitCameraUpdated();
-    await vi.advanceTimersByTimeAsync(0);
 
+    // LoD changes use a short debounce (not the full same-level delay, not 0ms
+    // which would thrash the server on rapid zoom).
+    await vi.advanceTimersByTimeAsync(GRAPH_VIEWER_V2_LOD_CHANGE_DEBOUNCE_MS - 1);
+    expect(client.readViewport).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(1);
     expect(client.readViewport).toHaveBeenLastCalledWith(
       expect.objectContaining({
         lod_level: 1,
@@ -310,6 +322,77 @@ describe("GraphViewerV2", () => {
         ymax: expect.any(Number),
       }),
     );
+
+    viewer.unmount();
+  });
+
+  it("stops issuing viewport queries on camera movement for small trees", async () => {
+    const graph = new Graph();
+    const { sigma, setRatio, emitCameraUpdated } = fakeSigma(1.2);
+    // total_node_count of 2 (VIEWPORT_RESPONSE) is well below the small-tree
+    // threshold, so the whole tree is loaded once and never re-queried.
+    const client: GraphV2Client = {
+      readViewport: vi.fn(async () => VIEWPORT_RESPONSE),
+    };
+    const viewer = new GraphViewerV2({
+      datasetId: "tree",
+      client,
+      graph,
+      sigma: sigma as never,
+      debounceMs: 250,
+    });
+
+    viewer.mount();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(client.readViewport).toHaveBeenCalledTimes(1);
+
+    setRatio(0.79);
+    emitCameraUpdated();
+    await vi.runOnlyPendingTimersAsync();
+
+    // No additional query: the small tree is already rendered whole.
+    expect(client.readViewport).toHaveBeenCalledTimes(1);
+
+    viewer.unmount();
+  });
+
+  it("does not refresh on camera movement while LoD playback is paused", async () => {
+    const graph = new Graph();
+    const { sigma, setRatio, emitCameraUpdated } = fakeSigma(1.2);
+    const largeTreeResponse = {
+      ...VIEWPORT_RESPONSE,
+      total_node_count: GRAPH_VIEWER_V2_SMALL_TREE_NODE_THRESHOLD + 1,
+    };
+    let paused = false;
+    const client: GraphV2Client = {
+      readViewport: vi.fn(async () => largeTreeResponse),
+    };
+    const viewer = new GraphViewerV2({
+      datasetId: "tree",
+      client,
+      graph,
+      sigma: sigma as never,
+      debounceMs: 250,
+      getPaused: () => paused,
+    });
+
+    viewer.mount();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(client.readViewport).toHaveBeenCalledTimes(1);
+
+    paused = true;
+    setRatio(0.79);
+    emitCameraUpdated();
+    await vi.runOnlyPendingTimersAsync();
+
+    // Frozen: no new slice fetched while paused.
+    expect(client.readViewport).toHaveBeenCalledTimes(1);
+
+    // Resuming and issuing an explicit refresh reconciles the current view.
+    paused = false;
+    viewer.refreshNow();
+    await vi.runOnlyPendingTimersAsync();
+    expect(client.readViewport).toHaveBeenCalledTimes(2);
 
     viewer.unmount();
   });

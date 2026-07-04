@@ -11,15 +11,15 @@ import {
 } from "./pieMapping";
 import type { PieMappingOptions } from "./pieMapping";
 import {
-  isPhyloVizUnionNode,
-  PHYLOVIZ_UNION_NODE_COLOR,
-  PHYLOVIZ_UNION_NODE_SIZE,
-} from "./phylovizNodes";
+  isUnionNode,
+  UNION_NODE_COLOR,
+  UNION_NODE_SIZE,
+} from "./unionNodes";
 
 export {
-  PHYLOVIZ_UNION_NODE_COLOR,
-  PHYLOVIZ_UNION_NODE_SIZE,
-} from "./phylovizNodes";
+  UNION_NODE_COLOR,
+  UNION_NODE_SIZE,
+} from "./unionNodes";
 
 export const DEFAULT_COLOR_PALETTE = [
   "#0f766e",
@@ -135,11 +135,11 @@ function mapNodeVisuals(
   palette: string[],
   pieOptions: PieMappingOptions,
 ): PositionedNode {
-  if (isPhyloVizUnionNode(node.id, node.attributes)) {
+  if (isUnionNode(node.id, node.attributes)) {
     return {
       ...node,
-      color: PHYLOVIZ_UNION_NODE_COLOR,
-      size: PHYLOVIZ_UNION_NODE_SIZE,
+      color: UNION_NODE_COLOR,
+      size: UNION_NODE_SIZE,
       attributes: {
         ...(node.attributes ?? {}),
         dataset_id: dataset.dataset_id,

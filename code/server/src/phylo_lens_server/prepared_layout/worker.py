@@ -23,7 +23,7 @@ class PreparedLayoutWorker:
         executor: ThreadPoolExecutor | None = None,
     ) -> None:
         self.store = store
-        self.executor = executor or ThreadPoolExecutor(max_workers=1)
+        self._executor = executor
         self._owns_executor = executor is None
 
     def prepare_dataset(self, dataset: CanonicalDataset) -> PreparedLayoutResult:
@@ -52,6 +52,12 @@ class PreparedLayoutWorker:
             layout_degraded_reason=degraded_reason,
         )
 
+    @property
+    def executor(self) -> ThreadPoolExecutor:
+        if self._executor is None:
+            self._executor = ThreadPoolExecutor(max_workers=1)
+        return self._executor
+
     def submit_prepare_dataset(
         self,
         dataset: CanonicalDataset,
@@ -59,8 +65,8 @@ class PreparedLayoutWorker:
         return self.executor.submit(self.prepare_dataset, dataset)
 
     def shutdown(self) -> None:
-        if self._owns_executor:
-            self.executor.shutdown(wait=True)
+        if self._owns_executor and self._executor is not None:
+            self._executor.shutdown(wait=True)
 
 
 def compute_prepared_edges(

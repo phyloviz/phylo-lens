@@ -34,6 +34,7 @@ import {
   ERR_LOD_PLAYBACK_REQUIRES_LOD,
   ERR_NO_GRAPH_RENDERED,
 } from "./workbenchErrors";
+import { searchDatasetNodes } from "./nodeSearch";
 import {
   clearPendingViewRefresh,
   createInitialGraphWorkbenchState,
@@ -123,6 +124,7 @@ export function createGraphWorkbench(
     setLodRefreshPaused: (paused) =>
       setLodRefreshPaused({
         state,
+        renderer,
         paused,
       }),
 
@@ -209,6 +211,7 @@ async function renderNewick({
       datasetId: preparedGraph.dataset_id,
       layoutVersion: preparedGraph.layout_version,
       maxNodes: state.preparedSession.lod.maxNodes,
+      getPaused: () => state.lodRefreshPaused,
       onViewportLoaded: (response) => {
         updateStateFromGraphV2Viewport(state, response);
       },
@@ -232,11 +235,13 @@ async function renderNewick({
 
 interface SetLodRefreshPausedArgs {
   state: GraphWorkbenchState;
+  renderer: GraphRenderer;
   paused: boolean;
 }
 
 async function setLodRefreshPaused({
   state,
+  renderer,
   paused,
 }: SetLodRefreshPausedArgs): Promise<PositionedGraph | null> {
   if (!state.preparedSession || state.renderMode !== "lod") {
@@ -246,6 +251,11 @@ async function setLodRefreshPaused({
   state.lodRefreshPaused = paused;
   clearPendingViewRefresh(state);
   state.deferredViewState = null;
+  // On resume, reconcile the frozen view to wherever the camera drifted while
+  // paused. refreshNow() bypasses the pause guard in GraphViewerV2.
+  if (!paused) {
+    renderer.refreshGraphV2ViewportSync?.();
+  }
   return state.currentGraph;
 }
 
@@ -296,12 +306,11 @@ async function searchNodes({
     throw new Error(ERR_NO_GRAPH_RENDERED);
   }
 
-  return {
-    dataset_id: session.datasetId,
-    query: query.query,
-    matches: [],
-    total_count: 0,
-  };
+  return searchDatasetNodes(
+    session.datasetId,
+    session.metadataByNodeId,
+    query,
+  );
 }
 
 interface FocusNodeArgs {

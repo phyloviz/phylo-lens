@@ -34,6 +34,17 @@ ERR_EMPTY_DATASET = "Prepared layout requires at least one node."
 ERR_MISSING_DISTANCE = "Prepared layout requires every edge to carry a distance value."
 
 
+def _edge_distance(edge: CanonicalEdge) -> float:
+    """Return an edge's distance, treating only a truly missing value as 0.0.
+
+    ``prepare_layout_artifacts`` rejects ``None`` distances up front, so the
+    fallback is defensive; the explicit ``is None`` check is what preserves a
+    genuine ``distance == 0.0`` (indistinguishable nodes) instead of coercing it
+    away like a truthiness test would.
+    """
+    return 0.0 if edge.distance is None else edge.distance
+
+
 class PreparedLayoutIngestError(ValueError):
     """Raised when a dataset cannot be prepared for materialized layout."""
 
@@ -190,7 +201,7 @@ def threshold_component_counts(
 ) -> tuple[_ThresholdComponentCount, ...]:
     node_index_by_id = {node_id: index for index, node_id in enumerate(node_ids)}
     weighted_edges = sorted(
-        ((edge.distance or 0.0, edge.source, edge.target) for edge in edges),
+        ((_edge_distance(edge), edge.source, edge.target) for edge in edges),
         key=lambda item: (item[0], item[1], item[2]),
     )
     union_find = _UnionFind.create(len(node_ids))
@@ -241,7 +252,7 @@ def distance_clusters(
 ) -> list[PreparedCluster]:
     node_index_by_id = {node_id: index for index, node_id in enumerate(node_ids)}
     weighted_edges = sorted(
-        ((edge.distance or 0.0, edge.source, edge.target) for edge in dataset.edges),
+        ((_edge_distance(edge), edge.source, edge.target) for edge in dataset.edges),
         key=lambda item: (item[0], item[1], item[2]),
     )
     thresholds_asc = tuple(reversed(thresholds_desc))
@@ -276,7 +287,7 @@ def sort_edges_by_distance(
     edges: list[CanonicalEdge],
 ) -> tuple[CanonicalEdge, ...]:
     """Order edges by ``(distance, id)`` once for reuse across thresholds."""
-    return tuple(sorted(edges, key=lambda edge: (edge.distance or 0.0, edge.id)))
+    return tuple(sorted(edges, key=lambda edge: (_edge_distance(edge), edge.id)))
 
 
 def partition_for_threshold(
@@ -294,7 +305,7 @@ def partition_for_threshold(
     if sorted_edges is None:
         sorted_edges = sort_edges_by_distance(dataset.edges)
     for edge in sorted_edges:
-        if (edge.distance or 0.0) <= threshold:
+        if _edge_distance(edge) <= threshold:
             union_find.union(
                 node_index_by_id[edge.source],
                 node_index_by_id[edge.target],

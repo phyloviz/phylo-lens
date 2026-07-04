@@ -381,7 +381,12 @@ describe("sigmaRenderer", () => {
     renderer.render({
       nodes: [
         { id: "union_1", x: 0, y: 0 },
-        { id: "internal_legacy", x: 0.5, y: 0.5 },
+        // A real isolate whose label merely starts with the union prefix
+        // must NOT be hidden — only generated `union_<digits>` ids are.
+        { id: "union_sample", x: 0.75, y: 0.75 },
+        // `internal_` is not a structural convention the server emits, so an
+        // `internal_`-prefixed id is a real node and must render normally.
+        { id: "internal_7", x: 0.5, y: 0.5 },
         { id: "profile_1", x: 1, y: 1 },
         {
           id: "cluster_proxy:threshold_cluster_4_42",
@@ -401,8 +406,14 @@ describe("sigmaRenderer", () => {
     expect(lastGraph?.getNodeAttribute("union_1", "label")).toBe("");
     expect(lastGraph?.getNodeAttribute("union_1", "size")).toBe(0);
     expect(lastGraph?.getNodeAttribute("union_1", "color")).toBe("#ffffff");
-    expect(lastGraph?.getNodeAttribute("internal_legacy", "label")).toBe("");
-    expect(lastGraph?.getNodeAttribute("internal_legacy", "size")).toBe(0);
+    expect(lastGraph?.getNodeAttribute("union_sample", "label")).toBe(
+      "union_sample",
+    );
+    expect(lastGraph?.getNodeAttribute("union_sample", "size")).not.toBe(0);
+    expect(lastGraph?.getNodeAttribute("internal_7", "label")).toBe(
+      "internal_7",
+    );
+    expect(lastGraph?.getNodeAttribute("internal_7", "size")).not.toBe(0);
     expect(lastGraph?.getNodeAttribute("profile_1", "label")).toBe("profile_1");
     expect(
       lastGraph?.getNodeAttribute(

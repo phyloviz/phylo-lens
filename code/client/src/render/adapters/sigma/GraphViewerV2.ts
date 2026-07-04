@@ -8,6 +8,8 @@ import {
   buildGraphV2ViewportQuery,
   DEFAULT_GRAPH_VIEWER_V2_DEBOUNCE_MS,
   DEFAULT_GRAPH_VIEWER_V2_MAX_NODES,
+  GRAPH_VIEWER_V2_LOD_CHANGE_DEBOUNCE_MS,
+  GRAPH_VIEWER_V2_SMALL_TREE_NODE_THRESHOLD,
   sigmaDisplayZoom,
 } from "./graphViewerV2Query";
 import {
@@ -28,6 +30,8 @@ export {
   DEFAULT_GRAPH_VIEWER_V2_MAX_NODES,
   expandViewportBounds,
   GRAPH_VIEWER_V2_DETAIL_RATIO_THRESHOLD,
+  GRAPH_VIEWER_V2_LOD_CHANGE_DEBOUNCE_MS,
+  GRAPH_VIEWER_V2_SMALL_TREE_NODE_THRESHOLD,
   GRAPH_VIEWER_V2_VIEWPORT_PADDING_RATIO,
   semanticLodLevelForCameraRatio,
   sigmaViewportBounds,
@@ -63,6 +67,13 @@ export interface GraphViewerV2Options {
   sigma: SigmaViewportLike;
   debounceMs?: number;
   maxNodes?: number;
+  // Trees at or below this node count skip semantic zooming: the whole tree is
+  // rendered once at LOD 0 and camera movement never re-queries the server.
+  smallTreeThreshold?: number;
+  // Reports whether LOD refresh is paused. When paused, camera movement must
+  // not trigger new server viewport queries; the current node/edge set stays
+  // frozen until playback resumes.
+  getPaused?: () => boolean;
   onViewportLoaded?: (response: GraphV2ViewportResponse) => void;
   onError?: (error: unknown) => void;
   getRenderSettings?: () => ViewportSyncSettings;
@@ -80,6 +91,8 @@ export class GraphViewerV2 {
   private sigma: SigmaViewportLike;
   private readonly debounceMs: number;
   private readonly maxNodes: number;
+  private readonly smallTreeThreshold: number;
+  private readonly getPaused?: () => boolean;
   private readonly onViewportLoaded?: (
     response: GraphV2ViewportResponse,
   ) => void;
@@ -92,6 +105,9 @@ export class GraphViewerV2 {
   private mounted = false;
   private loadedInitialViewport = false;
   private lastRequestedLodLevel: number | null | undefined;
+  // Total node count of the loaded tree (from the initial viewport response).
+  // Once known, drives the small-tree bypass. null until the first load.
+  private totalNodeCount: number | null = null;
   private readonly cameraUpdated = () =>
     this.scheduleViewportRefreshForCamera();
   private readonly nodeClicked = (payload: {
@@ -109,6 +125,9 @@ export class GraphViewerV2 {
     this.sigma = options.sigma as SigmaViewportLike;
     this.debounceMs = options.debounceMs ?? DEFAULT_GRAPH_VIEWER_V2_DEBOUNCE_MS;
     this.maxNodes = options.maxNodes ?? DEFAULT_GRAPH_VIEWER_V2_MAX_NODES;
+    this.smallTreeThreshold =
+      options.smallTreeThreshold ?? GRAPH_VIEWER_V2_SMALL_TREE_NODE_THRESHOLD;
+    this.getPaused = options.getPaused;
     this.onViewportLoaded = options.onViewportLoaded;
     this.onError = options.onError;
     this.getRenderSettings = options.getRenderSettings;
@@ -177,10 +196,31 @@ export class GraphViewerV2 {
   }
 
   private scheduleViewportRefreshForCamera(): void {
+    // Frozen while LOD playback is paused: camera movement pans over the
+    // existing geometry without fetching a new slice. refreshNow() (invoked on
+    // resume) bypasses this guard to reconcile to the current view.
+    if (this.getPaused?.()) {
+      return;
+    }
+    // Small trees are loaded whole once at LOD 0; camera movement never issues
+    // another server query.
+    if (this.isSmallTreeLoaded()) {
+      return;
+    }
     const nextLodLevel = this.currentLodLevel();
     const lodChanged =
       this.loadedInitialViewport && nextLodLevel !== this.lastRequestedLodLevel;
-    this.scheduleViewportRefresh(lodChanged ? 0 : this.debounceMs);
+    this.scheduleViewportRefresh(
+      lodChanged ? GRAPH_VIEWER_V2_LOD_CHANGE_DEBOUNCE_MS : this.debounceMs,
+    );
+  }
+
+  private isSmallTreeLoaded(): boolean {
+    return (
+      this.loadedInitialViewport &&
+      this.totalNodeCount !== null &&
+      this.totalNodeCount <= this.smallTreeThreshold
+    );
   }
 
   private scheduleViewportRefresh(delayMs = this.debounceMs): void {
@@ -213,6 +253,7 @@ export class GraphViewerV2 {
         return;
       }
       this.layoutVersion = response.layout_version;
+      this.totalNodeCount = response.total_node_count;
       const settings = this.getRenderSettings?.();
       syncGraphologyViewport(this.graph, response, settings);
       reconcileGraphologyViewport(this.graph, response, settings);

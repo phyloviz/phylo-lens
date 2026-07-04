@@ -13,8 +13,8 @@ import {
   DEFAULT_NODE_SIZE,
   MAX_NODE_SIZE,
   MIN_NODE_SIZE,
-  PHYLOVIZ_UNION_NODE_COLOR,
-  PHYLOVIZ_UNION_NODE_SIZE,
+  UNION_NODE_COLOR,
+  UNION_NODE_SIZE,
 } from "../src/render/visualMappings";
 import {
   buildPiePalette,
@@ -237,8 +237,8 @@ describe("visualMappings", () => {
     const unionNode = mapped.nodes.find((node) => node.id === "union_1");
     const attributes = unionNode?.attributes as Record<string, unknown>;
 
-    expect(unionNode?.color).toBe(PHYLOVIZ_UNION_NODE_COLOR);
-    expect(unionNode?.size).toBe(PHYLOVIZ_UNION_NODE_SIZE);
+    expect(unionNode?.color).toBe(UNION_NODE_COLOR);
+    expect(unionNode?.size).toBe(UNION_NODE_SIZE);
     expect(attributes.is_union_node).toBe(true);
     expect(
       Object.keys(attributes).some((key) =>

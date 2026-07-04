@@ -61,6 +61,7 @@ export interface GraphRenderer {
     datasetId: string;
     layoutVersion?: string | null;
     maxNodes?: number;
+    getPaused?: () => boolean;
     onViewportLoaded?: (response: GraphV2ViewportResponse) => void;
     onError?: (error: unknown) => void;
     getRenderSettings?: () => ViewportSyncSettings;

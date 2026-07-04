@@ -6,10 +6,20 @@ import type {
 } from "./graphViewerV2Types";
 
 // Settle delay before a server viewport query fires after panning within the
-// same LOD level. LOD-level changes bypass this (they refresh immediately), so
-// this only governs same-level pan responsiveness against extra server queries.
+// same LOD level. This governs same-level pan responsiveness against extra
+// server queries.
 export const DEFAULT_GRAPH_VIEWER_V2_DEBOUNCE_MS = 120;
+// Settle delay for LOD-level changes (zoom crossing the detail threshold).
+// LOD changes used to refresh immediately (0ms), which let rapid zoom thrash
+// the server with a full round-trip + graph rebuild per intermediate frame.
+// A short debounce keeps the transition responsive while collapsing bursts of
+// threshold crossings into a single query.
+export const GRAPH_VIEWER_V2_LOD_CHANGE_DEBOUNCE_MS = 60;
 export const DEFAULT_GRAPH_VIEWER_V2_MAX_NODES = 2_500;
+// Trees at or below this node count are rendered whole once at LOD 0 and never
+// re-queried on camera movement: semantic zooming is bypassed entirely to save
+// server round-trips because the full tree already fits in the client.
+export const GRAPH_VIEWER_V2_SMALL_TREE_NODE_THRESHOLD = 2_500;
 export const GRAPH_VIEWER_V2_VIEWPORT_PADDING_RATIO = 0.5;
 export const GRAPH_VIEWER_V2_DETAIL_RATIO_THRESHOLD = 0.8;
 

@@ -234,6 +234,7 @@ export class SigmaRenderer implements GraphRenderer {
     datasetId: string;
     layoutVersion?: string | null;
     maxNodes?: number;
+    getPaused?: () => boolean;
     onViewportLoaded?: (response: GraphV2ViewportResponse) => void;
     onError?: (error: unknown) => void;
     getRenderSettings?: () => ViewportSyncSettings;
@@ -252,6 +253,7 @@ export class SigmaRenderer implements GraphRenderer {
       graph: this.graph,
       sigma: this.sigma,
       maxNodes: options.maxNodes,
+      getPaused: options.getPaused,
       onViewportLoaded: options.onViewportLoaded,
       onError: options.onError,
       getRenderSettings: options.getRenderSettings,
