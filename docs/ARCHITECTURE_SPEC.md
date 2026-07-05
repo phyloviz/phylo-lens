@@ -33,7 +33,9 @@ This document is the system-level map. For the runtime narrative see
 
 The v2 runtime is driven by FastAPI routes under the prefix `/api/v2/graph`
 (`api/v2_graph.py`, `ROUTER_PREFIX`). Prepare and viewport are the core loop;
-region is an on-demand read for a hand-drawn selection box:
+region is an on-demand read for a hand-drawn selection box. This section is the
+system-level summary; for the field-by-field request/response models, error
+shapes, and the prepare lifecycle see [`API_REFERENCE.md`](./API_REFERENCE.md):
 
 - **`POST /api/v2/graph/prepare`** — `prepare_graph_v2()`. Takes a
   `NormalizeRequest`, normalizes it into a `CanonicalDataset` (synchronously, so

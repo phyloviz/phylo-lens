@@ -19,6 +19,7 @@ Start here, then follow the path that matches your interest.
 | If you want to understand… | Read |
 | --- | --- |
 | The whole system at a glance | [`ARCHITECTURE_SPEC.md`](./ARCHITECTURE_SPEC.md) |
+| The HTTP API field-by-field (routes, models, errors) | [`API_REFERENCE.md`](./API_REFERENCE.md) |
 | The runtime flow end to end | [`flow.md`](./flow.md) |
 | The data contracts and storage schema | [`DATA_MODEL.md`](./DATA_MODEL.md) |
 | How a dataset becomes a laid-out artifact | [`SERVER_PIPELINE.md`](./SERVER_PIPELINE.md) |
@@ -33,6 +34,7 @@ Start here, then follow the path that matches your interest.
 flowchart TD
   README["README.md<br/>(index / reading guide)"]
   ARCH["ARCHITECTURE_SPEC.md<br/>(system overview)"]
+  API["API_REFERENCE.md<br/>(HTTP API reference)"]
   FLOW["flow.md<br/>(runtime flowchart)"]
   DATA["DATA_MODEL.md<br/>(contracts + schema)"]
   PIPE["SERVER_PIPELINE.md<br/>(prepare pipeline)"]
@@ -42,6 +44,7 @@ flowchart TD
   BACKLOG["BACKLOG.md<br/>(follow-ups)"]
 
   README --> ARCH
+  ARCH --> API
   ARCH --> FLOW
   ARCH --> DATA
   ARCH --> PIPE
@@ -60,7 +63,9 @@ flowchart TD
   `POST /api/v2/graph/prepare` (materialize layout artifacts) and
   `POST /api/v2/graph/viewport` (read a bounded slice);
   `POST /api/v2/graph/region` serves an on-demand box-select read with
-  aggregated metadata. See [`ARCHITECTURE_SPEC.md`](./ARCHITECTURE_SPEC.md).
+  aggregated metadata. See [`ARCHITECTURE_SPEC.md`](./ARCHITECTURE_SPEC.md) for
+  the system map, or [`API_REFERENCE.md`](./API_REFERENCE.md) for the
+  field-level route/model/error reference.
 - **Prepared layout lives in SQLite.** The server materializes clusters,
   per-tier edges, node positions, and metadata into a nine-table store keyed by
   `(dataset_id, layout_version)`. See [`DATA_MODEL.md`](./DATA_MODEL.md).
