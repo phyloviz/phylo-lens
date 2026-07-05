@@ -84,6 +84,70 @@ left as-is; only the per-threshold repetition was the waste.
 
 ---
 
+## 4. Typing-data input via Phylolib (MLST/cgMLST profiles) — DESIGNED, ready to implement
+
+**Area:** server ingest — new input format.
+
+**Motivation:** phylo-lens today only accepts **Newick**, i.e. data someone else
+already resolved into a tree. Typing data (MLST/cgMLST/wgMLST/SNP) is the field's
+native format and arrives as an **allelic profile matrix**, not a tree — so a user
+with a profile table cannot currently use phylo-lens at all. Accepting profiles
+directly makes the tool a consumer of the primary data format (PubMLST / Enterobase
+/ BIGSdb), not a downstream viewer. Scoped as a **core contribution**.
+
+**Tool:** [Phylolib](https://github.com/phyloviz/phylolib) — a phylogenetics
+algorithm CLI (part of the PHYLOViZ web-platform stack). Delivered as a **Docker
+image** (maintainer will publish images), so phylo-lens does **not** embed a JVM;
+it treats Phylolib as an external containerized tool, the same subprocess pattern
+`sfdp` already uses in `layout.py`.
+
+Relevant CLI surface:
+```
+phylolib distance (hamming|grapetree|kimura) -d ml:<profiles>   # profiles -> distance matrix
+phylolib algorithm goeburst -o newick:<tree>                    # matrix -> Full MST as Newick
+```
+
+**Design — two-stage subprocess feeding the EXISTING Newick path:**
+```
+Profile matrix ──phylolib distance hamming (-d ml)──▶ distance matrix
+               ──phylolib algorithm goeburst -o newick─▶ Newick (+ allelic distances)
+                                                          │
+                                                          ▼
+                                       existing parse_newick → CanonicalDataset
+                                                          │
+                                                          ▼
+                     existing prepare / cluster / sfdp / LoD / color / wheel / region (UNCHANGED)
+```
+The **only** new server code is a thin `TypingProfile` normalizer path that shells
+out to the Phylolib container twice and hands the resulting Newick to
+`parse_newick`. Everything downstream operates on `CanonicalDataset`, so it is
+untouched. goeBURST produces a Full MST (a tree), so `-o newick` is lossless for
+the tree case.
+
+**Typing + Ancillary data — a join, not a format:** Phylolib's outputs
+(`newick|nexus|asymmetric|symmetric`) are all topology/distance formats; **none
+carry isolate/epidemiological metadata**, by design — Phylolib is an algorithm
+engine, not a metadata store. Ancillary data therefore does **not** flow through
+Phylolib. It joins to nodes by isolate `id` in phylo-lens's **existing metadata
+path** (exactly as the current Newick + auxiliary-CSV example already works). So
+Newick is the correct output; a "richer" format would not help the join.
+
+**Degrade posture:** typing-ingest is available only when the Phylolib container
+is reachable; the server still runs without it (mirrors the `sfdp` availability
+guard + observable degrade reason).
+
+**Open implementation choices (defaults):** distance method default `hamming`
+(standard for allelic MLST; `grapetree` for cgMLST/wgMLST); goeBURST `lvs` default
+`3`; profile file contract (delimiter, id column, missing-allele token) to be
+defined and tested.
+
+**Optional future enrichment (NOT now):** also emit the `symmetric` distance
+matrix as a side artifact (Phylolib supports concatenated commands) to power a
+distance-matrix panel or client-side re-thresholding without recomputation. New
+feature, not required for typing-data ingest.
+
+---
+
 ## Not in this list (already resolved on the branch)
 
 - **Filter-logic duplication** — `nodePassesFilters` in `graphViewerV2Sync.ts`
