@@ -4,7 +4,8 @@ The client renders with Sigma.js over a Graphology graph. The workbench prepares
 a dataset and starts a viewport-sync loop; `GraphViewerV2` keeps the Graphology
 graph in step with the camera by pulling viewport slices from the server and
 reconciling them into the graph. This document covers the viewer lifecycle,
-node/edge attribute derivation, the triangle rule, and PHYLOViZ coloring.
+node/edge attribute derivation, the triangle rule, PHYLOViZ + value-based
+coloring, pie programs, and region (box) selection.
 
 For how zoom picks a tier, see [`LOD_AND_CLUSTERING.md`](./LOD_AND_CLUSTERING.md);
 for expand/collapse, see [`EXPAND_COLLAPSE.md`](./EXPAND_COLLAPSE.md).
@@ -89,13 +90,29 @@ cluster never dominates the canvas.
 
 Color precedence in `graphNodeAttributes` (highest first):
 
-1. **Active visual mapping** — an explicit user choice; color comes from
-   `deriveColor(metadata[colorField], palette)`.
+1. **Active visual mapping, when the node has a value for the color field** — an
+   explicit user choice. Color comes from a graph-wide, frequency-ranked map
+   (see [Value Color Unification](#value-color-unification) below), not a hash.
 2. **Representative tone** — cluster proxies (triangles) use
    `GRAPH_VIEWER_V2_REPRESENTATIVE_COLOR = "#b45309"` (amber/brown), so they read
    as aggregates rather than leaf nodes.
 3. **PHYLOViZ role color** — leaf/member nodes fall through to
-   `deriveViewportNodeColor(node)`.
+   `deriveViewportNodeColor(node)`. A node with **no value** for the active color
+   field also lands here: it keeps its role color rather than being painted a
+   palette slot it does not belong to (which could collide with a real value).
+
+### Value Color Unification (`colorHash.ts`)
+
+Node fills, on-node pie slices, and the ancillary wheel share **one** color
+source so a clicked node always matches its wheel slice.
+`buildValueColorMap(values, palette)` counts each value across the graph, ranks
+them most-frequent-first (ties broken by label ascending), and assigns
+`palette[0]`, `palette[1]`, … in order; values past the palette collapse to a
+stable grey "Others". `DEFAULT_COLOR_PALETTE` carries 12 visually distinct hues,
+so the top-12 legend has no repeats. The wheel builders
+(`ancillaryWheel.ts` → `resolvePieSliceColors`) rank the same way, per field, and
+honor live palette / category-color overrides forwarded from the shell so a
+color edit repaints tree and wheel together.
 
 ### PHYLOViZ role colors (`deriveViewportNodeColor`)
 
@@ -138,3 +155,18 @@ After each sync, `onGraphSynced` triggers `syncPieProgramsFromGraph`, which
 detects the pie-slice keys present in the live graph and rebuilds the Sigma
 instance only when the program signature changed, then rebinds `GraphViewerV2`
 to the new instance. When pie charts are disabled the work is skipped.
+
+## Region Selection (`sigmaBoxSelectController.ts`)
+
+Holding **Shift** and dragging draws a selection box over the canvas (or plain
+drag when region-select mode is toggled on via
+`setRegionSelectModeEnabled`). `sigmaBoxSelectController.ts` tracks the drag,
+suppresses camera panning while a box is active, converts the screen rectangle
+into graph-space bounds, and hands them to the workbench. The workbench issues a
+`readRegion` call (`POST /api/v2/graph/region`), which returns the isolated
+subgraph inside the box plus `aggregated_metadata` (mode for
+categorical/boolean, mean for numeric). `app/shell/region/regionPanelView.ts`
+renders that result as a region-selection summary with its own ancillary wheel,
+reusing the same value-color map as the tree. A new dataset or re-render clears
+the active selection. Region reads are always finest-detail (no `zoom`/
+`lod_level`), independent of the semantic-zoom loop.

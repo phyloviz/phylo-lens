@@ -56,9 +56,11 @@ flowchart TD
 
 ## System Summary
 
-- **Two v2 HTTP endpoints** drive everything: `POST /api/v2/graph/prepare`
-  (materialize layout artifacts) and `POST /api/v2/graph/viewport` (read a
-  bounded slice). See [`ARCHITECTURE_SPEC.md`](./ARCHITECTURE_SPEC.md).
+- **A small set of v2 HTTP routes drive everything.** The core loop is
+  `POST /api/v2/graph/prepare` (materialize layout artifacts) and
+  `POST /api/v2/graph/viewport` (read a bounded slice);
+  `POST /api/v2/graph/region` serves an on-demand box-select read with
+  aggregated metadata. See [`ARCHITECTURE_SPEC.md`](./ARCHITECTURE_SPEC.md).
 - **Prepared layout lives in SQLite.** The server materializes clusters,
   per-tier edges, node positions, and metadata into a nine-table store keyed by
   `(dataset_id, layout_version)`. See [`DATA_MODEL.md`](./DATA_MODEL.md).
@@ -71,7 +73,9 @@ flowchart TD
   path. See [`SERVER_PIPELINE.md`](./SERVER_PIPELINE.md).
 - **The client maps camera zoom to a tier** using geometric ratio bands with a
   hysteresis dead-band, then requests that tier's slice. Nodes are colored by
-  their PHYLOViZ role; multi-member clusters render as triangles. See
+  their PHYLOViZ role by default, or by a frequency-ranked value color map when a
+  visual mapping is active (shared by node fills, pies, and the ancillary wheel);
+  multi-member clusters render as triangles. See
   [`CLIENT_RENDERING.md`](./CLIENT_RENDERING.md).
 - **Clusters expand and collapse interactively.** Expanding a representative
   reroutes its boundary edges to neighboring representatives as bundled

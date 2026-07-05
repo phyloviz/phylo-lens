@@ -104,6 +104,9 @@ holds one member's `x`, `y`, `cluster_id`, and `status` at finest detail.
   (default None), `bundled_edge_count` (default None).
 - `ViewportReadResult`: `nodes`, `edges`, `total_node_count`, `truncated`,
   `layout_status`, `metadata_schema`.
+- `RegionReadResult`: the `ViewportReadResult` fields plus `aggregated_metadata`
+  (`dict[str, str | float | bool | None]`) — backs the `/region` box-select read
+  (see [§4 Region wire models](#region-wire-models-apiv2_graphpy)).
 
 ## 4. Viewport Wire Models
 
@@ -112,6 +115,22 @@ The API maps `ViewportNode`/`ViewportEdge` onto `GraphViewportNode`/
 [`ARCHITECTURE_SPEC.md`](./ARCHITECTURE_SPEC.md#core-contracts) for the query and
 response field lists and [`CLIENT_RENDERING.md`](./CLIENT_RENDERING.md) for how
 the client interprets them.
+
+### Region wire models (`api/v2_graph.py`)
+
+The `/region` route (hand-drawn box select) uses its own request/response pair:
+
+- `GraphRegionQuery`: `dataset_id`, optional `layout_version`, required bounds
+  `xmin/xmax/ymin/ymax` (validated `xmax >= xmin`, `ymax >= ymin`), and
+  `max_nodes` (1–`HARD_MAX_VIEWPORT_NODES`). It carries no `zoom`/`lod_level` —
+  a region read is always finest-detail nodes inside the box.
+- `GraphRegionResponse`: the viewport response shape (`dataset_id`,
+  `layout_version`, `layout_status`, `truncated`, `total_node_count`, `nodes`,
+  `edges`, `metadata_schema`) **plus** `aggregated_metadata`
+  (`dict[str, str | float | bool | None]`) summarizing the selected nodes — mode
+  for categorical/boolean fields, mean for numeric. It is backed by
+  `store.read_region`, which returns a `RegionReadResult` (the `ViewportReadResult`
+  fields plus `aggregated_metadata`).
 
 ## 5. SQLite Schema (`prepared_layout/store.py`)
 

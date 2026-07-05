@@ -29,10 +29,11 @@ This document is the system-level map. For the runtime narrative see
 5. **Rendering is adapter-based.** Sigma-specific behavior lives behind the
    `GraphRenderer` interface and must not leak into API contracts or clustering.
 
-## Two-Endpoint Contract
+## Route Contract
 
-The entire v2 runtime is driven by two FastAPI routes under the prefix
-`/api/v2/graph` (`api/v2_graph.py`, `ROUTER_PREFIX`):
+The v2 runtime is driven by FastAPI routes under the prefix `/api/v2/graph`
+(`api/v2_graph.py`, `ROUTER_PREFIX`). Prepare and viewport are the core loop;
+region is an on-demand read for a hand-drawn selection box:
 
 - **`POST /api/v2/graph/prepare`** — `prepare_graph_v2()`. Takes a
   `NormalizeRequest`, normalizes it into a `CanonicalDataset` (synchronously, so
@@ -48,6 +49,12 @@ The entire v2 runtime is driven by two FastAPI routes under the prefix
   `GraphViewportQuery` (bounds, `zoom`, `lod_level`, `cluster_id`, `max_nodes`)
   and returns a `GraphViewportResponse` (visible `nodes`, `edges`,
   `total_node_count`, `truncated`, `metadata_schema`).
+- **`POST /api/v2/graph/region`** — `read_graph_region()`. Takes a
+  `GraphRegionQuery` (required bounds `xmin/xmax/ymin/ymax`, `max_nodes`) and
+  returns a `GraphRegionResponse`: the isolated subgraph inside the box plus
+  `aggregated_metadata` (mode for categorical/boolean, mean for numeric) so the
+  client can render a region-selection stats panel. Unlike viewport, it takes no
+  `zoom`/`lod_level` — it always reads finest-detail nodes in the box.
 
 There is no separate `normalize` route in the runtime path: normalization is a
 step inside `prepare`. Defaults: `DEFAULT_MAX_VIEWPORT_NODES = 2500`,
@@ -96,18 +103,22 @@ queryable layout:
 
 ### `api`
 
-`api/v2_graph.py` hosts the three routes above plus request/response models
-(`GraphV2PrepareJob`, `GraphV2PrepareStatus`, `GraphV2PrepareResponse`) and
-helpers (`ensure_graph_v2_edge_distances`, `effective_lod_level`,
+`api/v2_graph.py` hosts the routes above plus request/response models
+(`GraphV2PrepareJob`, `GraphV2PrepareStatus`, `GraphV2PrepareResponse`,
+`GraphRegionQuery`, `GraphRegionResponse`) and helpers
+(`ensure_graph_v2_edge_distances`, `effective_lod_level`,
 `prepare_response_from_result`, and the `get_prepare_job_registry` singleton).
+`store.py` backs `/region` with `read_region` (returning a `RegionReadResult`
+that adds `aggregated_metadata` to the viewport read shape).
 
 ## Client Modules
 
 ### `api`
 
-`graphV2Client.ts` — the typed `GraphV2Client` (`prepareGraph`, `readViewport`),
-request/response interfaces, and runtime guards (`isGraphV2PrepareResponse`,
-`isGraphV2PrepareJob`, `isGraphV2PrepareStatus`, `isGraphV2ViewportResponse`).
+`graphV2Client.ts` — the typed `GraphV2Client` (`prepareGraph`, `readViewport`,
+`readRegion`), request/response interfaces, and runtime guards
+(`isGraphV2PrepareResponse`, `isGraphV2PrepareJob`, `isGraphV2PrepareStatus`,
+`isGraphV2ViewportResponse`).
 `prepareGraph` encapsulates the async transport: it submits via
 `ROUTE_GRAPH_V2_PREPARE`, then polls `GET /prepare/{job_id}` until `ready`
 (returning the `GraphV2PrepareResponse`) or `failed` (throwing), so callers see a
@@ -121,7 +132,12 @@ the status poll.
 `prepareGraph`, stores the prepared session (`datasetId`, `layoutVersion`,
 `lod_tier_count`, metadata schema), and starts viewport sync through the
 renderer. It also owns display options, metadata filters, visual mapping, node
-search/focus, and the LoD-refresh pause/resume control.
+search/focus, region selection (`selectRegion`), and the LoD-refresh
+pause/resume control. The `shell/` subtree holds UI wiring — `shell/controls/`
+(e.g. `visualMappingControls.ts`, which builds a `VisualMapping` from the
+color-field, size-field, size-scale, and category-color controls) and
+`shell/region/regionPanelView.ts` (renders the region-selection summary and its
+ancillary wheel from a `readRegion` result).
 
 ### `render`
 
@@ -139,6 +155,12 @@ The production adapter is Sigma (`render/adapters/sigma/`):
 - `graphViewerV2Sync.ts`: `syncGraphologyViewport` / `reconcileGraphologyViewport`,
   node/edge attribute derivation, the triangle rule, and PHYLOViZ role coloring
   (`deriveViewportNodeColor`).
+- `colorHash.ts`: the shared color source. `buildValueColorMap(values, palette)`
+  ranks values by graph-wide frequency (ties broken by label) and assigns
+  palette entries in order, so node fills, on-node pies, and the ancillary wheel
+  all agree on a value's color. See [`CLIENT_RENDERING.md`](./CLIENT_RENDERING.md).
+- `sigmaBoxSelectController.ts`: Shift+drag box-select over the canvas, driving
+  the workbench's `selectRegion` / `/region` read.
 - `graphViewerV2Fit.ts`: camera fit animations.
 - `sigmaAttributeUtils.ts`: attribute lookup and role normalization
   (`firstAttributeValue`, `isTruthyAttribute`, `normalizeRoleValue`).
@@ -196,7 +218,14 @@ flowchart TD
   APIC -->|"POST /api/v2/graph/prepare"| V2
   APIC -->|"GET /api/v2/graph/prepare/{job_id}"| V2
   APIC -->|"POST /api/v2/graph/viewport"| V2
+  APIC -->|"POST /api/v2/graph/region"| V2
 ```
+
+The `render` adapter also carries the shared color source (`colorHash.ts`,
+`buildValueColorMap`) used by node fills, pies, and the wheel, and the
+`sigmaBoxSelectController.ts` box-select that feeds the workbench's region read.
+UI wiring (`app/shell/controls`, `app/shell/region`) is omitted from the diagram
+for clarity.
 
 Renderer adapters must not import app modules; the workbench talks to the
 renderer only through the `GraphRenderer` interface. `core` must not import
