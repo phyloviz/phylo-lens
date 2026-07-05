@@ -1,24 +1,24 @@
 import Graph from "graphology";
 
-import type { GraphV2Client } from "../src/api/graphV2Client";
+import type { GraphClient } from "../src/api/graphClient";
 import {
-  buildGraphV2ViewportQuery,
-  DEFAULT_GRAPH_VIEWER_V2_NODE_SIZE,
+  buildGraphViewportQuery,
+  DEFAULT_GRAPH_VIEWER_NODE_SIZE,
   expandViewportBounds,
-  GRAPH_VIEWER_V2_LOD_CHANGE_DEBOUNCE_MS,
-  GRAPH_VIEWER_V2_MAX_MEMBER_SIZE_BOOST,
-  GRAPH_VIEWER_V2_NODE_COLOR,
-  GRAPH_VIEWER_V2_REPRESENTATIVE_COLOR,
-  GRAPH_VIEWER_V2_SMALL_TREE_NODE_THRESHOLD,
-  GraphViewerV2,
+  GRAPH_VIEWER_LOD_CHANGE_DEBOUNCE_MS,
+  GRAPH_VIEWER_MAX_MEMBER_SIZE_BOOST,
+  GRAPH_VIEWER_NODE_COLOR,
+  GRAPH_VIEWER_REPRESENTATIVE_COLOR,
+  GRAPH_VIEWER_SMALL_TREE_NODE_THRESHOLD,
+  GraphViewer,
   deriveViewportNodeColor,
   nodeSizeForMemberCount,
   reconcileGraphologyViewport,
   semanticLodLevelForCameraRatio,
   semanticLodLevelForCameraRatioWithHysteresis,
   syncGraphologyViewport,
-} from "../src/render/adapters/sigma/GraphViewerV2";
-import type { ViewportSyncSettings } from "../src/render/adapters/sigma/GraphViewerV2";
+} from "../src/render/adapters/sigma/GraphViewer";
+import type { ViewportSyncSettings } from "../src/render/adapters/sigma/GraphViewer";
 import {
   PHYLOVIZ_NODE_COMMON_COLOR,
   PHYLOVIZ_NODE_GROUP_FOUNDER_COLOR,
@@ -131,7 +131,7 @@ const VIEWPORT_RESPONSE = {
   ],
 };
 
-describe("GraphViewerV2", () => {
+describe("GraphViewer", () => {
   beforeEach(() => {
     vi.useFakeTimers();
   });
@@ -143,7 +143,7 @@ describe("GraphViewerV2", () => {
   it("builds padded bbox and semantic zoom queries from Sigma camera state", () => {
     const { sigma } = fakeSigma();
 
-    const query = buildGraphV2ViewportQuery({
+    const query = buildGraphViewportQuery({
       datasetId: "tree",
       sigma: sigma as never,
       maxNodes: 500,
@@ -165,7 +165,7 @@ describe("GraphViewerV2", () => {
   it("omits bbox for global lod zero queries", () => {
     const { sigma } = fakeSigma(2);
 
-    const query = buildGraphV2ViewportQuery({
+    const query = buildGraphViewportQuery({
       datasetId: "tree",
       sigma: sigma as never,
       maxNodes: 500,
@@ -184,7 +184,7 @@ describe("GraphViewerV2", () => {
     // bounds so the whole tree is read at once.
     const { sigma } = fakeSigma(0.1);
 
-    const query = buildGraphV2ViewportQuery({
+    const query = buildGraphViewportQuery({
       datasetId: "tree",
       sigma: sigma as never,
       maxNodes: 500,
@@ -246,10 +246,10 @@ describe("GraphViewerV2", () => {
 
   it("keeps representative node size subtle for large clusters", () => {
     const cap =
-      DEFAULT_GRAPH_VIEWER_V2_NODE_SIZE + GRAPH_VIEWER_V2_MAX_MEMBER_SIZE_BOOST;
+      DEFAULT_GRAPH_VIEWER_NODE_SIZE + GRAPH_VIEWER_MAX_MEMBER_SIZE_BOOST;
 
     // Singletons render at the base size.
-    expect(nodeSizeForMemberCount(1)).toBe(DEFAULT_GRAPH_VIEWER_V2_NODE_SIZE);
+    expect(nodeSizeForMemberCount(1)).toBe(DEFAULT_GRAPH_VIEWER_NODE_SIZE);
     // Size grows with cluster size...
     expect(nodeSizeForMemberCount(12)).toBeGreaterThan(
       nodeSizeForMemberCount(1),
@@ -268,13 +268,13 @@ describe("GraphViewerV2", () => {
     expect(graph.hasNode("stale")).toBe(true);
     expect(graph.hasNode("a")).toBe(true);
     expect(graph.getNodeAttribute("a", "color")).toBe(
-      GRAPH_VIEWER_V2_NODE_COLOR,
+      GRAPH_VIEWER_NODE_COLOR,
     );
     expect(graph.getNodeAttribute("cluster_b", "member_count")).toBe(12);
     expect(graph.getNodeAttribute("cluster_b", "is_cluster_proxy")).toBe(true);
     expect(graph.getNodeAttribute("cluster_b", "type")).toBe("triangle");
     expect(graph.getNodeAttribute("cluster_b", "color")).toBe(
-      GRAPH_VIEWER_V2_REPRESENTATIVE_COLOR,
+      GRAPH_VIEWER_REPRESENTATIVE_COLOR,
     );
     expect(graph.hasEdge("edge_a_b")).toBe(true);
     expect(graph.getEdgeAttribute("edge_a_b", "distance")).toBe(3);
@@ -350,7 +350,7 @@ describe("GraphViewerV2", () => {
     );
     // The representative (triangle) keeps its distinct tone, not a role color.
     expect(graph.getNodeAttribute("cluster_b", "color")).toBe(
-      GRAPH_VIEWER_V2_REPRESENTATIVE_COLOR,
+      GRAPH_VIEWER_REPRESENTATIVE_COLOR,
     );
   });
 
@@ -474,12 +474,12 @@ describe("GraphViewerV2", () => {
     const { sigma, camera, setRatio, emitCameraUpdated } = fakeSigma(1.2);
     const largeTreeResponse = {
       ...VIEWPORT_RESPONSE,
-      total_node_count: GRAPH_VIEWER_V2_SMALL_TREE_NODE_THRESHOLD + 1,
+      total_node_count: GRAPH_VIEWER_SMALL_TREE_NODE_THRESHOLD + 1,
     };
-    const client: GraphV2Client = {
+    const client: GraphClient = {
       readViewport: vi.fn(async () => largeTreeResponse),
     };
-    const viewer = new GraphViewerV2({
+    const viewer = new GraphViewer({
       datasetId: "tree",
       client,
       graph,
@@ -494,7 +494,7 @@ describe("GraphViewerV2", () => {
     // Zoom into tier 1 so subsequent same-ratio pans are same-tier.
     setRatio(0.7);
     emitCameraUpdated();
-    await vi.advanceTimersByTimeAsync(GRAPH_VIEWER_V2_LOD_CHANGE_DEBOUNCE_MS);
+    await vi.advanceTimersByTimeAsync(GRAPH_VIEWER_LOD_CHANGE_DEBOUNCE_MS);
     expect(client.readViewport).toHaveBeenCalledTimes(2);
     (client.readViewport as ReturnType<typeof vi.fn>).mockClear();
 
@@ -525,12 +525,12 @@ describe("GraphViewerV2", () => {
     // A large tree keeps semantic zooming active (small trees bypass it).
     const largeTreeResponse = {
       ...VIEWPORT_RESPONSE,
-      total_node_count: GRAPH_VIEWER_V2_SMALL_TREE_NODE_THRESHOLD + 1,
+      total_node_count: GRAPH_VIEWER_SMALL_TREE_NODE_THRESHOLD + 1,
     };
-    const client: GraphV2Client = {
+    const client: GraphClient = {
       readViewport: vi.fn(async () => largeTreeResponse),
     };
-    const viewer = new GraphViewerV2({
+    const viewer = new GraphViewer({
       datasetId: "tree",
       client,
       graph,
@@ -552,7 +552,7 @@ describe("GraphViewerV2", () => {
 
     // LoD changes use a short debounce (not the full same-level delay, not 0ms
     // which would thrash the server on rapid zoom).
-    await vi.advanceTimersByTimeAsync(GRAPH_VIEWER_V2_LOD_CHANGE_DEBOUNCE_MS - 1);
+    await vi.advanceTimersByTimeAsync(GRAPH_VIEWER_LOD_CHANGE_DEBOUNCE_MS - 1);
     expect(client.readViewport).toHaveBeenCalledTimes(1);
 
     await vi.advanceTimersByTimeAsync(1);
@@ -574,10 +574,10 @@ describe("GraphViewerV2", () => {
     const { sigma, setRatio, emitCameraUpdated } = fakeSigma(1.2);
     // total_node_count of 2 (VIEWPORT_RESPONSE) is well below the small-tree
     // threshold, so the whole tree is loaded once and never re-queried.
-    const client: GraphV2Client = {
+    const client: GraphClient = {
       readViewport: vi.fn(async () => VIEWPORT_RESPONSE),
     };
-    const viewer = new GraphViewerV2({
+    const viewer = new GraphViewer({
       datasetId: "tree",
       client,
       graph,
@@ -605,10 +605,10 @@ describe("GraphViewerV2", () => {
     // full tree is already on screen as individual nodes.
     const graph = new Graph();
     const { sigma, setRatio, emitCameraUpdated } = fakeSigma(1.2);
-    const client: GraphV2Client = {
+    const client: GraphClient = {
       readViewport: vi.fn(async () => VIEWPORT_RESPONSE),
     };
-    const viewer = new GraphViewerV2({
+    const viewer = new GraphViewer({
       datasetId: "tree",
       client,
       graph,
@@ -625,7 +625,7 @@ describe("GraphViewerV2", () => {
     // large tree would transition LoD 0 → 1, but a loaded small tree stays put.
     setRatio(0.7);
     emitCameraUpdated();
-    await vi.advanceTimersByTimeAsync(GRAPH_VIEWER_V2_LOD_CHANGE_DEBOUNCE_MS);
+    await vi.advanceTimersByTimeAsync(GRAPH_VIEWER_LOD_CHANGE_DEBOUNCE_MS);
 
     expect(client.readViewport).toHaveBeenCalledTimes(1);
 
@@ -640,14 +640,14 @@ describe("GraphViewerV2", () => {
     // "picking a pie field turns nodes into triangles" bug.
     const graph = new Graph();
     const { sigma } = fakeSigma(1.2);
-    const client: GraphV2Client = {
+    const client: GraphClient = {
       // total_node_count of 2 is well below the small-tree threshold.
       readViewport: vi.fn(async () => ({
         ...VIEWPORT_RESPONSE,
         total_node_count: 2,
       })),
     };
-    const viewer = new GraphViewerV2({
+    const viewer = new GraphViewer({
       datasetId: "tree",
       client,
       graph,
@@ -686,10 +686,10 @@ describe("GraphViewerV2", () => {
     // and carry no bounds so the whole tree renders at once.
     const graph = new Graph();
     const { sigma } = fakeSigma(1.2);
-    const client: GraphV2Client = {
+    const client: GraphClient = {
       readViewport: vi.fn(async () => VIEWPORT_RESPONSE),
     };
-    const viewer = new GraphViewerV2({
+    const viewer = new GraphViewer({
       datasetId: "tree",
       client,
       graph,
@@ -722,12 +722,12 @@ describe("GraphViewerV2", () => {
     const { sigma, setRatio, emitCameraUpdated } = fakeSigma(1.2);
     const largeTreeResponse = {
       ...VIEWPORT_RESPONSE,
-      total_node_count: GRAPH_VIEWER_V2_SMALL_TREE_NODE_THRESHOLD + 1,
+      total_node_count: GRAPH_VIEWER_SMALL_TREE_NODE_THRESHOLD + 1,
     };
-    const client: GraphV2Client = {
+    const client: GraphClient = {
       readViewport: vi.fn(async () => largeTreeResponse),
     };
-    const viewer = new GraphViewerV2({
+    const viewer = new GraphViewer({
       datasetId: "tree",
       client,
       graph,
@@ -742,7 +742,7 @@ describe("GraphViewerV2", () => {
     // Zoom into the finer tier so subsequent queries carry bounds.
     setRatio(0.7);
     emitCameraUpdated();
-    await vi.advanceTimersByTimeAsync(GRAPH_VIEWER_V2_LOD_CHANGE_DEBOUNCE_MS);
+    await vi.advanceTimersByTimeAsync(GRAPH_VIEWER_LOD_CHANGE_DEBOUNCE_MS);
     expect(client.readViewport).toHaveBeenCalledTimes(2);
     expect(client.readViewport).toHaveBeenLastCalledWith(
       expect.objectContaining({ lod_level: 1 }),
@@ -771,13 +771,13 @@ describe("GraphViewerV2", () => {
     const { sigma, setRatio, emitCameraUpdated } = fakeSigma(1.2);
     const largeTreeResponse = {
       ...VIEWPORT_RESPONSE,
-      total_node_count: GRAPH_VIEWER_V2_SMALL_TREE_NODE_THRESHOLD + 1,
+      total_node_count: GRAPH_VIEWER_SMALL_TREE_NODE_THRESHOLD + 1,
     };
     let paused = false;
-    const client: GraphV2Client = {
+    const client: GraphClient = {
       readViewport: vi.fn(async () => largeTreeResponse),
     };
-    const viewer = new GraphViewerV2({
+    const viewer = new GraphViewer({
       datasetId: "tree",
       client,
       graph,
@@ -810,13 +810,13 @@ describe("GraphViewerV2", () => {
   it("fits the camera after the first global lod zero load", async () => {
     const graph = new Graph();
     const { sigma, camera } = fakeSigma(2);
-    const client: GraphV2Client = {
+    const client: GraphClient = {
       readViewport: vi.fn(async () => ({
         ...VIEWPORT_RESPONSE,
         lod_level: 0,
       })),
     };
-    const viewer = new GraphViewerV2({
+    const viewer = new GraphViewer({
       datasetId: "tree",
       client,
       graph,
@@ -878,13 +878,13 @@ describe("GraphViewerV2", () => {
         },
       ],
     };
-    const client: GraphV2Client = {
+    const client: GraphClient = {
       readViewport: vi
         .fn()
         .mockResolvedValueOnce({ ...VIEWPORT_RESPONSE, lod_level: 0 })
         .mockResolvedValueOnce(clusterResponse),
     };
-    const viewer = new GraphViewerV2({
+    const viewer = new GraphViewer({
       datasetId: "tree",
       client,
       graph,
@@ -905,7 +905,7 @@ describe("GraphViewerV2", () => {
     );
     expect(graph.hasNode("b1")).toBe(true);
     expect(graph.getNodeAttribute("b1", "color")).toBe(
-      GRAPH_VIEWER_V2_NODE_COLOR,
+      GRAPH_VIEWER_NODE_COLOR,
     );
     expect(graph.getNodeAttribute("b1", "type")).toBeUndefined();
     expect(graph.hasEdge("edge_b1_b2")).toBe(true);
@@ -917,7 +917,7 @@ describe("GraphViewerV2", () => {
   });
 });
 
-describe("GraphViewerV2 collapse gesture", () => {
+describe("GraphViewer collapse gesture", () => {
   beforeEach(() => {
     vi.useFakeTimers();
   });
@@ -955,13 +955,13 @@ describe("GraphViewerV2 collapse gesture", () => {
   async function mountAndExpand() {
     const graph = new Graph();
     const rig = fakeSigma(0.5);
-    const client: GraphV2Client = {
+    const client: GraphClient = {
       readViewport: vi
         .fn()
         .mockResolvedValueOnce({ ...VIEWPORT_RESPONSE, lod_level: 0 })
         .mockResolvedValue(clusterResponse),
     };
-    const viewer = new GraphViewerV2({
+    const viewer = new GraphViewer({
       datasetId: "tree",
       client,
       graph,
@@ -989,7 +989,7 @@ describe("GraphViewerV2 collapse gesture", () => {
     expect(graph.hasNode("b2")).toBe(false);
     expect(graph.hasNode("cluster_b")).toBe(true);
     expect(graph.getNodeAttribute("cluster_b", "color")).toBe(
-      GRAPH_VIEWER_V2_REPRESENTATIVE_COLOR,
+      GRAPH_VIEWER_REPRESENTATIVE_COLOR,
     );
     expect(graph.getNodeAttribute("cluster_b", "member_count")).toBe(12);
     expect(graph.hasEdge("edge_a_b")).toBe(true);
@@ -1030,10 +1030,10 @@ describe("GraphViewerV2 collapse gesture", () => {
   it("collapseCluster is a no-op for a cluster that was never expanded", async () => {
     const graph = new Graph();
     const rig = fakeSigma(0.5);
-    const client: GraphV2Client = {
+    const client: GraphClient = {
       readViewport: vi.fn(async () => ({ ...VIEWPORT_RESPONSE, lod_level: 0 })),
     };
-    const viewer = new GraphViewerV2({
+    const viewer = new GraphViewer({
       datasetId: "tree",
       client,
       graph,
@@ -1107,7 +1107,7 @@ const COLOR_SIZE_SETTINGS: ViewportSyncSettings = {
   metadataSchema: METADATA_VIEWPORT_RESPONSE.metadata_schema,
 };
 
-describe("GraphViewerV2 metadata-driven sync", () => {
+describe("GraphViewer metadata-driven sync", () => {
   it("derives node color and size from metadata when a visual mapping is active", () => {
     const graph = new Graph();
 
@@ -1167,7 +1167,7 @@ describe("GraphViewerV2 metadata-driven sync", () => {
 
     // The empty-field node keeps the common-node role color, not a palette slot.
     expect(graph.getNodeAttribute("empty", "color")).toBe(
-      GRAPH_VIEWER_V2_NODE_COLOR,
+      GRAPH_VIEWER_NODE_COLOR,
     );
     // Nodes WITH a value are still coloured by the ranked palette.
     const rankedColor = buildValueColorMap(["eu", "us"], DEFAULT_COLOR_PALETTE);
@@ -1179,9 +1179,9 @@ describe("GraphViewerV2 metadata-driven sync", () => {
 
     syncGraphologyViewport(graph, VIEWPORT_RESPONSE);
 
-    expect(graph.getNodeAttribute("a", "color")).toBe(GRAPH_VIEWER_V2_NODE_COLOR);
+    expect(graph.getNodeAttribute("a", "color")).toBe(GRAPH_VIEWER_NODE_COLOR);
     expect(graph.getNodeAttribute("cluster_b", "color")).toBe(
-      GRAPH_VIEWER_V2_REPRESENTATIVE_COLOR,
+      GRAPH_VIEWER_REPRESENTATIVE_COLOR,
     );
     expect(graph.getNodeAttribute("cluster_b", "size")).toBe(
       nodeSizeForMemberCount(12),
@@ -1284,7 +1284,7 @@ function pieSliceAttributes(
   );
 }
 
-describe("GraphViewerV2 pie mapping under LoD", () => {
+describe("GraphViewer pie mapping under LoD", () => {
   it("produces pie slice attributes from aggregated metadata when a pie mapping is active", () => {
     const graph = new Graph();
     const settings: ViewportSyncSettings = {
@@ -1384,7 +1384,7 @@ describe("GraphViewerV2 pie mapping under LoD", () => {
   });
 });
 
-describe("GraphViewerV2 sync lifecycle hooks", () => {
+describe("GraphViewer sync lifecycle hooks", () => {
   beforeEach(() => {
     vi.useFakeTimers();
   });
@@ -1396,12 +1396,12 @@ describe("GraphViewerV2 sync lifecycle hooks", () => {
   it("invokes onGraphSynced after the graph is populated and before Sigma refresh", async () => {
     const graph = new Graph();
     const { sigma } = fakeSigma(2);
-    const client: GraphV2Client = {
+    const client: GraphClient = {
       readViewport: vi.fn(async () => VIEWPORT_RESPONSE),
     };
     let nodeCountAtSync = -1;
     let refreshCountAtSync = -1;
-    const viewer = new GraphViewerV2({
+    const viewer = new GraphViewer({
       datasetId: "tree",
       client,
       graph,
@@ -1429,10 +1429,10 @@ describe("GraphViewerV2 sync lifecycle hooks", () => {
     const graph = new Graph();
     const first = fakeSigma(2);
     const second = fakeSigma(2);
-    const client: GraphV2Client = {
+    const client: GraphClient = {
       readViewport: vi.fn(async () => VIEWPORT_RESPONSE),
     };
-    const viewer = new GraphViewerV2({
+    const viewer = new GraphViewer({
       datasetId: "tree",
       client,
       graph,
@@ -1463,10 +1463,10 @@ describe("GraphViewerV2 sync lifecycle hooks", () => {
   it("treats rebindSigma with the current instance as a no-op", async () => {
     const graph = new Graph();
     const { sigma, camera } = fakeSigma(2);
-    const client: GraphV2Client = {
+    const client: GraphClient = {
       readViewport: vi.fn(async () => VIEWPORT_RESPONSE),
     };
-    const viewer = new GraphViewerV2({
+    const viewer = new GraphViewer({
       datasetId: "tree",
       client,
       graph,

@@ -1,15 +1,15 @@
 import {
-  createGraphV2Client,
-  ERR_GRAPH_V2_PREPARE_FAILED,
-  isGraphV2RegionResponse,
-  ERR_INVALID_GRAPH_V2_PREPARE_JOB,
-  ERR_INVALID_GRAPH_V2_VIEWPORT_RESPONSE,
-  isGraphV2PrepareResponse,
-  isGraphV2ViewportResponse,
-  ROUTE_GRAPH_V2_PREPARE,
-  ROUTE_GRAPH_V2_VIEWPORT,
-  type GraphV2PrepareStatus,
-} from "../src/api/graphV2Client";
+  createGraphClient,
+  ERR_GRAPH_PREPARE_FAILED,
+  isGraphRegionResponse,
+  ERR_INVALID_GRAPH_PREPARE_JOB,
+  ERR_INVALID_GRAPH_VIEWPORT_RESPONSE,
+  isGraphPrepareResponse,
+  isGraphViewportResponse,
+  ROUTE_GRAPH_PREPARE,
+  ROUTE_GRAPH_VIEWPORT,
+  type GraphPrepareStatus,
+} from "../src/api/graphClient";
 import { SOURCE_FORMAT_NEWICK } from "../src/contracts/models";
 
 const BASE_URL = "http://localhost:8000";
@@ -83,35 +83,35 @@ function makeJsonResponse(payload: unknown, status = 200): Response {
   });
 }
 
-describe("graphV2Client", () => {
+describe("graphClient", () => {
   it("validates prepare responses", () => {
-    expect(isGraphV2PrepareResponse(PREPARE_FIXTURE)).toBe(true);
-    expect(isGraphV2PrepareResponse({ ...PREPARE_FIXTURE, node_count: "3" }))
+    expect(isGraphPrepareResponse(PREPARE_FIXTURE)).toBe(true);
+    expect(isGraphPrepareResponse({ ...PREPARE_FIXTURE, node_count: "3" }))
       .toBe(false);
   });
 
   it("validates viewport responses", () => {
-    expect(isGraphV2ViewportResponse(VIEWPORT_FIXTURE)).toBe(true);
-    expect(isGraphV2ViewportResponse({ ...VIEWPORT_FIXTURE, nodes: [{}] })).toBe(
+    expect(isGraphViewportResponse(VIEWPORT_FIXTURE)).toBe(true);
+    expect(isGraphViewportResponse({ ...VIEWPORT_FIXTURE, nodes: [{}] })).toBe(
       false,
     );
   });
 
   it("validates region responses", () => {
-    expect(isGraphV2RegionResponse(REGION_FIXTURE)).toBe(true);
+    expect(isGraphRegionResponse(REGION_FIXTURE)).toBe(true);
     // metadata_schema is optional; aggregated_metadata is required.
     const withoutAggregate = { ...REGION_FIXTURE } as Record<string, unknown>;
     delete withoutAggregate.aggregated_metadata;
-    expect(isGraphV2RegionResponse(withoutAggregate)).toBe(false);
+    expect(isGraphRegionResponse(withoutAggregate)).toBe(false);
     // Non-scalar aggregate values are rejected.
     expect(
-      isGraphV2RegionResponse({
+      isGraphRegionResponse({
         ...REGION_FIXTURE,
         aggregated_metadata: { region: { nested: true } },
       }),
     ).toBe(false);
     // Malformed nodes are rejected.
-    expect(isGraphV2RegionResponse({ ...REGION_FIXTURE, nodes: [{}] })).toBe(
+    expect(isGraphRegionResponse({ ...REGION_FIXTURE, nodes: [{}] })).toBe(
       false,
     );
   });
@@ -130,18 +130,18 @@ describe("graphV2Client", () => {
         },
       ],
     };
-    expect(isGraphV2ViewportResponse(withMetaEdge)).toBe(true);
+    expect(isGraphViewportResponse(withMetaEdge)).toBe(true);
 
     // Ordinary edges omit the meta fields entirely.
     const plainEdge = {
       ...VIEWPORT_FIXTURE,
       edges: [{ id: "e1", source: "a", target: "cluster_1", distance: 1 }],
     };
-    expect(isGraphV2ViewportResponse(plainEdge)).toBe(true);
+    expect(isGraphViewportResponse(plainEdge)).toBe(true);
 
     // Wrong types are rejected.
     expect(
-      isGraphV2ViewportResponse({
+      isGraphViewportResponse({
         ...VIEWPORT_FIXTURE,
         edges: [
           {
@@ -154,7 +154,7 @@ describe("graphV2Client", () => {
       }),
     ).toBe(false);
     expect(
-      isGraphV2ViewportResponse({
+      isGraphViewportResponse({
         ...VIEWPORT_FIXTURE,
         edges: [
           {
@@ -188,14 +188,14 @@ describe("graphV2Client", () => {
       ],
     };
 
-    expect(isGraphV2ViewportResponse(withMetadata)).toBe(true);
+    expect(isGraphViewportResponse(withMetadata)).toBe(true);
   });
 
   it("treats absent node metadata and metadata schema as valid", () => {
     // metadata omitted entirely, and explicit null, are both permitted.
-    expect(isGraphV2ViewportResponse(VIEWPORT_FIXTURE)).toBe(true);
+    expect(isGraphViewportResponse(VIEWPORT_FIXTURE)).toBe(true);
     expect(
-      isGraphV2ViewportResponse({
+      isGraphViewportResponse({
         ...VIEWPORT_FIXTURE,
         nodes: [{ ...VIEWPORT_FIXTURE.nodes[0], metadata: null }],
       }),
@@ -219,7 +219,7 @@ describe("graphV2Client", () => {
       ],
     };
 
-    expect(isGraphV2ViewportResponse(withInternalKeys)).toBe(true);
+    expect(isGraphViewportResponse(withInternalKeys)).toBe(true);
   });
 
   it("rejects non-scalar node metadata values", () => {
@@ -251,9 +251,9 @@ describe("graphV2Client", () => {
       ],
     };
 
-    expect(isGraphV2ViewportResponse(nestedObject)).toBe(false);
-    expect(isGraphV2ViewportResponse(arrayValue)).toBe(false);
-    expect(isGraphV2ViewportResponse(nonFiniteNumber)).toBe(false);
+    expect(isGraphViewportResponse(nestedObject)).toBe(false);
+    expect(isGraphViewportResponse(arrayValue)).toBe(false);
+    expect(isGraphViewportResponse(nonFiniteNumber)).toBe(false);
   });
 
   it("rejects malformed metadata schema entries", () => {
@@ -266,17 +266,17 @@ describe("graphV2Client", () => {
       metadata_schema: { region: "string" },
     };
 
-    expect(isGraphV2ViewportResponse(missingType)).toBe(false);
-    expect(isGraphV2ViewportResponse(notAnArray)).toBe(false);
+    expect(isGraphViewportResponse(missingType)).toBe(false);
+    expect(isGraphViewportResponse(notAnArray)).toBe(false);
   });
 
   it("submits a prepare job then polls until it is ready", async () => {
-    const statusUrl = `${BASE_URL}${ROUTE_GRAPH_V2_PREPARE}/job-1`;
-    const pending: GraphV2PrepareStatus = {
+    const statusUrl = `${BASE_URL}${ROUTE_GRAPH_PREPARE}/job-1`;
+    const pending: GraphPrepareStatus = {
       job_id: "job-1",
       status: "pending",
     };
-    const ready: GraphV2PrepareStatus = {
+    const ready: GraphPrepareStatus = {
       job_id: "job-1",
       status: "ready",
       result: PREPARE_FIXTURE as never,
@@ -293,7 +293,7 @@ describe("graphV2Client", () => {
       return responses.shift() ?? makeJsonResponse(ready);
     }) as unknown as typeof fetch;
 
-    const client = createGraphV2Client({
+    const client = createGraphClient({
       baseUrl: BASE_URL,
       fetchImpl: fetchSpy,
     });
@@ -309,7 +309,7 @@ describe("graphV2Client", () => {
     );
 
     expect(response.layout_version).toBe("abc123");
-    expect(seen[0]).toBe(`${BASE_URL}${ROUTE_GRAPH_V2_PREPARE}`);
+    expect(seen[0]).toBe(`${BASE_URL}${ROUTE_GRAPH_PREPARE}`);
     expect(seen[1]).toBe(statusUrl);
     expect(seen[2]).toBe(statusUrl);
     expect(onPending).toHaveBeenCalledTimes(1);
@@ -324,7 +324,7 @@ describe("graphV2Client", () => {
         error: "sfdp exploded",
       }),
     ];
-    const client = createGraphV2Client({
+    const client = createGraphClient({
       baseUrl: BASE_URL,
       fetchImpl: vi.fn(
         async () => responses.shift() ?? makeJsonResponse({}),
@@ -348,7 +348,7 @@ describe("graphV2Client", () => {
       makeJsonResponse(PREPARE_JOB_FIXTURE, 202),
       makeJsonResponse({ job_id: "job-1", status: "failed" }),
     ];
-    const client = createGraphV2Client({
+    const client = createGraphClient({
       baseUrl: BASE_URL,
       fetchImpl: vi.fn(
         async () => responses.shift() ?? makeJsonResponse({}),
@@ -364,16 +364,16 @@ describe("graphV2Client", () => {
         },
         NO_SLEEP,
       ),
-    ).rejects.toThrow(ERR_GRAPH_V2_PREPARE_FAILED);
+    ).rejects.toThrow(ERR_GRAPH_PREPARE_FAILED);
   });
 
-  it("posts viewport queries to the v2 endpoint", async () => {
+  it("posts viewport queries to the viewport endpoint", async () => {
     const fetchSpy = vi.fn(async (input: RequestInfo | URL) => {
-      expect(String(input)).toBe(`${BASE_URL}${ROUTE_GRAPH_V2_VIEWPORT}`);
+      expect(String(input)).toBe(`${BASE_URL}${ROUTE_GRAPH_VIEWPORT}`);
       return makeJsonResponse(VIEWPORT_FIXTURE);
     }) as unknown as typeof fetch;
 
-    const client = createGraphV2Client({
+    const client = createGraphClient({
       baseUrl: BASE_URL,
       fetchImpl: fetchSpy,
     });
@@ -391,7 +391,7 @@ describe("graphV2Client", () => {
   });
 
   it("rejects invalid viewport responses", async () => {
-    const client = createGraphV2Client({
+    const client = createGraphClient({
       baseUrl: BASE_URL,
       fetchImpl: vi.fn(async () =>
         makeJsonResponse({ invalid: true }),
@@ -406,11 +406,11 @@ describe("graphV2Client", () => {
         ymin: 0,
         ymax: 100,
       }),
-    ).rejects.toThrow(ERR_INVALID_GRAPH_V2_VIEWPORT_RESPONSE);
+    ).rejects.toThrow(ERR_INVALID_GRAPH_VIEWPORT_RESPONSE);
   });
 
   it("rejects an invalid prepare-job submit response", async () => {
-    const client = createGraphV2Client({
+    const client = createGraphClient({
       baseUrl: BASE_URL,
       fetchImpl: vi.fn(async () =>
         makeJsonResponse({ invalid: true }),
@@ -426,6 +426,6 @@ describe("graphV2Client", () => {
         },
         NO_SLEEP,
       ),
-    ).rejects.toThrow(ERR_INVALID_GRAPH_V2_PREPARE_JOB);
+    ).rejects.toThrow(ERR_INVALID_GRAPH_PREPARE_JOB);
   });
 });

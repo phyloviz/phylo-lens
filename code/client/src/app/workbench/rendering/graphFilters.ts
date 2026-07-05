@@ -27,7 +27,7 @@ export function applyMetadataFilters({
   // Filtering is applied inside the viewport sync via getRenderSettings; the
   // refresh re-fetches the current viewport and re-runs the filter/visual pass.
   state.activeFilters = filterState;
-  renderer.refreshGraphV2ViewportSync?.();
+  renderer.refreshGraphViewportSync?.();
 
   return state.currentGraph ?? emptyGraph();
 }
@@ -46,7 +46,7 @@ export function clearMetadataFilters({
   }
 
   state.activeFilters = EMPTY_METADATA_FILTER_STATE;
-  renderer.refreshGraphV2ViewportSync?.();
+  renderer.refreshGraphViewportSync?.();
 
   return state.currentGraph ?? emptyGraph();
 }
@@ -68,7 +68,7 @@ export function updateVisualMapping({
 
   // Persist the mapping so the viewport sync re-derives visuals on refresh.
   state.preparedSession.visualMapping = visualMapping;
-  renderer.refreshGraphV2ViewportSync?.();
+  renderer.refreshGraphViewportSync?.();
 
   return state.currentGraph ?? emptyGraph();
 }

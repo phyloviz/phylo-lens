@@ -1,11 +1,11 @@
 import type Graph from "graphology";
 
 import type {
-  GraphV2MetadataValue,
-  GraphV2ViewportEdge,
-  GraphV2ViewportNode,
-  GraphV2ViewportResponse,
-} from "../../../api/graphV2Client";
+  GraphMetadataValue,
+  GraphViewportEdge,
+  GraphViewportNode,
+  GraphViewportResponse,
+} from "../../../api/graphClient";
 import type { MetadataField } from "../../../contracts/models";
 import {
   hasActiveFilters,
@@ -42,12 +42,12 @@ import {
   normalizeRoleValue,
 } from "./sigmaAttributeUtils";
 
-export const DEFAULT_GRAPH_VIEWER_V2_NODE_SIZE = 5;
-export const GRAPH_VIEWER_V2_MEMBER_SIZE_FACTOR = 1.25;
-export const GRAPH_VIEWER_V2_MAX_MEMBER_SIZE_BOOST = 6;
-export const GRAPH_VIEWER_V2_REPRESENTATIVE_COLOR = "#b45309";
-export const GRAPH_VIEWER_V2_NODE_COLOR = PHYLOVIZ_NODE_COMMON_COLOR;
-export const GRAPH_VIEWER_V2_EDGE_COLOR = "#94a3b8";
+export const DEFAULT_GRAPH_VIEWER_NODE_SIZE = 5;
+export const GRAPH_VIEWER_MEMBER_SIZE_FACTOR = 1.25;
+export const GRAPH_VIEWER_MAX_MEMBER_SIZE_BOOST = 6;
+export const GRAPH_VIEWER_REPRESENTATIVE_COLOR = "#b45309";
+export const GRAPH_VIEWER_NODE_COLOR = PHYLOVIZ_NODE_COMMON_COLOR;
+export const GRAPH_VIEWER_EDGE_COLOR = "#94a3b8";
 
 // Metadata-driven color/size + filter settings applied while syncing a viewport.
 export interface ViewportSyncSettings {
@@ -73,7 +73,7 @@ interface ResolvedViewportVisuals {
 
 export function syncGraphologyViewport(
   graph: Graph,
-  response: GraphV2ViewportResponse,
+  response: GraphViewportResponse,
   settings?: ViewportSyncSettings,
 ): void {
   const nodes = filteredViewportNodes(response, settings);
@@ -99,7 +99,7 @@ const SIGMA_DROP_EVENTS = ["nodeDropped", "edgeDropped"] as const;
 
 export function reconcileGraphologyViewport(
   graph: Graph,
-  response: GraphV2ViewportResponse,
+  response: GraphViewportResponse,
   settings?: ViewportSyncSettings,
 ): void {
   const nodes = filteredViewportNodes(response, settings);
@@ -138,9 +138,9 @@ export function reconcileGraphologyViewport(
 
 // Restrict a viewport response to nodes passing the active metadata filters.
 function filteredViewportNodes(
-  response: GraphV2ViewportResponse,
+  response: GraphViewportResponse,
   settings?: ViewportSyncSettings,
-): GraphV2ViewportNode[] {
+): GraphViewportNode[] {
   const filterState = settings?.filterState;
   if (!filterState || !hasActiveFilters(filterState)) {
     return response.nodes;
@@ -152,7 +152,7 @@ function filteredViewportNodes(
 
 // Resolve color/size parameters once per viewport when a mapping is active.
 function resolveViewportVisuals(
-  nodes: GraphV2ViewportNode[],
+  nodes: GraphViewportNode[],
   settings?: ViewportSyncSettings,
 ): ResolvedViewportVisuals | null {
   const mapping = settings?.visualMapping;
@@ -191,7 +191,7 @@ function resolveViewportVisuals(
 
 // Compute min/max for the active size field across the current viewport nodes.
 function computeSizeFieldStats(
-  nodes: GraphV2ViewportNode[],
+  nodes: GraphViewportNode[],
   sizeField: string,
 ): { min: number; max: number } | undefined {
   let min = Number.POSITIVE_INFINITY;
@@ -214,10 +214,10 @@ function computeSizeFieldStats(
 export function nodeSizeForMemberCount(memberCount: number): number {
   const safeMemberCount = Math.max(1, memberCount);
   const boost = Math.min(
-    GRAPH_VIEWER_V2_MAX_MEMBER_SIZE_BOOST,
-    (Math.sqrt(safeMemberCount) - 1) * GRAPH_VIEWER_V2_MEMBER_SIZE_FACTOR,
+    GRAPH_VIEWER_MAX_MEMBER_SIZE_BOOST,
+    (Math.sqrt(safeMemberCount) - 1) * GRAPH_VIEWER_MEMBER_SIZE_FACTOR,
   );
-  return DEFAULT_GRAPH_VIEWER_V2_NODE_SIZE + boost;
+  return DEFAULT_GRAPH_VIEWER_NODE_SIZE + boost;
 }
 
 export function isExpandableRepresentative(
@@ -232,7 +232,7 @@ export function isExpandableRepresentative(
 
 function upsertGraphNode(
   graph: Graph,
-  node: GraphV2ViewportNode,
+  node: GraphViewportNode,
   visuals: ResolvedViewportVisuals | null,
 ): void {
   const attributes = graphNodeAttributes(node, visuals);
@@ -258,7 +258,7 @@ function upsertGraphNode(
   }
 }
 
-function upsertGraphEdge(graph: Graph, edge: GraphV2ViewportEdge): void {
+function upsertGraphEdge(graph: Graph, edge: GraphViewportEdge): void {
   if (!graph.hasNode(edge.source) || !graph.hasNode(edge.target)) {
     return;
   }
@@ -278,7 +278,7 @@ function upsertGraphEdge(graph: Graph, edge: GraphV2ViewportEdge): void {
 // the common node blue. Roles are read from node metadata under any of the
 // accepted key aliases. Representatives (triangles) are colored separately and
 // never routed through here.
-export function deriveViewportNodeColor(node: GraphV2ViewportNode): string {
+export function deriveViewportNodeColor(node: GraphViewportNode): string {
   const metadata = node.metadata ?? undefined;
   const attributes = metadata ? { metadata } : undefined;
 
@@ -328,7 +328,7 @@ export function deriveViewportNodeColor(node: GraphV2ViewportNode): string {
 }
 
 function graphNodeAttributes(
-  node: GraphV2ViewportNode,
+  node: GraphViewportNode,
   visuals: ResolvedViewportVisuals | null,
 ): Record<string, unknown> {
   const isRepresentative = node.is_representative || node.member_count > 1;
@@ -343,7 +343,7 @@ function graphNodeAttributes(
   const hasMappedValue =
     mappedValue !== undefined && mappedValue !== null && mappedValue !== "";
   const roleColor = isRepresentative
-    ? GRAPH_VIEWER_V2_REPRESENTATIVE_COLOR
+    ? GRAPH_VIEWER_REPRESENTATIVE_COLOR
     : deriveViewportNodeColor(node);
   const color =
     visuals && hasMappedValue
@@ -374,7 +374,7 @@ function graphNodeAttributes(
 // are unavailable under LoD, so categories come from the server-aggregated
 // __category_count__ keys already embedded in node metadata.
 function pieNodeAttributes(
-  metadata: Record<string, GraphV2MetadataValue> | undefined,
+  metadata: Record<string, GraphMetadataValue> | undefined,
   visuals: ResolvedViewportVisuals | null,
 ): Record<string, unknown> {
   const pie = visuals?.pie;
@@ -403,11 +403,11 @@ function pieNodeAttributes(
 }
 
 function graphEdgeAttributes(
-  edge: GraphV2ViewportEdge,
+  edge: GraphViewportEdge,
 ): Record<string, unknown> {
   const isMeta = edge.is_meta === true;
   return {
-    color: GRAPH_VIEWER_V2_EDGE_COLOR,
+    color: GRAPH_VIEWER_EDGE_COLOR,
     size: 1,
     distance: edge.distance ?? undefined,
     label:

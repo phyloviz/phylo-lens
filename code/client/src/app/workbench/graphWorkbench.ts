@@ -1,8 +1,8 @@
 import type {
-  GraphV2Client,
-  GraphV2ViewportResponse,
+  GraphClient,
+  GraphViewportResponse,
   NormalizeRequest,
-} from "../../api/graphV2Client";
+} from "../../api/graphClient";
 import {
   type CanonicalDataset,
   type SearchDatasetResponse,
@@ -28,7 +28,7 @@ import {
   clearMetadataFilters,
   updateVisualMapping,
 } from "./rendering/graphFilters";
-import type { SigmaViewportBounds } from "../../render/adapters/sigma/graphViewerV2Types";
+import type { SigmaViewportBounds } from "../../render/adapters/sigma/graphViewerTypes";
 import type {
   GraphWorkbench,
   GraphWorkbenchOptions,
@@ -65,7 +65,7 @@ export type {
 
 export const DEFAULT_DATASET_NAME = "uploaded-dataset";
 export const DEFAULT_SEARCH_RESULT_LIMIT = 50;
-export const GRAPH_V2_DETAIL_LOD_LEVEL = 3;
+export const GRAPH_DETAIL_LOD_LEVEL = 3;
 export { ERR_LOD_PLAYBACK_REQUIRES_LOD, ERR_NO_GRAPH_RENDERED };
 
 export function createGraphWorkbench(
@@ -94,7 +94,7 @@ export function createGraphWorkbench(
       renderNewick({
         state,
         renderer,
-        graphV2Client: options.graphV2Client,
+        graphClient: options.graphClient,
         newick,
         datasetName,
         options: renderOptions,
@@ -165,7 +165,7 @@ export function createGraphWorkbench(
       selectRegion({
         state,
         renderer,
-        graphV2Client: options.graphV2Client,
+        graphClient: options.graphClient,
         bounds,
       }),
 
@@ -186,14 +186,14 @@ export function createGraphWorkbench(
 interface SelectRegionArgs {
   state: GraphWorkbenchState;
   renderer: GraphRenderer;
-  graphV2Client: GraphV2Client;
+  graphClient: GraphClient;
   bounds: SigmaViewportBounds;
 }
 
 async function selectRegion({
   state,
   renderer,
-  graphV2Client,
+  graphClient,
   bounds,
 }: SelectRegionArgs): Promise<RegionSelectionResult> {
   const session = state.preparedSession;
@@ -202,7 +202,7 @@ async function selectRegion({
     throw new Error(ERR_NO_GRAPH_RENDERED);
   }
 
-  const response = await graphV2Client.readRegion({
+  const response = await graphClient.readRegion({
     dataset_id: session.datasetId,
     layout_version: session.layoutVersion ?? null,
     xmin: bounds.xmin,
@@ -226,7 +226,7 @@ async function selectRegion({
 interface RenderNewickArgs {
   state: GraphWorkbenchState;
   renderer: GraphRenderer;
-  graphV2Client: GraphV2Client;
+  graphClient: GraphClient;
   newick: string;
   datasetName?: string;
   options?: RenderNewickOptions;
@@ -235,7 +235,7 @@ interface RenderNewickArgs {
 async function renderNewick({
   state,
   renderer,
-  graphV2Client,
+  graphClient,
   newick,
   datasetName = DEFAULT_DATASET_NAME,
   options = {},
@@ -252,8 +252,8 @@ async function renderNewick({
     ancillary_data: options.ancillaryData,
   };
 
-  if (renderer.startGraphV2ViewportSync) {
-    const preparedGraph = await graphV2Client.prepareGraph(request);
+  if (renderer.startGraphViewportSync) {
+    const preparedGraph = await graphClient.prepareGraph(request);
 
     state.renderMode = "lod";
     state.preparedSession = {
@@ -272,8 +272,8 @@ async function renderNewick({
     };
     state.currentSliceDataset = null;
 
-    renderer.startGraphV2ViewportSync({
-      client: graphV2Client,
+    renderer.startGraphViewportSync({
+      client: graphClient,
       datasetId: preparedGraph.dataset_id,
       layoutVersion: preparedGraph.layout_version,
       maxNodes: state.preparedSession.lod.maxNodes,
@@ -281,7 +281,7 @@ async function renderNewick({
       nodeCount: preparedGraph.node_count,
       getPaused: () => state.lodRefreshPaused,
       onViewportLoaded: (response) => {
-        updateStateFromGraphV2Viewport(state, response);
+        updateStateFromGraphViewport(state, response);
       },
       getRenderSettings: () => ({
         visualMapping: state.preparedSession?.visualMapping,
@@ -298,7 +298,7 @@ async function renderNewick({
     return placeholderGraph;
   }
 
-  throw new Error("Graph V2 viewport sync is required for LoD rendering.");
+  throw new Error("Graph viewport sync is required for LoD rendering.");
 }
 
 interface SetLodRefreshPausedArgs {
@@ -320,9 +320,9 @@ async function setLodRefreshPaused({
   clearPendingViewRefresh(state);
   state.deferredViewState = null;
   // On resume, reconcile the frozen view to wherever the camera drifted while
-  // paused. refreshNow() bypasses the pause guard in GraphViewerV2.
+  // paused. refreshNow() bypasses the pause guard in GraphViewer.
   if (!paused) {
-    renderer.refreshGraphV2ViewportSync?.();
+    renderer.refreshGraphViewportSync?.();
   }
   return state.currentGraph;
 }
@@ -412,7 +412,7 @@ function disposeGraphWorkbench(
   renderer.setNodeClickHandler?.(null);
   renderer.setRegionSelectedHandler?.(null);
   renderer.setHighlightedNodes?.(null);
-  renderer.stopGraphV2ViewportSync?.();
+  renderer.stopGraphViewportSync?.();
   renderer.unmount();
 }
 
@@ -433,9 +433,9 @@ function realMetadataFieldKeys(
   );
 }
 
-function updateStateFromGraphV2Viewport(
+function updateStateFromGraphViewport(
   state: GraphWorkbenchState,
-  response: GraphV2ViewportResponse,
+  response: GraphViewportResponse,
 ): void {
   const graph: PositionedGraph = {
     nodes: response.nodes.map((node) => {
@@ -478,7 +478,7 @@ function updateStateFromGraphV2Viewport(
     })),
     viewMeta: {
       layout: "server",
-      lodLevel: response.lod_level ?? GRAPH_V2_DETAIL_LOD_LEVEL,
+      lodLevel: response.lod_level ?? GRAPH_DETAIL_LOD_LEVEL,
       sliceNodeCount: response.nodes.length,
       sliceEdgeCount: response.edges.length,
       zoom: response.zoom,
@@ -508,7 +508,7 @@ function updateStateFromGraphV2Viewport(
 // Reusing the prior index across redundant syncs (camera settle, repeated
 // refreshes, unchanged pans) skips the multi-pass rebuild without ever serving
 // stale stats.
-function viewportMetadataSignature(response: GraphV2ViewportResponse): string {
+function viewportMetadataSignature(response: GraphViewportResponse): string {
   const nodeIds = response.nodes.map((node) => node.id).sort();
   return [
     response.dataset_id,
@@ -522,7 +522,7 @@ function viewportMetadataSignature(response: GraphV2ViewportResponse): string {
 // Build a per-viewport CanonicalDataset so stats/search read live metadata.
 function buildViewportDataset(
   state: GraphWorkbenchState,
-  response: GraphV2ViewportResponse,
+  response: GraphViewportResponse,
 ): CanonicalDataset {
   const metadataByNodeId: CanonicalDataset["metadata_by_node_id"] = {};
   response.nodes.forEach((node) => {

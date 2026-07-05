@@ -11,16 +11,16 @@ import {
 import { SOURCE_FORMAT_NEWICK } from "../contracts/models";
 import { createHttpClient, type HttpClient } from "./httpClient";
 
-export const ROUTE_GRAPH_V2_PREPARE = "/api/v2/graph/prepare";
-export const ROUTE_GRAPH_V2_VIEWPORT = "/api/v2/graph/viewport";
-export const ROUTE_GRAPH_V2_REGION = "/api/v2/graph/region";
-export const ERR_INVALID_GRAPH_V2_PREPARE_RESPONSE = "Invalid graph v2 prepare response contract.";
-export const ERR_INVALID_GRAPH_V2_PREPARE_JOB = "Invalid graph v2 prepare job contract.";
-export const ERR_INVALID_GRAPH_V2_PREPARE_STATUS = "Invalid graph v2 prepare status contract.";
-export const ERR_GRAPH_V2_PREPARE_FAILED = "Graph v2 layout preparation failed.";
-export const ERR_GRAPH_V2_PREPARE_TIMED_OUT = "Graph v2 layout preparation did not complete in time.";
-export const ERR_INVALID_GRAPH_V2_VIEWPORT_RESPONSE = "Invalid graph v2 viewport response contract.";
-export const ERR_INVALID_GRAPH_V2_REGION_RESPONSE = "Invalid graph v2 region response contract.";
+export const ROUTE_GRAPH_PREPARE = "/api/graph/prepare";
+export const ROUTE_GRAPH_VIEWPORT = "/api/graph/viewport";
+export const ROUTE_GRAPH_REGION = "/api/graph/region";
+export const ERR_INVALID_GRAPH_PREPARE_RESPONSE = "Invalid graph prepare response contract.";
+export const ERR_INVALID_GRAPH_PREPARE_JOB = "Invalid graph prepare job contract.";
+export const ERR_INVALID_GRAPH_PREPARE_STATUS = "Invalid graph prepare status contract.";
+export const ERR_GRAPH_PREPARE_FAILED = "Graph layout preparation failed.";
+export const ERR_GRAPH_PREPARE_TIMED_OUT = "Graph layout preparation did not complete in time.";
+export const ERR_INVALID_GRAPH_VIEWPORT_RESPONSE = "Invalid graph viewport response contract.";
+export const ERR_INVALID_GRAPH_REGION_RESPONSE = "Invalid graph region response contract.";
 
 // Layout runs on a background worker, so /prepare returns a job the client polls
 // at /prepare/{job_id} until it is ready. These govern the polling cadence and
@@ -28,13 +28,13 @@ export const ERR_INVALID_GRAPH_V2_REGION_RESPONSE = "Invalid graph v2 region res
 export const DEFAULT_PREPARE_POLL_INTERVAL_MS = 1000;
 export const DEFAULT_PREPARE_POLL_TIMEOUT_MS = 600_000;
 
-export type GraphV2PrepareJobStatus = "pending" | "ready" | "failed";
+export type GraphPrepareJobStatus = "pending" | "ready" | "failed";
 
-export type GraphV2LayoutStatus = "pending" | "refining" | "ready" | "failed";
+export type GraphLayoutStatus = "pending" | "refining" | "ready" | "failed";
 
-export type GraphV2MetadataValue = string | number | boolean | null;
+export type GraphMetadataValue = string | number | boolean | null;
 
-export interface GraphV2MetadataField {
+export interface GraphMetadataField {
   key: string;
   type: string;
 }
@@ -58,7 +58,7 @@ export interface NormalizeRequest {
   };
 }
 
-export interface GraphV2ViewportQuery {
+export interface GraphViewportQuery {
   dataset_id: string;
   layout_version?: string | null;
   cluster_id?: string | null;
@@ -71,7 +71,7 @@ export interface GraphV2ViewportQuery {
   max_nodes?: number;
 }
 
-export interface GraphV2PrepareResponse {
+export interface GraphPrepareResponse {
   dataset_id: string;
   layout_version: string;
   node_count: number;
@@ -81,35 +81,35 @@ export interface GraphV2PrepareResponse {
   // can map camera zoom onto. Optional for backward compatibility; treated as 1
   // (finest detail only) when absent.
   lod_tier_count?: number;
-  layout_status: GraphV2LayoutStatus;
+  layout_status: GraphLayoutStatus;
   warnings: string[];
 }
 
-export interface GraphV2PrepareJob {
+export interface GraphPrepareJob {
   job_id: string;
   status: string;
   dataset_id: string;
 }
 
-export interface GraphV2PrepareStatus {
+export interface GraphPrepareStatus {
   job_id: string;
-  status: GraphV2PrepareJobStatus;
-  result?: GraphV2PrepareResponse | null;
+  status: GraphPrepareJobStatus;
+  result?: GraphPrepareResponse | null;
   error?: string | null;
 }
 
-export interface GraphV2ViewportNode {
+export interface GraphViewportNode {
   id: string;
   cluster_id: string;
   x: number;
   y: number;
-  layout_status: GraphV2LayoutStatus;
+  layout_status: GraphLayoutStatus;
   member_count: number;
   is_representative: boolean;
-  metadata?: Record<string, GraphV2MetadataValue> | null;
+  metadata?: Record<string, GraphMetadataValue> | null;
 }
 
-export interface GraphV2ViewportEdge {
+export interface GraphViewportEdge {
   id: string;
   source: string;
   target: string;
@@ -120,20 +120,20 @@ export interface GraphV2ViewportEdge {
   bundled_edge_count?: number | null;
 }
 
-export interface GraphV2ViewportResponse {
+export interface GraphViewportResponse {
   dataset_id: string;
   layout_version: string;
   lod_level?: number | null;
   zoom: number;
-  layout_status: GraphV2LayoutStatus;
+  layout_status: GraphLayoutStatus;
   truncated: boolean;
   total_node_count: number;
-  nodes: GraphV2ViewportNode[];
-  edges: GraphV2ViewportEdge[];
-  metadata_schema?: GraphV2MetadataField[];
+  nodes: GraphViewportNode[];
+  edges: GraphViewportEdge[];
+  metadata_schema?: GraphMetadataField[];
 }
 
-export interface GraphV2RegionQuery {
+export interface GraphRegionQuery {
   dataset_id: string;
   layout_version?: string | null;
   xmin: number;
@@ -143,46 +143,46 @@ export interface GraphV2RegionQuery {
   max_nodes?: number;
 }
 
-export interface GraphV2RegionResponse {
+export interface GraphRegionResponse {
   dataset_id: string;
   layout_version: string;
-  layout_status: GraphV2LayoutStatus;
+  layout_status: GraphLayoutStatus;
   truncated: boolean;
   total_node_count: number;
-  nodes: GraphV2ViewportNode[];
-  edges: GraphV2ViewportEdge[];
-  metadata_schema?: GraphV2MetadataField[];
+  nodes: GraphViewportNode[];
+  edges: GraphViewportEdge[];
+  metadata_schema?: GraphMetadataField[];
   // One aggregated value per metadata field across the selected members
   // (mean for numeric fields, mode for everything else).
-  aggregated_metadata: Record<string, GraphV2MetadataValue>;
+  aggregated_metadata: Record<string, GraphMetadataValue>;
 }
 
 export interface PrepareGraphOptions {
   // Notified on each poll while the background layout job is still pending, so a
   // caller can drive a progress indicator. Fired once per poll attempt.
-  onPending?: (job: GraphV2PrepareStatus) => void;
+  onPending?: (job: GraphPrepareStatus) => void;
   pollIntervalMs?: number;
   pollTimeoutMs?: number;
   // Injectable for tests; defaults to setTimeout-based delay.
   sleep?: (ms: number) => Promise<void>;
 }
 
-export interface GraphV2ClientOptions {
+export interface GraphClientOptions {
   baseUrl: string;
   fetchImpl?: typeof fetch;
 }
 
-export interface GraphV2Client {
+export interface GraphClient {
   prepareGraph: (
     request: NormalizeRequest,
     options?: PrepareGraphOptions,
-  ) => Promise<GraphV2PrepareResponse>;
-  readViewport: (query: GraphV2ViewportQuery,) => Promise<GraphV2ViewportResponse>;
-  readRegion: (query: GraphV2RegionQuery) => Promise<GraphV2RegionResponse>;
+  ) => Promise<GraphPrepareResponse>;
+  readViewport: (query: GraphViewportQuery,) => Promise<GraphViewportResponse>;
+  readRegion: (query: GraphRegionQuery) => Promise<GraphRegionResponse>;
 }
 
-export function createGraphV2Client(options: GraphV2ClientOptions): GraphV2Client {
-  return createGraphV2ClientFromHttp(
+export function createGraphClient(options: GraphClientOptions): GraphClient {
+  return createGraphClientFromHttp(
     createHttpClient({
       baseUrl: options.baseUrl,
       fetchImpl: options.fetchImpl,
@@ -190,84 +190,84 @@ export function createGraphV2Client(options: GraphV2ClientOptions): GraphV2Clien
   );
 }
 
-export function createGraphV2ClientFromHttp(http: HttpClient): GraphV2Client {
+export function createGraphClientFromHttp(http: HttpClient): GraphClient {
   return {
-    prepareGraph: (request, options) => prepareGraphV2(http, request, options),
-    readViewport: (query) => readGraphV2Viewport(http, query),
-    readRegion: (query) => readGraphV2Region(http, query),
+    prepareGraph: (request, options) => prepareGraph(http, request, options),
+    readViewport: (query) => readGraphViewport(http, query),
+    readRegion: (query) => readGraphRegion(http, query),
   };
 }
 
 // Submit a background layout job, then poll its status until it resolves. The
-// public return type stays GraphV2PrepareResponse so callers are unaffected by
+// public return type stays GraphPrepareResponse so callers are unaffected by
 // the async transport — the polling is fully encapsulated here.
-export async function prepareGraphV2(
+export async function prepareGraph(
   http: HttpClient,
   request: NormalizeRequest,
   options: PrepareGraphOptions = {},
-): Promise<GraphV2PrepareResponse> {
-  const job = await submitPrepareGraphV2(http, request);
-  return pollPrepareGraphV2(http, job.job_id, options);
+): Promise<GraphPrepareResponse> {
+  const job = await submitPrepareGraph(http, request);
+  return pollPrepareGraph(http, job.job_id, options);
 }
 
-export async function submitPrepareGraphV2(
+export async function submitPrepareGraph(
   http: HttpClient,
   request: NormalizeRequest,
-): Promise<GraphV2PrepareJob> {
+): Promise<GraphPrepareJob> {
   const response = await http.post<NormalizeRequest, unknown>(
-    ROUTE_GRAPH_V2_PREPARE,
+    ROUTE_GRAPH_PREPARE,
     request,
   );
 
-  if (!isGraphV2PrepareJob(response)) {
-    throw new Error(ERR_INVALID_GRAPH_V2_PREPARE_JOB);
+  if (!isGraphPrepareJob(response)) {
+    throw new Error(ERR_INVALID_GRAPH_PREPARE_JOB);
   }
 
   return response;
 }
 
-async function pollPrepareGraphV2(
+async function pollPrepareGraph(
   http: HttpClient,
   jobId: string,
   options: PrepareGraphOptions,
-): Promise<GraphV2PrepareResponse> {
+): Promise<GraphPrepareResponse> {
   const intervalMs = options.pollIntervalMs ?? DEFAULT_PREPARE_POLL_INTERVAL_MS;
   const timeoutMs = options.pollTimeoutMs ?? DEFAULT_PREPARE_POLL_TIMEOUT_MS;
   const sleep = options.sleep ?? defaultSleep;
   const deadline = Date.now() + timeoutMs;
 
   for (;;) {
-    const status = await getPrepareGraphV2Status(http, jobId);
+    const status = await getPrepareGraphStatus(http, jobId);
 
     if (status.status === "ready") {
-      if (!isGraphV2PrepareResponse(status.result)) {
-        throw new Error(ERR_INVALID_GRAPH_V2_PREPARE_RESPONSE);
+      if (!isGraphPrepareResponse(status.result)) {
+        throw new Error(ERR_INVALID_GRAPH_PREPARE_RESPONSE);
       }
       return status.result;
     }
     if (status.status === "failed") {
-      throw new Error(status.error ?? ERR_GRAPH_V2_PREPARE_FAILED);
+      throw new Error(status.error ?? ERR_GRAPH_PREPARE_FAILED);
     }
 
     options.onPending?.(status);
 
     if (Date.now() >= deadline) {
-      throw new Error(ERR_GRAPH_V2_PREPARE_TIMED_OUT);
+      throw new Error(ERR_GRAPH_PREPARE_TIMED_OUT);
     }
     await sleep(intervalMs);
   }
 }
 
-export async function getPrepareGraphV2Status(
+export async function getPrepareGraphStatus(
   http: HttpClient,
   jobId: string,
-): Promise<GraphV2PrepareStatus> {
+): Promise<GraphPrepareStatus> {
   const response = await http.get<unknown>(
-    `${ROUTE_GRAPH_V2_PREPARE}/${jobId}`,
+    `${ROUTE_GRAPH_PREPARE}/${jobId}`,
   );
 
-  if (!isGraphV2PrepareStatus(response)) {
-    throw new Error(ERR_INVALID_GRAPH_V2_PREPARE_STATUS);
+  if (!isGraphPrepareStatus(response)) {
+    throw new Error(ERR_INVALID_GRAPH_PREPARE_STATUS);
   }
 
   return response;
@@ -277,41 +277,41 @@ function defaultSleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export async function readGraphV2Viewport(
+export async function readGraphViewport(
   http: HttpClient,
-  query: GraphV2ViewportQuery,
-): Promise<GraphV2ViewportResponse> {
-  const response = await http.post<GraphV2ViewportQuery, unknown>(
-    ROUTE_GRAPH_V2_VIEWPORT,
+  query: GraphViewportQuery,
+): Promise<GraphViewportResponse> {
+  const response = await http.post<GraphViewportQuery, unknown>(
+    ROUTE_GRAPH_VIEWPORT,
     query,
   );
 
-  if (!isGraphV2ViewportResponse(response)) {
-    throw new Error(ERR_INVALID_GRAPH_V2_VIEWPORT_RESPONSE);
+  if (!isGraphViewportResponse(response)) {
+    throw new Error(ERR_INVALID_GRAPH_VIEWPORT_RESPONSE);
   }
 
   return response;
 }
 
-export async function readGraphV2Region(
+export async function readGraphRegion(
   http: HttpClient,
-  query: GraphV2RegionQuery,
-): Promise<GraphV2RegionResponse> {
-  const response = await http.post<GraphV2RegionQuery, unknown>(
-    ROUTE_GRAPH_V2_REGION,
+  query: GraphRegionQuery,
+): Promise<GraphRegionResponse> {
+  const response = await http.post<GraphRegionQuery, unknown>(
+    ROUTE_GRAPH_REGION,
     query,
   );
 
-  if (!isGraphV2RegionResponse(response)) {
-    throw new Error(ERR_INVALID_GRAPH_V2_REGION_RESPONSE);
+  if (!isGraphRegionResponse(response)) {
+    throw new Error(ERR_INVALID_GRAPH_REGION_RESPONSE);
   }
 
   return response;
 }
 
-export function isGraphV2PrepareResponse(
+export function isGraphPrepareResponse(
   value: unknown,
-): value is GraphV2PrepareResponse {
+): value is GraphPrepareResponse {
   return (
     isRecord(value) &&
     isString(value.dataset_id) &&
@@ -320,14 +320,14 @@ export function isGraphV2PrepareResponse(
     isFiniteNumber(value.edge_count) &&
     isFiniteNumber(value.cluster_count) &&
     isOptionalFiniteNumber(value.lod_tier_count) &&
-    isGraphV2LayoutStatus(value.layout_status) &&
+    isGraphLayoutStatus(value.layout_status) &&
     isArrayOf(value.warnings, isString)
   );
 }
 
-export function isGraphV2PrepareJob(
+export function isGraphPrepareJob(
   value: unknown,
-): value is GraphV2PrepareJob {
+): value is GraphPrepareJob {
   return (
     isRecord(value) &&
     isString(value.job_id) &&
@@ -336,84 +336,84 @@ export function isGraphV2PrepareJob(
   );
 }
 
-export function isGraphV2PrepareStatus(
+export function isGraphPrepareStatus(
   value: unknown,
-): value is GraphV2PrepareStatus {
+): value is GraphPrepareStatus {
   return (
     isRecord(value) &&
     isString(value.job_id) &&
-    isGraphV2PrepareJobStatus(value.status) &&
+    isGraphPrepareJobStatus(value.status) &&
     (value.result === undefined ||
       value.result === null ||
-      isGraphV2PrepareResponse(value.result)) &&
+      isGraphPrepareResponse(value.result)) &&
     isOptionalString(value.error)
   );
 }
 
-function isGraphV2PrepareJobStatus(
+function isGraphPrepareJobStatus(
   value: unknown,
-): value is GraphV2PrepareJobStatus {
+): value is GraphPrepareJobStatus {
   return value === "pending" || value === "ready" || value === "failed";
 }
 
-export function isGraphV2ViewportResponse(
+export function isGraphViewportResponse(
   value: unknown,
-): value is GraphV2ViewportResponse {
+): value is GraphViewportResponse {
   return (
     isRecord(value) &&
     isString(value.dataset_id) &&
     isString(value.layout_version) &&
     isOptionalFiniteNumber(value.lod_level) &&
     isFiniteNumber(value.zoom) &&
-    isGraphV2LayoutStatus(value.layout_status) &&
+    isGraphLayoutStatus(value.layout_status) &&
     isBoolean(value.truncated) &&
     isFiniteNumber(value.total_node_count) &&
-    isArrayOf(value.nodes, isGraphV2ViewportNode) &&
-    isArrayOf(value.edges, isGraphV2ViewportEdge) &&
-    isOptionalGraphV2MetadataSchema(value.metadata_schema)
+    isArrayOf(value.nodes, isGraphViewportNode) &&
+    isArrayOf(value.edges, isGraphViewportEdge) &&
+    isOptionalGraphMetadataSchema(value.metadata_schema)
   );
 }
 
-export function isGraphV2RegionResponse(
+export function isGraphRegionResponse(
   value: unknown,
-): value is GraphV2RegionResponse {
+): value is GraphRegionResponse {
   return (
     isRecord(value) &&
     isString(value.dataset_id) &&
     isString(value.layout_version) &&
-    isGraphV2LayoutStatus(value.layout_status) &&
+    isGraphLayoutStatus(value.layout_status) &&
     isBoolean(value.truncated) &&
     isFiniteNumber(value.total_node_count) &&
-    isArrayOf(value.nodes, isGraphV2ViewportNode) &&
-    isArrayOf(value.edges, isGraphV2ViewportEdge) &&
-    isOptionalGraphV2MetadataSchema(value.metadata_schema) &&
-    isGraphV2AggregatedMetadata(value.aggregated_metadata)
+    isArrayOf(value.nodes, isGraphViewportNode) &&
+    isArrayOf(value.edges, isGraphViewportEdge) &&
+    isOptionalGraphMetadataSchema(value.metadata_schema) &&
+    isGraphAggregatedMetadata(value.aggregated_metadata)
   );
 }
 
-function isGraphV2AggregatedMetadata(
+function isGraphAggregatedMetadata(
   value: unknown,
-): value is Record<string, GraphV2MetadataValue> {
-  return isRecord(value) && Object.values(value).every(isGraphV2MetadataValue);
+): value is Record<string, GraphMetadataValue> {
+  return isRecord(value) && Object.values(value).every(isGraphMetadataValue);
 }
 
-function isGraphV2ViewportNode(value: unknown): value is GraphV2ViewportNode {
+function isGraphViewportNode(value: unknown): value is GraphViewportNode {
   return (
     isRecord(value) &&
     isString(value.id) &&
     isString(value.cluster_id) &&
     isFiniteNumber(value.x) &&
     isFiniteNumber(value.y) &&
-    isGraphV2LayoutStatus(value.layout_status) &&
+    isGraphLayoutStatus(value.layout_status) &&
     isFiniteNumber(value.member_count) &&
     isBoolean(value.is_representative) &&
-    isOptionalGraphV2Metadata(value.metadata)
+    isOptionalGraphMetadata(value.metadata)
   );
 }
 
-function isGraphV2MetadataValue(
+function isGraphMetadataValue(
   value: unknown,
-): value is GraphV2MetadataValue {
+): value is GraphMetadataValue {
   return (
     value === null ||
     isString(value) ||
@@ -422,29 +422,29 @@ function isGraphV2MetadataValue(
   );
 }
 
-function isOptionalGraphV2Metadata(
+function isOptionalGraphMetadata(
   value: unknown,
-): value is Record<string, GraphV2MetadataValue> | null | undefined {
+): value is Record<string, GraphMetadataValue> | null | undefined {
   if (value === undefined || value === null) {
     return true;
   }
 
-  return isRecord(value) && Object.values(value).every(isGraphV2MetadataValue);
+  return isRecord(value) && Object.values(value).every(isGraphMetadataValue);
 }
 
-function isGraphV2MetadataField(
+function isGraphMetadataField(
   value: unknown,
-): value is GraphV2MetadataField {
+): value is GraphMetadataField {
   return isRecord(value) && isString(value.key) && isString(value.type);
 }
 
-function isOptionalGraphV2MetadataSchema(
+function isOptionalGraphMetadataSchema(
   value: unknown,
-): value is GraphV2MetadataField[] | undefined {
-  return value === undefined || isArrayOf(value, isGraphV2MetadataField);
+): value is GraphMetadataField[] | undefined {
+  return value === undefined || isArrayOf(value, isGraphMetadataField);
 }
 
-function isGraphV2ViewportEdge(value: unknown): value is GraphV2ViewportEdge {
+function isGraphViewportEdge(value: unknown): value is GraphViewportEdge {
   return (
     isRecord(value) &&
     isString(value.id) &&
@@ -456,7 +456,7 @@ function isGraphV2ViewportEdge(value: unknown): value is GraphV2ViewportEdge {
   );
 }
 
-function isGraphV2LayoutStatus(value: unknown): value is GraphV2LayoutStatus {
+function isGraphLayoutStatus(value: unknown): value is GraphLayoutStatus {
   return (
     isOptionalString(value) &&
     (value === "pending" ||

@@ -6,9 +6,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
-from phylo_lens_server.api.v2_graph import (
+from phylo_lens_server.api.graph import (
     get_prepare_job_registry,
-    router as graph_v2_router,
+    router as graph_router,
 )
 
 PACKAGE_LOGGER_NAME = "phylo_lens_server"
@@ -81,7 +81,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(graph_v2_router)
+app.include_router(graph_router)
 
 
 @app.get(ROUTE_HEALTH)

@@ -59,10 +59,10 @@ flowchart TD
 
 ## System Summary
 
-- **A small set of v2 HTTP routes drive everything.** The core loop is
-  `POST /api/v2/graph/prepare` (materialize layout artifacts) and
-  `POST /api/v2/graph/viewport` (read a bounded slice);
-  `POST /api/v2/graph/region` serves an on-demand box-select read with
+- **A small set of HTTP routes drive everything.** The core loop is
+  `POST /api/graph/prepare` (materialize layout artifacts) and
+  `POST /api/graph/viewport` (read a bounded slice);
+  `POST /api/graph/region` serves an on-demand box-select read with
   aggregated metadata. See [`ARCHITECTURE_SPEC.md`](./ARCHITECTURE_SPEC.md) for
   the system map, or [`API_REFERENCE.md`](./API_REFERENCE.md) for the
   field-level route/model/error reference.

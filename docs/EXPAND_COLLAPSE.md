@@ -26,14 +26,14 @@ the triangle rule and rendering.
 ```mermaid
 sequenceDiagram
   participant U as User
-  participant GV as GraphViewerV2
-  participant API as GraphV2Client
+  participant GV as GraphViewer
+  participant API as GraphClient
   participant Srv as Server
 
   U->>GV: single-click representative (triangle)
   GV->>GV: isExpandableRepresentative? snapshot proxy + incident edges
   GV->>API: readViewport(cluster_id, lod_level=null)
-  API->>Srv: POST /api/v2/graph/viewport
+  API->>Srv: POST /api/graph/viewport
   Srv-->>GV: members + rerouted meta-edges + neighbor reps
   GV->>GV: sync into graph, cache snapshot (camera left untouched)
 
@@ -68,7 +68,7 @@ clade" — how related the outside taxon is to the collapsed group.
 `GraphViewportEdge` carries the optional `is_meta` and `bundled_edge_count`
 fields; ordinary edges leave them `None`.
 
-## Client: Stateful Collapse (`GraphViewerV2.ts`)
+## Client: Stateful Collapse (`GraphViewer.ts`)
 
 The client keeps the expansion reversible without a server round-trip:
 

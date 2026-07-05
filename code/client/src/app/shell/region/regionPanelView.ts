@@ -1,4 +1,4 @@
-import type { GraphV2MetadataValue } from "../../../api/graphV2Client";
+import type { GraphMetadataValue } from "../../../api/graphClient";
 import {
   type AncillaryWheelStats,
   renderAncillaryWheel,
@@ -10,7 +10,7 @@ export const REGION_PANEL_EMPTY_MESSAGE =
 export interface RegionPanelData {
   nodeCount: number;
   truncated: boolean;
-  aggregatedMetadata: Record<string, GraphV2MetadataValue>;
+  aggregatedMetadata: Record<string, GraphMetadataValue>;
   wheelStats: AncillaryWheelStats | null;
 }
 
@@ -50,7 +50,7 @@ export function renderRegionPanel(
 }
 
 function buildAggregateTable(
-  aggregatedMetadata: Record<string, GraphV2MetadataValue>,
+  aggregatedMetadata: Record<string, GraphMetadataValue>,
 ): HTMLElement {
   const entries = Object.entries(aggregatedMetadata).sort(([left], [right]) =>
     left.localeCompare(right),
@@ -84,7 +84,7 @@ function buildAggregateTable(
   return table;
 }
 
-function formatAggregateValue(value: GraphV2MetadataValue): string {
+function formatAggregateValue(value: GraphMetadataValue): string {
   if (value === null) {
     return "—";
   }

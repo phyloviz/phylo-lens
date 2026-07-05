@@ -1,12 +1,12 @@
-# API Reference — `/api/v2/graph`
+# API Reference — `/api/graph`
 
-Field-level reference for the PhyloLens v2 HTTP API. For the system map see
+Field-level reference for the PhyloLens HTTP API. For the system map see
 [`ARCHITECTURE_SPEC.md`](./ARCHITECTURE_SPEC.md); for the runtime narrative see
 [`flow.md`](./flow.md); for internal models see [`DATA_MODEL.md`](./DATA_MODEL.md).
 
-All routes live under the prefix **`/api/v2/graph`** (`ROUTER_PREFIX`,
-`api/v2_graph.py`). Request/response models are Pydantic (server) mirrored by
-TypeScript interfaces in `code/client/src/api/graphV2Client.ts`. Responses use
+All routes live under the prefix **`/api/graph`** (`ROUTER_PREFIX`,
+`api/graph.py`). Request/response models are Pydantic (server) mirrored by
+TypeScript interfaces in `code/client/src/api/graphClient.ts`. Responses use
 `response_model_exclude_none=True`, so `null`-valued optional fields are omitted
 from the JSON.
 
@@ -14,8 +14,8 @@ from the JSON.
 
 | Method | Path | Request | Response | Success |
 |---|---|---|---|---|
-| `POST` | `/prepare` | `NormalizeRequest` | `GraphV2PrepareJob` | `202` |
-| `GET` | `/prepare/{job_id}` | — | `GraphV2PrepareStatus` | `200` |
+| `POST` | `/prepare` | `NormalizeRequest` | `GraphPrepareJob` | `202` |
+| `GET` | `/prepare/{job_id}` | — | `GraphPrepareStatus` | `200` |
 | `POST` | `/viewport` | `GraphViewportQuery` | `GraphViewportResponse` | `200` |
 | `POST` | `/region` | `GraphRegionQuery` | `GraphRegionResponse` | `200` |
 
@@ -30,11 +30,11 @@ asynchronous:
 
 1. **`POST /prepare`** normalizes + validates the dataset **synchronously** (bad
    input fails fast with `4xx`), submits the layout job, and returns `202` with a
-   `GraphV2PrepareJob` (`job_id`, `status: "pending"`, `dataset_id`).
+   `GraphPrepareJob` (`job_id`, `status: "pending"`, `dataset_id`).
 2. The client **polls `GET /prepare/{job_id}`** until `status` is `ready` or
    `failed`. Cadence is client-side: `DEFAULT_PREPARE_POLL_INTERVAL_MS = 1000`
    (1s between polls), `DEFAULT_PREPARE_POLL_TIMEOUT_MS = 600_000` (10-min budget).
-3. When `ready`, the status response carries the full `GraphV2PrepareResponse`
+3. When `ready`, the status response carries the full `GraphPrepareResponse`
    under `result` (including `layout_version` and `lod_tier_count`). The client
    then drives **`POST /viewport`** for each camera change, and **`POST /region`**
    for box selections.
@@ -56,7 +56,7 @@ reserved in `SourceFormat` but not yet wired into the normalize path (see
 **Layout status** (`LayoutStatus`, server): `pending | refining | ready |
 degraded | failed`. A `degraded` layout is a real result on a fallback
 (circular/jittered) placement; it is still renderable and is surfaced via
-`warnings`. (The client `GraphV2LayoutStatus` type currently omits `degraded`.)
+`warnings`. (The client `GraphLayoutStatus` type currently omits `degraded`.)
 
 ## Errors
 
@@ -86,17 +86,17 @@ Error bodies follow FastAPI's `{"detail": ...}` convention (`api/errors.py`):
 | `metadata_by_node_id` | `dict[str, dict[str, str\|float\|bool\|null]]` | `{}` | per-node metadata |
 | `ancillary_data` | `AncillaryDataRequest \| null` | `null` | `{ content, join_column, format: "auto"\|"csv"\|"tsv" }` — joined by `join_column` |
 
-### `GraphV2PrepareJob` — `202` from `POST /prepare`
+### `GraphPrepareJob` — `202` from `POST /prepare`
 
 `job_id: str` · `status: str` (`"pending"`) · `dataset_id: str`
 
-### `GraphV2PrepareStatus` — from `GET /prepare/{job_id}`
+### `GraphPrepareStatus` — from `GET /prepare/{job_id}`
 
 `job_id: str` · `status: str` (`pending\|ready\|failed`) ·
-`result: GraphV2PrepareResponse \| null` (only when `ready`) ·
+`result: GraphPrepareResponse \| null` (only when `ready`) ·
 `error: str \| null` (only when `failed`)
 
-### `GraphV2PrepareResponse` — nested under `result`
+### `GraphPrepareResponse` — nested under `result`
 
 | Field | Type | Notes |
 |---|---|---|
@@ -154,16 +154,16 @@ excluded). Powers the region-selection stats panel.
 
 ---
 
-## Client consumption (`graphV2Client.ts`)
+## Client consumption (`graphClient.ts`)
 
-- `prepareGraphV2(http, request, options?)` → submits then polls, resolving to the
-  ready `GraphV2PrepareResponse`. `options`: `pollIntervalMs`, `pollTimeoutMs`,
+- `prepareGraph(http, request, options?)` → submits then polls, resolving to the
+  ready `GraphPrepareResponse`. `options`: `pollIntervalMs`, `pollTimeoutMs`,
   `onPending` (progress callback), injectable `sleep`.
-- `submitPrepareGraphV2` / `pollPrepareGraphV2` / `getPrepareGraphV2Status` — the
+- `submitPrepareGraph` / `pollPrepareGraph` / `getPrepareGraphStatus` — the
   same flow decomposed if you need manual control of the poll loop.
-- `readGraphV2Viewport(http, query)` / `readGraphV2Region(http, query)` — the two
+- `readGraphViewport(http, query)` / `readGraphRegion(http, query)` — the two
   interactive reads; each validates the response against a runtime type guard and
-  throws `ERR_INVALID_GRAPH_V2_*_RESPONSE` on contract violations.
+  throws `ERR_INVALID_GRAPH_*_RESPONSE` on contract violations.
 
 ## How the library is meant to be consumed
 

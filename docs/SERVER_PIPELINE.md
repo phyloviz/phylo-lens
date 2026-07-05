@@ -1,11 +1,11 @@
 # Server Prepare Pipeline
 
-`POST /api/v2/graph/prepare` turns raw input into a fully materialized,
+`POST /api/graph/prepare` turns raw input into a fully materialized,
 queryable layout. This is the only expensive server operation; everything at
 interaction time is a bounded read (see
 [`LOD_AND_CLUSTERING.md`](./LOD_AND_CLUSTERING.md)). The orchestration lives in
 `PreparedLayoutWorker.prepare_dataset` (`prepared_layout/worker.py`), driven by
-`prepare_graph_v2` (`api/v2_graph.py`).
+`prepare_graph` (`api/graph.py`).
 
 Because the force-directed layout can run for a long time on large trees, prepare
 is **asynchronous**: `POST /prepare` validates input synchronously, submits the
@@ -18,14 +18,14 @@ client polls `GET /prepare/{job_id}` until the job resolves. See
 ```mermaid
 flowchart TD
   REQ["NormalizeRequest"] --> NORM["normalize_dataset<br/>(data/normalizer.py)"]
-  NORM --> DIST["ensure_graph_v2_edge_distances<br/>(fill missing distance = 1.0)"]
+  NORM --> DIST["ensure_graph_edge_distances<br/>(fill missing distance = 1.0)"]
   DIST --> ING["prepare_layout_artifacts<br/>(ingest.py)"]
   ING --> CL["clusters at up to 16 thresholds"]
   CL --> LAY["compute_prepared_layouts<br/>(layout.py, sfdp)"]
   CL --> PE["compute_prepared_edges<br/>(worker.py, per-tier quotient edges)"]
   LAY --> PERSIST["PreparedLayoutStore<br/>(SQLite persist)"]
   PE --> PERSIST
-  PERSIST --> RESP["GraphV2PrepareResponse<br/>(lod_tier_count, layout_status)<br/>returned via GET /prepare/{job_id}"]
+  PERSIST --> RESP["GraphPrepareResponse<br/>(lod_tier_count, layout_status)<br/>returned via GET /prepare/{job_id}"]
 ```
 
 Steps 2–5 run on a background worker; the diagram shows the full layout the poll
@@ -39,7 +39,7 @@ returns once ready (see [Async Job Flow](#async-job-flow)).
 with aligned per-node metadata and a metadata schema. `parse_newick` reads
 branch lengths as edge distances.
 
-`ensure_graph_v2_edge_distances` guarantees every edge carries a distance:
+`ensure_graph_edge_distances` guarantees every edge carries a distance:
 missing values default to `1.0` and add a warning. Threshold clustering requires
 weighted edges, so this keeps unweighted inputs usable.
 
@@ -132,7 +132,7 @@ cluster metadata, and the schema into SQLite (see the schema in
 `prepare_response_from_result` computes
 `lod_tier_count = max(len(distinct non-None thresholds), 1)` — the same
 enumeration `compute_prepared_edges` uses — and builds the
-`GraphV2PrepareResponse` with the counts, `lod_tier_count`, `layout_status`, and
+`GraphPrepareResponse` with the counts, `lod_tier_count`, `layout_status`, and
 accumulated warnings (submit-time normalize/distance warnings plus any
 layout-degrade warning).
 
@@ -143,7 +143,7 @@ The layout above runs off the request thread. The registry and worker lifecycle:
 ```mermaid
 sequenceDiagram
   participant C as Client
-  participant API as prepare_graph_v2
+  participant API as prepare_graph
   participant R as PrepareJobRegistry
   participant W as PreparedLayoutWorker (ThreadPoolExecutor)
 
@@ -160,16 +160,16 @@ sequenceDiagram
   end
 ```
 
-- **Submit (`prepare_graph_v2`).** Normalization and distance validation run
+- **Submit (`prepare_graph`).** Normalization and distance validation run
   synchronously so malformed input fails fast with a `4xx`. The dataset plus the
   normalize/distance warnings are handed to `PrepareJobRegistry.submit`, which
   runs `PreparedLayoutWorker.submit_prepare_dataset` on a single-worker
   `ThreadPoolExecutor` and returns a `job_id`. The route responds `202 Accepted`
-  with `GraphV2PrepareJob { job_id, status: "pending", dataset_id }`.
-- **Poll (`prepare_graph_v2_status`).** `GET /prepare/{job_id}` reads
+  with `GraphPrepareJob { job_id, status: "pending", dataset_id }`.
+- **Poll (`prepare_graph_status`).** `GET /prepare/{job_id}` reads
   `PrepareJobRegistry.snapshot`, which inspects the `Future`: still running →
   `pending`; raised → `failed` with the error string; done → `ready` with the
-  full `GraphV2PrepareResponse` built by `prepare_response_from_result` (which
+  full `GraphPrepareResponse` built by `prepare_response_from_result` (which
   combines the submit-time warnings with any layout-degrade warning). Unknown
   `job_id` → `404`.
 - **Registry lifecycle.** `get_prepare_job_registry` is an app-scoped

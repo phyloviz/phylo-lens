@@ -13,10 +13,10 @@ needs a product/perf decision, not a mechanical fix.
 
 **Area:** client viewport refresh timing.
 
-**Resolution:** lowered `DEFAULT_GRAPH_VIEWER_V2_DEBOUNCE_MS` from 250 → 120ms
-(`graphViewerV2Query.ts:8`) for snappier same-level panning. This is the only
+**Resolution:** lowered `DEFAULT_GRAPH_VIEWER_DEBOUNCE_MS` from 250 → 120ms
+(`graphViewerQuery.ts:8`) for snappier same-level panning. This is the only
 genuine perf knob: LoD-level changes already bypass the debounce and refresh
-immediately (`GraphViewerV2.ts:183`, `scheduleViewportRefresh(lodChanged ? 0 : …)`),
+immediately (`GraphViewer.ts:183`, `scheduleViewportRefresh(lodChanged ? 0 : …)`),
 so zoom-across-threshold was never delayed.
 
 **Left unchanged (correctness guards, not perf padding):**
@@ -48,7 +48,7 @@ Hardened in `layout.py`:
 - The degrade is no longer silent: `compute_global_node_positions` returns a
   reason (`sfdp_missing` / `sfdp_timeout` / `sfdp_failed` / `sfdp_incomplete`)
   threaded through `PreparedLayoutResult.layout_degraded_reason` to a truthful
-  client warning in `api/v2_graph.py`.
+  client warning in `api/graph.py`.
 - Separately, the additive `2.5 + distance` edge length (which crushed branch
   ratios) was replaced with ratio-preserving multiplicative scaling normalized
   by the per-graph median distance, clamped to bound outliers.
@@ -150,7 +150,7 @@ feature, not required for typing-data ingest.
 
 ## Not in this list (already resolved on the branch)
 
-- **Filter-logic duplication** — `nodePassesFilters` in `graphViewerV2Sync.ts`
+- **Filter-logic duplication** — `nodePassesFilters` in `graphViewerSync.ts`
   removed; both paths now use the single `matchesFilterState` in
   `ancillary/filterEngine.ts`.
 - **Metadata / visual mappings / pies / filtering under LoD** — confirmed wired

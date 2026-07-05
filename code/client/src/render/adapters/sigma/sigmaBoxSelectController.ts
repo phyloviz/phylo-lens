@@ -1,6 +1,6 @@
 import type Sigma from "sigma";
 
-import type { SigmaViewportBounds } from "./graphViewerV2Types";
+import type { SigmaViewportBounds } from "./graphViewerTypes";
 
 // MouseCoords as emitted by Sigma's mouse captor: viewport pixel position plus
 // the originating DOM event (for the Shift modifier) and the pan-suppression

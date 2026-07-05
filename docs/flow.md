@@ -1,6 +1,6 @@
 # PhyloLens Runtime Flow
 
-End-to-end runtime for the v2 architecture: one `prepare` (submitted async, then
+End-to-end runtime for the architecture: one `prepare` (submitted async, then
 polled) to materialize the layout, then repeated bounded `viewport` reads driven
 by the camera. For the data contracts see [`DATA_MODEL.md`](./DATA_MODEL.md); for
 tier selection see [`LOD_AND_CLUSTERING.md`](./LOD_AND_CLUSTERING.md); for the
@@ -8,13 +8,13 @@ prepare job flow see [`SERVER_PIPELINE.md`](./SERVER_PIPELINE.md#async-job-flow)
 
 ```mermaid
 flowchart TD
-    A["renderNewick(newick, metadata)"] --> B["POST /api/v2/graph/prepare
+    A["renderNewick(newick, metadata)"] --> B["POST /api/graph/prepare
     (NormalizeRequest)"]
 
     B --> C["normalize_dataset -> CanonicalDataset (sync)
     deterministic node/edge ids
     branch lengths as edge distances"]
-    C --> C2["ensure_graph_v2_edge_distances
+    C --> C2["ensure_graph_edge_distances
     fill missing distance = 1.0"]
 
     C2 --> SUB["submit to background worker
@@ -40,12 +40,12 @@ flowchart TD
     keyed by (dataset_id, layout_version)"]
     F --> G
 
-    G --> H["status ready -> GraphV2PrepareResponse
+    G --> H["status ready -> GraphPrepareResponse
     lod_tier_count, layout_status, warnings"]
 
-    H --> I["startGraphV2ViewportSync(lodTierCount)"]
+    H --> I["startGraphViewportSync(lodTierCount)"]
 
-    I --> J["POST /api/v2/graph/viewport
+    I --> J["POST /api/graph/viewport
     dataset_id, layout_version
     bounds, zoom, lod_level, max_nodes"]
 

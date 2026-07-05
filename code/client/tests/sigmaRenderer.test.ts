@@ -868,7 +868,7 @@ describe("sigmaRenderer", () => {
     // One construction from mount(); reset so we count only sync-driven rebuilds.
     sigmaConstructions = 0;
 
-    renderer.startGraphV2ViewportSync({
+    renderer.startGraphViewportSync({
       client: client as never,
       datasetId: "tree",
       layoutVersion: "layout-1",
@@ -878,7 +878,7 @@ describe("sigmaRenderer", () => {
     // slice carries no pie__* attributes, so the cheap probe short-circuits and
     // Sigma is never torn down and rebuilt.
     await vi.advanceTimersByTimeAsync(500);
-    renderer.refreshGraphV2ViewportSync();
+    renderer.refreshGraphViewportSync();
     await vi.advanceTimersByTimeAsync(500);
 
     expect(client.readViewport).toHaveBeenCalled();

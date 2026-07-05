@@ -31,27 +31,27 @@ This document is the system-level map. For the runtime narrative see
 
 ## Route Contract
 
-The v2 runtime is driven by FastAPI routes under the prefix `/api/v2/graph`
-(`api/v2_graph.py`, `ROUTER_PREFIX`). Prepare and viewport are the core loop;
+The runtime is driven by FastAPI routes under the prefix `/api/graph`
+(`api/graph.py`, `ROUTER_PREFIX`). Prepare and viewport are the core loop;
 region is an on-demand read for a hand-drawn selection box. This section is the
 system-level summary; for the field-by-field request/response models, error
 shapes, and the prepare lifecycle see [`API_REFERENCE.md`](./API_REFERENCE.md):
 
-- **`POST /api/v2/graph/prepare`** — `prepare_graph_v2()`. Takes a
+- **`POST /api/graph/prepare`** — `prepare_graph()`. Takes a
   `NormalizeRequest`, normalizes it into a `CanonicalDataset` (synchronously, so
   bad input fails with a `4xx`), then submits the force-directed layout to a
-  background worker and returns `202 Accepted` with a `GraphV2PrepareJob`
+  background worker and returns `202 Accepted` with a `GraphPrepareJob`
   (`job_id`, `status: "pending"`, `dataset_id`).
-- **`GET /api/v2/graph/prepare/{job_id}`** — `prepare_graph_v2_status()`. Polls
-  a prepare job, returning `GraphV2PrepareStatus` (`status` of
-  `pending`/`ready`/`failed`; the full `GraphV2PrepareResponse` under `result`
+- **`GET /api/graph/prepare/{job_id}`** — `prepare_graph_status()`. Polls
+  a prepare job, returning `GraphPrepareStatus` (`status` of
+  `pending`/`ready`/`failed`; the full `GraphPrepareResponse` under `result`
   once ready — `dataset_id`, `layout_version`, counts, `lod_tier_count`,
   `layout_status`, `warnings`; or `error` when failed). Unknown `job_id` → `404`.
-- **`POST /api/v2/graph/viewport`** — `read_graph_viewport()`. Takes a
+- **`POST /api/graph/viewport`** — `read_graph_viewport()`. Takes a
   `GraphViewportQuery` (bounds, `zoom`, `lod_level`, `cluster_id`, `max_nodes`)
   and returns a `GraphViewportResponse` (visible `nodes`, `edges`,
   `total_node_count`, `truncated`, `metadata_schema`).
-- **`POST /api/v2/graph/region`** — `read_graph_region()`. Takes a
+- **`POST /api/graph/region`** — `read_graph_region()`. Takes a
   `GraphRegionQuery` (required bounds `xmin/xmax/ymin/ymax`, `max_nodes`) and
   returns a `GraphRegionResponse`: the isolated subgraph inside the box plus
   `aggregated_metadata` (mode for categorical/boolean, mean for numeric) so the
@@ -105,10 +105,10 @@ queryable layout:
 
 ### `api`
 
-`api/v2_graph.py` hosts the routes above plus request/response models
-(`GraphV2PrepareJob`, `GraphV2PrepareStatus`, `GraphV2PrepareResponse`,
+`api/graph.py` hosts the routes above plus request/response models
+(`GraphPrepareJob`, `GraphPrepareStatus`, `GraphPrepareResponse`,
 `GraphRegionQuery`, `GraphRegionResponse`) and helpers
-(`ensure_graph_v2_edge_distances`, `effective_lod_level`,
+(`ensure_graph_edge_distances`, `effective_lod_level`,
 `prepare_response_from_result`, and the `get_prepare_job_registry` singleton).
 `store.py` backs `/region` with `read_region` (returning a `RegionReadResult`
 that adds `aggregated_metadata` to the viewport read shape).
@@ -117,13 +117,13 @@ that adds `aggregated_metadata` to the viewport read shape).
 
 ### `api`
 
-`graphV2Client.ts` — the typed `GraphV2Client` (`prepareGraph`, `readViewport`,
+`graphClient.ts` — the typed `GraphClient` (`prepareGraph`, `readViewport`,
 `readRegion`), request/response interfaces, and runtime guards
-(`isGraphV2PrepareResponse`, `isGraphV2PrepareJob`, `isGraphV2PrepareStatus`,
-`isGraphV2ViewportResponse`).
+(`isGraphPrepareResponse`, `isGraphPrepareJob`, `isGraphPrepareStatus`,
+`isGraphViewportResponse`).
 `prepareGraph` encapsulates the async transport: it submits via
-`ROUTE_GRAPH_V2_PREPARE`, then polls `GET /prepare/{job_id}` until `ready`
-(returning the `GraphV2PrepareResponse`) or `failed` (throwing), so callers see a
+`ROUTE_GRAPH_PREPARE`, then polls `GET /prepare/{job_id}` until `ready`
+(returning the `GraphPrepareResponse`) or `failed` (throwing), so callers see a
 single promise. Polling cadence is governed by `DEFAULT_PREPARE_POLL_INTERVAL_MS`
 and `DEFAULT_PREPARE_POLL_TIMEOUT_MS`; `httpClient.ts` gained a `get` method for
 the status poll.
@@ -147,14 +147,14 @@ Renderer adapter layer, behind the `GraphRenderer` interface (`render/types.ts`)
 The production adapter is Sigma (`render/adapters/sigma/`):
 
 - `sigmaRenderer.ts`: adapter lifecycle, Sigma instance ownership,
-  `startGraphV2ViewportSync` / `stopGraphV2ViewportSync` /
-  `refreshGraphV2ViewportSync`, and piechart-program rebuilds.
-- `GraphViewerV2.ts`: the viewport-sync engine — camera binding, LoD tier
+  `startGraphViewportSync` / `stopGraphViewportSync` /
+  `refreshGraphViewportSync`, and piechart-program rebuilds.
+- `GraphViewer.ts`: the viewport-sync engine — camera binding, LoD tier
   detection, debounced refresh, cluster expand/collapse, initial fit.
-- `graphViewerV2Query.ts`: viewport query building and the semantic-zoom band
+- `graphViewerQuery.ts`: viewport query building and the semantic-zoom band
   mapping (`semanticLodLevelForCameraRatio`,
   `semanticLodLevelForCameraRatioWithHysteresis`).
-- `graphViewerV2Sync.ts`: `syncGraphologyViewport` / `reconcileGraphologyViewport`,
+- `graphViewerSync.ts`: `syncGraphologyViewport` / `reconcileGraphologyViewport`,
   node/edge attribute derivation, the triangle rule, and PHYLOViZ role coloring
   (`deriveViewportNodeColor`).
 - `colorHash.ts`: the shared color source. `buildValueColorMap(values, palette)`
@@ -163,7 +163,7 @@ The production adapter is Sigma (`render/adapters/sigma/`):
   all agree on a value's color. See [`CLIENT_RENDERING.md`](./CLIENT_RENDERING.md).
 - `sigmaBoxSelectController.ts`: Shift+drag box-select over the canvas, driving
   the workbench's `selectRegion` / `/region` read.
-- `graphViewerV2Fit.ts`: camera fit animations.
+- `graphViewerFit.ts`: camera fit animations.
 - `sigmaAttributeUtils.ts`: attribute lookup and role normalization
   (`firstAttributeValue`, `isTruthyAttribute`, `normalizeRoleValue`).
 - `sigmaRenderingConstants.ts`: color and node-type constants.
@@ -180,27 +180,27 @@ until benchmarks justify it (see [`BACKLOG.md`](./BACKLOG.md)).
 flowchart TD
   subgraph Client
     WB["app/workbench/graphWorkbench.ts"]
-    APIC["api/graphV2Client.ts"]
+    APIC["api/graphClient.ts"]
     RPORT["render/types.ts (GraphRenderer)"]
     SR["render/adapters/sigma/sigmaRenderer.ts"]
-    GV2["GraphViewerV2.ts"]
-    QRY["graphViewerV2Query.ts"]
-    SYNC["graphViewerV2Sync.ts"]
-    FIT["graphViewerV2Fit.ts"]
+    GVW["GraphViewer.ts"]
+    QRY["graphViewerQuery.ts"]
+    SYNC["graphViewerSync.ts"]
+    FIT["graphViewerFit.ts"]
     FILT["ancillary/filterEngine.ts"]
 
     WB --> APIC
     WB --> RPORT
     RPORT --> SR
-    SR --> GV2
-    GV2 --> QRY
-    GV2 --> SYNC
-    GV2 --> FIT
+    SR --> GVW
+    GVW --> QRY
+    GVW --> SYNC
+    GVW --> FIT
     SYNC --> FILT
   end
 
   subgraph Server
-    V2["api/v2_graph.py"]
+    SRV["api/graph.py"]
     WORK["prepared_layout/worker.py<br/>(ThreadPoolExecutor)"]
     JOBS["prepared_layout/jobs.py<br/>(PrepareJobRegistry)"]
     ING["prepared_layout/ingest.py"]
@@ -208,19 +208,19 @@ flowchart TD
     STORE["prepared_layout/store.py (SQLite)"]
     DATA["data/normalizer.py + parsers.py"]
 
-    V2 --> DATA
-    V2 --> JOBS
+    SRV --> DATA
+    SRV --> JOBS
     JOBS --> WORK
     WORK --> ING
     WORK --> LAY
     WORK --> STORE
-    V2 --> STORE
+    SRV --> STORE
   end
 
-  APIC -->|"POST /api/v2/graph/prepare"| V2
-  APIC -->|"GET /api/v2/graph/prepare/{job_id}"| V2
-  APIC -->|"POST /api/v2/graph/viewport"| V2
-  APIC -->|"POST /api/v2/graph/region"| V2
+  APIC -->|"POST /api/graph/prepare"| SRV
+  APIC -->|"GET /api/graph/prepare/{job_id}"| SRV
+  APIC -->|"POST /api/graph/viewport"| SRV
+  APIC -->|"POST /api/graph/region"| SRV
 ```
 
 The `render` adapter also carries the shared color source (`colorHash.ts`,
@@ -238,26 +238,26 @@ parsing, HTTP, or layout code.
 ```mermaid
 sequenceDiagram
   participant WB as GraphWorkbench
-  participant API as GraphV2Client
-  participant Srv as Server (v2_graph)
+  participant API as GraphClient
+  participant Srv as Server (graph)
   participant Store as SQLite Store
-  participant GV as GraphViewerV2
+  participant GV as GraphViewer
 
   WB->>API: prepareGraph(NormalizeRequest)
-  API->>Srv: POST /api/v2/graph/prepare
+  API->>Srv: POST /api/graph/prepare
   Srv->>Srv: normalize (sync); submit layout to background worker
   Srv-->>API: 202 { job_id, status: "pending" }
   loop poll until resolved
-    API->>Srv: GET /api/v2/graph/prepare/{job_id}
+    API->>Srv: GET /api/graph/prepare/{job_id}
     Srv->>Srv: ingest -> sfdp -> prepared edges (on worker)
     Srv->>Store: persist artifacts (dataset_id, layout_version)
-    Srv-->>API: { status: ready, result: GraphV2PrepareResponse }
+    Srv-->>API: { status: ready, result: GraphPrepareResponse }
   end
   API-->>WB: prepared session (lod_tier_count, layout_status)
 
-  WB->>GV: startGraphV2ViewportSync(lodTierCount)
+  WB->>GV: startGraphViewportSync(lodTierCount)
   GV->>API: readViewport(lod_level=0, forceGlobal)
-  API->>Srv: POST /api/v2/graph/viewport
+  API->>Srv: POST /api/graph/viewport
   Srv->>Store: read_viewport(...)
   Store-->>Srv: ViewportReadResult
   Srv-->>API: GraphViewportResponse (nodes, edges, truncated)
@@ -267,7 +267,7 @@ sequenceDiagram
   loop camera pan / zoom
     GV->>GV: semanticLodLevelForCameraRatioWithHysteresis
     GV->>API: debounced readViewport(lod_level, bounds)
-    API->>Srv: POST /api/v2/graph/viewport
+    API->>Srv: POST /api/graph/viewport
     Srv->>Store: read_viewport(...)
     Srv-->>GV: next slice
   end

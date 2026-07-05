@@ -4,7 +4,7 @@ import {
   BOX_SELECT_OVERLAY_CLASS,
   SigmaBoxSelectController,
 } from "../src/render/adapters/sigma/sigmaBoxSelectController";
-import type { SigmaViewportBounds } from "../src/render/adapters/sigma/graphViewerV2Types";
+import type { SigmaViewportBounds } from "../src/render/adapters/sigma/graphViewerTypes";
 
 type Handler = (payload: unknown) => void;
 

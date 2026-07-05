@@ -1,7 +1,7 @@
 # Client Rendering
 
 The client renders with Sigma.js over a Graphology graph. The workbench prepares
-a dataset and starts a viewport-sync loop; `GraphViewerV2` keeps the Graphology
+a dataset and starts a viewport-sync loop; `GraphViewer` keeps the Graphology
 graph in step with the camera by pulling viewport slices from the server and
 reconciling them into the graph. This document covers the viewer lifecycle,
 node/edge attribute derivation, the triangle rule, PHYLOViZ + value-based
@@ -10,11 +10,11 @@ coloring, pie programs, and region (box) selection.
 For how zoom picks a tier, see [`LOD_AND_CLUSTERING.md`](./LOD_AND_CLUSTERING.md);
 for expand/collapse, see [`EXPAND_COLLAPSE.md`](./EXPAND_COLLAPSE.md).
 
-## Viewer Lifecycle (`GraphViewerV2.ts`)
+## Viewer Lifecycle (`GraphViewer.ts`)
 
-`GraphViewerV2` is constructed by the Sigma adapter's
-`startGraphV2ViewportSync`. Key options: `datasetId`, `layoutVersion`, `client`
-(`GraphV2Client`), `graph` (Graphology), `sigma`, `maxNodes`, and
+`GraphViewer` is constructed by the Sigma adapter's
+`startGraphViewportSync`. Key options: `datasetId`, `layoutVersion`, `client`
+(`GraphClient`), `graph` (Graphology), `sigma`, `maxNodes`, and
 `lodTierCount` (from the prepare response, normalized to `>= 1`).
 
 ```mermaid
@@ -39,18 +39,18 @@ flowchart TD
   same-tier pans. At tier 0 a same-tier pan is skipped (the overview carries no
   bounds); at finer tiers a same-tier pan schedules a bounded refetch so panning
   reveals new nodes (see [`LOD_AND_CLUSTERING.md`](./LOD_AND_CLUSTERING.md)).
-- **`loadViewport()`** builds the query (`buildGraphV2ViewportQuery`), records
+- **`loadViewport()`** builds the query (`buildGraphViewportQuery`), records
   `lastRequestedLodLevel` (the hysteresis anchor), reads the slice, then syncs
   and reconciles into the graph. On the first tier-0 load it fits the camera.
 - **`rebindSigma()`** re-attaches handlers when Sigma is rebuilt (e.g. after a
   piechart program registration).
 
 `lodTierCount` and `lastRequestedLodLevel` are threaded into
-`buildGraphV2ViewportQuery`, which calls
+`buildGraphViewportQuery`, which calls
 `semanticLodLevelForCameraRatioWithHysteresis` to pick the tier and expands the
-query bounds by `GRAPH_VIEWER_V2_VIEWPORT_PADDING_RATIO = 0.5` for tiers > 0.
+query bounds by `GRAPH_VIEWER_VIEWPORT_PADDING_RATIO = 0.5` for tiers > 0.
 
-## Sync and Reconcile (`graphViewerV2Sync.ts`)
+## Sync and Reconcile (`graphViewerSync.ts`)
 
 - **`syncGraphologyViewport(graph, response, settings?)`** filters nodes by any
   active metadata filter (`matchesFilterState`), resolves visual-mapping palette
@@ -94,7 +94,7 @@ Color precedence in `graphNodeAttributes` (highest first):
    explicit user choice. Color comes from a graph-wide, frequency-ranked map
    (see [Value Color Unification](#value-color-unification) below), not a hash.
 2. **Representative tone** — cluster proxies (triangles) use
-   `GRAPH_VIEWER_V2_REPRESENTATIVE_COLOR = "#b45309"` (amber/brown), so they read
+   `GRAPH_VIEWER_REPRESENTATIVE_COLOR = "#b45309"` (amber/brown), so they read
    as aggregates rather than leaf nodes.
 3. **PHYLOViZ role color** — leaf/member nodes fall through to
    `deriveViewportNodeColor(node)`. A node with **no value** for the active color
@@ -132,19 +132,19 @@ Resolution order:
 | role `subgroup_founder` (or flags) | `PHYLOVIZ_NODE_SUBGROUP_FOUNDER_COLOR` | `#15803d` | dark green |
 | otherwise | `PHYLOVIZ_NODE_COMMON_COLOR` | `#93c5fd` | blue — common |
 
-`GRAPH_VIEWER_V2_NODE_COLOR` equals `PHYLOVIZ_NODE_COMMON_COLOR`, so a node with
+`GRAPH_VIEWER_NODE_COLOR` equals `PHYLOVIZ_NODE_COMMON_COLOR`, so a node with
 no role stays the common blue. These hex codes mirror the original PHYLOViZ
-goeBURST conventions. Edges use `GRAPH_VIEWER_V2_EDGE_COLOR = "#94a3b8"`;
+goeBURST conventions. Edges use `GRAPH_VIEWER_EDGE_COLOR = "#94a3b8"`;
 edge-tiebreak color constants for goeBURST link rules also live in
 `sigmaRenderingConstants.ts`.
 
-## Camera Fit (`graphViewerV2Fit.ts`)
+## Camera Fit (`graphViewerFit.ts`)
 
 - **`fitSigmaToViewportResponse`** — after the first tier-0 load, fits the
-  overview into view after `GRAPH_VIEWER_V2_INITIAL_FIT_DELAY_MS = 50ms` with a
-  `300ms` animation and `GRAPH_VIEWER_V2_FIT_PADDING_RATIO = 1.15` padding.
+  overview into view after `GRAPH_VIEWER_INITIAL_FIT_DELAY_MS = 50ms` with a
+  `300ms` animation and `GRAPH_VIEWER_FIT_PADDING_RATIO = 1.15` padding.
 - **`fitSigmaToClusterResponse`** — frames a set of opened members with
-  `GRAPH_VIEWER_V2_CLUSTER_FIT_PADDING_RATIO = 1.35` over a `350ms` animation.
+  `GRAPH_VIEWER_CLUSTER_FIT_PADDING_RATIO = 1.35` over a `350ms` animation.
   The helper remains available, but the click-to-expand flow no longer calls it:
   expansion adds members in place and leaves the camera untouched so the
   surrounding graph stays visible (see [`EXPAND_COLLAPSE.md`](./EXPAND_COLLAPSE.md)).
@@ -153,7 +153,7 @@ edge-tiebreak color constants for goeBURST link rules also live in
 
 After each sync, `onGraphSynced` triggers `syncPieProgramsFromGraph`, which
 detects the pie-slice keys present in the live graph and rebuilds the Sigma
-instance only when the program signature changed, then rebinds `GraphViewerV2`
+instance only when the program signature changed, then rebinds `GraphViewer`
 to the new instance. When pie charts are disabled the work is skipped.
 
 ## Region Selection (`sigmaBoxSelectController.ts`)
@@ -163,7 +163,7 @@ drag when region-select mode is toggled on via
 `setRegionSelectModeEnabled`). `sigmaBoxSelectController.ts` tracks the drag,
 suppresses camera panning while a box is active, converts the screen rectangle
 into graph-space bounds, and hands them to the workbench. The workbench issues a
-`readRegion` call (`POST /api/v2/graph/region`), which returns the isolated
+`readRegion` call (`POST /api/graph/region`), which returns the isolated
 subgraph inside the box plus `aggregated_metadata` (mode for
 categorical/boolean, mean for numeric). `app/shell/region/regionPanelView.ts`
 renders that result as a region-selection summary with its own ancillary wheel,

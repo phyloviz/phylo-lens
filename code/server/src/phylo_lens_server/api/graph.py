@@ -46,8 +46,8 @@ from phylo_lens_server.prepared_layout.models import (
 from phylo_lens_server.prepared_layout.store import PreparedLayoutStore
 from phylo_lens_server.prepared_layout.worker import PreparedLayoutWorker
 
-ROUTER_PREFIX = "/api/v2/graph"
-ROUTER_TAG = "graph-v2"
+ROUTER_PREFIX = "/api/graph"
+ROUTER_TAG = "graph"
 
 ROUTE_PREPARE = "/prepare"
 ROUTE_PREPARE_STATUS = "/prepare/{job_id}"
@@ -87,7 +87,7 @@ def layout_degraded_warning(reason: str | None) -> str:
     return _LAYOUT_DEGRADED_WARNINGS.get(reason, _LAYOUT_DEGRADED_WARNING_FALLBACK)
 
 
-class GraphV2PrepareResponse(BaseModel):
+class GraphPrepareResponse(BaseModel):
     dataset_id: str
     layout_version: str
     node_count: int = Field(ge=0)
@@ -101,7 +101,7 @@ class GraphV2PrepareResponse(BaseModel):
     warnings: list[str] = Field(default_factory=list)
 
 
-class GraphV2PrepareJob(BaseModel):
+class GraphPrepareJob(BaseModel):
     """Acknowledgement returned when a prepare job is accepted.
 
     Layout runs on a background worker, so ``/prepare`` returns immediately with
@@ -113,7 +113,7 @@ class GraphV2PrepareJob(BaseModel):
     dataset_id: str
 
 
-class GraphV2PrepareStatus(BaseModel):
+class GraphPrepareStatus(BaseModel):
     """Poll result for a prepare job.
 
     ``result`` is populated only once ``status == "ready"``; ``error`` only when
@@ -122,7 +122,7 @@ class GraphV2PrepareStatus(BaseModel):
 
     job_id: str
     status: str
-    result: GraphV2PrepareResponse | None = None
+    result: GraphPrepareResponse | None = None
     error: str | None = None
 
 
@@ -252,7 +252,7 @@ def prepare_response_from_result(
     dataset_id: str,
     result: PreparedLayoutResult,
     submit_warnings: tuple[str, ...],
-) -> GraphV2PrepareResponse:
+) -> GraphPrepareResponse:
     """Build the ready-state prepare response from a finished layout result."""
     layout_warnings: list[str] = []
     if result.layout_status == "degraded":
@@ -265,7 +265,7 @@ def prepare_response_from_result(
         for cluster in result.artifacts.clusters
         if cluster.threshold is not None
     }
-    return GraphV2PrepareResponse(
+    return GraphPrepareResponse(
         dataset_id=dataset_id,
         layout_version=result.artifacts.layout_version,
         node_count=len(result.artifacts.dataset.nodes),
@@ -279,13 +279,13 @@ def prepare_response_from_result(
 
 @router.post(
     ROUTE_PREPARE,
-    response_model=GraphV2PrepareJob,
+    response_model=GraphPrepareJob,
     status_code=status.HTTP_202_ACCEPTED,
 )
-def prepare_graph_v2(
+def prepare_graph(
     request: NormalizeRequest,
     registry: PrepareJobRegistry = Depends(get_prepare_job_registry),
-) -> GraphV2PrepareJob:
+) -> GraphPrepareJob:
     """Submit a background layout job and return a job id to poll.
 
     Normalization and distance validation run synchronously so malformed input
@@ -294,12 +294,12 @@ def prepare_graph_v2(
     """
     try:
         normalized = normalize_dataset(request, expose_internal_schema=True)
-        dataset, distance_warnings = ensure_graph_v2_edge_distances(
+        dataset, distance_warnings = ensure_graph_edge_distances(
             normalized.dataset,
         )
         submit_warnings = (*normalized.warnings, *distance_warnings)
         job_id = registry.submit(dataset, submit_warnings)
-        return GraphV2PrepareJob(
+        return GraphPrepareJob(
             job_id=job_id,
             status="pending",
             dataset_id=dataset.dataset_id,
@@ -319,20 +319,20 @@ def prepare_graph_v2(
 
 @router.get(
     ROUTE_PREPARE_STATUS,
-    response_model=GraphV2PrepareStatus,
+    response_model=GraphPrepareStatus,
     response_model_exclude_none=True,
 )
-def prepare_graph_v2_status(
+def prepare_graph_status(
     job_id: str,
     registry: PrepareJobRegistry = Depends(get_prepare_job_registry),
-) -> GraphV2PrepareStatus:
+) -> GraphPrepareStatus:
     """Poll a prepare job; returns the full response once the layout is ready."""
     snapshot = registry.snapshot(job_id)
     if snapshot is None:
         raise not_found_error(f"Prepare job '{job_id}' was not found.")
 
     if snapshot.status == JOB_STATUS_READY and snapshot.result is not None:
-        return GraphV2PrepareStatus(
+        return GraphPrepareStatus(
             job_id=snapshot.job_id,
             status=snapshot.status,
             result=prepare_response_from_result(
@@ -342,12 +342,12 @@ def prepare_graph_v2_status(
             ),
         )
     if snapshot.status == JOB_STATUS_FAILED:
-        return GraphV2PrepareStatus(
+        return GraphPrepareStatus(
             job_id=snapshot.job_id,
             status=snapshot.status,
             error=snapshot.error or "Layout preparation failed.",
         )
-    return GraphV2PrepareStatus(job_id=snapshot.job_id, status=snapshot.status)
+    return GraphPrepareStatus(job_id=snapshot.job_id, status=snapshot.status)
 
 
 def _dataset_id_for_snapshot(snapshot: PrepareJobSnapshot) -> str:
@@ -428,7 +428,7 @@ def read_graph_viewport(
         )
         serialize_ms = (perf_counter() - serialize_started) * 1000.0
         logger.info(
-            "graph_v2 viewport dataset_id=%s layout_version=%s lod_level=%s "
+            "graph viewport dataset_id=%s layout_version=%s lod_level=%s "
             "cluster_id=%s bounds=%s nodes=%s edges=%s total=%s truncated=%s "
             "max_nodes=%s read_ms=%.1f serialize_ms=%.1f",
             query.dataset_id,
@@ -530,7 +530,7 @@ def effective_lod_level(query: GraphViewportQuery) -> int | None:
     return None
 
 
-def ensure_graph_v2_edge_distances(
+def ensure_graph_edge_distances(
     dataset: CanonicalDataset,
 ) -> tuple[CanonicalDataset, list[str]]:
     if not dataset.edges or any(edge.distance is not None for edge in dataset.edges):
@@ -550,5 +550,5 @@ def ensure_graph_v2_edge_distances(
                 ],
             }
         ),
-        ["Missing edge distances were assigned a unit distance for v2 layout."],
+        ["Missing edge distances were assigned a unit distance for layout."],
     )

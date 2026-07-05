@@ -33,7 +33,7 @@ phylo-lens-server
 
 ## API
 
-The runtime is driven by two v2 endpoints under `/api/v2/graph`. See
+The runtime is driven by two endpoints under `/api/graph`. See
 [`../../docs/ARCHITECTURE_SPEC.md`](../../docs/ARCHITECTURE_SPEC.md) and
 [`../../docs/DATA_MODEL.md`](../../docs/DATA_MODEL.md) for full contracts.
 
@@ -41,7 +41,7 @@ The runtime is driven by two v2 endpoints under `/api/v2/graph`. See
 
 Returns service health.
 
-### `POST /api/v2/graph/prepare`
+### `POST /api/graph/prepare`
 
 Normalizes input (synchronously) and submits a background job that materializes
 the LoD runtime artifacts into the SQLite prepared-layout store:
@@ -63,18 +63,18 @@ warning. Request body is a `NormalizeRequest`:
 }
 ```
 
-The response (`GraphV2PrepareJob`) is `{ "job_id": ..., "status": "pending",
+The response (`GraphPrepareJob`) is `{ "job_id": ..., "status": "pending",
 "dataset_id": ... }`.
 
-### `GET /api/v2/graph/prepare/{job_id}`
+### `GET /api/graph/prepare/{job_id}`
 
-Polls a prepare job. Returns `GraphV2PrepareStatus` with `status` of `pending`,
-`ready`, or `failed`. When `ready`, the full `GraphV2PrepareResponse` is under
+Polls a prepare job. Returns `GraphPrepareStatus` with `status` of `pending`,
+`ready`, or `failed`. When `ready`, the full `GraphPrepareResponse` is under
 `result` (`dataset_id`, `layout_version`, node/edge/cluster counts,
 `lod_tier_count`, `layout_status`, `warnings`); when `failed`, `error` carries
 the reason. Unknown `job_id` returns `404`.
 
-### `POST /api/v2/graph/viewport`
+### `POST /api/graph/viewport`
 
 Returns a bounded visible graph slice for a prepared dataset.
 

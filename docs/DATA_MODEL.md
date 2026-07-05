@@ -11,7 +11,7 @@ Three layers of models exist:
 2. **Prepared/layout models** — server-internal materialization records
    (`prepared_layout/models.py`).
 3. **Viewport wire models** — the request/response types crossing the HTTP
-   boundary (`api/v2_graph.py`, mirrored client-side in `api/graphV2Client.ts`).
+   boundary (`api/graph.py`, mirrored client-side in `api/graphClient.ts`).
 
 ## 1. Canonical Models (`core/models.py`)
 
@@ -39,8 +39,8 @@ The correctness-first normalized representation produced by
 ### `CanonicalEdge`
 
 `id` (≥1 char), `source`, `target` (node IDs), `distance` (`float | None`, ≥0).
-Distances are the branch lengths used for threshold clustering; the v2 prepare
-path requires them (`ensure_graph_v2_edge_distances` fills missing distances
+Distances are the branch lengths used for threshold clustering; the prepare
+path requires them (`ensure_graph_edge_distances` fills missing distances
 with `1.0` and emits a warning).
 
 `DatasetSource.format` is `SourceFormat` — `"newick"` or `"typing_data"`.
@@ -106,7 +106,7 @@ holds one member's `x`, `y`, `cluster_id`, and `status` at finest detail.
   `layout_status`, `metadata_schema`.
 - `RegionReadResult`: the `ViewportReadResult` fields plus `aggregated_metadata`
   (`dict[str, str | float | bool | None]`) — backs the `/region` box-select read
-  (see [§4 Region wire models](#region-wire-models-apiv2_graphpy)).
+  (see [§4 Region wire models](#region-wire-models-apigraphpy)).
 
 ## 4. Viewport Wire Models
 
@@ -116,7 +116,7 @@ The API maps `ViewportNode`/`ViewportEdge` onto `GraphViewportNode`/
 response field lists and [`CLIENT_RENDERING.md`](./CLIENT_RENDERING.md) for how
 the client interprets them.
 
-### Region wire models (`api/v2_graph.py`)
+### Region wire models (`api/graph.py`)
 
 The `/region` route (hand-drawn box select) uses its own request/response pair:
 

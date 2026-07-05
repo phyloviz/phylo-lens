@@ -2,9 +2,9 @@ import Graph from "graphology";
 import Sigma from "sigma";
 
 import type {
-  GraphV2Client,
-  GraphV2ViewportResponse,
-} from "../../../api/graphV2Client";
+  GraphClient,
+  GraphViewportResponse,
+} from "../../../api/graphClient";
 import type { PositionedGraph } from "../../../contracts/positioned";
 import { RENDERER_KIND_SIGMA } from "../../types";
 import type {
@@ -31,7 +31,7 @@ import {
   SIGMA_REGION_DIMMED_EDGE_COLOR,
   SIGMA_REGION_DIMMED_NODE_COLOR,
 } from "./sigmaRenderingConstants";
-import type { SigmaViewportBounds } from "./graphViewerV2Types";
+import type { SigmaViewportBounds } from "./graphViewerTypes";
 import {
   addPositionedEdges,
   addPositionedNode,
@@ -50,8 +50,8 @@ import {
   readCameraState,
   restoreCameraState,
 } from "./sigmaRendererCameraState";
-import { GraphViewerV2 } from "./GraphViewerV2";
-import type { ViewportSyncSettings } from "./graphViewerV2Sync";
+import { GraphViewer } from "./GraphViewer";
+import type { ViewportSyncSettings } from "./graphViewerSync";
 
 export {
   SIGMA_DEFAULT_CAMERA_ZOOM,
@@ -82,7 +82,7 @@ export class SigmaRenderer implements GraphRenderer {
   private readonly dragController: SigmaDragController;
   private readonly boxSelectController: SigmaBoxSelectController;
   private readonly forceMotion: ReturnType<typeof createSigmaForceMotion>;
-  private graphViewerV2: GraphViewerV2 | null = null;
+  private graphViewer: GraphViewer | null = null;
   private viewChangeHandler: ((state: RenderViewportState) => void) | null =
     null;
   private nodeClickHandler: ((state: RenderNodeClickState) => void) | null =
@@ -157,7 +157,7 @@ export class SigmaRenderer implements GraphRenderer {
     }
 
     // Clear previous frame first so Sigma rebuilds never see stale piechart nodes.
-    this.stopGraphV2ViewportSync();
+    this.stopGraphViewportSync();
     this.forceMotion.stop();
     this.lastRenderedGraph = graph;
     this.graph.clear();
@@ -233,7 +233,7 @@ export class SigmaRenderer implements GraphRenderer {
 
   // Drop container and graph references when renderer is detached.
   unmount(): void {
-    this.stopGraphV2ViewportSync();
+    this.stopGraphViewportSync();
     this.forceMotion.stop();
     this.unbindSigmaHandlers();
     this.sigma?.kill();
@@ -251,15 +251,15 @@ export class SigmaRenderer implements GraphRenderer {
     this.boxSelectController.reset();
   }
 
-  startGraphV2ViewportSync(options: {
-    client: GraphV2Client;
+  startGraphViewportSync(options: {
+    client: GraphClient;
     datasetId: string;
     layoutVersion?: string | null;
     maxNodes?: number;
     lodTierCount?: number;
     nodeCount?: number | null;
     getPaused?: () => boolean;
-    onViewportLoaded?: (response: GraphV2ViewportResponse) => void;
+    onViewportLoaded?: (response: GraphViewportResponse) => void;
     onError?: (error: unknown) => void;
     getRenderSettings?: () => ViewportSyncSettings;
   }): void {
@@ -269,8 +269,8 @@ export class SigmaRenderer implements GraphRenderer {
 
     this.forceMotion.stop();
     this.graph.clear();
-    this.graphViewerV2?.unmount();
-    this.graphViewerV2 = new GraphViewerV2({
+    this.graphViewer?.unmount();
+    this.graphViewer = new GraphViewer({
       datasetId: options.datasetId,
       layoutVersion: options.layoutVersion,
       client: options.client,
@@ -285,16 +285,16 @@ export class SigmaRenderer implements GraphRenderer {
       getRenderSettings: options.getRenderSettings,
       onGraphSynced: () => this.syncPieProgramsFromGraph(),
     });
-    this.graphViewerV2.mount();
+    this.graphViewer.mount();
   }
 
-  stopGraphV2ViewportSync(): void {
-    this.graphViewerV2?.unmount();
-    this.graphViewerV2 = null;
+  stopGraphViewportSync(): void {
+    this.graphViewer?.unmount();
+    this.graphViewer = null;
   }
 
-  refreshGraphV2ViewportSync(): void {
-    this.graphViewerV2?.refreshNow();
+  refreshGraphViewportSync(): void {
+    this.graphViewer?.refreshNow();
   }
 
   setRegionSelectModeEnabled(enabled: boolean): void {
@@ -353,7 +353,7 @@ export class SigmaRenderer implements GraphRenderer {
 
   // Register piechart programs for the live LoD graph and flip pie nodes to the
   // piechart type once the program exists. Invoked after each viewport sync via
-  // GraphViewerV2's onGraphSynced hook, before Sigma refreshes. Mirrors the
+  // GraphViewer's onGraphSynced hook, before Sigma refreshes. Mirrors the
   // legacy ensureSigmaPiePrograms flow but reads slice keys from the graphology
   // graph (sync writes attributes directly rather than via addPositionedNode).
   private syncPieProgramsFromGraph(): void {
@@ -499,7 +499,7 @@ export class SigmaRenderer implements GraphRenderer {
     // Keep the live LoD viewer bound to the rebuilt instance so its camera and
     // click handlers survive program registration. No-op in the render() path,
     // where viewport sync is stopped before any rebuild.
-    this.graphViewerV2?.rebindSigma(this.sigma);
+    this.graphViewer?.rebindSigma(this.sigma);
   }
 
   private bindSigmaHandlers(): void {

@@ -1,72 +1,72 @@
 import type Graph from "graphology";
 
 import type {
-  GraphV2Client,
-  GraphV2ViewportResponse,
-} from "../../../api/graphV2Client";
+  GraphClient,
+  GraphViewportResponse,
+} from "../../../api/graphClient";
 import {
-  buildGraphV2ViewportQuery,
-  DEFAULT_GRAPH_VIEWER_V2_DEBOUNCE_MS,
-  DEFAULT_GRAPH_VIEWER_V2_MAX_NODES,
-  GRAPH_VIEWER_V2_LOD_CHANGE_DEBOUNCE_MS,
-  GRAPH_VIEWER_V2_SMALL_TREE_NODE_THRESHOLD,
+  buildGraphViewportQuery,
+  DEFAULT_GRAPH_VIEWER_DEBOUNCE_MS,
+  DEFAULT_GRAPH_VIEWER_MAX_NODES,
+  GRAPH_VIEWER_LOD_CHANGE_DEBOUNCE_MS,
+  GRAPH_VIEWER_SMALL_TREE_NODE_THRESHOLD,
   sigmaDisplayZoom,
-} from "./graphViewerV2Query";
-import { fitSigmaToViewportResponse } from "./graphViewerV2Fit";
+} from "./graphViewerQuery";
+import { fitSigmaToViewportResponse } from "./graphViewerFit";
 import {
   isExpandableRepresentative,
   reconcileGraphologyViewport,
   syncGraphologyViewport,
-} from "./graphViewerV2Sync";
-import type { ViewportSyncSettings } from "./graphViewerV2Sync";
-import type { SigmaViewportLike } from "./graphViewerV2Types";
+} from "./graphViewerSync";
+import type { ViewportSyncSettings } from "./graphViewerSync";
+import type { SigmaViewportLike } from "./graphViewerTypes";
 
 export {
-  buildGraphV2ViewportQuery,
-  DEFAULT_GRAPH_VIEWER_V2_DEBOUNCE_MS,
-  DEFAULT_GRAPH_VIEWER_V2_MAX_NODES,
+  buildGraphViewportQuery,
+  DEFAULT_GRAPH_VIEWER_DEBOUNCE_MS,
+  DEFAULT_GRAPH_VIEWER_MAX_NODES,
   expandViewportBounds,
-  GRAPH_VIEWER_V2_DETAIL_RATIO_THRESHOLD,
-  GRAPH_VIEWER_V2_LOD_CHANGE_DEBOUNCE_MS,
-  GRAPH_VIEWER_V2_SMALL_TREE_NODE_THRESHOLD,
-  GRAPH_VIEWER_V2_VIEWPORT_PADDING_RATIO,
+  GRAPH_VIEWER_DETAIL_RATIO_THRESHOLD,
+  GRAPH_VIEWER_LOD_CHANGE_DEBOUNCE_MS,
+  GRAPH_VIEWER_SMALL_TREE_NODE_THRESHOLD,
+  GRAPH_VIEWER_VIEWPORT_PADDING_RATIO,
   semanticLodLevelForCameraRatio,
   semanticLodLevelForCameraRatioWithHysteresis,
   sigmaViewportBounds,
-} from "./graphViewerV2Query";
+} from "./graphViewerQuery";
 export {
   fitSigmaToClusterResponse,
   fitSigmaToViewportResponse,
-  GRAPH_VIEWER_V2_CLUSTER_FIT_DURATION_MS,
-  GRAPH_VIEWER_V2_CLUSTER_FIT_PADDING_RATIO,
-  GRAPH_VIEWER_V2_FIT_PADDING_RATIO,
-  GRAPH_VIEWER_V2_INITIAL_FIT_DELAY_MS,
-  GRAPH_VIEWER_V2_INITIAL_FIT_DURATION_MS,
-} from "./graphViewerV2Fit";
+  GRAPH_VIEWER_CLUSTER_FIT_DURATION_MS,
+  GRAPH_VIEWER_CLUSTER_FIT_PADDING_RATIO,
+  GRAPH_VIEWER_FIT_PADDING_RATIO,
+  GRAPH_VIEWER_INITIAL_FIT_DELAY_MS,
+  GRAPH_VIEWER_INITIAL_FIT_DURATION_MS,
+} from "./graphViewerFit";
 export {
-  DEFAULT_GRAPH_VIEWER_V2_NODE_SIZE,
-  GRAPH_VIEWER_V2_EDGE_COLOR,
-  GRAPH_VIEWER_V2_MAX_MEMBER_SIZE_BOOST,
-  GRAPH_VIEWER_V2_MEMBER_SIZE_FACTOR,
-  GRAPH_VIEWER_V2_NODE_COLOR,
-  GRAPH_VIEWER_V2_REPRESENTATIVE_COLOR,
+  DEFAULT_GRAPH_VIEWER_NODE_SIZE,
+  GRAPH_VIEWER_EDGE_COLOR,
+  GRAPH_VIEWER_MAX_MEMBER_SIZE_BOOST,
+  GRAPH_VIEWER_MEMBER_SIZE_FACTOR,
+  GRAPH_VIEWER_NODE_COLOR,
+  GRAPH_VIEWER_REPRESENTATIVE_COLOR,
   deriveViewportNodeColor,
   nodeSizeForMemberCount,
   reconcileGraphologyViewport,
   syncGraphologyViewport,
-} from "./graphViewerV2Sync";
-export type { ViewportSyncSettings } from "./graphViewerV2Sync";
-export type { SigmaViewportBounds } from "./graphViewerV2Types";
+} from "./graphViewerSync";
+export type { ViewportSyncSettings } from "./graphViewerSync";
+export type { SigmaViewportBounds } from "./graphViewerTypes";
 
-// GraphViewerV2 only issues viewport reads; region reads are driven from the UI
+// GraphViewer only issues viewport reads; region reads are driven from the UI
 // shell, not the LoD sync loop. Depending on just the viewport slice keeps the
 // viewer decoupled and lets lightweight test doubles omit the rest of the API.
-export type GraphViewerV2ClientDependency = Pick<GraphV2Client, "readViewport">;
+export type GraphViewerClientDependency = Pick<GraphClient, "readViewport">;
 
-export interface GraphViewerV2Options {
+export interface GraphViewerOptions {
   datasetId: string;
   layoutVersion?: string | null;
-  client: GraphViewerV2ClientDependency;
+  client: GraphViewerClientDependency;
   graph: Graph;
   sigma: SigmaViewportLike;
   debounceMs?: number;
@@ -87,7 +87,7 @@ export interface GraphViewerV2Options {
   // not trigger new server viewport queries; the current node/edge set stays
   // frozen until playback resumes.
   getPaused?: () => boolean;
-  onViewportLoaded?: (response: GraphV2ViewportResponse) => void;
+  onViewportLoaded?: (response: GraphViewportResponse) => void;
   onError?: (error: unknown) => void;
   getRenderSettings?: () => ViewportSyncSettings;
   // Fires after each viewport sync writes into the graph but before Sigma
@@ -114,10 +114,10 @@ interface ExpandedClusterSnapshot {
   memberIds: string[];
 }
 
-export class GraphViewerV2 {
+export class GraphViewer {
   private readonly datasetId: string;
   private layoutVersion?: string | null;
-  private readonly client: GraphViewerV2ClientDependency;
+  private readonly client: GraphViewerClientDependency;
   private readonly graph: Graph;
   private sigma: SigmaViewportLike;
   private readonly debounceMs: number;
@@ -127,7 +127,7 @@ export class GraphViewerV2 {
   private readonly preparedNodeCount: number | null;
   private readonly getPaused?: () => boolean;
   private readonly onViewportLoaded?: (
-    response: GraphV2ViewportResponse,
+    response: GraphViewportResponse,
   ) => void;
   private readonly onError?: (error: unknown) => void;
   private readonly getRenderSettings?: () => ViewportSyncSettings;
@@ -166,17 +166,17 @@ export class GraphViewerV2 {
     this.collapseClusterFromDoubleClick(payload);
   };
 
-  constructor(options: GraphViewerV2Options) {
+  constructor(options: GraphViewerOptions) {
     this.datasetId = options.datasetId;
     this.layoutVersion = options.layoutVersion;
     this.client = options.client;
     this.graph = options.graph;
     this.sigma = options.sigma as SigmaViewportLike;
-    this.debounceMs = options.debounceMs ?? DEFAULT_GRAPH_VIEWER_V2_DEBOUNCE_MS;
-    this.maxNodes = options.maxNodes ?? DEFAULT_GRAPH_VIEWER_V2_MAX_NODES;
+    this.debounceMs = options.debounceMs ?? DEFAULT_GRAPH_VIEWER_DEBOUNCE_MS;
+    this.maxNodes = options.maxNodes ?? DEFAULT_GRAPH_VIEWER_MAX_NODES;
     this.lodTierCount = Math.max(options.lodTierCount ?? 1, 1);
     this.smallTreeThreshold =
-      options.smallTreeThreshold ?? GRAPH_VIEWER_V2_SMALL_TREE_NODE_THRESHOLD;
+      options.smallTreeThreshold ?? GRAPH_VIEWER_SMALL_TREE_NODE_THRESHOLD;
     this.preparedNodeCount = options.nodeCount ?? null;
     this.getPaused = options.getPaused;
     this.onViewportLoaded = options.onViewportLoaded;
@@ -275,7 +275,7 @@ export class GraphViewerV2 {
       return;
     }
     this.scheduleViewportRefresh(
-      lodChanged ? GRAPH_VIEWER_V2_LOD_CHANGE_DEBOUNCE_MS : this.debounceMs,
+      lodChanged ? GRAPH_VIEWER_LOD_CHANGE_DEBOUNCE_MS : this.debounceMs,
     );
   }
 
@@ -320,7 +320,7 @@ export class GraphViewerV2 {
     // the first load (from the prepare node count); isSmallTreeLoaded covers
     // every subsequent load (from the loaded total_node_count).
     const finestTier = this.isKnownSmallTree() || this.isSmallTreeLoaded();
-    const query = buildGraphV2ViewportQuery({
+    const query = buildGraphViewportQuery({
       datasetId: this.datasetId,
       layoutVersion: this.layoutVersion,
       sigma: this.sigma,
@@ -522,7 +522,7 @@ export class GraphViewerV2 {
 
   private currentLodLevel(): number | null {
     return (
-      buildGraphV2ViewportQuery({
+      buildGraphViewportQuery({
         datasetId: this.datasetId,
         layoutVersion: this.layoutVersion,
         sigma: this.sigma,

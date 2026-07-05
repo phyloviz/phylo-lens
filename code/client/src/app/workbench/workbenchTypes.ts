@@ -1,8 +1,8 @@
 import type {
-  GraphV2Client,
-  GraphV2MetadataField,
-  GraphV2MetadataValue,
-} from "../../api/graphV2Client";
+  GraphClient,
+  GraphMetadataField,
+  GraphMetadataValue,
+} from "../../api/graphClient";
 import type {
   CanonicalDataset,
   SearchDatasetResponse,
@@ -20,7 +20,7 @@ import type {
   RendererFactory,
   RendererKind,
 } from "../../render/types";
-import type { SigmaViewportBounds } from "../../render/adapters/sigma/graphViewerV2Types";
+import type { SigmaViewportBounds } from "../../render/adapters/sigma/graphViewerTypes";
 
 // The isolated subgraph plus aggregated metadata for a completed region (box)
 // selection. Node ids feed the canvas highlight; aggregated metadata feeds the
@@ -29,8 +29,8 @@ export interface RegionSelectionResult {
   nodeIds: string[];
   nodeCount: number;
   truncated: boolean;
-  aggregatedMetadata: Record<string, GraphV2MetadataValue>;
-  metadataSchema: GraphV2MetadataField[];
+  aggregatedMetadata: Record<string, GraphMetadataValue>;
+  metadataSchema: GraphMetadataField[];
 }
 
 export type RegionSelectedHandler = (bounds: SigmaViewportBounds) => void;
@@ -58,7 +58,7 @@ export interface RenderNewickOptions {
 }
 
 export interface GraphWorkbenchOptions {
-  graphV2Client: GraphV2Client;
+  graphClient: GraphClient;
   rendererFactory: RendererFactory;
   rendererKind: RendererKind;
   renderContext: RenderContext;

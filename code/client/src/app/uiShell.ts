@@ -61,7 +61,7 @@ import {
   type SearchResultItem,
 } from "./shell/search/searchResultsView";
 import { renderRegionPanel } from "./shell/region/regionPanelView";
-import type { SigmaViewportBounds } from "../render/adapters/sigma/graphViewerV2Types";
+import type { SigmaViewportBounds } from "../render/adapters/sigma/graphViewerTypes";
 
 export { STATUS_RENDERED_PREFIX } from "./shell/status/renderedStatus";
 export { ERR_INVALID_ANCILLARY_JSON } from "./shell/inputs/ancillaryPayload";

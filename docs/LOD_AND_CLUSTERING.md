@@ -43,7 +43,7 @@ usefully rather than arbitrarily:
 5. Always include the finest threshold (the maximum distance).
 6. De-duplicate and return up to 16 thresholds, descending.
 
-`lod_tier_count` in `GraphV2PrepareResponse` is the count of distinct non-None
+`lod_tier_count` in `GraphPrepareResponse` is the count of distinct non-None
 thresholds actually produced — the number of tiers the client may zoom across.
 
 ## Representatives
@@ -98,13 +98,13 @@ Bounds filtering applies to the representative and ready-node paths; the
 always returns all its members. Every path is capped at `max_nodes`; the result
 carries `total_node_count` and `truncated`.
 
-## Client: Mapping Zoom to a Tier (`graphViewerV2Query.ts`)
+## Client: Mapping Zoom to a Tier (`graphViewerQuery.ts`)
 
 The client turns Sigma's camera `ratio` (smaller ratio = zoomed in) into a tier
 index using **geometric bands**. Boundary for tier `k`:
 
 ```
-B_k = GRAPH_VIEWER_V2_DETAIL_RATIO_THRESHOLD * GRAPH_VIEWER_V2_LOD_RATIO_STEP^(k-1)
+B_k = GRAPH_VIEWER_DETAIL_RATIO_THRESHOLD * GRAPH_VIEWER_LOD_RATIO_STEP^(k-1)
     = 0.8 * 0.4^(k-1)
 ```
 
@@ -121,15 +121,15 @@ So each finer tier needs ~2.5× more zoom-in than the previous one. Example with
 
 `semanticLodLevelForCameraRatioWithHysteresis(ratio, lodTierCount, currentLodLevel)`
 wraps the band mapping with a symmetric dead-band of
-`GRAPH_VIEWER_V2_LOD_RATIO_HYSTERESIS = 0.05` around the boundary being crossed.
+`GRAPH_VIEWER_LOD_RATIO_HYSTERESIS = 0.05` around the boundary being crossed.
 While the camera ratio sits inside `[boundary - 0.05, boundary + 0.05]`, the
 current tier is held instead of flipping. This stops small zoom wobble near a
 boundary from thrashing back and forth between two server queries.
 
-`GraphViewerV2` passes the last requested tier as `currentLodLevel`, so the
+`GraphViewer` passes the last requested tier as `currentLodLevel`, so the
 dead-band is always anchored on the tier currently on screen. A LoD-tier change
-refreshes after `GRAPH_VIEWER_V2_LOD_CHANGE_DEBOUNCE_MS = 60ms`; same-tier pans
-after `DEFAULT_GRAPH_VIEWER_V2_DEBOUNCE_MS = 120ms`.
+refreshes after `GRAPH_VIEWER_LOD_CHANGE_DEBOUNCE_MS = 60ms`; same-tier pans
+after `DEFAULT_GRAPH_VIEWER_DEBOUNCE_MS = 120ms`.
 
 ### Pan-Driven Exploration
 
@@ -142,10 +142,10 @@ Same-tier pan behavior depends on the tier:
   moved onto. No refetch moves the camera, so exploration stays smooth, and the
   debounce collapses a burst of pan events into a single query.
 
-Trees at or below `GRAPH_VIEWER_V2_SMALL_TREE_NODE_THRESHOLD = 2500` nodes are
+Trees at or below `GRAPH_VIEWER_SMALL_TREE_NODE_THRESHOLD = 2500` nodes are
 drawn once at tier 0 and never re-queried on camera movement (LoD-crossing zooms
 still transition). This threshold sits deliberately below the
-`DEFAULT_GRAPH_VIEWER_V2_MAX_NODES = 5000` per-query node cap, so mid-size trees
+`DEFAULT_GRAPH_VIEWER_MAX_NODES = 5000` per-query node cap, so mid-size trees
 between the two values still use bounded pan-refetch instead of freezing on the
 overview.
 

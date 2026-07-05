@@ -3,7 +3,7 @@ import shutil
 import pytest
 from fastapi.testclient import TestClient
 
-from phylo_lens_server.api.v2_graph import (
+from phylo_lens_server.api.graph import (
     get_prepare_job_registry,
     get_prepared_layout_store,
 )
@@ -18,9 +18,9 @@ SFDP_AVAILABLE = shutil.which(GRAPHVIZ_SFDP_COMMAND) is not None
 EXPECTED_LAYOUT_STATUS = "ready" if SFDP_AVAILABLE else "degraded"
 
 ROUTE_HEALTH = "/health"
-ROUTE_GRAPH_V2_PREPARE = "/api/v2/graph/prepare"
-ROUTE_GRAPH_V2_VIEWPORT = "/api/v2/graph/viewport"
-ROUTE_GRAPH_V2_REGION = "/api/v2/graph/region"
+ROUTE_GRAPH_PREPARE = "/api/graph/prepare"
+ROUTE_GRAPH_VIEWPORT = "/api/graph/viewport"
+ROUTE_GRAPH_REGION = "/api/graph/region"
 
 STATUS_OK = 200
 STATUS_ACCEPTED = 202
@@ -60,11 +60,11 @@ def prepare_and_wait(client: TestClient, payload: dict) -> dict:
     The prepare route now runs the layout on a background worker, so tests submit
     then poll ``/prepare/{job_id}`` until the job is no longer pending.
     """
-    accepted = client.post(ROUTE_GRAPH_V2_PREPARE, json=payload)
+    accepted = client.post(ROUTE_GRAPH_PREPARE, json=payload)
     assert accepted.status_code == STATUS_ACCEPTED
     job_id = accepted.json()["job_id"]
     for _ in range(PREPARE_POLL_ATTEMPTS):
-        status_response = client.get(f"{ROUTE_GRAPH_V2_PREPARE}/{job_id}")
+        status_response = client.get(f"{ROUTE_GRAPH_PREPARE}/{job_id}")
         assert status_response.status_code == STATUS_OK
         body = status_response.json()
         if body["status"] != "pending":
@@ -74,7 +74,7 @@ def prepare_and_wait(client: TestClient, payload: dict) -> dict:
 
 @pytest.fixture
 def prepared_layout_store(tmp_path):
-    return PreparedLayoutStore(tmp_path / "prepared_layout_v2")
+    return PreparedLayoutStore(tmp_path / "prepared_layout")
 
 
 def test_health(client) -> None:
@@ -84,7 +84,7 @@ def test_health(client) -> None:
     assert response.json() == {"status": "ok"}
 
 
-def test_graph_v2_prepare_materializes_layout_for_viewport_reads(client) -> None:
+def test_graph_prepare_materializes_layout_for_viewport_reads(client) -> None:
     status_body = prepare_and_wait(
         client,
         {
@@ -104,7 +104,7 @@ def test_graph_v2_prepare_materializes_layout_for_viewport_reads(client) -> None
     assert prepare_body["lod_tier_count"] >= 1
 
     viewport_response = client.post(
-        ROUTE_GRAPH_V2_VIEWPORT,
+        ROUTE_GRAPH_VIEWPORT,
         json={
             "dataset_id": DATASET_API_TREE,
             "layout_version": prepare_body["layout_version"],
@@ -118,7 +118,7 @@ def test_graph_v2_prepare_materializes_layout_for_viewport_reads(client) -> None
     assert {node["id"] for node in viewport_body["nodes"]} >= {"a", "b", "c", "d"}
 
 
-def test_graph_v2_prepare_reports_degraded_status_when_sfdp_is_missing(
+def test_graph_prepare_reports_degraded_status_when_sfdp_is_missing(
     client, monkeypatch
 ) -> None:
     monkeypatch.setattr(
@@ -141,7 +141,7 @@ def test_graph_v2_prepare_reports_degraded_status_when_sfdp_is_missing(
     assert any("sfdp" in warning for warning in prepare_body["warnings"])
 
 
-def test_graph_v2_viewport_lod_zero_without_bounds_falls_back_from_single_cluster(
+def test_graph_viewport_lod_zero_without_bounds_falls_back_from_single_cluster(
     client,
     prepared_layout_store,
 ) -> None:
@@ -150,7 +150,7 @@ def test_graph_v2_viewport_lod_zero_without_bounds_falls_back_from_single_cluste
     app.dependency_overrides[get_prepared_layout_store] = lambda: prepared_layout_store
 
     response = client.post(
-        ROUTE_GRAPH_V2_VIEWPORT,
+        ROUTE_GRAPH_VIEWPORT,
         json={
             "dataset_id": DATASET_API_TREE,
             "layout_version": result.artifacts.layout_version,
@@ -169,7 +169,7 @@ def test_graph_v2_viewport_lod_zero_without_bounds_falls_back_from_single_cluste
     assert len(body["edges"]) == 9
 
 
-def test_graph_v2_lod_zero_uses_real_representative_node_ids(
+def test_graph_lod_zero_uses_real_representative_node_ids(
     client,
     prepared_layout_store,
 ) -> None:
@@ -179,7 +179,7 @@ def test_graph_v2_lod_zero_uses_real_representative_node_ids(
     original_node_ids = {node.id for node in dataset.nodes}
 
     response = client.post(
-        ROUTE_GRAPH_V2_VIEWPORT,
+        ROUTE_GRAPH_VIEWPORT,
         json={
             "dataset_id": dataset.dataset_id,
             "layout_version": result.artifacts.layout_version,
@@ -199,7 +199,7 @@ def test_graph_v2_lod_zero_uses_real_representative_node_ids(
     assert all(edge["target"] in visible_node_ids for edge in body["edges"])
 
 
-def test_graph_v2_viewport_applies_density_cap(
+def test_graph_viewport_applies_density_cap(
     client,
     prepared_layout_store,
 ) -> None:
@@ -210,7 +210,7 @@ def test_graph_v2_viewport_applies_density_cap(
     ys = [position.y for position in result.node_positions]
 
     response = client.post(
-        ROUTE_GRAPH_V2_VIEWPORT,
+        ROUTE_GRAPH_VIEWPORT,
         json={
             "dataset_id": DATASET_API_TREE,
             "xmin": min(xs) - 1,
@@ -240,7 +240,7 @@ def test_graph_v2_viewport_applies_density_cap(
         assert edge["target"] in returned_ids
 
 
-def test_graph_v2_region_returns_internal_subgraph_and_aggregate(
+def test_graph_region_returns_internal_subgraph_and_aggregate(
     client,
     prepared_layout_store,
 ) -> None:
@@ -251,7 +251,7 @@ def test_graph_v2_region_returns_internal_subgraph_and_aggregate(
     ys = [position.y for position in result.node_positions]
 
     response = client.post(
-        ROUTE_GRAPH_V2_REGION,
+        ROUTE_GRAPH_REGION,
         json={
             "dataset_id": DATASET_API_TREE,
             "layout_version": result.artifacts.layout_version,
@@ -275,9 +275,9 @@ def test_graph_v2_region_returns_internal_subgraph_and_aggregate(
     assert "aggregated_metadata" in body
 
 
-def test_graph_v2_region_rejects_unknown_prepared_layout(client) -> None:
+def test_graph_region_rejects_unknown_prepared_layout(client) -> None:
     response = client.post(
-        ROUTE_GRAPH_V2_REGION,
+        ROUTE_GRAPH_REGION,
         json={
             "dataset_id": DATASET_UNKNOWN,
             "xmin": 0,
@@ -290,7 +290,7 @@ def test_graph_v2_region_rejects_unknown_prepared_layout(client) -> None:
     assert response.status_code == STATUS_NOT_FOUND
 
 
-def test_graph_v2_viewport_lod_one_reads_real_nodes(
+def test_graph_viewport_lod_one_reads_real_nodes(
     client,
     prepared_layout_store,
 ) -> None:
@@ -301,7 +301,7 @@ def test_graph_v2_viewport_lod_one_reads_real_nodes(
     ys = [position.y for position in result.node_positions]
 
     response = client.post(
-        ROUTE_GRAPH_V2_VIEWPORT,
+        ROUTE_GRAPH_VIEWPORT,
         json={
             "dataset_id": DATASET_API_TREE,
             "layout_version": result.artifacts.layout_version,
@@ -322,7 +322,7 @@ def test_graph_v2_viewport_lod_one_reads_real_nodes(
     assert all(not node["is_representative"] for node in body["nodes"])
 
 
-def test_graph_v2_viewport_reads_cluster_members_without_bounds(
+def test_graph_viewport_reads_cluster_members_without_bounds(
     client,
     prepared_layout_store,
 ) -> None:
@@ -334,7 +334,7 @@ def test_graph_v2_viewport_reads_cluster_members_without_bounds(
     )
 
     response = client.post(
-        ROUTE_GRAPH_V2_VIEWPORT,
+        ROUTE_GRAPH_VIEWPORT,
         json={
             "dataset_id": DATASET_API_TREE,
             "layout_version": result.artifacts.layout_version,
@@ -351,7 +351,7 @@ def test_graph_v2_viewport_reads_cluster_members_without_bounds(
     assert body["edges"]
 
 
-def test_graph_v2_viewport_expansion_serializes_meta_edges(
+def test_graph_viewport_expansion_serializes_meta_edges(
     client,
     prepared_layout_store,
 ) -> None:
@@ -368,7 +368,7 @@ def test_graph_v2_viewport_expansion_serializes_meta_edges(
     )
 
     response = client.post(
-        ROUTE_GRAPH_V2_VIEWPORT,
+        ROUTE_GRAPH_VIEWPORT,
         json={
             "dataset_id": DATASET_API_TREE,
             "layout_version": result.artifacts.layout_version,
@@ -397,9 +397,9 @@ def test_graph_v2_viewport_expansion_serializes_meta_edges(
         assert "bundled_edge_count" not in edge
 
 
-def test_graph_v2_viewport_rejects_unknown_prepared_layout(client) -> None:
+def test_graph_viewport_rejects_unknown_prepared_layout(client) -> None:
     response = client.post(
-        ROUTE_GRAPH_V2_VIEWPORT,
+        ROUTE_GRAPH_VIEWPORT,
         json={
             "dataset_id": DATASET_UNKNOWN,
             "xmin": 0,

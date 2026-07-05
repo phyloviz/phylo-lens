@@ -1,10 +1,10 @@
 import type { PositionedGraph } from "../contracts/positioned";
 import type {
-  GraphV2Client,
-  GraphV2ViewportResponse,
-} from "../api/graphV2Client";
-import type { ViewportSyncSettings } from "./adapters/sigma/graphViewerV2Sync";
-import type { SigmaViewportBounds } from "./adapters/sigma/graphViewerV2Types";
+  GraphClient,
+  GraphViewportResponse,
+} from "../api/graphClient";
+import type { ViewportSyncSettings } from "./adapters/sigma/graphViewerSync";
+import type { SigmaViewportBounds } from "./adapters/sigma/graphViewerTypes";
 
 export const RENDERER_KIND_SIGMA = "sigma";
 export const RENDERER_KIND_MOCK = "mock";
@@ -57,22 +57,22 @@ export interface GraphRenderer {
 
   updateDisplayOptions?: (options: GraphDisplayOptions) => void;
 
-  startGraphV2ViewportSync?: (options: {
-    client: GraphV2Client;
+  startGraphViewportSync?: (options: {
+    client: GraphClient;
     datasetId: string;
     layoutVersion?: string | null;
     maxNodes?: number;
     lodTierCount?: number;
     nodeCount?: number | null;
     getPaused?: () => boolean;
-    onViewportLoaded?: (response: GraphV2ViewportResponse) => void;
+    onViewportLoaded?: (response: GraphViewportResponse) => void;
     onError?: (error: unknown) => void;
     getRenderSettings?: () => ViewportSyncSettings;
   }) => void;
 
-  stopGraphV2ViewportSync?: () => void;
+  stopGraphViewportSync?: () => void;
 
-  refreshGraphV2ViewportSync?: () => void;
+  refreshGraphViewportSync?: () => void;
 
   // Enable/disable region (box) selection mode. While enabled a plain drag on
   // the canvas draws a selection box; Shift+drag works regardless of the toggle.
