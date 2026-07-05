@@ -15,9 +15,10 @@ import {
 import {
   buildValueColorMap,
   DEFAULT_COLOR_PALETTE,
-  DEFAULT_SIZE_FIELD,
+  DEFAULT_PROFILE_COUNT_FIELD,
   deriveSize,
   resolveColorField,
+  resolveDefaultSizeField,
   SIZE_SCALE_LINEAR,
   type SizeScale,
   type VisualMappingOptions,
@@ -164,7 +165,10 @@ function resolveViewportVisuals(
     settings?.metadataSchema ?? [],
     mapping.colorField,
   );
-  const sizeField = mapping.size?.field ?? mapping.sizeField ?? DEFAULT_SIZE_FIELD;
+  const sizeField =
+    mapping.size?.field ??
+    mapping.sizeField ??
+    resolveDefaultSizeField(viewportHasProfileCount(nodes));
   const scale = mapping.size?.scale ?? SIZE_SCALE_LINEAR;
   const palette = mapping.palette ?? DEFAULT_COLOR_PALETTE;
   const numericStats = computeSizeFieldStats(nodes, sizeField);
@@ -187,6 +191,14 @@ function resolveViewportVisuals(
     numericStats,
     pie,
   };
+}
+
+// True when any viewport node carries a numeric profile_count, so the default
+// size mapping can size nodes by isolate count rather than branch distance.
+function viewportHasProfileCount(nodes: GraphViewportNode[]): boolean {
+  return nodes.some(
+    (node) => typeof node.metadata?.[DEFAULT_PROFILE_COUNT_FIELD] === "number",
+  );
 }
 
 // Compute min/max for the active size field across the current viewport nodes.

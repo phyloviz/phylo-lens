@@ -73,7 +73,9 @@ export function applyVisualMappings(
 ): PositionedGraph {
   const colorField = resolveColorField(dataset.metadata_schema, options.colorField);
   const sizeField =
-    options.size?.field ?? options.sizeField ?? DEFAULT_SIZE_FIELD;
+    options.size?.field ??
+    options.sizeField ??
+    resolveDefaultSizeField(metadataIndex.numericStats.has(DEFAULT_PROFILE_COUNT_FIELD));
   const sizeScale = options.size?.scale ?? SIZE_SCALE_LINEAR;
   const palette = options.palette ?? DEFAULT_COLOR_PALETTE;
   const pieOptions = options.pie ?? DEFAULT_PIE_MAPPING;
@@ -130,6 +132,13 @@ export function resolveColorField(
   );
 
   return fallbackField?.key ?? DEFAULT_COLOR_FIELD;
+}
+
+// Pick the default size field when no explicit size mapping is set. Prefer the
+// isolate/profile count so nodes size by how much isolate data they carry (as
+// in PHYLOViZ), falling back to branch distance when profile counts are absent.
+export function resolveDefaultSizeField(hasProfileCount: boolean): string {
+  return hasProfileCount ? DEFAULT_PROFILE_COUNT_FIELD : DEFAULT_SIZE_FIELD;
 }
 
 // Map one positioned node to metadata-aware color, size, and attributes.

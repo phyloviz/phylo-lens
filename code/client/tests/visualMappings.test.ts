@@ -175,6 +175,40 @@ describe("visualMappings", () => {
     );
   });
 
+  it("defaults the size field to profile count when present, else distance", () => {
+    // Given: a dataset carrying profile_count and one without it.
+    const profileDataset: CanonicalDataset = {
+      ...DATASET,
+      metadata_schema: [
+        ...DATASET.metadata_schema,
+        { key: "profile_count", type: METADATA_TYPE_NUMBER },
+      ],
+      metadata_by_node_id: {
+        a: { region: "EU", distance: 30, trait_a: 4, profile_count: 10 },
+        b: { region: "US", distance: 10, trait_a: 8, profile_count: 100 },
+      },
+    };
+
+    // When: no explicit size mapping is passed.
+    const withProfile = applyVisualMappings(
+      BASE_GRAPH,
+      profileDataset,
+      buildMetadataIndex(profileDataset),
+    );
+    const withoutProfile = applyVisualMappings(
+      BASE_GRAPH,
+      DATASET,
+      buildMetadataIndex(DATASET),
+    );
+
+    // Then: profile_count wins when present (b is the max), distance otherwise
+    // (b has the larger distance in DATASET).
+    expect(withProfile.nodes[0]?.size).toBe(MIN_NODE_SIZE);
+    expect(withProfile.nodes[1]?.size).toBe(MAX_NODE_SIZE);
+    expect(withoutProfile.nodes[0]?.size).toBe(MIN_NODE_SIZE);
+    expect(withoutProfile.nodes[1]?.size).toBe(MAX_NODE_SIZE);
+  });
+
   it("styles cluster proxy nodes explicitly", () => {
     const index = buildMetadataIndex(DATASET);
     const proxyGraph: PositionedGraph = {
