@@ -170,3 +170,69 @@ renders that result as a region-selection summary with its own ancillary wheel,
 reusing the same value-color map as the tree. A new dataset or re-render clears
 the active selection. Region reads are always finest-detail (no `zoom`/
 `lod_level`), independent of the semantic-zoom loop.
+
+## Consuming the Client as a Library
+
+The client ships as an installable package (`phylo-lens-client`), not just the
+demo app. A host application such as PHYLOViZ mounts the renderer as a component
+and never has to touch the HTTP contract itself — the workbench drives the whole
+prepare → poll → viewport loop internally. The package externalizes the
+rendering stack (`sigma`, `graphology`, `graphology-layout-force`,
+`graphology-layout-forceatlas2`, `@sigma/node-border`, `@sigma/node-piechart`)
+as **peer dependencies**, so the host provides a single shared copy of Sigma and
+Graphology rather than bundling a duplicate.
+
+Build the package with `npm run build:lib`, which emits `dist/index.js` (ESM) via
+`vite.lib.config.ts` and `dist/types/**/*.d.ts` declarations via
+`tsconfig.lib.json`. The demo build (`npm run build`, `index.html`) is untouched.
+
+### Layered facade
+
+Everything the host needs is re-exported from `src/index.ts`. A host adopts one
+of three layers, from lowest to highest:
+
+| Layer | Entry point | Responsibility |
+|-------|-------------|----------------|
+| Transport | `createGraphClient({ baseUrl })` | Typed bridge to the four HTTP routes (`prepareGraph`, `readViewport`, `readRegion`). Server URL is injectable. |
+| Workbench | `createGraphWorkbench({ graphClient, rendererFactory, rendererKind, renderContext })` | Encapsulates the entire prepare → poll → viewport-sync lifecycle and LoD/clustering. Exposes `renderNewick`, filters, visual mapping, search, region selection, and `dispose`. |
+| Shell | `bootstrapClientShell(baseUrl)` | The full demo UI (`UiShellController`) wired to DOM ids — the reference integration. |
+
+Most host apps target the **Workbench** layer: it gives PHYLOViZ-grade visuals
+(server-side LoD, goeBURST colouring, data-aware defaults, pie/wheel charts,
+box-select region isolation) with one component and no knowledge of the server.
+
+### One-call `renderNewick`
+
+```ts
+import {
+  createGraphClient,
+  createGraphWorkbench,
+  DefaultRendererFactory,
+  RENDERER_KIND_SIGMA,
+} from "phylo-lens-client";
+
+const workbench = createGraphWorkbench({
+  graphClient: createGraphClient({ baseUrl: "http://localhost:8000" }),
+  rendererFactory: new DefaultRendererFactory(),
+  rendererKind: RENDERER_KIND_SIGMA,
+  renderContext: { containerId: "graph-root" }, // an existing DOM element id
+});
+
+// Submits the tree, polls prepare to 'ready', starts the viewport-sync loop,
+// and paints into #graph-root — the host never sees a job id or a poll.
+await workbench.renderNewick(newickString, "my-dataset", {
+  metadataSchema,
+  metadataByNodeId,
+  visualMapping: { colorField: "region" }, // size defaults to profile_count
+});
+
+// Later, on teardown:
+workbench.dispose();
+```
+
+The optional third argument (`RenderNewickOptions`) carries metadata, ancillary
+CSV/TSV joins, visual mapping, layout iterations, and LoD tuning. Colour defaults
+to the `region` field and size defaults to `profile_count` (falling back to
+branch `distance`), matching PHYLOViZ conventions. See
+[`API_REFERENCE.md`](./API_REFERENCE.md) for the underlying HTTP contract a host
+can call directly if it supplies its own paint layer instead.

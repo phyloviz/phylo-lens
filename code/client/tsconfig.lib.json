@@ -1,0 +1,29 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "useDefineForClassFields": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "skipLibCheck": true,
+    "strict": true,
+
+    /* Browser-only ambient types. Without this the build picks up @types/node
+       and setTimeout resolves to NodeJS.Timeout instead of the DOM number. */
+    "types": [],
+
+    /* Emit declarations only; Vite emits the JS. */
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "outDir": "dist/types",
+    "noEmit": false,
+
+    /* Declaration emit is incompatible with importing .ts extensions and with
+       verbatim module syntax that assumes a bundler, so relax the demo/app
+       flags that only make sense under noEmit. */
+    "allowImportingTsExtensions": false,
+    "verbatimModuleSyntax": false
+  },
+  "include": ["src"],
+  "exclude": ["tests", "src/main.ts"]
+}
