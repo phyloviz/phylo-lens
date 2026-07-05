@@ -26,8 +26,8 @@ import {
   PHYLOVIZ_NODE_SUBGROUP_FOUNDER_COLOR,
 } from "../src/render/adapters/sigma/sigmaRenderingConstants";
 import {
+  buildValueColorMap,
   DEFAULT_COLOR_PALETTE,
-  deriveColor,
   deriveSize,
 } from "../src/render/visualMappings";
 import {
@@ -172,6 +172,27 @@ describe("GraphViewerV2", () => {
     });
 
     expect(query.lod_level).toBe(0);
+    expect(query.xmin).toBeUndefined();
+    expect(query.xmax).toBeUndefined();
+    expect(query.ymin).toBeUndefined();
+    expect(query.ymax).toBeUndefined();
+  });
+
+  it("targets the finest tier with no bbox when forcing finest tier", () => {
+    // A zoomed-in camera would normally pick a bounded finer tier, but a
+    // forced finest-tier (small-tree) query pins the deepest tier and drops the
+    // bounds so the whole tree is read at once.
+    const { sigma } = fakeSigma(0.1);
+
+    const query = buildGraphV2ViewportQuery({
+      datasetId: "tree",
+      sigma: sigma as never,
+      maxNodes: 500,
+      forceFinestTier: true,
+      lodTierCount: 4,
+    });
+
+    expect(query.lod_level).toBe(3);
     expect(query.xmin).toBeUndefined();
     expect(query.xmax).toBeUndefined();
     expect(query.ymin).toBeUndefined();
@@ -578,10 +599,10 @@ describe("GraphViewerV2", () => {
     viewer.unmount();
   });
 
-  it("re-queries a small tree when zoom crosses a LoD tier boundary", async () => {
-    // A small tree with multiple precomputed tiers should still transition to
-    // finer detail on zoom-in: the small-tree shortcut must only suppress
-    // same-tier pans, not LoD-crossing zooms.
+  it("freezes a loaded small tree across LoD tier boundaries", async () => {
+    // A small tree is rendered whole on first paint, so there is nothing further
+    // to fetch: crossing a tier boundary by zooming must NOT re-query — the
+    // full tree is already on screen as individual nodes.
     const graph = new Graph();
     const { sigma, setRatio, emitCameraUpdated } = fakeSigma(1.2);
     const client: GraphV2Client = {
@@ -599,21 +620,96 @@ describe("GraphViewerV2", () => {
     viewer.mount();
     await vi.advanceTimersByTimeAsync(0);
     expect(client.readViewport).toHaveBeenCalledTimes(1);
-    expect(client.readViewport).toHaveBeenLastCalledWith(
-      expect.objectContaining({ lod_level: 0 }),
-    );
 
-    // Zoom well past the 0.8 boundary (and clear of the hysteresis dead-band)
-    // to trigger a LoD 0 → 1 transition on the small tree.
+    // Zoom well past the 0.8 boundary (clear of the hysteresis dead-band) — a
+    // large tree would transition LoD 0 → 1, but a loaded small tree stays put.
     setRatio(0.7);
     emitCameraUpdated();
     await vi.advanceTimersByTimeAsync(GRAPH_VIEWER_V2_LOD_CHANGE_DEBOUNCE_MS);
 
-    // A second query must fire for the finer tier, even though the tree is small.
+    expect(client.readViewport).toHaveBeenCalledTimes(1);
+
+    viewer.unmount();
+  });
+
+  it("keeps a loaded small tree at the finest tier when refreshed", async () => {
+    // A visual-mapping change (e.g. selecting a metadata pie field) calls
+    // refreshNow() to re-render. For a small tree that first painted whole at
+    // the finest tier, this refresh must re-request the finest tier unbounded —
+    // NOT snap back to the tier-0 triangle overview. Regression guard for the
+    // "picking a pie field turns nodes into triangles" bug.
+    const graph = new Graph();
+    const { sigma } = fakeSigma(1.2);
+    const client: GraphV2Client = {
+      // total_node_count of 2 is well below the small-tree threshold.
+      readViewport: vi.fn(async () => ({
+        ...VIEWPORT_RESPONSE,
+        total_node_count: 2,
+      })),
+    };
+    const viewer = new GraphViewerV2({
+      datasetId: "tree",
+      client,
+      graph,
+      sigma: sigma as never,
+      debounceMs: 250,
+      lodTierCount: 3,
+      // Prepared count unknown up front; the small-tree state is instead
+      // established from the loaded total_node_count on the first response.
+    });
+
+    viewer.mount();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(client.readViewport).toHaveBeenCalledTimes(1);
+
+    // Simulate updateVisualMapping's refresh after a pie-field selection.
+    viewer.refreshNow();
+    await vi.runOnlyPendingTimersAsync();
+
     expect(client.readViewport).toHaveBeenCalledTimes(2);
-    expect(client.readViewport).toHaveBeenLastCalledWith(
-      expect.objectContaining({ lod_level: 1 }),
-    );
+    const refreshQuery = (client.readViewport as ReturnType<typeof vi.fn>).mock
+      .calls[1][0];
+    // Finest of the 3 tiers, unbounded — the whole tree as individual nodes,
+    // never the tier-0 overview that would introduce triangle representatives.
+    expect(refreshQuery.lod_level).toBe(2);
+    expect(refreshQuery.xmin).toBeUndefined();
+    expect(refreshQuery.xmax).toBeUndefined();
+    expect(refreshQuery.ymin).toBeUndefined();
+    expect(refreshQuery.ymax).toBeUndefined();
+
+    viewer.unmount();
+  });
+
+  it("loads a known small tree at the finest tier with no bounds", async () => {
+    // When the prepared node count is known to be small, the initial load must
+    // request the finest precomputed tier (individual nodes, no cluster proxies)
+    // and carry no bounds so the whole tree renders at once.
+    const graph = new Graph();
+    const { sigma } = fakeSigma(1.2);
+    const client: GraphV2Client = {
+      readViewport: vi.fn(async () => VIEWPORT_RESPONSE),
+    };
+    const viewer = new GraphViewerV2({
+      datasetId: "tree",
+      client,
+      graph,
+      sigma: sigma as never,
+      debounceMs: 250,
+      lodTierCount: 3,
+      // Well below the default small-tree threshold.
+      nodeCount: 2,
+    });
+
+    viewer.mount();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(client.readViewport).toHaveBeenCalledTimes(1);
+    const query = (client.readViewport as ReturnType<typeof vi.fn>).mock
+      .calls[0][0];
+    // Finest of the 3 tiers, unbounded.
+    expect(query.lod_level).toBe(2);
+    expect(query.xmin).toBeUndefined();
+    expect(query.xmax).toBeUndefined();
 
     viewer.unmount();
   });
@@ -1021,12 +1117,14 @@ describe("GraphViewerV2 metadata-driven sync", () => {
       COLOR_SIZE_SETTINGS,
     );
 
-    // Colors come from the categorical color field, not member-count defaults.
-    expect(graph.getNodeAttribute("a", "color")).toBe(
-      deriveColor("eu", DEFAULT_COLOR_PALETTE),
-    );
-    expect(graph.getNodeAttribute("b", "color")).toBe(
-      deriveColor("us", DEFAULT_COLOR_PALETTE),
+    // Colors come from the categorical color field, ranked by graph-wide
+    // frequency and assigned palette entries in order (ties broken by label, so
+    // "eu" -> palette[0], "us" -> palette[1]). Distinct values, distinct colors.
+    const rankedColor = buildValueColorMap(["eu", "us"], DEFAULT_COLOR_PALETTE);
+    expect(graph.getNodeAttribute("a", "color")).toBe(rankedColor("eu"));
+    expect(graph.getNodeAttribute("b", "color")).toBe(rankedColor("us"));
+    expect(graph.getNodeAttribute("a", "color")).not.toBe(
+      graph.getNodeAttribute("b", "color"),
     );
 
     // Sizes come from min/max normalization of the numeric size field across
@@ -1041,6 +1139,39 @@ describe("GraphViewerV2 metadata-driven sync", () => {
     expect(graph.getNodeAttribute("b", "size")).toBeGreaterThan(
       graph.getNodeAttribute("a", "size") as number,
     );
+  });
+
+  it("keeps role color for nodes with no value for the color field", () => {
+    // A node that has no value for the active color field must NOT be painted a
+    // palette slot (which could coincidentally match a real value's slate) — it
+    // keeps its PHYLOViZ role color. Only nodes WITH a value get palette colors.
+    const graph = new Graph();
+    const responseWithEmpty = {
+      ...METADATA_VIEWPORT_RESPONSE,
+      nodes: [
+        ...METADATA_VIEWPORT_RESPONSE.nodes,
+        {
+          id: "empty",
+          cluster_id: "cempty",
+          x: 40,
+          y: 0,
+          layout_status: "ready" as const,
+          member_count: 1,
+          is_representative: false,
+          metadata: { distance: 5 },
+        },
+      ],
+    };
+
+    syncGraphologyViewport(graph, responseWithEmpty, COLOR_SIZE_SETTINGS);
+
+    // The empty-field node keeps the common-node role color, not a palette slot.
+    expect(graph.getNodeAttribute("empty", "color")).toBe(
+      GRAPH_VIEWER_V2_NODE_COLOR,
+    );
+    // Nodes WITH a value are still coloured by the ranked palette.
+    const rankedColor = buildValueColorMap(["eu", "us"], DEFAULT_COLOR_PALETTE);
+    expect(graph.getNodeAttribute("a", "color")).toBe(rankedColor("eu"));
   });
 
   it("leaves the default representative styling intact without a mapping", () => {

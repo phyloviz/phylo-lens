@@ -11,7 +11,16 @@ function makeFakeWorkbench(
 ) {
   let graphRenderedHandler: ((graph: PositionedGraph) => void) | null = null;
   let nodeClickedHandler: ((state: { nodeId: string }) => void) | null = null;
+  let regionSelectedHandler:
+    | ((bounds: {
+        xmin: number;
+        xmax: number;
+        ymin: number;
+        ymax: number;
+      }) => void)
+    | null = null;
   let lodRefreshPaused = false;
+  let regionSelectModeEnabled = false;
 
   return {
     renderNewick: vi.fn(async () => {
@@ -51,8 +60,31 @@ function makeFakeWorkbench(
     setNodeClickedHandler: vi.fn((handler) => {
       nodeClickedHandler = handler;
     }),
+    setRegionSelectModeEnabled: vi.fn((enabled: boolean) => {
+      regionSelectModeEnabled = enabled;
+    }),
+    isRegionSelectModeEnabled: () => regionSelectModeEnabled,
+    selectRegion: vi.fn(async () => ({
+      nodeIds: ["a", "b"],
+      nodeCount: 2,
+      truncated: false,
+      aggregatedMetadata: { country: "Portugal", score: 4 },
+      metadataSchema: [],
+    })),
+    setRegionSelectedHandler: vi.fn((handler) => {
+      regionSelectedHandler = handler;
+    }),
+    clearRegionSelection: vi.fn(),
     emitNodeClick: (nodeId: string) => {
       nodeClickedHandler?.({ nodeId });
+    },
+    emitRegionSelected: (bounds: {
+      xmin: number;
+      xmax: number;
+      ymin: number;
+      ymax: number;
+    }) => {
+      regionSelectedHandler?.(bounds);
     },
     dispose: vi.fn(),
   } as unknown as GraphWorkbench;
@@ -386,6 +418,7 @@ describe("uiShell", () => {
     metadataPieFieldSelect.dispatchEvent(new Event("change"));
 
     expect(fakeWorkbench.updateVisualMapping).toHaveBeenCalledWith({
+      colorField: "country",
       pie: {
         enabled: true,
         fields: ["country"],
@@ -400,7 +433,7 @@ describe("uiShell", () => {
     shell.unmount();
   });
 
-  it("shows a clicked node's pie data in the ancillary wheel", async () => {
+  it("shows a clicked node's pie data in the selected-node wheel without changing overview mode", async () => {
     document.body.innerHTML = `
       <form id="render-form"></form>
       <textarea id="newick-input"></textarea>
@@ -409,10 +442,16 @@ describe("uiShell", () => {
         <option value="selected">Selected node</option>
       </select>
       <select id="ancillary-node"></select>
+      <select id="metadata-pie-field"></select>
       <div id="ancillary-wheel"></div>
+      <div id="ancillary-selected-node-wheel"></div>
       <div id="status"></div>
     `;
 
+    // Node "a" carries a pre-aggregated per-category distribution (a profile
+    // node standing in for several isolates), expressed as the server's
+    // __category_count__ metadata keys. With the "country" pie field selected,
+    // its clicked-node wheel resolves to Portugal 3 / Canada 1 (75% / 25%).
     const graph: PositionedGraph = {
       nodes: [
         {
@@ -420,15 +459,23 @@ describe("uiShell", () => {
           x: 0,
           y: 0,
           attributes: {
-            pie__Portugal: 3,
-            pie__Canada: 1,
+            metadata: {
+              country: "Portugal;Canada",
+              __category_count__country__value__Portugal: 3,
+              __category_count__country__value__Canada: 1,
+            },
           },
         },
         {
           id: "b",
           x: 1,
           y: 1,
-          attributes: { pie__Canada: 2 },
+          attributes: {
+            metadata: {
+              country: "Canada",
+              __category_count__country__value__Canada: 2,
+            },
+          },
         },
       ],
       edges: [],
@@ -447,8 +494,14 @@ describe("uiShell", () => {
     const ancillaryNodeSelect = document.getElementById(
       "ancillary-node",
     ) as HTMLSelectElement;
+    const metadataPieFieldSelect = document.getElementById(
+      "metadata-pie-field",
+    ) as HTMLSelectElement;
     const ancillaryWheelContainer = document.getElementById(
       "ancillary-wheel",
+    ) as HTMLElement;
+    const ancillarySelectedNodeWheelContainer = document.getElementById(
+      "ancillary-selected-node-wheel",
     ) as HTMLElement;
 
     const shell = new UiShellController({
@@ -458,21 +511,28 @@ describe("uiShell", () => {
         newickInput,
         ancillaryModeSelect,
         ancillaryNodeSelect,
+        metadataPieFieldSelect,
         ancillaryWheelContainer,
+        ancillarySelectedNodeWheelContainer,
         status: document.getElementById("status") as HTMLElement,
       },
     });
 
     shell.mount();
     await shell.renderCurrentInput();
+    // Choose the "country" field (PHYLOViZ charts a column only once selected).
+    metadataPieFieldSelect.value = "country";
+    metadataPieFieldSelect.dispatchEvent(new Event("change"));
     fakeWorkbench.emitNodeClick("a");
 
-    expect(ancillaryModeSelect.value).toBe("selected");
-    expect(ancillaryNodeSelect.value).toBe("a");
-    expect(ancillaryNodeSelect.disabled).toBe(false);
-    expect(ancillaryWheelContainer.textContent).toContain("Portugal");
-    expect(ancillaryWheelContainer.textContent).toContain("75.0%");
-    expect(ancillaryWheelContainer.textContent).toContain(
+    // The overview wheel and its mode selector are left untouched by a click.
+    expect(ancillaryModeSelect.value).toBe("global");
+    // The clicked node's distribution appears in the dedicated second panel.
+    expect(ancillarySelectedNodeWheelContainer.textContent).toContain(
+      "Portugal",
+    );
+    expect(ancillarySelectedNodeWheelContainer.textContent).toContain("75.0%");
+    expect(ancillarySelectedNodeWheelContainer.textContent).toContain(
       "Ancillary distribution across 1 node",
     );
     shell.unmount();
@@ -554,6 +614,7 @@ describe("uiShell", () => {
     );
     expect(selectedValues).toEqual(["country", "source"]);
     expect(fakeWorkbench.updateVisualMapping).toHaveBeenLastCalledWith({
+      colorField: "country",
       pie: {
         enabled: true,
         fields: ["country", "source"],
@@ -950,7 +1011,9 @@ describe("uiShell", () => {
         <option value="selected">Selected node</option>
       </select>
       <select id="ancillary-node"></select>
+      <select id="metadata-pie-field"></select>
       <div id="ancillary-wheel"></div>
+      <div id="ancillary-selected-node-wheel"></div>
       <div id="status"></div>
     `;
 
@@ -973,14 +1036,23 @@ describe("uiShell", () => {
     const ancillaryNodeSelect = document.getElementById(
       "ancillary-node",
     ) as HTMLSelectElement;
+    const metadataPieFieldSelect = document.getElementById(
+      "metadata-pie-field",
+    ) as HTMLSelectElement;
     const ancillaryWheelContainer = document.getElementById(
       "ancillary-wheel",
+    ) as HTMLElement;
+    const ancillarySelectedNodeWheelContainer = document.getElementById(
+      "ancillary-selected-node-wheel",
     ) as HTMLElement;
     const status = document.getElementById("status") as HTMLElement;
 
     input.value = "(A,B)Root;";
     searchInput.value = "port";
 
+    // Node "a" carries a pre-aggregated country distribution as the server's
+    // __category_count__ metadata keys; with the "country" field selected, its
+    // focused-node wheel resolves to Portugal 3 / Canada 1 (75% / 25%).
     const fakeWorkbench = makeFakeWorkbench({
       nodes: [
         {
@@ -988,8 +1060,11 @@ describe("uiShell", () => {
           x: 0,
           y: 0,
           attributes: {
-            pie__Portugal: 3,
-            pie__Canada: 1,
+            metadata: {
+              country: "Portugal;Canada",
+              __category_count__country__value__Portugal: 3,
+              __category_count__country__value__Canada: 1,
+            },
           },
         },
       ],
@@ -1007,7 +1082,9 @@ describe("uiShell", () => {
         searchResults,
         ancillaryModeSelect,
         ancillaryNodeSelect,
+        metadataPieFieldSelect,
         ancillaryWheelContainer,
+        ancillarySelectedNodeWheelContainer,
         status,
       },
     });
@@ -1025,15 +1102,146 @@ describe("uiShell", () => {
     });
     expect(resultButton.textContent).toBe("a");
 
+    // Focusing renders the graph, which populates the pie-field options; select
+    // the "country" column (PHYLOViZ charts a field only once chosen) and focus
+    // again so the clicked node's wheel resolves to its country distribution.
+    resultButton.click();
+    await Promise.resolve();
+    metadataPieFieldSelect.value = "country";
+    metadataPieFieldSelect.dispatchEvent(new Event("change"));
     resultButton.click();
     await Promise.resolve();
 
     expect(fakeWorkbench.focusNode).toHaveBeenCalledWith("a");
-    expect(ancillaryModeSelect.value).toBe("selected");
-    expect(ancillaryNodeSelect.value).toBe("a");
-    expect(ancillaryWheelContainer.textContent).toContain("Portugal");
-    expect(ancillaryWheelContainer.textContent).toContain("75.0%");
+    // Focusing a search result populates the selected-node panel, not the
+    // overview wheel or its mode selector.
+    expect(ancillaryModeSelect.value).toBe("global");
+    expect(ancillarySelectedNodeWheelContainer.textContent).toContain(
+      "Portugal",
+    );
+    expect(ancillarySelectedNodeWheelContainer.textContent).toContain("75.0%");
     expect(status.textContent).toBe("Focused a");
+    shell.unmount();
+  });
+
+  it("enables region-select mode via the toggle", () => {
+    document.body.innerHTML = `
+      <form id="render-form"></form>
+      <textarea id="newick-input"></textarea>
+      <button id="region-select-toggle" type="button" aria-pressed="false">Select region</button>
+      <div id="region-selection-panel"></div>
+      <div id="status"></div>
+    `;
+
+    const form = document.getElementById("render-form") as HTMLFormElement;
+    const input = document.getElementById(
+      "newick-input",
+    ) as HTMLTextAreaElement;
+    const regionSelectToggle = document.getElementById(
+      "region-select-toggle",
+    ) as HTMLButtonElement;
+    const regionSelectionPanel = document.getElementById(
+      "region-selection-panel",
+    ) as HTMLElement;
+    const status = document.getElementById("status") as HTMLElement;
+
+    const fakeWorkbench = makeFakeWorkbench();
+    const shell = new UiShellController({
+      workbench: fakeWorkbench,
+      elements: {
+        form,
+        newickInput: input,
+        regionSelectToggle,
+        regionSelectionPanel,
+        status,
+      },
+    });
+
+    shell.mount();
+    // Starts disabled with the empty prompt.
+    expect(regionSelectToggle.getAttribute("aria-pressed")).toBe("false");
+    expect(regionSelectionPanel.textContent).toContain("Shift+drag");
+
+    regionSelectToggle.click();
+    expect(fakeWorkbench.setRegionSelectModeEnabled).toHaveBeenLastCalledWith(
+      true,
+    );
+    expect(regionSelectToggle.getAttribute("aria-pressed")).toBe("true");
+
+    // Toggling off disables the mode and clears any selection.
+    regionSelectToggle.click();
+    expect(fakeWorkbench.setRegionSelectModeEnabled).toHaveBeenLastCalledWith(
+      false,
+    );
+    expect(fakeWorkbench.clearRegionSelection).toHaveBeenCalled();
+    expect(regionSelectToggle.getAttribute("aria-pressed")).toBe("false");
+
+    shell.unmount();
+  });
+
+  it("populates the region panel with aggregated metadata on selection", async () => {
+    document.body.innerHTML = `
+      <form id="render-form"></form>
+      <textarea id="newick-input"></textarea>
+      <button id="region-select-toggle" type="button" aria-pressed="false">Select region</button>
+      <div id="region-selection-panel"></div>
+      <div id="status"></div>
+    `;
+
+    const form = document.getElementById("render-form") as HTMLFormElement;
+    const input = document.getElementById(
+      "newick-input",
+    ) as HTMLTextAreaElement;
+    const regionSelectToggle = document.getElementById(
+      "region-select-toggle",
+    ) as HTMLButtonElement;
+    const regionSelectionPanel = document.getElementById(
+      "region-selection-panel",
+    ) as HTMLElement;
+    const status = document.getElementById("status") as HTMLElement;
+
+    const fakeWorkbench = makeFakeWorkbench() as GraphWorkbench & {
+      emitRegionSelected: (bounds: {
+        xmin: number;
+        xmax: number;
+        ymin: number;
+        ymax: number;
+      }) => void;
+    };
+    const shell = new UiShellController({
+      workbench: fakeWorkbench,
+      elements: {
+        form,
+        newickInput: input,
+        regionSelectToggle,
+        regionSelectionPanel,
+        status,
+      },
+    });
+
+    shell.mount();
+    fakeWorkbench.emitRegionSelected({
+      xmin: 0,
+      xmax: 5,
+      ymin: 0,
+      ymax: 5,
+    });
+    await vi.waitFor(() => {
+      expect(regionSelectionPanel.textContent).toContain("2 nodes selected");
+    });
+
+    expect(fakeWorkbench.selectRegion).toHaveBeenCalledWith({
+      xmin: 0,
+      xmax: 5,
+      ymin: 0,
+      ymax: 5,
+    });
+    // Server-aggregated field/value pairs are tabulated.
+    expect(regionSelectionPanel.textContent).toContain("country");
+    expect(regionSelectionPanel.textContent).toContain("Portugal");
+    expect(regionSelectionPanel.textContent).toContain("score");
+    expect(status.textContent).toBe("Region selected: 2 nodes");
+
     shell.unmount();
   });
 });

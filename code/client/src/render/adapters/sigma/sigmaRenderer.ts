@@ -24,8 +24,14 @@ import {
   type SigmaSemanticViewState,
   sigmaCameraToSemanticViewState,
 } from "./sigmaCamera";
+import { SigmaBoxSelectController } from "./sigmaBoxSelectController";
 import { SigmaDragController } from "./sigmaDragController";
 import createSigmaForceMotion from "./sigmaForceMotion";
+import {
+  SIGMA_REGION_DIMMED_EDGE_COLOR,
+  SIGMA_REGION_DIMMED_NODE_COLOR,
+} from "./sigmaRenderingConstants";
+import type { SigmaViewportBounds } from "./graphViewerV2Types";
 import {
   addPositionedEdges,
   addPositionedNode,
@@ -74,12 +80,18 @@ export class SigmaRenderer implements GraphRenderer {
   private piechartOptions: SigmaPiechartOptions;
   private rendererOptions: SigmaRendererOptions;
   private readonly dragController: SigmaDragController;
+  private readonly boxSelectController: SigmaBoxSelectController;
   private readonly forceMotion: ReturnType<typeof createSigmaForceMotion>;
   private graphViewerV2: GraphViewerV2 | null = null;
   private viewChangeHandler: ((state: RenderViewportState) => void) | null =
     null;
   private nodeClickHandler: ((state: RenderNodeClickState) => void) | null =
     null;
+  private regionSelectModeEnabled = false;
+  private regionSelectedHandler:
+    | ((bounds: SigmaViewportBounds) => void)
+    | null = null;
+  private highlightedNodeIds: ReadonlySet<string> | null = null;
   private suppressViewChangesUntil = 0;
   private suppressNodeClicksUntil = 0;
   private lastRenderedGraph: PositionedGraph | null = null;
@@ -105,6 +117,14 @@ export class SigmaRenderer implements GraphRenderer {
       getSigma: () => this.sigma,
       suppressViewChangesFor: (durationMs) =>
         this.suppressViewChangesFor(durationMs),
+      suppressNodeClicksFor: (durationMs) =>
+        this.suppressNodeClicksFor(durationMs),
+    });
+    this.boxSelectController = new SigmaBoxSelectController({
+      getSigma: () => this.sigma,
+      getContainer: () => this.containerElement,
+      isModeEnabled: () => this.regionSelectModeEnabled,
+      onRegionSelected: (bounds) => this.regionSelectedHandler?.(bounds),
       suppressNodeClicksFor: (durationMs) =>
         this.suppressNodeClicksFor(durationMs),
     });
@@ -226,7 +246,9 @@ export class SigmaRenderer implements GraphRenderer {
     this.coordinateBounds = null;
     this.lastRenderedGraph = null;
     this.selectedNodeId = null;
+    this.highlightedNodeIds = null;
     this.dragController.reset();
+    this.boxSelectController.reset();
   }
 
   startGraphV2ViewportSync(options: {
@@ -235,6 +257,7 @@ export class SigmaRenderer implements GraphRenderer {
     layoutVersion?: string | null;
     maxNodes?: number;
     lodTierCount?: number;
+    nodeCount?: number | null;
     getPaused?: () => boolean;
     onViewportLoaded?: (response: GraphV2ViewportResponse) => void;
     onError?: (error: unknown) => void;
@@ -255,6 +278,7 @@ export class SigmaRenderer implements GraphRenderer {
       sigma: this.sigma,
       maxNodes: options.maxNodes,
       lodTierCount: options.lodTierCount,
+      nodeCount: options.nodeCount,
       getPaused: options.getPaused,
       onViewportLoaded: options.onViewportLoaded,
       onError: options.onError,
@@ -271,6 +295,60 @@ export class SigmaRenderer implements GraphRenderer {
 
   refreshGraphV2ViewportSync(): void {
     this.graphViewerV2?.refreshNow();
+  }
+
+  setRegionSelectModeEnabled(enabled: boolean): void {
+    this.regionSelectModeEnabled = enabled;
+  }
+
+  setRegionSelectedHandler(
+    handler: ((bounds: SigmaViewportBounds) => void) | null,
+  ): void {
+    this.regionSelectedHandler = handler;
+  }
+
+  // Dim every node/edge outside `nodeIds` so the selected region stands out.
+  // An empty set or null clears the highlight and repaints at full opacity.
+  setHighlightedNodes(nodeIds: ReadonlySet<string> | null): void {
+    this.highlightedNodeIds =
+      nodeIds && nodeIds.size > 0 ? nodeIds : null;
+    this.applyHighlightReducers();
+    this.sigma?.scheduleRender?.();
+  }
+
+  // Install node/edge reducers that grey out anything outside the active
+  // highlight set. Reinstalled after every Sigma rebuild via bindSigmaHandlers
+  // so the highlight survives piechart-program registration.
+  private applyHighlightReducers(): void {
+    const sigma = this.sigma;
+    if (!sigma) {
+      return;
+    }
+
+    const highlighted = this.highlightedNodeIds;
+    if (!highlighted) {
+      sigma.setSetting("nodeReducer", null);
+      sigma.setSetting("edgeReducer", null);
+      return;
+    }
+
+    sigma.setSetting("nodeReducer", (nodeId, data) =>
+      highlighted.has(nodeId)
+        ? data
+        : { ...data, color: SIGMA_REGION_DIMMED_NODE_COLOR, label: "" },
+    );
+    sigma.setSetting("edgeReducer", (edgeId, data) => {
+      const source = this.graph?.source(edgeId);
+      const target = this.graph?.target(edgeId);
+      const withinRegion =
+        source !== undefined &&
+        target !== undefined &&
+        highlighted.has(source) &&
+        highlighted.has(target);
+      return withinRegion
+        ? data
+        : { ...data, color: SIGMA_REGION_DIMMED_EDGE_COLOR };
+    });
   }
 
   // Register piechart programs for the live LoD graph and flip pie nodes to the
@@ -428,9 +506,12 @@ export class SigmaRenderer implements GraphRenderer {
     this.bindCameraHandler();
     this.bindNodeClickHandler();
     this.dragController.bind();
+    this.boxSelectController.bind();
+    this.applyHighlightReducers();
   }
 
   private unbindSigmaHandlers(): void {
+    this.boxSelectController.unbind();
     this.dragController.unbind();
     this.unbindNodeClickHandler();
     this.unbindCameraHandler();

@@ -58,10 +58,15 @@ export {
 export type { ViewportSyncSettings } from "./graphViewerV2Sync";
 export type { SigmaViewportBounds } from "./graphViewerV2Types";
 
+// GraphViewerV2 only issues viewport reads; region reads are driven from the UI
+// shell, not the LoD sync loop. Depending on just the viewport slice keeps the
+// viewer decoupled and lets lightweight test doubles omit the rest of the API.
+export type GraphViewerV2ClientDependency = Pick<GraphV2Client, "readViewport">;
+
 export interface GraphViewerV2Options {
   datasetId: string;
   layoutVersion?: string | null;
-  client: GraphV2Client;
+  client: GraphViewerV2ClientDependency;
   graph: Graph;
   sigma: SigmaViewportLike;
   debounceMs?: number;
@@ -73,6 +78,11 @@ export interface GraphViewerV2Options {
   // Trees at or below this node count skip semantic zooming: the whole tree is
   // rendered once at LOD 0 and camera movement never re-queries the server.
   smallTreeThreshold?: number;
+  // Prepared node count from the prepare response, known before the first
+  // viewport response. When <= smallTreeThreshold, the initial load requests
+  // the finest tier so a small tree opens as individual nodes rather than the
+  // triangle overview.
+  nodeCount?: number | null;
   // Reports whether LOD refresh is paused. When paused, camera movement must
   // not trigger new server viewport queries; the current node/edge set stays
   // frozen until playback resumes.
@@ -107,13 +117,14 @@ interface ExpandedClusterSnapshot {
 export class GraphViewerV2 {
   private readonly datasetId: string;
   private layoutVersion?: string | null;
-  private readonly client: GraphV2Client;
+  private readonly client: GraphViewerV2ClientDependency;
   private readonly graph: Graph;
   private sigma: SigmaViewportLike;
   private readonly debounceMs: number;
   private readonly maxNodes: number;
   private readonly lodTierCount: number;
   private readonly smallTreeThreshold: number;
+  private readonly preparedNodeCount: number | null;
   private readonly getPaused?: () => boolean;
   private readonly onViewportLoaded?: (
     response: GraphV2ViewportResponse,
@@ -166,6 +177,7 @@ export class GraphViewerV2 {
     this.lodTierCount = Math.max(options.lodTierCount ?? 1, 1);
     this.smallTreeThreshold =
       options.smallTreeThreshold ?? GRAPH_VIEWER_V2_SMALL_TREE_NODE_THRESHOLD;
+    this.preparedNodeCount = options.nodeCount ?? null;
     this.getPaused = options.getPaused;
     this.onViewportLoaded = options.onViewportLoaded;
     this.onError = options.onError;
@@ -244,15 +256,15 @@ export class GraphViewerV2 {
     if (this.getPaused?.()) {
       return;
     }
+    // A small tree is loaded whole at the finest tier on first paint, so there
+    // is nothing further to fetch: freeze it entirely and let the camera pan and
+    // zoom over the fixed geometry without any server round-trips.
+    if (this.isSmallTreeLoaded()) {
+      return;
+    }
     const nextLodLevel = this.currentLodLevel();
     const lodChanged =
       this.loadedInitialViewport && nextLodLevel !== this.lastRequestedLodLevel;
-    // Small trees are loaded whole at LOD 0; suppress re-queries for same-tier
-    // pans but still allow LoD transitions so zooming in reveals individual
-    // nodes instead of leaving the triangle overview frozen on screen.
-    if (!lodChanged && this.isSmallTreeLoaded()) {
-      return;
-    }
     // At LOD 0 the query carries no bounds (a fixed global overview), so a
     // same-tier pan would refetch the identical slice; skip it. At finer tiers
     // the query is bounds-driven, so a pan shifts the visible region and must
@@ -275,6 +287,16 @@ export class GraphViewerV2 {
     );
   }
 
+  // Whether the tree is known (from the prepare response, before the first
+  // viewport load) to fit whole in the client. Drives the finest-tier initial
+  // load so a small tree opens as individual nodes, not the triangle overview.
+  private isKnownSmallTree(): boolean {
+    return (
+      this.preparedNodeCount !== null &&
+      this.preparedNodeCount <= this.smallTreeThreshold
+    );
+  }
+
   private scheduleViewportRefresh(delayMs = this.debounceMs): void {
     if (!this.mounted) {
       return;
@@ -290,12 +312,21 @@ export class GraphViewerV2 {
 
   private async loadViewport(): Promise<void> {
     const sequence = ++this.requestSequence;
+    // A small tree always renders the finest tier whole (all nodes, no cluster
+    // proxies), never the triangle overview. This holds on every load, not just
+    // the first: refreshes triggered by a visual-mapping change, layout-version
+    // change, or LOD-playback resume must keep it frozen at individual nodes
+    // rather than snapping back to the tier-0 overview. isKnownSmallTree covers
+    // the first load (from the prepare node count); isSmallTreeLoaded covers
+    // every subsequent load (from the loaded total_node_count).
+    const finestTier = this.isKnownSmallTree() || this.isSmallTreeLoaded();
     const query = buildGraphV2ViewportQuery({
       datasetId: this.datasetId,
       layoutVersion: this.layoutVersion,
       sigma: this.sigma,
       maxNodes: this.maxNodes,
-      forceGlobal: !this.loadedInitialViewport,
+      forceGlobal: !this.loadedInitialViewport && !finestTier,
+      forceFinestTier: finestTier,
       lodTierCount: this.lodTierCount,
       currentLodLevel: this.lastRequestedLodLevel ?? null,
     });
@@ -312,7 +343,10 @@ export class GraphViewerV2 {
       syncGraphologyViewport(this.graph, response, settings);
       reconcileGraphologyViewport(this.graph, response, settings);
       this.onGraphSynced?.();
-      if (!this.loadedInitialViewport && query.lod_level === 0) {
+      // Fit the camera to the initial load whether it was the global overview
+      // (tier 0) or a small tree's whole finest-tier render, so both frame the
+      // full graph on first paint.
+      if (!this.loadedInitialViewport && (query.lod_level === 0 || finestTier)) {
         this.initialFitTimer = fitSigmaToViewportResponse(this.sigma, response);
       }
       this.loadedInitialViewport = true;

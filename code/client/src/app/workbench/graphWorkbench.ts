@@ -10,6 +10,10 @@ import {
 } from "../../contracts/models";
 import { type PositionedGraph } from "../../contracts/positioned";
 import { buildMetadataIndex } from "../../ancillary/metadataIndex";
+import {
+  buildPieAttributes,
+  isCategoryCountMetadataKey,
+} from "../../render/pieMapping";
 import type {
   GraphRenderer,
   RenderNodeClickState,
@@ -24,10 +28,12 @@ import {
   clearMetadataFilters,
   updateVisualMapping,
 } from "./rendering/graphFilters";
+import type { SigmaViewportBounds } from "../../render/adapters/sigma/graphViewerV2Types";
 import type {
   GraphWorkbench,
   GraphWorkbenchOptions,
   GraphWorkbenchState,
+  RegionSelectionResult,
   RenderNewickOptions,
 } from "./workbenchTypes";
 import {
@@ -151,9 +157,69 @@ export function createGraphWorkbench(
       state.nodeClickedHandler = handler;
     },
 
+    setRegionSelectModeEnabled: (enabled) => {
+      renderer.setRegionSelectModeEnabled?.(enabled);
+    },
+
+    selectRegion: (bounds) =>
+      selectRegion({
+        state,
+        renderer,
+        graphV2Client: options.graphV2Client,
+        bounds,
+      }),
+
+    setRegionSelectedHandler: (handler) => {
+      renderer.setRegionSelectedHandler?.(handler);
+    },
+
+    clearRegionSelection: () => {
+      renderer.setHighlightedNodes?.(null);
+    },
+
     dispose: () => {
       disposeGraphWorkbench(state, renderer);
     },
+  };
+}
+
+interface SelectRegionArgs {
+  state: GraphWorkbenchState;
+  renderer: GraphRenderer;
+  graphV2Client: GraphV2Client;
+  bounds: SigmaViewportBounds;
+}
+
+async function selectRegion({
+  state,
+  renderer,
+  graphV2Client,
+  bounds,
+}: SelectRegionArgs): Promise<RegionSelectionResult> {
+  const session = state.preparedSession;
+
+  if (!session || state.renderMode !== "lod") {
+    throw new Error(ERR_NO_GRAPH_RENDERED);
+  }
+
+  const response = await graphV2Client.readRegion({
+    dataset_id: session.datasetId,
+    layout_version: session.layoutVersion ?? null,
+    xmin: bounds.xmin,
+    xmax: bounds.xmax,
+    ymin: bounds.ymin,
+    ymax: bounds.ymax,
+  });
+
+  const nodeIds = response.nodes.map((node) => node.id);
+  renderer.setHighlightedNodes?.(new Set(nodeIds));
+
+  return {
+    nodeIds,
+    nodeCount: response.total_node_count,
+    truncated: response.truncated,
+    aggregatedMetadata: response.aggregated_metadata,
+    metadataSchema: response.metadata_schema ?? [],
   };
 }
 
@@ -212,6 +278,7 @@ async function renderNewick({
       layoutVersion: preparedGraph.layout_version,
       maxNodes: state.preparedSession.lod.maxNodes,
       lodTierCount: preparedGraph.lod_tier_count,
+      nodeCount: preparedGraph.node_count,
       getPaused: () => state.lodRefreshPaused,
       onViewportLoaded: (response) => {
         updateStateFromGraphV2Viewport(state, response);
@@ -343,8 +410,27 @@ function disposeGraphWorkbench(
   clearPendingViewRefresh(state);
   renderer.setViewChangeHandler?.(null);
   renderer.setNodeClickHandler?.(null);
+  renderer.setRegionSelectedHandler?.(null);
+  renderer.setHighlightedNodes?.(null);
   renderer.stopGraphV2ViewportSync?.();
   renderer.unmount();
+}
+
+// Fields the ancillary wheel should never fold into a distribution: the
+// server's synthetic per-category count keys (they encode the counts we derive
+// pie slices from, not fields in their own right) and generated bookkeeping
+// fields such as profile_count. Enumerating real fields explicitly stops
+// buildPieAttributes' auto path from double-counting the __category_count__
+// keys as standalone numeric slices.
+const GENERATED_METADATA_FIELDS = new Set(["profile_count"]);
+
+function realMetadataFieldKeys(
+  metadata: Record<string, unknown>,
+): string[] {
+  return Object.keys(metadata).filter(
+    (key) =>
+      !isCategoryCountMetadataKey(key) && !GENERATED_METADATA_FIELDS.has(key),
+  );
 }
 
 function updateStateFromGraphV2Viewport(
@@ -352,18 +438,35 @@ function updateStateFromGraphV2Viewport(
   response: GraphV2ViewportResponse,
 ): void {
   const graph: PositionedGraph = {
-    nodes: response.nodes.map((node) => ({
-      id: node.id,
-      x: node.x,
-      y: node.y,
-      size: Math.max(5, Math.log1p(node.member_count) * 2),
-      attributes: {
-        cluster_id: node.cluster_id,
-        is_cluster_proxy: node.is_representative,
-        subtree_size: node.member_count,
-        layout_status: node.layout_status,
-      },
-    })),
+    nodes: response.nodes.map((node) => {
+      const metadata = node.metadata ?? undefined;
+      return {
+        id: node.id,
+        x: node.x,
+        y: node.y,
+        size: Math.max(5, Math.log1p(node.member_count) * 2),
+        attributes: {
+          cluster_id: node.cluster_id,
+          is_cluster_proxy: node.is_representative,
+          subtree_size: node.member_count,
+          layout_status: node.layout_status,
+          // Carry the server's per-node metadata (including the aggregated
+          // __category_count__ keys) plus its derived pie__ slice attributes so
+          // the ancillary distribution wheels can read a node's distribution
+          // directly from the rendered-graph snapshot. Without this, the wheel
+          // builders see no metadata/pie data and report "no ancillary pie
+          // data" even though the Sigma node pie charts render fine (those read
+          // from the separate graphology graph).
+          ...(metadata ? { metadata } : {}),
+          ...(metadata
+            ? buildPieAttributes(metadata, {
+                enabled: true,
+                fields: realMetadataFieldKeys(metadata),
+              })
+            : {}),
+        },
+      };
+    }),
     edges: response.edges.map((edge) => ({
       id: edge.id,
       source: edge.source,

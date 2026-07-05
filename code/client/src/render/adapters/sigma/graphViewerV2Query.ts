@@ -40,6 +40,7 @@ export function buildGraphV2ViewportQuery({
   sigma,
   maxNodes,
   forceGlobal = false,
+  forceFinestTier = false,
   lodTierCount = 1,
   currentLodLevel = null,
 }: {
@@ -48,6 +49,11 @@ export function buildGraphV2ViewportQuery({
   sigma: SigmaViewportLike;
   maxNodes: number;
   forceGlobal?: boolean;
+  // Request the finest precomputed tier (all individual nodes, no cluster
+  // representatives) with no bounds. Used for the initial load of a small tree
+  // that fits whole in the client, so it opens as ordinary nodes rather than
+  // the triangle overview. Takes precedence over forceGlobal.
+  forceFinestTier?: boolean;
   // Number of precomputed LoD tiers reported by the prepare response. With a
   // value of 1 the mapping always resolves to tier 0 (current behavior).
   lodTierCount?: number;
@@ -57,15 +63,20 @@ export function buildGraphV2ViewportQuery({
 }): GraphV2ViewportQuery {
   const ratio = sigmaCameraRatio(sigma.getCamera());
   const viewportBounds = sigmaViewportBounds(sigma);
-  const lodLevel = forceGlobal
-    ? 0
-    : semanticLodLevelForCameraRatioWithHysteresis(
-        ratio,
-        lodTierCount,
-        currentLodLevel,
-      );
+  const lodLevel = forceFinestTier
+    ? Math.max(lodTierCount - 1, 0)
+    : forceGlobal
+      ? 0
+      : semanticLodLevelForCameraRatioWithHysteresis(
+          ratio,
+          lodTierCount,
+          currentLodLevel,
+        );
+  // A finest-tier small-tree load reads the whole tree unbounded (it fits in
+  // the client), and tier 0 is always the fixed global overview; both carry no
+  // bounds. Finer tiers are viewport-bounded so panning reveals new regions.
   const bounds =
-    lodLevel === 0
+    forceFinestTier || lodLevel === 0
       ? null
       : expandViewportBounds(
           viewportBounds,

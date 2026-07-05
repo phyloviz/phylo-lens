@@ -52,6 +52,7 @@ ROUTER_TAG = "graph-v2"
 ROUTE_PREPARE = "/prepare"
 ROUTE_PREPARE_STATUS = "/prepare/{job_id}"
 ROUTE_VIEWPORT = "/viewport"
+ROUTE_REGION = "/region"
 
 ENV_PREPARED_LAYOUT_STORE_DIR = "PHYLO_LENS_PREPARED_LAYOUT_STORE_DIR"
 DEFAULT_PREPARED_LAYOUT_STORE_DIR = Path(gettempdir()) / "phylo_lens_prepared_layout"
@@ -194,6 +195,42 @@ class GraphViewportResponse(BaseModel):
     nodes: list[GraphViewportNode]
     edges: list[GraphViewportEdge]
     metadata_schema: list[GraphMetadataField] = Field(default_factory=list)
+
+
+class GraphRegionQuery(BaseModel):
+    dataset_id: str = Field(min_length=1)
+    layout_version: str | None = None
+    xmin: float
+    xmax: float
+    ymin: float
+    ymax: float
+    max_nodes: int = Field(
+        default=DEFAULT_MAX_VIEWPORT_NODES,
+        ge=1,
+        le=HARD_MAX_VIEWPORT_NODES,
+    )
+
+    @model_validator(mode="after")
+    def validate_bounds(self) -> GraphRegionQuery:
+        if self.xmax < self.xmin:
+            raise ValueError("xmax must be greater than or equal to xmin.")
+        if self.ymax < self.ymin:
+            raise ValueError("ymax must be greater than or equal to ymin.")
+        return self
+
+
+class GraphRegionResponse(BaseModel):
+    dataset_id: str
+    layout_version: str
+    layout_status: LayoutStatus
+    truncated: bool
+    total_node_count: int
+    nodes: list[GraphViewportNode]
+    edges: list[GraphViewportEdge]
+    metadata_schema: list[GraphMetadataField] = Field(default_factory=list)
+    aggregated_metadata: dict[str, str | float | bool | None] = Field(
+        default_factory=dict
+    )
 
 
 @lru_cache(maxsize=1)
@@ -408,6 +445,77 @@ def read_graph_viewport(
             serialize_ms,
         )
         return response
+    except HTTPException:
+        raise
+    except Exception as exc:  # pragma: no cover
+        raise unexpected_server_error(exc) from exc
+
+
+@router.post(
+    ROUTE_REGION,
+    response_model=GraphRegionResponse,
+    response_model_exclude_none=True,
+)
+def read_graph_region(
+    query: GraphRegionQuery,
+    store: PreparedLayoutStore = Depends(get_prepared_layout_store),
+) -> GraphRegionResponse:
+    """Read an isolated subgraph for a hand-drawn selection box."""
+    try:
+        layout_version = query.layout_version or store.latest_layout_version(
+            query.dataset_id
+        )
+        if layout_version is None:
+            raise not_found_error(
+                f"Prepared layout for dataset '{query.dataset_id}' was not found."
+            )
+
+        result = store.read_region(
+            dataset_id=query.dataset_id,
+            layout_version=layout_version,
+            xmin=query.xmin,
+            xmax=query.xmax,
+            ymin=query.ymin,
+            ymax=query.ymax,
+            max_nodes=query.max_nodes,
+        )
+
+        return GraphRegionResponse(
+            dataset_id=result.dataset_id,
+            layout_version=result.layout_version,
+            layout_status=result.layout_status,
+            truncated=result.truncated,
+            total_node_count=result.total_node_count,
+            nodes=[
+                GraphViewportNode(
+                    id=node.node_id,
+                    cluster_id=node.cluster_id,
+                    x=node.x,
+                    y=node.y,
+                    layout_status=node.layout_status,
+                    member_count=node.member_count,
+                    is_representative=node.is_representative,
+                    metadata=node.metadata,
+                )
+                for node in result.nodes
+            ],
+            edges=[
+                GraphViewportEdge(
+                    id=edge.edge_id,
+                    source=edge.source,
+                    target=edge.target,
+                    distance=edge.distance,
+                    is_meta=edge.is_meta,
+                    bundled_edge_count=edge.bundled_edge_count,
+                )
+                for edge in result.edges
+            ],
+            metadata_schema=[
+                GraphMetadataField(key=field.key, type=field.type)
+                for field in result.metadata_schema
+            ],
+            aggregated_metadata=result.aggregated_metadata,
+        )
     except HTTPException:
         raise
     except Exception as exc:  # pragma: no cover

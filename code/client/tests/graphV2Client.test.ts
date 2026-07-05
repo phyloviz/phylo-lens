@@ -1,6 +1,7 @@
 import {
   createGraphV2Client,
   ERR_GRAPH_V2_PREPARE_FAILED,
+  isGraphV2RegionResponse,
   ERR_INVALID_GRAPH_V2_PREPARE_JOB,
   ERR_INVALID_GRAPH_V2_VIEWPORT_RESPONSE,
   isGraphV2PrepareResponse,
@@ -54,6 +55,27 @@ const PREPARE_FIXTURE = {
   warnings: [],
 } satisfies unknown;
 
+const REGION_FIXTURE = {
+  dataset_id: "tree",
+  layout_version: "abc123",
+  layout_status: "ready",
+  truncated: false,
+  total_node_count: 2,
+  nodes: [
+    {
+      id: "a",
+      cluster_id: "a",
+      x: 1,
+      y: 2,
+      layout_status: "ready",
+      member_count: 1,
+      is_representative: false,
+    },
+  ],
+  edges: [],
+  aggregated_metadata: { region: "north", score: 16 },
+} satisfies unknown;
+
 function makeJsonResponse(payload: unknown, status = 200): Response {
   return new Response(JSON.stringify(payload), {
     status,
@@ -71,6 +93,25 @@ describe("graphV2Client", () => {
   it("validates viewport responses", () => {
     expect(isGraphV2ViewportResponse(VIEWPORT_FIXTURE)).toBe(true);
     expect(isGraphV2ViewportResponse({ ...VIEWPORT_FIXTURE, nodes: [{}] })).toBe(
+      false,
+    );
+  });
+
+  it("validates region responses", () => {
+    expect(isGraphV2RegionResponse(REGION_FIXTURE)).toBe(true);
+    // metadata_schema is optional; aggregated_metadata is required.
+    const withoutAggregate = { ...REGION_FIXTURE } as Record<string, unknown>;
+    delete withoutAggregate.aggregated_metadata;
+    expect(isGraphV2RegionResponse(withoutAggregate)).toBe(false);
+    // Non-scalar aggregate values are rejected.
+    expect(
+      isGraphV2RegionResponse({
+        ...REGION_FIXTURE,
+        aggregated_metadata: { region: { nested: true } },
+      }),
+    ).toBe(false);
+    // Malformed nodes are rejected.
+    expect(isGraphV2RegionResponse({ ...REGION_FIXTURE, nodes: [{}] })).toBe(
       false,
     );
   });

@@ -15,6 +15,7 @@ from phylo_lens_server.prepared_layout.models import (
     NodeLayoutPosition,
     PreparedLayoutArtifacts,
     PreparedEdge,
+    RegionReadResult,
     ViewportEdge,
     ViewportNode,
     ViewportReadResult,
@@ -754,6 +755,75 @@ class PreparedLayoutStore:
             truncated=total_node_count > len(nodes),
             layout_status=layout_status,
             metadata_schema=metadata_schema,
+        )
+
+    def read_region(
+        self,
+        *,
+        dataset_id: str,
+        layout_version: str,
+        xmin: float,
+        xmax: float,
+        ymin: float,
+        ymax: float,
+        max_nodes: int,
+    ) -> RegionReadResult:
+        """Read an isolated subgraph for a hand-drawn selection box.
+
+        Unlike :meth:`read_viewport`, this returns only the nodes whose layout
+        coordinates fall strictly inside the box and only the edges whose *both*
+        endpoints are inside it (an internal-only subgraph, no boundary edges),
+        plus one aggregated metadata value per field across the selected
+        members. It is the source of the region-selection stats panel.
+        """
+        with self._connect() as connection:
+            ready_nodes, total_node_count = self._read_ready_nodes(
+                connection,
+                dataset_id=dataset_id,
+                layout_version=layout_version,
+                xmin=xmin,
+                xmax=xmax,
+                ymin=ymin,
+                ymax=ymax,
+                max_nodes=max_nodes,
+            )
+            nodes: tuple[ViewportNode, ...] = tuple(ready_nodes)
+            node_ids = {node.node_id for node in nodes}
+            edges = self._read_edges_for_nodes(
+                connection,
+                dataset_id=dataset_id,
+                layout_version=layout_version,
+                node_ids=node_ids,
+            )
+            nodes = self._attach_node_metadata(
+                connection,
+                dataset_id=dataset_id,
+                layout_version=layout_version,
+                nodes=nodes,
+            )
+            metadata_schema = self._load_metadata_schema(
+                connection,
+                dataset_id=dataset_id,
+                layout_version=layout_version,
+            )
+
+        aggregated_metadata = aggregate_cluster_metadata(
+            [node.metadata or {} for node in nodes],
+            tuple((field.key, field.type) for field in metadata_schema),
+        )
+        layout_status = aggregate_layout_status(
+            {node.layout_status for node in nodes}
+        )
+        return RegionReadResult(
+            dataset_id=dataset_id,
+            layout_version=layout_version,
+            nodes=nodes,
+            edges=tuple(edges),
+            total_node_count=total_node_count,
+            truncated=total_node_count > len(nodes),
+            layout_status=layout_status,
+            metadata_schema=metadata_schema,
+            aggregated_metadata=aggregated_metadata,
         )
 
     def _attach_node_metadata(

@@ -217,6 +217,58 @@ describe("sigmaRenderer", () => {
     renderer.unmount();
   });
 
+  it("dims non-highlighted nodes/edges via reducers and clears them", () => {
+    document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
+
+    const renderer = new SigmaRenderer();
+    renderer.mount({ containerId: CONTAINER_ID });
+    renderer.render({
+      nodes: [
+        { id: "a", x: 0, y: 0 },
+        { id: "b", x: 10, y: 10 },
+        { id: "c", x: 20, y: 20 },
+      ],
+      edges: [
+        { id: "e_a_b", source: "a", target: "b" },
+        { id: "e_b_c", source: "b", target: "c" },
+      ],
+      viewMeta: { layout: "server", lodLevel: 0 },
+    });
+
+    renderer.setHighlightedNodes(new Set(["a", "b"]));
+
+    const nodeReducer = lastSigmaOptions?.nodeReducer as
+      | ((id: string, data: Record<string, unknown>) => Record<string, unknown>)
+      | undefined;
+    const edgeReducer = lastSigmaOptions?.edgeReducer as
+      | ((id: string, data: Record<string, unknown>) => Record<string, unknown>)
+      | undefined;
+    expect(typeof nodeReducer).toBe("function");
+    // Highlighted node is untouched; outside node is dimmed and delabeled.
+    expect(nodeReducer?.("a", { color: "#111", label: "a" })).toMatchObject({
+      color: "#111",
+      label: "a",
+    });
+    expect(nodeReducer?.("c", { color: "#111", label: "c" })).toMatchObject({
+      color: "#cbd5e1",
+      label: "",
+    });
+    // Internal edge stays; boundary edge (b-c) is dimmed.
+    expect(edgeReducer?.("e_a_b", { color: "#111" })).toMatchObject({
+      color: "#111",
+    });
+    expect(edgeReducer?.("e_b_c", { color: "#111" })).toMatchObject({
+      color: "#e2e8f0",
+    });
+
+    // Clearing removes the reducers.
+    renderer.setHighlightedNodes(null);
+    expect(lastSigmaOptions?.nodeReducer).toBeNull();
+    expect(lastSigmaOptions?.edgeReducer).toBeNull();
+
+    renderer.unmount();
+  });
+
   it("runs live force motion for complete client layouts only", () => {
     document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
 

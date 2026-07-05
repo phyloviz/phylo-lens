@@ -13,9 +13,9 @@ import {
   type MetadataFilterState,
 } from "../../../ancillary/filterEngine";
 import {
+  buildValueColorMap,
   DEFAULT_COLOR_PALETTE,
   DEFAULT_SIZE_FIELD,
-  deriveColor,
   deriveSize,
   resolveColorField,
   SIZE_SCALE_LINEAR,
@@ -62,6 +62,10 @@ interface ResolvedViewportVisuals {
   sizeField: string;
   scale: SizeScale;
   palette: string[];
+  // Frequency-ranked value -> colour resolver for colorField, built once over
+  // all viewport nodes so every node fill (and the pies/wheels that mirror it)
+  // share the same assignment. The most common value takes palette[0].
+  colorForValue: (value: string | number | boolean | null | undefined) => string;
   numericStats?: { min: number; max: number };
   // Present only when an explicit pie mapping is active for this viewport.
   pie?: PieMappingOptions;
@@ -164,11 +168,25 @@ function resolveViewportVisuals(
   const scale = mapping.size?.scale ?? SIZE_SCALE_LINEAR;
   const palette = mapping.palette ?? DEFAULT_COLOR_PALETTE;
   const numericStats = computeSizeFieldStats(nodes, sizeField);
+  // Rank the colour field's values across the whole viewport once so node fills
+  // are distinct and stable, and pies/wheels can mirror the exact same mapping.
+  const colorForValue = buildValueColorMap(
+    nodes.map((node) => node.metadata?.[colorField]),
+    palette,
+  );
   // Pie is opt-in under LoD: only when an explicit, enabled pie mapping is set.
   const pie =
     mapping.pie && mapping.pie.enabled !== false ? mapping.pie : undefined;
 
-  return { colorField, sizeField, scale, palette, numericStats, pie };
+  return {
+    colorField,
+    sizeField,
+    scale,
+    palette,
+    colorForValue,
+    numericStats,
+    pie,
+  };
 }
 
 // Compute min/max for the active size field across the current viewport nodes.
@@ -316,13 +334,21 @@ function graphNodeAttributes(
   const isRepresentative = node.is_representative || node.member_count > 1;
   const metadata = node.metadata ?? undefined;
   // Color precedence: an active metadata visual mapping is an explicit user
-  // choice and wins; otherwise representatives keep their distinct triangle
-  // tone; otherwise leaf/member nodes fall back to their PHYLOViZ role color.
-  const color = visuals
-    ? deriveColor(metadata?.[visuals.colorField], visuals.palette)
-    : isRepresentative
-      ? GRAPH_VIEWER_V2_REPRESENTATIVE_COLOR
-      : deriveViewportNodeColor(node);
+  // choice and wins WHEN the node actually has a value for the colour field;
+  // otherwise (no mapping, or the node has no value for the mapped field)
+  // representatives keep their distinct triangle tone and leaf/member nodes
+  // fall back to their PHYLOViZ role color. This keeps "no data" nodes on their
+  // role colour instead of a palette slot they don't belong to.
+  const mappedValue = visuals ? metadata?.[visuals.colorField] : undefined;
+  const hasMappedValue =
+    mappedValue !== undefined && mappedValue !== null && mappedValue !== "";
+  const roleColor = isRepresentative
+    ? GRAPH_VIEWER_V2_REPRESENTATIVE_COLOR
+    : deriveViewportNodeColor(node);
+  const color =
+    visuals && hasMappedValue
+      ? visuals.colorForValue(mappedValue)
+      : roleColor;
   const size =
     visuals && visuals.numericStats
       ? deriveSize(metadata?.[visuals.sizeField], visuals.numericStats, visuals.scale)

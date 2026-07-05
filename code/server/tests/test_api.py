@@ -20,6 +20,7 @@ EXPECTED_LAYOUT_STATUS = "ready" if SFDP_AVAILABLE else "degraded"
 ROUTE_HEALTH = "/health"
 ROUTE_GRAPH_V2_PREPARE = "/api/v2/graph/prepare"
 ROUTE_GRAPH_V2_VIEWPORT = "/api/v2/graph/viewport"
+ROUTE_GRAPH_V2_REGION = "/api/v2/graph/region"
 
 STATUS_OK = 200
 STATUS_ACCEPTED = 202
@@ -237,6 +238,56 @@ def test_graph_v2_viewport_applies_density_cap(
     for edge in body["edges"]:
         assert edge["source"] in returned_ids
         assert edge["target"] in returned_ids
+
+
+def test_graph_v2_region_returns_internal_subgraph_and_aggregate(
+    client,
+    prepared_layout_store,
+) -> None:
+    dataset = normalize_weighted_api_tree()
+    result = PreparedLayoutWorker(prepared_layout_store).prepare_dataset(dataset)
+    app.dependency_overrides[get_prepared_layout_store] = lambda: prepared_layout_store
+    xs = [position.x for position in result.node_positions]
+    ys = [position.y for position in result.node_positions]
+
+    response = client.post(
+        ROUTE_GRAPH_V2_REGION,
+        json={
+            "dataset_id": DATASET_API_TREE,
+            "layout_version": result.artifacts.layout_version,
+            "xmin": min(xs) - 1,
+            "xmax": max(xs) + 1,
+            "ymin": min(ys) - 1,
+            "ymax": max(ys) + 1,
+            "max_nodes": 50,
+        },
+    )
+    body = response.json()
+
+    assert response.status_code == STATUS_OK
+    returned_ids = {node["id"] for node in body["nodes"]}
+    assert returned_ids
+    # A region is an isolated subgraph: every returned edge has both endpoints
+    # inside the selection (no boundary edges, no surfaced off-screen neighbors).
+    for edge in body["edges"]:
+        assert edge["source"] in returned_ids
+        assert edge["target"] in returned_ids
+    assert "aggregated_metadata" in body
+
+
+def test_graph_v2_region_rejects_unknown_prepared_layout(client) -> None:
+    response = client.post(
+        ROUTE_GRAPH_V2_REGION,
+        json={
+            "dataset_id": DATASET_UNKNOWN,
+            "xmin": 0,
+            "xmax": 1,
+            "ymin": 0,
+            "ymax": 1,
+        },
+    )
+
+    assert response.status_code == STATUS_NOT_FOUND
 
 
 def test_graph_v2_viewport_lod_one_reads_real_nodes(

@@ -13,12 +13,14 @@ import { createHttpClient, type HttpClient } from "./httpClient";
 
 export const ROUTE_GRAPH_V2_PREPARE = "/api/v2/graph/prepare";
 export const ROUTE_GRAPH_V2_VIEWPORT = "/api/v2/graph/viewport";
+export const ROUTE_GRAPH_V2_REGION = "/api/v2/graph/region";
 export const ERR_INVALID_GRAPH_V2_PREPARE_RESPONSE = "Invalid graph v2 prepare response contract.";
 export const ERR_INVALID_GRAPH_V2_PREPARE_JOB = "Invalid graph v2 prepare job contract.";
 export const ERR_INVALID_GRAPH_V2_PREPARE_STATUS = "Invalid graph v2 prepare status contract.";
 export const ERR_GRAPH_V2_PREPARE_FAILED = "Graph v2 layout preparation failed.";
 export const ERR_GRAPH_V2_PREPARE_TIMED_OUT = "Graph v2 layout preparation did not complete in time.";
 export const ERR_INVALID_GRAPH_V2_VIEWPORT_RESPONSE = "Invalid graph v2 viewport response contract.";
+export const ERR_INVALID_GRAPH_V2_REGION_RESPONSE = "Invalid graph v2 region response contract.";
 
 // Layout runs on a background worker, so /prepare returns a job the client polls
 // at /prepare/{job_id} until it is ready. These govern the polling cadence and
@@ -131,6 +133,30 @@ export interface GraphV2ViewportResponse {
   metadata_schema?: GraphV2MetadataField[];
 }
 
+export interface GraphV2RegionQuery {
+  dataset_id: string;
+  layout_version?: string | null;
+  xmin: number;
+  xmax: number;
+  ymin: number;
+  ymax: number;
+  max_nodes?: number;
+}
+
+export interface GraphV2RegionResponse {
+  dataset_id: string;
+  layout_version: string;
+  layout_status: GraphV2LayoutStatus;
+  truncated: boolean;
+  total_node_count: number;
+  nodes: GraphV2ViewportNode[];
+  edges: GraphV2ViewportEdge[];
+  metadata_schema?: GraphV2MetadataField[];
+  // One aggregated value per metadata field across the selected members
+  // (mean for numeric fields, mode for everything else).
+  aggregated_metadata: Record<string, GraphV2MetadataValue>;
+}
+
 export interface PrepareGraphOptions {
   // Notified on each poll while the background layout job is still pending, so a
   // caller can drive a progress indicator. Fired once per poll attempt.
@@ -152,6 +178,7 @@ export interface GraphV2Client {
     options?: PrepareGraphOptions,
   ) => Promise<GraphV2PrepareResponse>;
   readViewport: (query: GraphV2ViewportQuery,) => Promise<GraphV2ViewportResponse>;
+  readRegion: (query: GraphV2RegionQuery) => Promise<GraphV2RegionResponse>;
 }
 
 export function createGraphV2Client(options: GraphV2ClientOptions): GraphV2Client {
@@ -167,6 +194,7 @@ export function createGraphV2ClientFromHttp(http: HttpClient): GraphV2Client {
   return {
     prepareGraph: (request, options) => prepareGraphV2(http, request, options),
     readViewport: (query) => readGraphV2Viewport(http, query),
+    readRegion: (query) => readGraphV2Region(http, query),
   };
 }
 
@@ -265,6 +293,22 @@ export async function readGraphV2Viewport(
   return response;
 }
 
+export async function readGraphV2Region(
+  http: HttpClient,
+  query: GraphV2RegionQuery,
+): Promise<GraphV2RegionResponse> {
+  const response = await http.post<GraphV2RegionQuery, unknown>(
+    ROUTE_GRAPH_V2_REGION,
+    query,
+  );
+
+  if (!isGraphV2RegionResponse(response)) {
+    throw new Error(ERR_INVALID_GRAPH_V2_REGION_RESPONSE);
+  }
+
+  return response;
+}
+
 export function isGraphV2PrepareResponse(
   value: unknown,
 ): value is GraphV2PrepareResponse {
@@ -328,6 +372,29 @@ export function isGraphV2ViewportResponse(
     isArrayOf(value.edges, isGraphV2ViewportEdge) &&
     isOptionalGraphV2MetadataSchema(value.metadata_schema)
   );
+}
+
+export function isGraphV2RegionResponse(
+  value: unknown,
+): value is GraphV2RegionResponse {
+  return (
+    isRecord(value) &&
+    isString(value.dataset_id) &&
+    isString(value.layout_version) &&
+    isGraphV2LayoutStatus(value.layout_status) &&
+    isBoolean(value.truncated) &&
+    isFiniteNumber(value.total_node_count) &&
+    isArrayOf(value.nodes, isGraphV2ViewportNode) &&
+    isArrayOf(value.edges, isGraphV2ViewportEdge) &&
+    isOptionalGraphV2MetadataSchema(value.metadata_schema) &&
+    isGraphV2AggregatedMetadata(value.aggregated_metadata)
+  );
+}
+
+function isGraphV2AggregatedMetadata(
+  value: unknown,
+): value is Record<string, GraphV2MetadataValue> {
+  return isRecord(value) && Object.values(value).every(isGraphV2MetadataValue);
 }
 
 function isGraphV2ViewportNode(value: unknown): value is GraphV2ViewportNode {

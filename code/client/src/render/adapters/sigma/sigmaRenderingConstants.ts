@@ -18,6 +18,11 @@ export const PHYLOVIZ_NODE_COMMON_COLOR = "#93c5fd";
 export const PHYLOVIZ_NODE_SELECTED_COLOR = "#dc2626";
 export const PHYLOVIZ_NODE_SELECTED_BORDER_COLOR = "#ffffff";
 
+// Nodes outside an active region selection are dimmed to this muted grey so the
+// selected set reads as highlighted without recoloring the selected nodes.
+export const SIGMA_REGION_DIMMED_NODE_COLOR = "#cbd5e1";
+export const SIGMA_REGION_DIMMED_EDGE_COLOR = "#e2e8f0";
+
 export const SIGMA_DEFAULT_LABEL_COLOR = "#0f172a";
 export const SIGMA_DEFAULT_LABEL_SIZE = 13;
 export const SIGMA_DEFAULT_LABEL_DENSITY = 0.9;

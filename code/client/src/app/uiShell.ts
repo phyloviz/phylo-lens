@@ -60,6 +60,8 @@ import {
   renderSearchResults,
   type SearchResultItem,
 } from "./shell/search/searchResultsView";
+import { renderRegionPanel } from "./shell/region/regionPanelView";
+import type { SigmaViewportBounds } from "../render/adapters/sigma/graphViewerV2Types";
 
 export { STATUS_RENDERED_PREFIX } from "./shell/status/renderedStatus";
 export { ERR_INVALID_ANCILLARY_JSON } from "./shell/inputs/ancillaryPayload";
@@ -69,6 +71,14 @@ export const STATUS_RENDERING_PREFIX = "Rendering";
 export const STATUS_FAILED_PREFIX = "Failed";
 export const CATEGORY_COLOR_INPUT_SELECTOR = "[data-category-color]";
 export const CATEGORY_COLOR_SAVE_FILENAME = "phyloviz-category-colors.txt";
+export const SELECTED_NODE_WHEEL_EMPTY_MESSAGE =
+  "Click a node to view its ancillary distribution.";
+// PHYLOViZ charts a field only after the user selects a column: absent a
+// chosen pie field there is no distribution to show, so both wheels prompt for
+// a field rather than folding every metadata column (including coordinates and
+// identifiers) into a single meaningless chart.
+export const SELECT_PIE_FIELD_MESSAGE =
+  "Select a metadata field to view its ancillary distribution.";
 
 export {
   ANCILLARY_MODE_GLOBAL,
@@ -99,6 +109,7 @@ export interface UiShellElements {
   ancillaryFormatSelect?: HTMLSelectElement;
   status: HTMLElement;
   ancillaryWheelContainer?: HTMLElement;
+  ancillarySelectedNodeWheelContainer?: HTMLElement;
   ancillaryModeSelect?: HTMLSelectElement;
   ancillaryNodeSelect?: HTMLSelectElement;
   metadataPieFieldSelect?: HTMLSelectElement;
@@ -116,6 +127,8 @@ export interface UiShellElements {
   searchInput?: HTMLInputElement;
   searchButton?: HTMLButtonElement;
   searchResults?: HTMLElement;
+  regionSelectToggle?: HTMLButtonElement;
+  regionSelectionPanel?: HTMLElement;
 }
 
 export interface UiShellOptions {
@@ -136,6 +149,7 @@ export class UiShellController {
   private readonly ancillaryFormatSelect?: HTMLSelectElement;
   private readonly statusElement: HTMLElement;
   private readonly ancillaryWheelContainer?: HTMLElement;
+  private readonly ancillarySelectedNodeWheelContainer?: HTMLElement;
   private readonly ancillaryModeSelect?: HTMLSelectElement;
   private readonly ancillaryNodeSelect?: HTMLSelectElement;
   private readonly metadataPieFieldSelect?: HTMLSelectElement;
@@ -153,7 +167,10 @@ export class UiShellController {
   private readonly searchInput?: HTMLInputElement;
   private readonly searchButton?: HTMLButtonElement;
   private readonly searchResults?: HTMLElement;
+  private readonly regionSelectToggle?: HTMLButtonElement;
+  private readonly regionSelectionPanel?: HTMLElement;
 
+  private regionSelectModeEnabled = false;
   private lastRenderedGraph: PositionedGraph | null = null;
   private baseVisualMapping: VisualMappingOptions = {};
   private currentVisualMapping: VisualMappingOptions = {};
@@ -178,6 +195,9 @@ export class UiShellController {
   private boundLodPlayClick: (() => void) | null = null;
   private boundLodPauseClick: (() => void) | null = null;
   private boundSearchClick: (() => void) | null = null;
+  private boundRegionToggleClick: (() => void) | null = null;
+  private boundRegionSelected: ((bounds: SigmaViewportBounds) => void) | null =
+    null;
 
   constructor(options: UiShellOptions) {
     this.workbench = options.workbench;
@@ -191,6 +211,8 @@ export class UiShellController {
     this.ancillaryFormatSelect = options.elements.ancillaryFormatSelect;
     this.statusElement = options.elements.status;
     this.ancillaryWheelContainer = options.elements.ancillaryWheelContainer;
+    this.ancillarySelectedNodeWheelContainer =
+      options.elements.ancillarySelectedNodeWheelContainer;
     this.ancillaryModeSelect = options.elements.ancillaryModeSelect;
     this.ancillaryNodeSelect = options.elements.ancillaryNodeSelect;
     this.metadataPieFieldSelect = options.elements.metadataPieFieldSelect;
@@ -208,6 +230,8 @@ export class UiShellController {
     this.searchInput = options.elements.searchInput;
     this.searchButton = options.elements.searchButton;
     this.searchResults = options.elements.searchResults;
+    this.regionSelectToggle = options.elements.regionSelectToggle;
+    this.regionSelectionPanel = options.elements.regionSelectionPanel;
 
     if (!this.form) {
       throw new Error(ERR_RENDER_FORM_REQUIRED);
@@ -234,6 +258,13 @@ export class UiShellController {
     this.workbench.setNodeClickedHandler(this.boundGraphNodeClick);
     if (this.ancillaryWheelContainer) {
       renderAncillaryWheel(this.ancillaryWheelContainer, null);
+    }
+    if (this.ancillarySelectedNodeWheelContainer) {
+      renderAncillaryWheel(
+        this.ancillarySelectedNodeWheelContainer,
+        null,
+        SELECTED_NODE_WHEEL_EMPTY_MESSAGE,
+      );
     }
     this.renderCategoryColorControls();
 
@@ -340,6 +371,23 @@ export class UiShellController {
       void this.searchCurrentDataset();
     };
     this.searchButton?.addEventListener("click", this.boundSearchClick);
+
+    this.boundRegionToggleClick = () => {
+      this.toggleRegionSelectMode();
+    };
+    this.regionSelectToggle?.addEventListener(
+      "click",
+      this.boundRegionToggleClick,
+    );
+    this.boundRegionSelected = (bounds) => {
+      void this.handleRegionSelected(bounds);
+    };
+    this.workbench.setRegionSelectedHandler(this.boundRegionSelected);
+    if (this.regionSelectionPanel) {
+      renderRegionPanel(this.regionSelectionPanel, null);
+    }
+    this.updateRegionToggleLabel();
+
     this.updateNodeSelectionVisibility();
     this.updateMetadataPieFieldOptions(null);
     this.updateLodPlaybackControls(false);
@@ -515,9 +563,19 @@ export class UiShellController {
       this.boundSearchClick = null;
     }
 
+    if (this.boundRegionToggleClick) {
+      this.regionSelectToggle?.removeEventListener(
+        "click",
+        this.boundRegionToggleClick,
+      );
+      this.boundRegionToggleClick = null;
+    }
+
     this.workbench.setGraphRenderedHandler(null);
     this.workbench.setNodeClickedHandler(null);
+    this.workbench.setRegionSelectedHandler(null);
     this.boundGraphNodeClick = null;
+    this.boundRegionSelected = null;
     this.workbench.dispose();
   }
 
@@ -551,7 +609,7 @@ export class UiShellController {
       renderAncillaryWheel(
         this.ancillaryWheelContainer,
         this.buildSelectedWheelStats(new Set([selectedId])),
-        `Node '${selectedId}' has no ancillary pie data.`,
+        this.ancillaryWheelEmptyMessage(`Node '${selectedId}'`),
       );
       return;
     }
@@ -560,16 +618,14 @@ export class UiShellController {
     renderAncillaryWheel(
       this.ancillaryWheelContainer,
       this.buildSelectedWheelStats(),
+      this.ancillaryWheelEmptyMessage(),
     );
   }
 
+  // Render a clicked node's ancillary distribution into the dedicated
+  // selected-node panel, leaving the primary overview wheel untouched.
   private handleGraphNodeClick(nodeId: string): void {
-    if (
-      !this.lastRenderedGraph ||
-      !this.ancillaryWheelContainer ||
-      !this.ancillaryModeSelect ||
-      !this.ancillaryNodeSelect
-    ) {
+    if (!this.lastRenderedGraph || !this.ancillarySelectedNodeWheelContainer) {
       return;
     }
 
@@ -580,16 +636,23 @@ export class UiShellController {
       return;
     }
 
-    const stats = this.buildSelectedWheelStats(new Set([nodeId]));
-    if (!stats) {
-      return;
-    }
+    renderAncillaryWheel(
+      this.ancillarySelectedNodeWheelContainer,
+      this.buildSelectedWheelStats(new Set([nodeId])),
+      this.ancillaryWheelEmptyMessage(`Node '${nodeId}'`),
+    );
+  }
 
-    this.ancillaryModeSelect.value = ANCILLARY_MODE_SELECTED;
-    updateNodeSelector(this.ancillaryNodeSelect, this.lastRenderedGraph);
-    this.ancillaryNodeSelect.value = nodeId;
-    this.updateNodeSelectionVisibility();
-    renderAncillaryWheel(this.ancillaryWheelContainer, stats);
+  // Empty-state message for a wheel: prompt for a field when none is selected
+  // (PHYLOViZ is field-selection driven), otherwise report that the target
+  // carries no data for the chosen field(s).
+  private ancillaryWheelEmptyMessage(subject?: string): string {
+    if (getSelectedOptions(this.metadataPieFieldSelect).length === 0) {
+      return SELECT_PIE_FIELD_MESSAGE;
+    }
+    return subject
+      ? `${subject} has no ancillary pie data.`
+      : "No ancillary pie data detected.";
   }
 
   private handleGraphRendered(graph: PositionedGraph): void {
@@ -606,6 +669,29 @@ export class UiShellController {
     this.updateNodeSelectionVisibility();
     this.updateLodPlaybackControls(isLodGraph(graph));
     this.renderAncillaryStats();
+    this.resetSelectedNodeWheel();
+    this.resetRegionSelection();
+  }
+
+  // Clear any active region highlight/panel on re-render (a new dataset or slice
+  // invalidates the previously selected node ids).
+  private resetRegionSelection(): void {
+    this.workbench.clearRegionSelection();
+    if (this.regionSelectionPanel) {
+      renderRegionPanel(this.regionSelectionPanel, null);
+    }
+  }
+
+  // Return the selected-node panel to its empty prompt (e.g. on re-render).
+  private resetSelectedNodeWheel(): void {
+    if (!this.ancillarySelectedNodeWheelContainer) {
+      return;
+    }
+    renderAncillaryWheel(
+      this.ancillarySelectedNodeWheelContainer,
+      null,
+      SELECTED_NODE_WHEEL_EMPTY_MESSAGE,
+    );
   }
 
   private handleVisualMappingChange(): void {
@@ -622,6 +708,10 @@ export class UiShellController {
       const message = error instanceof Error ? error.message : "unknown error";
       this.setStatus(`${STATUS_FAILED_PREFIX}: ${message}`);
     }
+
+    // Repaint the wheel with the same palette/category edits just applied to the
+    // tree, so a colour change is reflected in both places at once.
+    this.renderAncillaryStats();
   }
 
   private handleDisplayOptionsChange(): void {
@@ -760,14 +850,82 @@ export class UiShellController {
     }
   }
 
+  private toggleRegionSelectMode(): void {
+    this.regionSelectModeEnabled = !this.regionSelectModeEnabled;
+    this.workbench.setRegionSelectModeEnabled(this.regionSelectModeEnabled);
+    this.updateRegionToggleLabel();
+    if (!this.regionSelectModeEnabled) {
+      this.workbench.clearRegionSelection();
+      if (this.regionSelectionPanel) {
+        renderRegionPanel(this.regionSelectionPanel, null);
+      }
+    }
+    this.setStatus(
+      this.regionSelectModeEnabled
+        ? "Select region: drag a box on the canvas to isolate an area"
+        : DEFAULT_STATUS_READY,
+    );
+  }
+
+  private updateRegionToggleLabel(): void {
+    if (!this.regionSelectToggle) {
+      return;
+    }
+    this.regionSelectToggle.textContent = this.regionSelectModeEnabled
+      ? "Selecting…"
+      : "Select region";
+    this.regionSelectToggle.setAttribute(
+      "aria-pressed",
+      this.regionSelectModeEnabled ? "true" : "false",
+    );
+  }
+
+  private async handleRegionSelected(
+    bounds: SigmaViewportBounds,
+  ): Promise<void> {
+    if (!this.regionSelectionPanel) {
+      return;
+    }
+
+    try {
+      const result = await this.workbench.selectRegion(bounds);
+      const wheelStats = this.buildSelectedWheelStats(
+        new Set(result.nodeIds),
+      );
+      renderRegionPanel(this.regionSelectionPanel, {
+        nodeCount: result.nodeCount,
+        truncated: result.truncated,
+        aggregatedMetadata: result.aggregatedMetadata,
+        wheelStats,
+      });
+      this.setStatus(
+        `Region selected: ${result.nodeCount} ${
+          result.nodeCount === 1 ? "node" : "nodes"
+        }`,
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "unknown error";
+      this.setStatus(`${STATUS_FAILED_PREFIX}: ${message}`);
+    }
+  }
+
   private buildSelectedWheelStats(includeNodeIds?: Set<string>) {
     if (!this.lastRenderedGraph) {
       return null;
     }
 
+    // Forward the live palette + per-category colour edits so the wheel resolves
+    // colours identically to the tree, which the shell repaints through the same
+    // overrides. Without this the wheel snapshot's nodes carry no palette edits.
+    const palette = this.currentVisualMapping.palette;
+    const categoryColors = this.categoryColorOverrides;
     const selectedFields = getSelectedOptions(this.metadataPieFieldSelect);
     if (selectedFields.length > 1) {
-      return buildAncillaryWheelStats(this.lastRenderedGraph, { includeNodeIds });
+      return buildAncillaryWheelStats(this.lastRenderedGraph, {
+        includeNodeIds,
+        palette,
+        categoryColors,
+      });
     }
 
     if (selectedFields.length > 0) {
@@ -776,11 +934,17 @@ export class UiShellController {
         selectedFields[0] ?? "",
         {
           includeNodeIds,
+          palette,
+          categoryColors,
         },
       );
     }
 
-    return buildAncillaryWheelStats(this.lastRenderedGraph, { includeNodeIds });
+    // No field selected: match PHYLOViZ and chart nothing until the user picks
+    // a column. Auto-aggregating every pie__ attribute would fold coordinates
+    // and identifiers into a meaningless distribution, so defer to the
+    // field-selection prompt instead.
+    return null;
   }
 
   private updateNodeSelectionVisibility(): void {

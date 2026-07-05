@@ -10,6 +10,7 @@ import {
   PIE_PALETTE_ATTRIBUTE,
 } from "./pieMapping";
 import type { PieMappingOptions } from "./pieMapping";
+import { buildValueColorMap, DEFAULT_COLOR_PALETTE } from "./colorHash";
 import {
   isUnionNode,
   UNION_NODE_COLOR,
@@ -20,18 +21,14 @@ export {
   UNION_NODE_COLOR,
   UNION_NODE_SIZE,
 } from "./unionNodes";
+export {
+  buildValueColorMap,
+  DEFAULT_COLOR_PALETTE,
+  DEFAULT_FALLBACK_COLOR,
+  deriveColor,
+  OTHERS_COLOR,
+} from "./colorHash";
 
-export const DEFAULT_COLOR_PALETTE = [
-  "#0f766e",
-  "#0ea5e9",
-  "#f59e0b",
-  "#8b5cf6",
-  "#ef4444",
-  "#14b8a6",
-  "#f97316",
-  "#84cc16",
-];
-export const DEFAULT_FALLBACK_COLOR = "#0f766e";
 export const CLUSTER_PROXY_COLOR = "#b45309";
 
 export const DEFAULT_NODE_SIZE = 5;
@@ -81,6 +78,17 @@ export function applyVisualMappings(
   const palette = options.palette ?? DEFAULT_COLOR_PALETTE;
   const pieOptions = options.pie ?? DEFAULT_PIE_MAPPING;
 
+  // Rank the colour field's values across the whole graph once, so every node's
+  // fill (and the pies/wheels that mirror it) share a single frequency-ranked
+  // value -> colour map. Distinct values get distinct colours; the most common
+  // value takes palette[0].
+  const colorForValue = buildValueColorMap(
+    graph.nodes.map(
+      (node) => getNodeMetadata(metadataIndex, node.id)[colorField],
+    ),
+    palette,
+  );
+
   const mappedNodes = graph.nodes.map((node) =>
     mapNodeVisuals(
       node,
@@ -89,7 +97,7 @@ export function applyVisualMappings(
       colorField,
       sizeField,
       sizeScale,
-      palette,
+      colorForValue,
       pieOptions,
     ),
   );
@@ -132,7 +140,7 @@ function mapNodeVisuals(
   colorField: string,
   sizeField: string,
   sizeScale: SizeScale,
-  palette: string[],
+  colorForValue: (value: string | number | boolean | null | undefined) => string,
   pieOptions: PieMappingOptions,
 ): PositionedNode {
   if (isUnionNode(node.id, node.attributes)) {
@@ -150,7 +158,13 @@ function mapNodeVisuals(
 
   const metadata = getNodeMetadata(metadataIndex, node.id);
   const ancillaryRows = dataset.ancillary_rows_by_node_id?.[node.id] ?? [];
-  const baseColor = deriveColor(metadata[colorField], palette);
+  // Only recolour nodes that actually carry a value for the colour field; a
+  // node with no value keeps its existing role colour rather than being painted
+  // a palette slot it doesn't belong to (which could collide with a real value).
+  const mappedValue = metadata[colorField];
+  const hasMappedValue =
+    mappedValue !== undefined && mappedValue !== null && mappedValue !== "";
+  const baseColor = hasMappedValue ? colorForValue(mappedValue) : node.color;
   const baseSize = deriveSize(
     metadata[sizeField],
     metadataIndex.numericStats.get(sizeField),
@@ -189,25 +203,6 @@ function mapNodeVisuals(
         : {}),
     },
   };
-}
-
-// Derive deterministic color from categorical metadata values.
-export function deriveColor(
-  rawValue: string | number | boolean | null | undefined,
-  palette: string[],
-): string {
-  if (rawValue === undefined || rawValue === null || palette.length === 0) {
-    return DEFAULT_FALLBACK_COLOR;
-  }
-
-  const value = String(rawValue);
-  let hash = 0;
-  for (let index = 0; index < value.length; index += 1) {
-    hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
-  }
-
-  const paletteIndex = hash % palette.length;
-  return palette[paletteIndex] ?? DEFAULT_FALLBACK_COLOR;
 }
 
 // Derive node size from numeric metadata using min-max normalization.

@@ -44,6 +44,9 @@ export function buildVisualMappingForControls(
 
   return {
     ...mapping,
+    // Selecting a pie field also drives the solid node fill, so the node, its
+    // pie, and the wheel all colour by the same field/value.
+    colorField: selectedFields[0],
     pie: {
       ...(mapping.pie ?? baseVisualMapping.pie ?? {}),
       enabled: true,

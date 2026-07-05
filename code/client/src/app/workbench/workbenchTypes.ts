@@ -1,4 +1,8 @@
-import type { GraphV2Client } from "../../api/graphV2Client";
+import type {
+  GraphV2Client,
+  GraphV2MetadataField,
+  GraphV2MetadataValue,
+} from "../../api/graphV2Client";
 import type {
   CanonicalDataset,
   SearchDatasetResponse,
@@ -16,6 +20,20 @@ import type {
   RendererFactory,
   RendererKind,
 } from "../../render/types";
+import type { SigmaViewportBounds } from "../../render/adapters/sigma/graphViewerV2Types";
+
+// The isolated subgraph plus aggregated metadata for a completed region (box)
+// selection. Node ids feed the canvas highlight; aggregated metadata feeds the
+// region stats panel.
+export interface RegionSelectionResult {
+  nodeIds: string[];
+  nodeCount: number;
+  truncated: boolean;
+  aggregatedMetadata: Record<string, GraphV2MetadataValue>;
+  metadataSchema: GraphV2MetadataField[];
+}
+
+export type RegionSelectedHandler = (bounds: SigmaViewportBounds) => void;
 
 export interface RenderNewickOptions {
   metadataSchema?: CanonicalDataset["metadata_schema"];
@@ -79,6 +97,19 @@ export interface GraphWorkbench {
   setGraphRenderedHandler: (handler: GraphRenderedHandler | null) => void;
 
   setNodeClickedHandler: (handler: GraphNodeClickedHandler | null) => void;
+
+  // Toggle canvas box-select mode on the renderer.
+  setRegionSelectModeEnabled: (enabled: boolean) => void;
+
+  // Read the isolated subgraph + aggregated metadata for a box-select region
+  // and highlight the selected nodes on the canvas.
+  selectRegion: (bounds: SigmaViewportBounds) => Promise<RegionSelectionResult>;
+
+  // Register a handler that fires when the user completes a box-select drag.
+  setRegionSelectedHandler: (handler: RegionSelectedHandler | null) => void;
+
+  // Clear any active region highlight (empty set repaints at full opacity).
+  clearRegionSelection: () => void;
 
   dispose: () => void;
 }

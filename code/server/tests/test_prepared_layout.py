@@ -723,6 +723,116 @@ def test_detail_viewport_keeps_boundary_edges_when_node_budget_is_saturated(
     assert {"c", "b", "d", "e"} <= returned_node_ids
 
 
+def test_read_region_returns_only_inside_nodes_and_internal_edges(
+    tmp_path,
+) -> None:
+    # A box tight around only the "b"-"c" pair must return those two nodes and
+    # the single edge between them (an internal edge), while the edges leaving
+    # the box (a-b, c-d, c-e) are dropped entirely — no boundary edges, no
+    # off-screen neighbors surfaced (unlike read_viewport's detail path).
+    store = PreparedLayoutStore(tmp_path)
+    worker = PreparedLayoutWorker(store)
+    result = worker.prepare_dataset(_dataset())
+    layout_version = result.artifacts.layout_version
+
+    full = store.read_viewport(
+        dataset_id=DATASET_ID,
+        layout_version=layout_version,
+        xmin=None,
+        xmax=None,
+        ymin=None,
+        ymax=None,
+        max_nodes=50,
+        lod_level=1,
+    )
+    positions = {node.node_id: (node.x, node.y) for node in full.nodes}
+    bx, by = positions["b"]
+    cx, cy = positions["c"]
+
+    read = store.read_region(
+        dataset_id=DATASET_ID,
+        layout_version=layout_version,
+        xmin=min(bx, cx) - 1e-6,
+        xmax=max(bx, cx) + 1e-6,
+        ymin=min(by, cy) - 1e-6,
+        ymax=max(by, cy) + 1e-6,
+        max_nodes=50,
+    )
+
+    returned_node_ids = {node.node_id for node in read.nodes}
+    returned_edge_ids = {edge.edge_id for edge in read.edges}
+
+    assert returned_node_ids == {"b", "c"}
+    # Only the internal b-c edge survives; every edge references a returned node.
+    assert returned_edge_ids == {"e_b_c_1"}
+    for edge in read.edges:
+        assert edge.source in returned_node_ids
+        assert edge.target in returned_node_ids
+
+
+def test_read_region_aggregates_selected_member_metadata(tmp_path) -> None:
+    store = PreparedLayoutStore(tmp_path)
+    worker = PreparedLayoutWorker(store)
+    result = worker.prepare_dataset(_dataset_with_metadata())
+    layout_version = result.artifacts.layout_version
+
+    full = store.read_viewport(
+        dataset_id=DATASET_ID,
+        layout_version=layout_version,
+        xmin=None,
+        xmax=None,
+        ymin=None,
+        ymax=None,
+        max_nodes=50,
+        lod_level=1,
+    )
+    positions = {node.node_id: (node.x, node.y) for node in full.nodes}
+    xs = [positions[nid][0] for nid in positions]
+    ys = [positions[nid][1] for nid in positions]
+
+    # A box covering the whole layout selects every member.
+    read = store.read_region(
+        dataset_id=DATASET_ID,
+        layout_version=layout_version,
+        xmin=min(xs) - 1.0,
+        xmax=max(xs) + 1.0,
+        ymin=min(ys) - 1.0,
+        ymax=max(ys) + 1.0,
+        max_nodes=50,
+    )
+
+    assert {node.node_id for node in read.nodes} == {"a", "b", "c", "d", "e"}
+    # region north(a,b) south(c,d) east(e) -> mode "north"/"south" tie broken
+    # alphabetically to "north"; score mean = (10+20+30+5+15)/5 = 16.0.
+    assert read.aggregated_metadata["region"] == "north"
+    assert read.aggregated_metadata["score"] == 16.0
+    # Internal category-count keys are filtered out of per-node metadata, so
+    # they never reach the aggregate.
+    assert INTERNAL_COUNT_KEY not in read.aggregated_metadata
+
+
+def test_read_region_empty_box_returns_empty(tmp_path) -> None:
+    store = PreparedLayoutStore(tmp_path)
+    worker = PreparedLayoutWorker(store)
+    result = worker.prepare_dataset(_dataset())
+    layout_version = result.artifacts.layout_version
+
+    read = store.read_region(
+        dataset_id=DATASET_ID,
+        layout_version=layout_version,
+        xmin=1e9,
+        xmax=1e9 + 1.0,
+        ymin=1e9,
+        ymax=1e9 + 1.0,
+        max_nodes=50,
+    )
+
+    assert read.nodes == ()
+    assert read.edges == ()
+    assert read.total_node_count == 0
+    assert read.aggregated_metadata == {}
+
+
 def test_prepare_layout_rejects_missing_distances() -> None:
     dataset = normalize_dataset(
         NormalizeRequest(

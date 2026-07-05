@@ -17,6 +17,7 @@ export const ID_ANCILLARY_FORMAT = "ancillary-format";
 export const ID_STATUS = "status";
 export const ID_GRAPH_ROOT = "graph-root";
 export const ID_ANCILLARY_WHEEL = "ancillary-wheel";
+export const ID_ANCILLARY_SELECTED_NODE_WHEEL = "ancillary-selected-node-wheel";
 export const ID_ANCILLARY_MODE = "ancillary-mode";
 export const ID_ANCILLARY_NODE = "ancillary-node";
 export const ID_METADATA_PIE_FIELD = "metadata-pie-field";
@@ -34,6 +35,8 @@ export const ID_INITIAL_ZOOM_INPUT = "initial-zoom-input";
 export const ID_SEARCH_INPUT = "search-input";
 export const ID_SEARCH_BUTTON = "search-button";
 export const ID_SEARCH_RESULTS = "search-results";
+export const ID_REGION_SELECT_TOGGLE = "region-select-toggle";
+export const ID_REGION_SELECTION_PANEL = "region-selection-panel";
 
 export const ERR_MISSING_RENDER_FORM = "Missing render form element.";
 export const ERR_MISSING_NEWICK_INPUT = "Missing Newick input element.";
@@ -69,6 +72,9 @@ export default function bootstrapClientShell(
   ) as HTMLSelectElement | null;
   const status = document.getElementById(ID_STATUS);
   const ancillaryWheelContainer = document.getElementById(ID_ANCILLARY_WHEEL);
+  const ancillarySelectedNodeWheelContainer = document.getElementById(
+    ID_ANCILLARY_SELECTED_NODE_WHEEL,
+  );
   const ancillaryModeSelect = document.getElementById(
     ID_ANCILLARY_MODE,
   ) as HTMLSelectElement | null;
@@ -116,6 +122,12 @@ export default function bootstrapClientShell(
     ID_SEARCH_BUTTON,
   ) as HTMLButtonElement | null;
   const searchResults = document.getElementById(ID_SEARCH_RESULTS);
+  const regionSelectToggle = document.getElementById(
+    ID_REGION_SELECT_TOGGLE,
+  ) as HTMLButtonElement | null;
+  const regionSelectionPanel = document.getElementById(
+    ID_REGION_SELECTION_PANEL,
+  );
 
   if (!form) {
     throw new Error(ERR_MISSING_RENDER_FORM);
@@ -150,6 +162,8 @@ export default function bootstrapClientShell(
       ancillaryFormatSelect: ancillaryFormatSelect ?? undefined,
       status,
       ancillaryWheelContainer: ancillaryWheelContainer ?? undefined,
+      ancillarySelectedNodeWheelContainer:
+        ancillarySelectedNodeWheelContainer ?? undefined,
       ancillaryModeSelect: ancillaryModeSelect ?? undefined,
       ancillaryNodeSelect: ancillaryNodeSelect ?? undefined,
       metadataPieFieldSelect: metadataPieFieldSelect ?? undefined,
@@ -167,6 +181,8 @@ export default function bootstrapClientShell(
       searchInput: searchInput ?? undefined,
       searchButton: searchButton ?? undefined,
       searchResults: searchResults ?? undefined,
+      regionSelectToggle: regionSelectToggle ?? undefined,
+      regionSelectionPanel: regionSelectionPanel ?? undefined,
     },
   });
 

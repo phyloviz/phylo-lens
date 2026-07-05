@@ -119,12 +119,80 @@
         background: #f8fafc;
       }
 
-      #ancillary-wheel {
+      #ancillary-wheel,
+      #ancillary-selected-node-wheel,
+      #region-selection-panel {
         margin-top: 14px;
         border: 1px solid var(--border);
         border-radius: 10px;
         background: #f8fafc;
         padding: 12px;
+      }
+
+      #graph-root {
+        position: relative;
+      }
+
+      .sigma-box-select-overlay {
+        border: 1px solid var(--accent);
+        background: rgba(15, 118, 110, 0.12);
+        border-radius: 2px;
+        z-index: 5;
+      }
+
+      .region-panel-summary {
+        margin: 0 0 10px;
+        font-weight: 600;
+        color: var(--text);
+      }
+
+      .region-aggregate-table {
+        margin-top: 12px;
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.88rem;
+      }
+
+      .region-aggregate-table th,
+      .region-aggregate-table td {
+        text-align: left;
+        padding: 5px 8px;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .region-aggregate-table th {
+        color: var(--muted);
+        font-weight: 600;
+        text-transform: uppercase;
+        font-size: 0.74rem;
+        letter-spacing: 0.03em;
+      }
+
+      #region-select-toggle {
+        width: auto;
+        border: 1px solid var(--border);
+        background: #f8fafc;
+        color: var(--text);
+      }
+
+      #region-select-toggle[aria-pressed="true"] {
+        background: var(--accent);
+        color: white;
+        border-color: var(--accent);
+      }
+
+      .wheel-panel-title {
+        margin: 14px 0 0;
+        font-size: 0.82rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--muted);
+      }
+
+      .wheel-panel-title + #ancillary-wheel,
+      .wheel-panel-title + #ancillary-selected-node-wheel {
+        margin-top: 6px;
       }
 
       .wheel-controls {
@@ -411,16 +479,6 @@
               />
             </label>
             <label>
-              Max Visible Nodes
-              <input
-                id="max-nodes-input"
-                type="number"
-                min="10"
-                step="50"
-                value="6010"
-              />
-            </label>
-            <label>
               LoD
               <span class="lod-playback">
                 <button id="lod-play-button" type="button" disabled>
@@ -511,12 +569,28 @@
           </div>
           <div id="search-results"></div>
 
+          <label>
+            Region selection
+            <button
+              id="region-select-toggle"
+              type="button"
+              aria-pressed="false"
+            >
+              Select region
+            </button>
+          </label>
+
           <button type="submit">Normalize and Render</button>
         </form>
 
         <div id="status" aria-live="polite"></div>
         <div id="graph-root" aria-label="Graph render container"></div>
+        <p class="wheel-panel-title">Overview distribution</p>
         <div id="ancillary-wheel" aria-live="polite"></div>
+        <p class="wheel-panel-title">Selected node</p>
+        <div id="ancillary-selected-node-wheel" aria-live="polite"></div>
+        <p class="wheel-panel-title">Region selection</p>
+        <div id="region-selection-panel" aria-live="polite"></div>
       </section>
     </main>
 

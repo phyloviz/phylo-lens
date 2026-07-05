@@ -1,3 +1,6 @@
+import { readNodeMetadata } from "../ancillary/metadataAccess";
+import { buildValueColorMap, DEFAULT_COLOR_PALETTE } from "./colorHash";
+
 export const PIE_ATTRIBUTE_PREFIX = "pie__";
 export const PIE_PALETTE_ATTRIBUTE = "__pie_palette";
 export const PIE_CATEGORY_COLORS_ATTRIBUTE = "__pie_category_colors";
@@ -424,22 +427,104 @@ export function resolvePieSliceColors(
   nodes: Array<{ attributes?: Record<string, unknown> }>,
   sliceKeys: readonly string[] = detectPieSliceKeys(nodes),
   requestedPalette?: string[],
+  // Live per-category overrides from the shell controls, keyed by plain value
+  // label (e.g. "Peru"). They are re-keyed to slice keys per field below and
+  // take precedence over overrides baked onto the graph, so a colour edit is
+  // reflected immediately by every consumer (wheel included).
+  requestedCategoryColors?: Record<string, string>,
 ): Record<string, string> {
   const runtimePalette = resolvePiePaletteFromNodes(nodes);
   const categoryColors = collectPieCategoryColors(nodes);
-  const palette = buildPiePalette(
-    sliceKeys.length,
-    runtimePalette ?? requestedPalette,
-  );
+  // Rank each value by graph-wide frequency and assign palette colours in that
+  // order, exactly as the node fill does, so a value's pie slice, wheel slice,
+  // and node fill all agree AND the top values stay distinct. User
+  // category-colour overrides still win.
+  const palette =
+    runtimePalette && runtimePalette.length > 0
+      ? runtimePalette
+      : requestedPalette && requestedPalette.length > 0
+        ? requestedPalette
+        : DEFAULT_COLOR_PALETTE;
+  // Colours are ranked PER FIELD so a country's colour depends only on the
+  // country distribution (not pooled with regions etc.), matching how the node
+  // fill and the wheel rank a single field.
+  const { fieldBySliceKey, valueBySliceKey, valuesByField } =
+    sliceValuesByKey(nodes);
+  const colorForValueByField = new Map<
+    string,
+    (value: string | number | boolean | null | undefined) => string
+  >();
+  valuesByField.forEach((values, fieldKey) => {
+    colorForValueByField.set(fieldKey, buildValueColorMap(values, palette));
+  });
 
   return Object.fromEntries(
-    sliceKeys.map((key, index) => [
-      key,
-      key === PIE_OTHER_SLICE_KEY
-        ? PIE_OTHER_SLICE_COLOR
-        : categoryColors[key] ?? palette[index] ?? DEFAULT_PIE_PALETTE[0],
-    ]),
+    sliceKeys.map((key) => {
+      if (key === PIE_OTHER_SLICE_KEY) {
+        return [key, PIE_OTHER_SLICE_COLOR];
+      }
+      const value = valueBySliceKey.get(key);
+      // Live label-keyed override wins, then the graph-baked slice-key override.
+      const liveOverride =
+        value !== undefined ? requestedCategoryColors?.[value] : undefined;
+      const override = liveOverride ?? categoryColors[key];
+      if (override) {
+        return [key, override];
+      }
+      const fieldKey = fieldBySliceKey.get(key);
+      const resolver = fieldKey
+        ? colorForValueByField.get(fieldKey)
+        : undefined;
+      return [key, resolver ? resolver(value) : PIE_OTHER_SLICE_COLOR];
+    }),
   );
+}
+
+// Recover, per pie slice key, its field and original value string from node
+// metadata, plus per-field per-occurrence value lists so buildValueColorMap can
+// rank each field by its true frequency. The slice key is a lossy hash, so we
+// rebuild the key from every metadata value present and map it back.
+function sliceValuesByKey(nodes: Array<{ attributes?: Record<string, unknown> }>): {
+  fieldBySliceKey: Map<string, string>;
+  valueBySliceKey: Map<string, string>;
+  valuesByField: Map<string, string[]>;
+} {
+  const fieldByKey = new Map<string, string>();
+  const valueByKey = new Map<string, string>();
+  const valuesByField = new Map<string, string[]>();
+
+  const record = (fieldKey: string, category: string, count: number): void => {
+    const sliceKey = pieCategoricalAttributeKey(fieldKey, category);
+    fieldByKey.set(sliceKey, fieldKey);
+    valueByKey.set(sliceKey, category);
+    const bucket = valuesByField.get(fieldKey) ?? [];
+    for (let index = 0; index < count; index += 1) {
+      bucket.push(category);
+    }
+    valuesByField.set(fieldKey, bucket);
+  };
+
+  nodes.forEach((node) => {
+    const metadata = readNodeMetadata(node.attributes);
+    if (!metadata) {
+      return;
+    }
+    Object.entries(metadata).forEach(([metadataKey, rawValue]) => {
+      const categoryEntry = parseCategoryCountMetadataEntry(
+        metadataKey,
+        rawValue,
+      );
+      if (categoryEntry) {
+        record(categoryEntry.fieldKey, categoryEntry.category, categoryEntry.count);
+        return;
+      }
+      categoricalPieValues(rawValue).forEach((category) => {
+        record(metadataKey, category, 1);
+      });
+    });
+  });
+
+  return { fieldBySliceKey: fieldByKey, valueBySliceKey: valueByKey, valuesByField };
 }
 
 export function collectPieCategoryColors(

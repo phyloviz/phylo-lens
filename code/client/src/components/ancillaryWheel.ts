@@ -1,8 +1,10 @@
 import type { PositionedGraph } from "../contracts/positioned";
 import { readNodeMetadata } from "../ancillary/metadataAccess";
+import { buildValueColorMap, DEFAULT_COLOR_PALETTE } from "../render/colorHash";
 import {
   categoryCountsForField,
   categoricalPieValues,
+  collectPieCategoryColors,
   detectPieSliceKeys,
   isCategoryCountMetadataKey,
   PIE_ATTRIBUTE_PREFIX,
@@ -10,6 +12,7 @@ import {
   PIE_OTHER_SLICE_COLOR,
   PIE_OTHER_SLICE_LABEL,
   pieCategoricalAttributeKey,
+  resolvePiePaletteFromNodes,
   resolvePieSliceColors,
 } from "../render/pieMapping";
 
@@ -29,6 +32,13 @@ export interface AncillaryWheelStats {
 
 export interface AncillaryWheelStatsOptions {
   includeNodeIds?: Set<string>;
+  // Live palette + per-category colour overrides from the shell controls. The
+  // wheel graph snapshot does not carry the user's palette edits on its nodes,
+  // so the shell passes them here to keep the wheel in lock-step with the tree
+  // when a colour is changed. Category overrides win over the ranked palette,
+  // exactly as they do for the node fill.
+  palette?: string[];
+  categoryColors?: Record<string, string>;
 }
 
 export interface MetadataFieldSummary {
@@ -84,7 +94,12 @@ export function buildAncillaryWheelStats(
   }
 
   const graphSliceKeys = detectPieSliceKeys(graph.nodes);
-  const colors = resolvePieSliceColors(graph.nodes, graphSliceKeys);
+  const colors = resolvePieSliceColors(
+    graph.nodes,
+    graphSliceKeys,
+    options.palette,
+    options.categoryColors,
+  );
   const displayedKeys = new Set(
     graphSliceKeys.filter((key) => key !== PIE_OTHER_SLICE_KEY),
   );
@@ -124,8 +139,8 @@ export function buildMetadataFieldWheelStats(
     return null;
   }
 
-  const countsByValue = new Map<string, number>();
   const includeNodeIds = options.includeNodeIds;
+  const countsByValue = new Map<string, number>();
   let includedNodeCount = 0;
 
   graph.nodes.forEach((node) => {
@@ -134,28 +149,7 @@ export function buildMetadataFieldWheelStats(
     }
 
     includedNodeCount += 1;
-    const metadata = readNodeMetadata(node.attributes);
-    if (!metadata) {
-      return;
-    }
-
-    const categoryCounts = categoryCountsForField(metadata, trimmedFieldKey);
-    if (categoryCounts.length > 0) {
-      categoryCounts.forEach((entry) => {
-        countsByValue.set(
-          entry.category,
-          (countsByValue.get(entry.category) ?? 0) + entry.count,
-        );
-      });
-      return;
-    }
-
-    const value = metadata[trimmedFieldKey];
-    if (value !== undefined && value !== null && value !== "") {
-      categoricalPieValues(value).forEach((label) => {
-        countsByValue.set(label, (countsByValue.get(label) ?? 0) + 1);
-      });
-    }
+    accumulateFieldCounts(node.attributes, trimmedFieldKey, countsByValue);
   });
 
   const slices = buildDistributionSlices(countsByValue);
@@ -164,8 +158,11 @@ export function buildMetadataFieldWheelStats(
     return null;
   }
 
-  const graphSliceKeys = detectPieSliceKeys(graph.nodes);
-  const colors = resolvePieSliceColors(graph.nodes, graphSliceKeys);
+  const colorForValue = buildFieldValueColorResolver(
+    graph,
+    trimmedFieldKey,
+    options,
+  );
   return {
     total,
     nodeCount: includedNodeCount,
@@ -175,22 +172,103 @@ export function buildMetadataFieldWheelStats(
       color:
         slice.label === PIE_OTHER_SLICE_LABEL
           ? PIE_OTHER_SLICE_COLOR
-          : (() => {
-              const key = pieCategoricalAttributeKey(
-                trimmedFieldKey,
-                slice.label,
-              );
-              return (
-                colors[key] ??
-                (graphSliceKeys.includes(PIE_OTHER_SLICE_KEY) &&
-                !graphSliceKeys.includes(key)
-                  ? colors[PIE_OTHER_SLICE_KEY]
-                  : undefined) ??
-                "#0f766e"
-              );
-            })(),
+          : colorForValue(slice.label),
     })),
   };
+}
+
+// Aggregate a single node's contribution to one field's value distribution.
+function accumulateFieldCounts(
+  attributes: Record<string, unknown> | undefined,
+  fieldKey: string,
+  countsByValue: Map<string, number>,
+): void {
+  const metadata = readNodeMetadata(attributes);
+  if (!metadata) {
+    return;
+  }
+
+  const categoryCounts = categoryCountsForField(metadata, fieldKey);
+  if (categoryCounts.length > 0) {
+    categoryCounts.forEach((entry) => {
+      countsByValue.set(
+        entry.category,
+        (countsByValue.get(entry.category) ?? 0) + entry.count,
+      );
+    });
+    return;
+  }
+
+  const value = metadata[fieldKey];
+  if (value !== undefined && value !== null && value !== "") {
+    categoricalPieValues(value).forEach((label) => {
+      countsByValue.set(label, (countsByValue.get(label) ?? 0) + 1);
+    });
+  }
+}
+
+// Resolve a per-value color that matches the node's solid fill exactly. The
+// renderer ranks fieldKey's values by graph-wide frequency and assigns palette
+// colours in order; the on-node pie and this wheel rank the SAME way, so a
+// value (e.g. "Peru") gets one colour everywhere and the top values stay
+// distinct. User category-colour overrides win, as they do for the node.
+function buildFieldValueColorResolver(
+  graph: PositionedGraph,
+  fieldKey: string,
+  options: AncillaryWheelStatsOptions = {},
+): (value: string) => string {
+  // A live palette from the shell controls wins over one baked onto the graph
+  // snapshot, so palette edits recolour the wheel immediately (matching the
+  // tree, which the shell repaints through the same override).
+  const runtimePalette =
+    options.palette && options.palette.length > 0
+      ? options.palette
+      : resolvePiePaletteFromNodes(graph.nodes);
+  const palette =
+    runtimePalette && runtimePalette.length > 0
+      ? runtimePalette
+      : DEFAULT_COLOR_PALETTE;
+  // Category overrides come from two places, both keyed by the pie attribute
+  // key: what's baked on the graph and the live shell edits (keyed by label,
+  // so we re-key them per field here). Live edits take precedence.
+  const graphCategoryColors = collectPieCategoryColors(graph.nodes);
+  const optionCategoryColors: Record<string, string> = {};
+  if (options.categoryColors) {
+    for (const [label, color] of Object.entries(options.categoryColors)) {
+      optionCategoryColors[pieCategoricalAttributeKey(fieldKey, label)] = color;
+    }
+  }
+  const categoryColors = { ...graphCategoryColors, ...optionCategoryColors };
+
+  // Gather one value per node occurrence so buildValueColorMap ranks by the
+  // field's true graph-wide frequency (mirroring the node-fill ranking).
+  const values = collectFieldValues(graph, fieldKey);
+  const colorForValue = buildValueColorMap(values, palette);
+
+  return (value: string) =>
+    categoryColors[pieCategoricalAttributeKey(fieldKey, value)] ??
+    colorForValue(value);
+}
+
+// Collect one entry per occurrence of fieldKey across all nodes, so the ranked
+// colour map reflects true frequency. Uses the same accumulation as the wheel's
+// value counting to stay consistent with what the legend shows.
+function collectFieldValues(
+  graph: PositionedGraph,
+  fieldKey: string,
+): string[] {
+  const countsByValue = new Map<string, number>();
+  graph.nodes.forEach((node) => {
+    accumulateFieldCounts(node.attributes, fieldKey, countsByValue);
+  });
+
+  const values: string[] = [];
+  countsByValue.forEach((count, label) => {
+    for (let index = 0; index < count; index += 1) {
+      values.push(label);
+    }
+  });
+  return values;
 }
 
 // Return metadata keys visible in the current graph snapshot.

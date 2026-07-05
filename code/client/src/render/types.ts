@@ -4,6 +4,7 @@ import type {
   GraphV2ViewportResponse,
 } from "../api/graphV2Client";
 import type { ViewportSyncSettings } from "./adapters/sigma/graphViewerV2Sync";
+import type { SigmaViewportBounds } from "./adapters/sigma/graphViewerV2Types";
 
 export const RENDERER_KIND_SIGMA = "sigma";
 export const RENDERER_KIND_MOCK = "mock";
@@ -62,6 +63,7 @@ export interface GraphRenderer {
     layoutVersion?: string | null;
     maxNodes?: number;
     lodTierCount?: number;
+    nodeCount?: number | null;
     getPaused?: () => boolean;
     onViewportLoaded?: (response: GraphV2ViewportResponse) => void;
     onError?: (error: unknown) => void;
@@ -71,6 +73,20 @@ export interface GraphRenderer {
   stopGraphV2ViewportSync?: () => void;
 
   refreshGraphV2ViewportSync?: () => void;
+
+  // Enable/disable region (box) selection mode. While enabled a plain drag on
+  // the canvas draws a selection box; Shift+drag works regardless of the toggle.
+  setRegionSelectModeEnabled?: (enabled: boolean) => void;
+
+  // Register a handler invoked with graph-space bounds when the user completes
+  // a box-select drag.
+  setRegionSelectedHandler?: (
+    handler: ((bounds: SigmaViewportBounds) => void) | null,
+  ) => void;
+
+  // Highlight a set of node ids on the canvas by dimming everything outside it.
+  // Passing an empty set (or null) clears the highlight.
+  setHighlightedNodes?: (nodeIds: ReadonlySet<string> | null) => void;
 }
 
 export interface RendererFactory {

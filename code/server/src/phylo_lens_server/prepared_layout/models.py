@@ -124,3 +124,20 @@ class ViewportReadResult:
     truncated: bool
     layout_status: LayoutStatus
     metadata_schema: tuple[MetadataSchemaField, ...] = ()
+
+
+@dataclass(frozen=True)
+class RegionReadResult:
+    dataset_id: str
+    layout_version: str
+    nodes: tuple[ViewportNode, ...]
+    edges: tuple[ViewportEdge, ...]
+    total_node_count: int
+    truncated: bool
+    layout_status: LayoutStatus
+    metadata_schema: tuple[MetadataSchemaField, ...] = ()
+    # One aggregated value per metadata field across the selected members
+    # (mean for numeric fields, mode for everything else).
+    aggregated_metadata: dict[str, str | float | bool | None] = field(
+        default_factory=dict
+    )
