@@ -16,7 +16,7 @@ NODE_X = "x"
 EDGE_ID_A_B = "e_a_b_1"
 EDGE_ID_A_X = "e_a_x_1"
 
-FORMAT_EDGELIST = "edgelist"
+FORMAT_NEWICK = "newick"
 GENERATED_AT = "2026-03-23T00:00:00Z"
 
 METADATA_KEY_REGION = "region"
@@ -38,7 +38,7 @@ def _dataset() -> CanonicalDataset:
             MetadataField(key=METADATA_KEY_REGION, type=METADATA_TYPE_STRING)
         ],
         metadata_by_node_id={NODE_A: {METADATA_KEY_REGION: METADATA_VALUE_REGION}},
-        source=DatasetSource(format=FORMAT_EDGELIST, generated_at=GENERATED_AT),
+        source=DatasetSource(format=FORMAT_NEWICK, generated_at=GENERATED_AT),
     )
 
 

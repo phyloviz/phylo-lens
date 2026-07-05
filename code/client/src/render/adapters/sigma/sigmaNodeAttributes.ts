@@ -24,10 +24,10 @@ import {
   SIGMA_NODE_TYPE_TRIANGLE,
 } from "./sigmaRenderingConstants";
 import {
-  isPhyloVizUnionNode,
-  PHYLOVIZ_UNION_NODE_COLOR,
-  PHYLOVIZ_UNION_NODE_SIZE,
-} from "../../phylovizNodes";
+  isUnionNode,
+  UNION_NODE_COLOR,
+  UNION_NODE_SIZE,
+} from "../../unionNodes";
 import type { SigmaRendererOptions } from "./sigmaTypes";
 
 export function addPositionedNode(
@@ -38,13 +38,13 @@ export function addPositionedNode(
   selectedNodeId?: string | null,
   triangleRotation = 0,
 ): void {
-  const isUnionNode = isPhyloVizUnionNode(node.id, node.attributes);
+  const unionNode = isUnionNode(node.id, node.attributes);
   const pieAttributes: Record<string, number> = {};
   const displayedPieKeys = new Set(
     pieSliceKeys.filter((key) => key !== PIE_OTHER_SLICE_KEY),
   );
   pieSliceKeys.forEach((key) => {
-    pieAttributes[key] = isUnionNode
+    pieAttributes[key] = unionNode
       ? 0
       : key === PIE_OTHER_SLICE_KEY
         ? deriveOtherPieValue(node.attributes, displayedPieKeys)
@@ -52,17 +52,17 @@ export function addPositionedNode(
   });
   const hasPieData = Object.values(pieAttributes).some((value) => value > 0);
   const isClusterProxy = node.attributes?.is_cluster_proxy === true;
-  const isSelectedNode = !isUnionNode && node.id === selectedNodeId;
+  const isSelectedNode = !unionNode && node.id === selectedNodeId;
   const nodeType =
     isSelectedNode
       ? SIGMA_NODE_TYPE_BORDER
-        : !isUnionNode && hasPieData && pieSliceKeys.length > 0
+        : !unionNode && hasPieData && pieSliceKeys.length > 0
         ? SIGMA_NODE_TYPE_PIECHART
         : isClusterProxy
           ? SIGMA_NODE_TYPE_TRIANGLE
           : SIGMA_NODE_TYPE_DEFAULT;
-  const nodeSize = isUnionNode
-    ? PHYLOVIZ_UNION_NODE_SIZE
+  const nodeSize = unionNode
+    ? UNION_NODE_SIZE
     : (node.size ?? SIGMA_DEFAULT_NODE_SIZE);
 
   graph.addNode(node.id, {
@@ -84,6 +84,45 @@ export function addPositionedNode(
       : undefined,
     triangleRotation,
     forceLabel: isSelectedNode || undefined,
+  });
+}
+
+// Flip synced nodes to the piechart node type once the piechart program for
+// `sliceKeys` has been registered. Mirrors addPositionedNode's pie handling for
+// the LoD sync path, where attributes are written directly to graphology and
+// nodes cannot be re-added through addPositionedNode. Ensures every displayed
+// slice key (plus the aggregated Others bucket) is present on each pie node so
+// the @sigma/node-piechart program can read them.
+export function applyPieChartNodeTypes(
+  graph: Graph,
+  sliceKeys: readonly string[],
+): void {
+  if (sliceKeys.length === 0) {
+    return;
+  }
+
+  const displayedPieKeys = new Set(
+    sliceKeys.filter((key) => key !== PIE_OTHER_SLICE_KEY),
+  );
+  graph.forEachNode((nodeId, rawAttributes) => {
+    const attributes = rawAttributes as Record<string, unknown>;
+    const unionNode = isUnionNode(nodeId, attributes);
+    let hasPieData = false;
+    sliceKeys.forEach((key) => {
+      const value = unionNode
+        ? 0
+        : key === PIE_OTHER_SLICE_KEY
+          ? deriveOtherPieValue(attributes, displayedPieKeys)
+          : toPositiveNumber(attributes[key]);
+      graph.setNodeAttribute(nodeId, key, value);
+      if (value > 0) {
+        hasPieData = true;
+      }
+    });
+
+    if (!unionNode && hasPieData) {
+      graph.setNodeAttribute(nodeId, "type", SIGMA_NODE_TYPE_PIECHART);
+    }
   });
 }
 
@@ -113,9 +152,9 @@ function deriveNodeColor(
   selectedNodeId?: string | null,
 ): string {
   if (
-    isPhyloVizUnionNode(node.id, node.attributes)
+    isUnionNode(node.id, node.attributes)
   ) {
-    return PHYLOVIZ_UNION_NODE_COLOR;
+    return UNION_NODE_COLOR;
   }
 
   if (

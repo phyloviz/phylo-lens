@@ -1,10 +1,9 @@
 import { createNodePiechartProgram } from "@sigma/node-piechart";
-import type { PositionedGraph } from "../../../contracts/positioned";
 import {
   resolvePieSliceColors,
 } from "../../pieMapping";
 import {
-  SIGMA_DEFAULT_NODE_COLOR,
+  PHYLOVIZ_NODE_COMMON_COLOR,
   SIGMA_NODE_TYPE_PIECHART,
 } from "./sigmaRenderingConstants";
 import type {
@@ -12,9 +11,13 @@ import type {
   SigmaPiechartOptions,
 } from "./sigmaTypes";
 
+// Minimal node shape shared by the legacy render path (PositionedNode) and the
+// LoD sync path (graphology node attribute views) for pie-program resolution.
+export type PieNodeView = { attributes?: Record<string, unknown> };
+
 export function piechartProgramClasses(
   sliceKeys: readonly string[],
-  graph: PositionedGraph | undefined,
+  nodes: readonly PieNodeView[],
   options: SigmaPiechartOptions,
 ): SigmaNodeProgramClasses {
   if (sliceKeys.length === 0) {
@@ -22,7 +25,7 @@ export function piechartProgramClasses(
   }
 
   const colors = resolvePieSliceColors(
-    graph?.nodes ?? [],
+    nodes as Array<{ attributes?: Record<string, unknown> }>,
     sliceKeys,
     options.palette,
   );
@@ -38,7 +41,7 @@ export function piechartProgramClasses(
 
   return {
     [SIGMA_NODE_TYPE_PIECHART]: createNodePiechartProgram({
-      defaultColor: SIGMA_DEFAULT_NODE_COLOR,
+      defaultColor: PHYLOVIZ_NODE_COMMON_COLOR,
       slices,
     }),
   };
@@ -46,9 +49,12 @@ export function piechartProgramClasses(
 
 export function buildPieProgramSignature(
   sliceKeys: readonly string[],
-  graph: PositionedGraph | undefined,
+  nodes: readonly PieNodeView[],
 ): string {
-  const colors = resolvePieSliceColors(graph?.nodes ?? [], sliceKeys);
+  const colors = resolvePieSliceColors(
+    nodes as Array<{ attributes?: Record<string, unknown> }>,
+    sliceKeys,
+  );
   return sliceKeys
     .map((key) => `${key}:${colors[key] ?? ""}`)
     .join("|");

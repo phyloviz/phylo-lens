@@ -1,4 +1,4 @@
-import type { CanonicalDataset } from "../contracts/models";
+import type { CanonicalDataset, MetadataField } from "../contracts/models";
 import type { PositionedGraph, PositionedNode } from "../contracts/positioned";
 import { getNodeMetadata } from "../ancillary/metadataIndex";
 import type { MetadataIndexData } from "../ancillary/metadataIndex";
@@ -11,15 +11,15 @@ import {
 } from "./pieMapping";
 import type { PieMappingOptions } from "./pieMapping";
 import {
-  isPhyloVizUnionNode,
-  PHYLOVIZ_UNION_NODE_COLOR,
-  PHYLOVIZ_UNION_NODE_SIZE,
-} from "./phylovizNodes";
+  isUnionNode,
+  UNION_NODE_COLOR,
+  UNION_NODE_SIZE,
+} from "./unionNodes";
 
 export {
-  PHYLOVIZ_UNION_NODE_COLOR,
-  PHYLOVIZ_UNION_NODE_SIZE,
-} from "./phylovizNodes";
+  UNION_NODE_COLOR,
+  UNION_NODE_SIZE,
+} from "./unionNodes";
 
 export const DEFAULT_COLOR_PALETTE = [
   "#0f766e",
@@ -74,7 +74,7 @@ export function applyVisualMappings(
   metadataIndex: MetadataIndexData,
   options: VisualMappingOptions = {},
 ): PositionedGraph {
-  const colorField = resolveColorField(dataset, options.colorField);
+  const colorField = resolveColorField(dataset.metadata_schema, options.colorField);
   const sizeField =
     options.size?.field ?? options.sizeField ?? DEFAULT_SIZE_FIELD;
   const sizeScale = options.size?.scale ?? SIZE_SCALE_LINEAR;
@@ -100,20 +100,20 @@ export function applyVisualMappings(
   };
 }
 
-function resolveColorField(
-  dataset: CanonicalDataset,
+export function resolveColorField(
+  metadataSchema: MetadataField[],
   requestedColorField: string | undefined,
 ): string {
   if (requestedColorField) {
     return requestedColorField;
   }
 
-  const schemaKeys = new Set(dataset.metadata_schema.map((field) => field.key));
+  const schemaKeys = new Set(metadataSchema.map((field) => field.key));
   if (schemaKeys.has(DEFAULT_COLOR_FIELD)) {
     return DEFAULT_COLOR_FIELD;
   }
 
-  const fallbackField = dataset.metadata_schema.find(
+  const fallbackField = metadataSchema.find(
     (field) =>
       field.type !== "number" &&
       field.type !== "null" &&
@@ -135,11 +135,11 @@ function mapNodeVisuals(
   palette: string[],
   pieOptions: PieMappingOptions,
 ): PositionedNode {
-  if (isPhyloVizUnionNode(node.id, node.attributes)) {
+  if (isUnionNode(node.id, node.attributes)) {
     return {
       ...node,
-      color: PHYLOVIZ_UNION_NODE_COLOR,
-      size: PHYLOVIZ_UNION_NODE_SIZE,
+      color: UNION_NODE_COLOR,
+      size: UNION_NODE_SIZE,
       attributes: {
         ...(node.attributes ?? {}),
         dataset_id: dataset.dataset_id,
@@ -192,7 +192,7 @@ function mapNodeVisuals(
 }
 
 // Derive deterministic color from categorical metadata values.
-function deriveColor(
+export function deriveColor(
   rawValue: string | number | boolean | null | undefined,
   palette: string[],
 ): string {
@@ -211,7 +211,7 @@ function deriveColor(
 }
 
 // Derive node size from numeric metadata using min-max normalization.
-function deriveSize(
+export function deriveSize(
   rawValue: string | number | boolean | null | undefined,
   stats: { min: number; max: number } | undefined,
   scale: SizeScale,

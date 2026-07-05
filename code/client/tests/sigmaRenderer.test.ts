@@ -32,6 +32,7 @@ let pieProgramInputs: Array<{
 }> = [];
 let forceMotionStarts = 0;
 let forceMotionKills = 0;
+let sigmaConstructions = 0;
 let lastForceMotionSettings: Record<string, number> | null = null;
 let animationFrameCallback: FrameRequestCallback | null = null;
 let animationFrameId = 0;
@@ -98,6 +99,7 @@ vi.mock("sigma", () => {
       lastSigmaOptions = options ?? null;
       lastGraph = graph ?? null;
       lastCamera = this.camera;
+      sigmaConstructions += 1;
     }
 
     getCamera() {
@@ -159,6 +161,9 @@ import {
   PIE_ATTRIBUTE_PREFIX,
   PIE_OTHER_SLICE_KEY,
 } from "../src/render/pieMapping";
+import Graph from "graphology";
+import { applyPieChartNodeTypes } from "../src/render/adapters/sigma/sigmaNodeRendering";
+import { SIGMA_NODE_TYPE_PIECHART } from "../src/render/adapters/sigma/sigmaRenderingConstants";
 
 const CONTAINER_ID = "graph-root";
 
@@ -168,6 +173,7 @@ describe("sigmaRenderer", () => {
     pieProgramInputs = [];
     forceMotionStarts = 0;
     forceMotionKills = 0;
+    sigmaConstructions = 0;
     lastForceMotionSettings = null;
     animationFrameCallback = null;
     animationFrameId = 0;
@@ -378,7 +384,12 @@ describe("sigmaRenderer", () => {
     renderer.render({
       nodes: [
         { id: "union_1", x: 0, y: 0 },
-        { id: "internal_legacy", x: 0.5, y: 0.5 },
+        // A real isolate whose label merely starts with the union prefix
+        // must NOT be hidden — only generated `union_<digits>` ids are.
+        { id: "union_sample", x: 0.75, y: 0.75 },
+        // `internal_` is not a structural convention the server emits, so an
+        // `internal_`-prefixed id is a real node and must render normally.
+        { id: "internal_7", x: 0.5, y: 0.5 },
         { id: "profile_1", x: 1, y: 1 },
         {
           id: "cluster_proxy:threshold_cluster_4_42",
@@ -398,8 +409,14 @@ describe("sigmaRenderer", () => {
     expect(lastGraph?.getNodeAttribute("union_1", "label")).toBe("");
     expect(lastGraph?.getNodeAttribute("union_1", "size")).toBe(0);
     expect(lastGraph?.getNodeAttribute("union_1", "color")).toBe("#ffffff");
-    expect(lastGraph?.getNodeAttribute("internal_legacy", "label")).toBe("");
-    expect(lastGraph?.getNodeAttribute("internal_legacy", "size")).toBe(0);
+    expect(lastGraph?.getNodeAttribute("union_sample", "label")).toBe(
+      "union_sample",
+    );
+    expect(lastGraph?.getNodeAttribute("union_sample", "size")).not.toBe(0);
+    expect(lastGraph?.getNodeAttribute("internal_7", "label")).toBe(
+      "internal_7",
+    );
+    expect(lastGraph?.getNodeAttribute("internal_7", "size")).not.toBe(0);
     expect(lastGraph?.getNodeAttribute("profile_1", "label")).toBe("profile_1");
     expect(
       lastGraph?.getNodeAttribute(
@@ -764,6 +781,61 @@ describe("sigmaRenderer", () => {
     warnSpy.mockRestore();
   });
 
+  it("does not reconstruct Sigma on a plain (no-pie) viewport sync", async () => {
+    document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
+    vi.useFakeTimers();
+
+    const plainResponse = {
+      dataset_id: "tree",
+      layout_version: "layout-1",
+      lod_level: 0,
+      zoom: 1,
+      layout_status: "ready" as const,
+      truncated: false,
+      total_node_count: 1,
+      metadata_schema: [],
+      nodes: [
+        {
+          id: "leaf",
+          cluster_id: "c1",
+          x: 0,
+          y: 0,
+          layout_status: "ready" as const,
+          member_count: 1,
+          is_representative: false,
+        },
+      ],
+      edges: [],
+    };
+    const client = {
+      readViewport: vi.fn(async () => plainResponse),
+    };
+
+    const renderer = new SigmaRenderer();
+    renderer.mount({ containerId: CONTAINER_ID });
+    // One construction from mount(); reset so we count only sync-driven rebuilds.
+    sigmaConstructions = 0;
+
+    renderer.startGraphV2ViewportSync({
+      client: client as never,
+      datasetId: "tree",
+      layoutVersion: "layout-1",
+      lodTierCount: 1,
+    });
+    // Flush the debounced initial read + a second refresh: a plain role-color
+    // slice carries no pie__* attributes, so the cheap probe short-circuits and
+    // Sigma is never torn down and rebuilt.
+    await vi.advanceTimersByTimeAsync(500);
+    renderer.refreshGraphV2ViewportSync();
+    await vi.advanceTimersByTimeAsync(500);
+
+    expect(client.readViewport).toHaveBeenCalled();
+    expect(sigmaConstructions).toBe(0);
+
+    renderer.unmount();
+    vi.useRealTimers();
+  });
+
   it("rebuilds pie programs when category colors change", () => {
     document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
 
@@ -868,5 +940,62 @@ describe("sigmaRenderer", () => {
     expect(lastGraph?.getNodeAttribute("node_0", PIE_OTHER_SLICE_KEY)).toBe(1);
 
     renderer.unmount();
+  });
+});
+
+describe("applyPieChartNodeTypes", () => {
+  it("fills slice keys and flips nodes with pie data to the piechart type", () => {
+    const graph = new Graph();
+    graph.addNode("cluster", {
+      type: "triangle",
+      [`${PIE_ATTRIBUTE_PREFIX}region__value__eu`]: 3,
+    });
+    graph.addNode("leaf", {});
+    const sliceKeys = [
+      `${PIE_ATTRIBUTE_PREFIX}region__value__eu`,
+      `${PIE_ATTRIBUTE_PREFIX}region__value__us`,
+    ];
+
+    applyPieChartNodeTypes(graph, sliceKeys);
+
+    // Cluster has positive pie data: type flips (overriding triangle) and the
+    // absent slice key is filled with 0 so the program can read it.
+    expect(graph.getNodeAttribute("cluster", "type")).toBe(
+      SIGMA_NODE_TYPE_PIECHART,
+    );
+    expect(
+      graph.getNodeAttribute("cluster", `${PIE_ATTRIBUTE_PREFIX}region__value__us`),
+    ).toBe(0);
+    // Leaf has no positive pie data: type is left untouched.
+    expect(graph.getNodeAttribute("leaf", "type")).toBeUndefined();
+  });
+
+  it("aggregates non-displayed pie keys into the Others slice", () => {
+    const graph = new Graph();
+    graph.addNode("n", {
+      [`${PIE_ATTRIBUTE_PREFIX}region__value__eu`]: 2,
+      [`${PIE_ATTRIBUTE_PREFIX}region__value__hidden`]: 5,
+    });
+    const sliceKeys = [
+      `${PIE_ATTRIBUTE_PREFIX}region__value__eu`,
+      PIE_OTHER_SLICE_KEY,
+    ];
+
+    applyPieChartNodeTypes(graph, sliceKeys);
+
+    expect(graph.getNodeAttribute("n", PIE_OTHER_SLICE_KEY)).toBe(5);
+    expect(graph.getNodeAttribute("n", "type")).toBe(SIGMA_NODE_TYPE_PIECHART);
+  });
+
+  it("leaves node types untouched when there are no slice keys", () => {
+    const graph = new Graph();
+    graph.addNode("n", {
+      type: "triangle",
+      [`${PIE_ATTRIBUTE_PREFIX}region__value__eu`]: 3,
+    });
+
+    applyPieChartNodeTypes(graph, []);
+
+    expect(graph.getNodeAttribute("n", "type")).toBe("triangle");
   });
 });

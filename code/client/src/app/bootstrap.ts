@@ -1,5 +1,5 @@
 import { createGraphWorkbench } from "./workbench/graphWorkbench";
-import { createDatasetClient } from "../api/datasetClient";
+import { createGraphV2Client } from "../api/graphV2Client";
 import { UiShellController } from "./uiShell";
 import { DefaultRendererFactory } from "../render/rendererFactory";
 import { RENDERER_KIND_SIGMA } from "../render/types";
@@ -129,9 +129,9 @@ export default function bootstrapClientShell(
     throw new Error(ERR_MISSING_STATUS);
   }
 
-  const datasetClient = createDatasetClient({ baseUrl });
+  const graphV2Client = createGraphV2Client({ baseUrl });
   const workbench = createGraphWorkbench({
-    datasetClient,
+    graphV2Client,
     rendererFactory: new DefaultRendererFactory(),
     rendererKind: RENDERER_KIND_SIGMA,
     renderContext: { containerId: ID_GRAPH_ROOT },

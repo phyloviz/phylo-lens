@@ -14,17 +14,6 @@ TOKEN_COMMA = ","
 TOKEN_COLON = ":"
 TOKEN_TERMINATOR = ";"
 
-DELIMITER_TAB = "\t"
-DELIMITER_COMMA = ","
-DELIMITER_SPACE = " "
-LINE_COMMENT_PREFIX = "#"
-WHITESPACE_SPLIT_REGEX = r"\s+"
-
-HEADER_SOURCE = "source"
-HEADER_FROM = "from"
-HEADER_TARGET = "target"
-HEADER_TO = "to"
-
 NODE_PREFIX_LEAF = "leaf"
 NODE_PREFIX_UNION = "union"
 
@@ -32,10 +21,6 @@ ERR_NEWICK_EMPTY = "Newick content is empty."
 ERR_NEWICK_TRAILING_CONTENT = "Unexpected content after Newick tree terminator."
 ERR_NEWICK_MISSING_CLOSE = "Missing ')' in Newick content."
 ERR_NEWICK_BRANCH_LENGTH = "Invalid Newick branch length near index {index}."
-ERR_EDGELIST_EMPTY = "Edge-list content is empty."
-ERR_EDGELIST_ROW_COLUMNS = "Edge-list row {index} must have at least two columns."
-ERR_EDGELIST_ROW_EMPTY = "Edge-list row {index} has empty source or target."
-ERR_EDGELIST_ROW_DISTANCE = "Edge-list row {index} has invalid distance value."
 WARN_DUPLICATE_LABEL = (
     "Label '{label}' is duplicated, generated deterministic suffix for uniqueness."
 )
@@ -90,22 +75,32 @@ def parse_newick(content: str) -> ParsedGraph:
     root_id: str | None = None
     expect_subtree = True
 
-    def assign_id(label: str | None, prefix: str, counter: int) -> str:
-        """Build a deterministic node id from label or generated prefix."""
+    def assign_id(label: str | None, prefix: str, counter: int) -> tuple[str, bool]:
+        """Build a deterministic node id from label or generated prefix.
+
+        Returns the id and whether a meaningful (non-empty) label slug was used.
+        A label like ``_`` slugifies to an empty string and is treated as an
+        anonymous junction, so it does not count as an explicit label.
+        """
+        used_slug = False
         if label:
             slug = slugify_label(label)
-            base = slug or f"{prefix}_{counter}"
+            if slug:
+                base = slug
+                used_slug = True
+            else:
+                base = f"{prefix}_{counter}"
         else:
             base = f"{prefix}_{counter}"
 
         if base in used_ids:
             used_ids[base] += 1
-            if label:
+            if used_slug:
                 warnings.append(WARN_DUPLICATE_LABEL.format(label=label))
-            return f"{base}_{used_ids[base]}"
+            return f"{base}_{used_ids[base]}", used_slug
 
         used_ids[base] = 1
-        return base
+        return base, used_slug
 
     def peek() -> str | None:
         if index >= content_length:
@@ -186,16 +181,20 @@ def parse_newick(content: str) -> ParsedGraph:
             if current == TOKEN_CLOSE_PAREN:
                 if not stack:
                     raise ParseError(ERR_NEWICK_TRAILING_CONTENT)
-                warnings.append(WARN_NEWICK_EMPTY_CHILD.format(index=index))
+                # A trailing separator before ')' (e.g. "(A,B,)") is a benign
+                # phylolib dialect quirk, not an empty child. Only warn when the
+                # group has no children at all (a genuinely empty "()").
+                if not stack[-1].child_links:
+                    warnings.append(WARN_NEWICK_EMPTY_CHILD.format(index=index))
                 expect_subtree = False
                 continue
 
             leaf_counter += 1
             label = parse_label_optional()
             branch_length = parse_branch_length_optional()
-            node_id = assign_id(label, NODE_PREFIX_LEAF, leaf_counter)
+            node_id, used_slug = assign_id(label, NODE_PREFIX_LEAF, leaf_counter)
             nodes.append(node_id)
-            if label is not None:
+            if used_slug:
                 explicit_node_ids.add(node_id)
             emit_completed_node(node_id, branch_length)
             expect_subtree = False
@@ -215,14 +214,15 @@ def parse_newick(content: str) -> ParsedGraph:
             pending = stack.pop()
             label = parse_label_optional()
             branch_length = parse_branch_length_optional()
-            node_id = assign_id(label, NODE_PREFIX_UNION, pending.preorder_index)
+            node_id, used_slug = assign_id(
+                label, NODE_PREFIX_UNION, pending.preorder_index
+            )
             nodes.append(node_id)
-            if label is not None:
+            if used_slug:
                 explicit_node_ids.add(node_id)
             for child_id, child_distance in pending.child_links:
-                source, target = sorted((node_id, child_id))
                 edges.append(
-                    ParsedEdge(source=source, target=target, distance=child_distance)
+                    ParsedEdge(source=node_id, target=child_id, distance=child_distance)
                 )
             emit_completed_node(node_id, branch_length)
             continue
@@ -258,65 +258,3 @@ def slugify_label(label: str) -> str:
         .strip(LABEL_SLUG_STRIP_CHARS)
         .lower()
     )
-
-
-def parse_edgelist(content: str) -> ParsedGraph:
-    """Parse edge-list text into canonical source-target tuples."""
-    raw_lines = [line.strip() for line in content.splitlines() if line.strip()]
-    lines = [line for line in raw_lines if not line.startswith(LINE_COMMENT_PREFIX)]
-    if not lines:
-        raise ParseError(ERR_EDGELIST_EMPTY)
-
-    delimiter = _detect_delimiter(lines[0])
-    rows = [_split_line(line, delimiter) for line in lines]
-
-    first = [item.strip().lower() for item in rows[0]]
-    has_header = (
-        len(first) >= 2
-        and first[0] in {HEADER_SOURCE, HEADER_FROM}
-        and first[1]
-        in {
-            HEADER_TARGET,
-            HEADER_TO,
-        }
-    )
-    if has_header:
-        rows = rows[1:]
-
-    nodes: set[str] = set()
-    edges: list[ParsedEdge] = []
-
-    for index, row in enumerate(rows, start=1):
-        if len(row) < 2:
-            raise ParseError(ERR_EDGELIST_ROW_COLUMNS.format(index=index))
-        source = row[0].strip()
-        target = row[1].strip()
-        if not source or not target:
-            raise ParseError(ERR_EDGELIST_ROW_EMPTY.format(index=index))
-        distance: float | None = None
-        if len(row) >= 3 and row[2].strip():
-            try:
-                distance = float(row[2].strip())
-            except ValueError as exc:
-                raise ParseError(ERR_EDGELIST_ROW_DISTANCE.format(index=index)) from exc
-        nodes.add(source)
-        nodes.add(target)
-        edges.append(ParsedEdge(source=source, target=target, distance=distance))
-
-    return ParsedGraph(nodes=sorted(nodes), edges=edges, warnings=[])
-
-
-def _detect_delimiter(line: str) -> str:
-    """Pick a delimiter based on first-row content heuristics."""
-    if DELIMITER_TAB in line:
-        return DELIMITER_TAB
-    if DELIMITER_COMMA in line:
-        return DELIMITER_COMMA
-    return DELIMITER_SPACE
-
-
-def _split_line(line: str, delimiter: str) -> list[str]:
-    """Split one edge-list row into normalized columns."""
-    if delimiter == DELIMITER_SPACE:
-        return [part for part in re.split(WHITESPACE_SPLIT_REGEX, line.strip()) if part]
-    return [part.strip() for part in line.split(delimiter)]

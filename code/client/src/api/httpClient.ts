@@ -1,6 +1,7 @@
 import { isRecord } from "../validation/guards";
 
 export const HTTP_METHOD_POST = "POST";
+export const HTTP_METHOD_GET = "GET";
 export const HEADER_CONTENT_TYPE = "Content-Type";
 export const CONTENT_TYPE_JSON = "application/json";
 
@@ -17,6 +18,7 @@ export interface HttpClient {
     path: string,
     body: TRequest,
   ) => Promise<TResponse>;
+  get: <TResponse>(path: string) => Promise<TResponse>;
 }
 
 export function createHttpClient(options: HttpClientOptions): HttpClient {
@@ -30,6 +32,8 @@ export function createHttpClient(options: HttpClientOptions): HttpClient {
         path,
         body,
       }),
+    get: <TResponse>(path: string) =>
+      get<TResponse>({ baseUrl: options.baseUrl, fetchImpl, path }),
   };
 }
 
@@ -50,6 +54,29 @@ async function post<TRequest, TResponse>({
     method: HTTP_METHOD_POST,
     headers: { [HEADER_CONTENT_TYPE]: CONTENT_TYPE_JSON },
     body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    throw new Error(await buildHttpErrorMessage(response));
+  }
+
+  return (await response.json()) as TResponse;
+}
+
+interface GetJsonOptions {
+  baseUrl: string;
+  fetchImpl: typeof fetch;
+  path: string;
+}
+
+async function get<TResponse>({
+  baseUrl,
+  fetchImpl,
+  path,
+}: GetJsonOptions): Promise<TResponse> {
+  const response = await fetchImpl(`${baseUrl}${path}`, {
+    method: HTTP_METHOD_GET,
+    headers: { [HEADER_CONTENT_TYPE]: CONTENT_TYPE_JSON },
   });
 
   if (!response.ok) {

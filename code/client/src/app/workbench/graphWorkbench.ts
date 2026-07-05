@@ -1,41 +1,24 @@
-import {
-  type DatasetClient,
-  type NormalizeRequest,
-} from "../../api/datasetClient";
+import type {
+  GraphV2Client,
+  GraphV2ViewportResponse,
+  NormalizeRequest,
+} from "../../api/graphV2Client";
 import {
   type CanonicalDataset,
   type SearchDatasetResponse,
   SOURCE_FORMAT_NEWICK,
 } from "../../contracts/models";
 import { type PositionedGraph } from "../../contracts/positioned";
-import {
-  ClientGraphFilterEngine,
-  type GraphFilterEngine,
-} from "../../ancillary/filterEngine";
+import { buildMetadataIndex } from "../../ancillary/metadataIndex";
 import type {
   GraphRenderer,
   RenderNodeClickState,
-  RenderViewportState,
 } from "../../render/types";
-import { buildFullPositionedGraph } from "./graphSlice";
+import { emptyGraph } from "./graphSlice";
 import {
   DEFAULT_VIEWPORT,
-  DEFAULT_VIEW_CHANGE_DEBOUNCE_MS,
   DEFAULT_VIEW_SLICE_MAX_NODES,
-  DEFAULT_VIEW_SLICE_ZOOM,
-  normalizeViewport,
-  normalizeZoom,
-  resolveMaxNodesForZoom,
-  serializeViewKey,
 } from "./graphViewport";
-import { searchFullRenderedDataset } from "./search/graphSearch";
-import {
-  getClickedClusterId,
-  isClusterProxyClick,
-  toggleClusterExpansion,
-} from "./lod/clusterExpansion";
-import { refreshVisibleSlice } from "./lod/sliceRefresh";
-import { renderMappedCurrentSlice } from "./rendering/graphRendering";
 import {
   applyMetadataFilters,
   clearMetadataFilters,
@@ -51,6 +34,7 @@ import {
   ERR_LOD_PLAYBACK_REQUIRES_LOD,
   ERR_NO_GRAPH_RENDERED,
 } from "./workbenchErrors";
+import { searchDatasetNodes } from "./nodeSearch";
 import {
   clearPendingViewRefresh,
   createInitialGraphWorkbenchState,
@@ -74,36 +58,27 @@ export type {
 } from "./workbenchTypes";
 
 export const DEFAULT_DATASET_NAME = "uploaded-dataset";
-export const DEFAULT_FULL_RENDER_NODE_LIMIT = 4000;
-export const SEARCH_FOCUS_LOD_ZOOM = 8;
 export const DEFAULT_SEARCH_RESULT_LIMIT = 50;
+export const GRAPH_V2_DETAIL_LOD_LEVEL = 3;
 export { ERR_LOD_PLAYBACK_REQUIRES_LOD, ERR_NO_GRAPH_RENDERED };
 
 export function createGraphWorkbench(
   options: GraphWorkbenchOptions,
 ): GraphWorkbench {
   const state = createInitialGraphWorkbenchState();
-  const filterEngine = options.filterEngine ?? new ClientGraphFilterEngine();
 
   const renderer = options.rendererFactory.createRenderer(options.rendererKind);
   renderer.mount(options.renderContext);
 
-  renderer.setViewChangeHandler?.((viewState) => {
+  renderer.setViewChangeHandler?.(() => {
     void handleViewChange({
       state,
-      renderer,
-      datasetClient: options.datasetClient,
-      filterEngine,
-      viewState,
     });
   });
 
   renderer.setNodeClickHandler?.((clickState) => {
     void handleNodeClick({
       state,
-      renderer,
-      datasetClient: options.datasetClient,
-      filterEngine,
       clickState,
     });
   });
@@ -113,8 +88,7 @@ export function createGraphWorkbench(
       renderNewick({
         state,
         renderer,
-        datasetClient: options.datasetClient,
-        filterEngine,
+        graphV2Client: options.graphV2Client,
         newick,
         datasetName,
         options: renderOptions,
@@ -124,7 +98,6 @@ export function createGraphWorkbench(
       applyMetadataFilters({
         state,
         renderer,
-        filterEngine,
         filterState,
       }),
 
@@ -138,7 +111,6 @@ export function createGraphWorkbench(
       updateVisualMapping({
         state,
         renderer,
-        filterEngine,
         visualMapping,
       }),
 
@@ -153,8 +125,6 @@ export function createGraphWorkbench(
       setLodRefreshPaused({
         state,
         renderer,
-        datasetClient: options.datasetClient,
-        filterEngine,
         paused,
       }),
 
@@ -163,7 +133,6 @@ export function createGraphWorkbench(
     searchNodes: (query) =>
       searchNodes({
         state,
-        datasetClient: options.datasetClient,
         query,
       }),
 
@@ -171,8 +140,6 @@ export function createGraphWorkbench(
       focusNode({
         state,
         renderer,
-        datasetClient: options.datasetClient,
-        filterEngine,
         nodeId,
       }),
 
@@ -190,54 +157,10 @@ export function createGraphWorkbench(
   };
 }
 
-function shouldUseLodMode(
-  dataset: CanonicalDataset,
-  options: RenderNewickOptions,
-): boolean {
-  if (options.lod?.enabled !== undefined) {
-    return options.lod.enabled;
-  }
-
-  const fullRenderLimit =
-    options.lod?.fullRenderNodeLimit ?? DEFAULT_FULL_RENDER_NODE_LIMIT;
-
-  return dataset.nodes.length > fullRenderLimit;
-}
-
-interface RenderFullDatasetArgs {
-  state: GraphWorkbenchState;
-  renderer: GraphRenderer;
-  filterEngine: GraphFilterEngine;
-  dataset: CanonicalDataset;
-  options: RenderNewickOptions;
-}
-
-function renderFullDataset({
-  state,
-  renderer,
-  filterEngine,
-  dataset,
-  options,
-}: RenderFullDatasetArgs): PositionedGraph {
-  const positionedGraph = buildFullPositionedGraph(dataset, options.layout);
-
-  state.renderMode = "full";
-  state.currentSliceDataset = dataset;
-  state.currentPositionedSliceGraph = positionedGraph;
-
-  return renderMappedCurrentSlice({
-    state,
-    renderer,
-    filterEngine,
-    visualMapping: options.visualMapping,
-  });
-}
-
 interface RenderNewickArgs {
   state: GraphWorkbenchState;
   renderer: GraphRenderer;
-  datasetClient: DatasetClient;
-  filterEngine: GraphFilterEngine;
+  graphV2Client: GraphV2Client;
   newick: string;
   datasetName?: string;
   options?: RenderNewickOptions;
@@ -246,8 +169,7 @@ interface RenderNewickArgs {
 async function renderNewick({
   state,
   renderer,
-  datasetClient,
-  filterEngine,
+  graphV2Client,
   newick,
   datasetName = DEFAULT_DATASET_NAME,
   options = {},
@@ -264,109 +186,86 @@ async function renderNewick({
     ancillary_data: options.ancillaryData,
   };
 
-  const normalized = await datasetClient.normalizeDataset(request);
-  const metadataSchema = normalized.dataset.metadata_schema;
-  const metadataByNodeId = normalized.dataset.metadata_by_node_id;
-  const ancillaryRowsByNodeId =
-    normalized.dataset.ancillary_rows_by_node_id ?? {};
+  if (renderer.startGraphV2ViewportSync) {
+    const preparedGraph = await graphV2Client.prepareGraph(request);
 
-  if (!shouldUseLodMode(normalized.dataset, options)) {
-    return renderFullDataset({
-      state,
-      renderer,
-      filterEngine,
-      dataset: normalized.dataset,
-      options,
+    state.renderMode = "lod";
+    state.preparedSession = {
+      datasetId: preparedGraph.dataset_id,
+      layoutVersion: preparedGraph.layout_version,
+      metadataSchema: options.metadataSchema ?? [],
+      metadataByNodeId: options.metadataByNodeId ?? {},
+      ancillaryRowsByNodeId: {},
+      visualMapping: options.visualMapping,
+      layout: options.layout,
+      lod: {
+        maxNodes: options.lod?.maxNodes ?? DEFAULT_VIEW_SLICE_MAX_NODES,
+        lodHint: options.lod?.lodHint,
+        viewport: options.lod?.viewport ?? DEFAULT_VIEWPORT,
+      },
+    };
+    state.currentSliceDataset = null;
+
+    renderer.startGraphV2ViewportSync({
+      client: graphV2Client,
+      datasetId: preparedGraph.dataset_id,
+      layoutVersion: preparedGraph.layout_version,
+      maxNodes: state.preparedSession.lod.maxNodes,
+      lodTierCount: preparedGraph.lod_tier_count,
+      getPaused: () => state.lodRefreshPaused,
+      onViewportLoaded: (response) => {
+        updateStateFromGraphV2Viewport(state, response);
+      },
+      getRenderSettings: () => ({
+        visualMapping: state.preparedSession?.visualMapping,
+        filterState: state.activeFilters,
+        metadataSchema: state.preparedSession?.metadataSchema,
+      }),
     });
+
+    const placeholderGraph = emptyGraph();
+    state.currentGraph = placeholderGraph;
+    state.currentSliceGraph = placeholderGraph;
+    state.currentPositionedSliceGraph = placeholderGraph;
+    state.graphRenderedHandler?.(placeholderGraph);
+    return placeholderGraph;
   }
 
-  const preparedDataset = await datasetClient.prepareDataset(request);
-
-  state.renderMode = "lod";
-  state.preparedSession = {
-    datasetId: preparedDataset.dataset_id,
-    metadataSchema,
-    metadataByNodeId,
-    ancillaryRowsByNodeId,
-    visualMapping: options.visualMapping,
-    layout: options.layout,
-    lod: {
-      maxNodes: options.lod?.maxNodes ?? DEFAULT_VIEW_SLICE_MAX_NODES,
-      lodHint: options.lod?.lodHint,
-      viewport: options.lod?.viewport ?? DEFAULT_VIEWPORT,
-    },
-  };
-
-  return refreshVisibleSlice({
-    state,
-    renderer,
-    datasetClient,
-    filterEngine,
-    viewState: {
-      viewport: state.preparedSession.lod.viewport,
-      zoom: options.lod?.zoom ?? DEFAULT_VIEW_SLICE_ZOOM,
-    },
-  });
+  throw new Error("Graph V2 viewport sync is required for LoD rendering.");
 }
 
 interface SetLodRefreshPausedArgs {
   state: GraphWorkbenchState;
   renderer: GraphRenderer;
-  datasetClient: DatasetClient;
-  filterEngine: GraphFilterEngine;
   paused: boolean;
 }
 
 async function setLodRefreshPaused({
   state,
   renderer,
-  datasetClient,
-  filterEngine,
   paused,
 }: SetLodRefreshPausedArgs): Promise<PositionedGraph | null> {
   if (!state.preparedSession || state.renderMode !== "lod") {
     throw new Error(ERR_LOD_PLAYBACK_REQUIRES_LOD);
   }
 
-  if (paused) {
-    state.lodRefreshPaused = true;
-    clearPendingViewRefresh(state);
-    return state.currentGraph;
-  }
-
-  state.lodRefreshPaused = false;
+  state.lodRefreshPaused = paused;
   clearPendingViewRefresh(state);
-
-  const nextViewState = state.deferredViewState ??
-    state.currentViewState ?? {
-      viewport: state.preparedSession.lod.viewport,
-      zoom: DEFAULT_VIEW_SLICE_ZOOM,
-    };
   state.deferredViewState = null;
-
-  return refreshVisibleSlice({
-    state,
-    renderer,
-    datasetClient,
-    filterEngine,
-    viewState: nextViewState,
-  });
+  // On resume, reconcile the frozen view to wherever the camera drifted while
+  // paused. refreshNow() bypasses the pause guard in GraphViewerV2.
+  if (!paused) {
+    renderer.refreshGraphV2ViewportSync?.();
+  }
+  return state.currentGraph;
 }
 
 interface HandleViewChangeArgs {
   state: GraphWorkbenchState;
-  renderer: GraphRenderer;
-  datasetClient: DatasetClient;
-  filterEngine: GraphFilterEngine;
-  viewState: RenderViewportState;
 }
 
 async function handleViewChange({
   state,
-  renderer,
-  datasetClient,
-  filterEngine,
-  viewState,
 }: HandleViewChangeArgs): Promise<void> {
   const session = state.preparedSession;
 
@@ -374,119 +273,23 @@ async function handleViewChange({
     return;
   }
 
-  const effectiveViewport = normalizeViewport(viewState.viewport);
-  const effectiveZoom = normalizeZoom(viewState.zoom);
-
-  if (state.lodRefreshPaused) {
-    state.deferredViewState = {
-      viewport: effectiveViewport,
-      zoom: effectiveZoom,
-    };
-    clearPendingViewRefresh(state);
-    return;
-  }
-
-  const effectiveMaxNodes = resolveMaxNodesForZoom(
-    session.lod.maxNodes,
-    effectiveZoom,
-  );
-
-  const nextViewKey = serializeViewKey(
-    effectiveViewport,
-    effectiveZoom,
-    effectiveMaxNodes,
-    session.lod.lodHint,
-    undefined,
-    undefined,
-    [...state.expandedClusterIds],
-    [...state.collapsedClusterIds],
-  );
-
-  if (nextViewKey === state.lastRequestedViewKey) {
-    return;
-  }
-
   clearPendingViewRefresh(state);
-
-  const suppressionDelay = Math.max(
-    0,
-    state.suppressViewChangesUntil - Date.now(),
-  );
-  state.pendingViewRefreshId = window.setTimeout(() => {
-    state.pendingViewRefreshId = null;
-
-    void refreshVisibleSlice({
-      state,
-      renderer,
-      datasetClient,
-      filterEngine,
-      viewState: {
-        viewport: effectiveViewport,
-        zoom: effectiveZoom,
-      },
-    });
-  }, suppressionDelay + DEFAULT_VIEW_CHANGE_DEBOUNCE_MS);
 }
 
 interface HandleNodeClickArgs {
   state: GraphWorkbenchState;
-  renderer: GraphRenderer;
-  datasetClient: DatasetClient;
-  filterEngine: GraphFilterEngine;
   clickState: RenderNodeClickState;
 }
 
 async function handleNodeClick({
   state,
-  renderer,
-  datasetClient,
-  filterEngine,
   clickState,
 }: HandleNodeClickArgs): Promise<void> {
   state.nodeClickedHandler?.(clickState);
-
-  const session = state.preparedSession;
-
-  if (!session || state.renderMode !== "lod") {
-    return;
-  }
-
-  const clickedNode = state.currentGraph?.nodes.find(
-    (node) => node.id === clickState.nodeId,
-  );
-
-  const clickedClusterId = getClickedClusterId(clickState, clickedNode);
-
-  if (!clickedClusterId || !isClusterProxyClick(clickState, clickedNode)) {
-    return;
-  }
-
-  toggleClusterExpansion(state, clickedClusterId);
-
-  const currentViewState = state.currentViewState ?? {
-    viewport: session.lod.viewport,
-    zoom: DEFAULT_VIEW_SLICE_ZOOM,
-  };
-
-  await refreshVisibleSlice({
-    state,
-    renderer,
-    datasetClient,
-    filterEngine,
-    viewState: {
-      viewport: currentViewState.viewport,
-      zoom: currentViewState.zoom,
-    },
-    options: {
-      focusNodeIdOverride: clickState.nodeId,
-      focusClusterIdOverride: clickedClusterId,
-    },
-  });
 }
 
 interface SearchNodesArgs {
   state: GraphWorkbenchState;
-  datasetClient: DatasetClient;
   query: {
     query: string;
     limit?: number;
@@ -496,94 +299,41 @@ interface SearchNodesArgs {
 
 async function searchNodes({
   state,
-  datasetClient,
   query,
 }: SearchNodesArgs): Promise<SearchDatasetResponse> {
   const session = state.preparedSession;
-
-  if (state.renderMode === "full") {
-    if (!state.currentSliceDataset) {
-      throw new Error(ERR_NO_GRAPH_RENDERED);
-    }
-
-    return searchFullRenderedDataset({
-      dataset: state.currentSliceDataset,
-      query: query.query,
-      limit: query.limit ?? DEFAULT_SEARCH_RESULT_LIMIT,
-      includeMetadataKeys: query.includeMetadataKeys,
-    });
-  }
 
   if (!session || state.renderMode !== "lod") {
     throw new Error(ERR_NO_GRAPH_RENDERED);
   }
 
-  return datasetClient.searchDataset({
-    dataset_id: session.datasetId,
-    query: query.query,
-    limit: query.limit,
-    include_metadata_keys:
-      query.includeMetadataKeys ??
-      session.metadataSchema.map((field) => field.key),
-  });
+  return searchDatasetNodes(
+    session.datasetId,
+    session.metadataByNodeId,
+    query,
+  );
 }
 
 interface FocusNodeArgs {
   state: GraphWorkbenchState;
   renderer: GraphRenderer;
-  datasetClient: DatasetClient;
-  filterEngine: GraphFilterEngine;
   nodeId: string;
 }
 
 async function focusNode({
   state,
   renderer,
-  datasetClient,
-  filterEngine,
   nodeId,
 }: FocusNodeArgs): Promise<PositionedGraph> {
   const session = state.preparedSession;
-
-  if (state.renderMode === "full") {
-    const graph = state.currentGraph ?? state.currentSliceGraph;
-    if (!graph) {
-      throw new Error(ERR_NO_GRAPH_RENDERED);
-    }
-
-    if (graph.nodes.some((node) => node.id === nodeId)) {
-      renderer.focusNode?.(nodeId);
-      renderer.centerOnNode?.(nodeId);
-    }
-
-    return graph;
-  }
 
   if (!session || state.renderMode !== "lod") {
     throw new Error(ERR_NO_GRAPH_RENDERED);
   }
 
-  const currentViewState = state.currentViewState ?? {
-    viewport: session.lod.viewport,
-    zoom: DEFAULT_VIEW_SLICE_ZOOM,
-  };
-  const focusZoom = Math.max(currentViewState.zoom, SEARCH_FOCUS_LOD_ZOOM);
-
-  return refreshVisibleSlice({
-    state,
-    renderer,
-    datasetClient,
-    filterEngine,
-    viewState: {
-      viewport: currentViewState.viewport,
-      zoom: focusZoom,
-    },
-    options: {
-      focusNodeIdOverride: nodeId,
-      centerOnNodeId: nodeId,
-      focusRenderedNodeId: nodeId,
-    },
-  });
+  renderer.focusNode?.(nodeId);
+  renderer.centerOnNode?.(nodeId);
+  return state.currentGraph ?? state.currentSliceGraph ?? emptyGraph();
 }
 
 function disposeGraphWorkbench(
@@ -593,5 +343,112 @@ function disposeGraphWorkbench(
   clearPendingViewRefresh(state);
   renderer.setViewChangeHandler?.(null);
   renderer.setNodeClickHandler?.(null);
+  renderer.stopGraphV2ViewportSync?.();
   renderer.unmount();
+}
+
+function updateStateFromGraphV2Viewport(
+  state: GraphWorkbenchState,
+  response: GraphV2ViewportResponse,
+): void {
+  const graph: PositionedGraph = {
+    nodes: response.nodes.map((node) => ({
+      id: node.id,
+      x: node.x,
+      y: node.y,
+      size: Math.max(5, Math.log1p(node.member_count) * 2),
+      attributes: {
+        cluster_id: node.cluster_id,
+        is_cluster_proxy: node.is_representative,
+        subtree_size: node.member_count,
+        layout_status: node.layout_status,
+      },
+    })),
+    edges: response.edges.map((edge) => ({
+      id: edge.id,
+      source: edge.source,
+      target: edge.target,
+      attributes:
+        typeof edge.distance === "number" && Number.isFinite(edge.distance)
+          ? { distance: edge.distance }
+          : undefined,
+    })),
+    viewMeta: {
+      layout: "server",
+      lodLevel: response.lod_level ?? GRAPH_V2_DETAIL_LOD_LEVEL,
+      sliceNodeCount: response.nodes.length,
+      sliceEdgeCount: response.edges.length,
+      zoom: response.zoom,
+    },
+  };
+
+  const metadataSignature = viewportMetadataSignature(response);
+  if (
+    metadataSignature !== state.metadataIndexSignature ||
+    state.metadataIndex === null ||
+    state.currentSliceDataset === null
+  ) {
+    const syntheticDataset = buildViewportDataset(state, response);
+    state.currentSliceDataset = syntheticDataset;
+    state.metadataIndex = buildMetadataIndex(syntheticDataset);
+    state.metadataIndexSignature = metadataSignature;
+  }
+  state.currentGraph = graph;
+  state.currentSliceGraph = graph;
+  state.currentPositionedSliceGraph = graph;
+  state.graphRenderedHandler?.(graph);
+}
+
+// A viewport's metadata index is fully determined by the dataset, layout
+// version, LoD level, and the exact node-id set: the prepared layout is
+// immutable, so identical keys always yield identical aggregated metadata.
+// Reusing the prior index across redundant syncs (camera settle, repeated
+// refreshes, unchanged pans) skips the multi-pass rebuild without ever serving
+// stale stats.
+function viewportMetadataSignature(response: GraphV2ViewportResponse): string {
+  const nodeIds = response.nodes.map((node) => node.id).sort();
+  return [
+    response.dataset_id,
+    response.layout_version,
+    response.lod_level ?? "",
+    nodeIds.length,
+    nodeIds.join(","),
+  ].join("|");
+}
+
+// Build a per-viewport CanonicalDataset so stats/search read live metadata.
+function buildViewportDataset(
+  state: GraphWorkbenchState,
+  response: GraphV2ViewportResponse,
+): CanonicalDataset {
+  const metadataByNodeId: CanonicalDataset["metadata_by_node_id"] = {};
+  response.nodes.forEach((node) => {
+    if (node.metadata) {
+      metadataByNodeId[node.id] = node.metadata;
+    }
+  });
+
+  return {
+    dataset_id: response.dataset_id,
+    nodes: response.nodes.map((node) => ({
+      id: node.id,
+      x: node.x,
+      y: node.y,
+      cluster_id: node.cluster_id,
+      is_cluster_proxy: node.is_representative,
+      subtree_size: node.member_count,
+    })),
+    edges: response.edges.map((edge) => ({
+      id: edge.id,
+      source: edge.source,
+      target: edge.target,
+      distance: edge.distance ?? null,
+    })),
+    metadata_schema: state.preparedSession?.metadataSchema ?? [],
+    metadata_by_node_id: metadataByNodeId,
+    source: {
+      format: SOURCE_FORMAT_NEWICK,
+      generated_at: new Date().toISOString(),
+    },
+  };
 }

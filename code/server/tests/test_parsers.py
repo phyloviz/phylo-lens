@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from phylo_lens_server.data.parsers import ParseError, parse_edgelist, parse_newick
+from phylo_lens_server.data.parsers import ParseError, parse_newick
 
 FIXTURES_DIRNAME = "fixtures"
 NEWICK_CASES_FILENAME = "newick_cases.json"
@@ -59,8 +59,7 @@ def test_parse_newick_generates_deterministic_ids_for_unlabeled_union_nodes() ->
         "d",
     }
     assert {
-        (frozenset((edge.source, edge.target)), edge.distance)
-        for edge in parsed.edges
+        (frozenset((edge.source, edge.target)), edge.distance) for edge in parsed.edges
     } == {
         (frozenset(("union_1", "union_2")), None),
         (frozenset(("union_1", "union_3")), None),
@@ -75,7 +74,7 @@ def test_parse_newick_generates_deterministic_ids_for_unlabeled_union_nodes() ->
 def test_parse_newick_handles_deep_trees_without_recursion() -> None:
     """Confirm deeply nested trees parse without relying on the Python call stack."""
     depth = 5000
-    content = f'{"(" * depth}A{")" * depth};'
+    content = f"{'(' * depth}A{')' * depth};"
 
     parsed = parse_newick(content)
 
@@ -93,14 +92,12 @@ def test_parse_newick_preserves_branch_lengths_on_edges() -> None:
     """Confirm Newick branch lengths are carried onto canonical endpoint links."""
     parsed = parse_newick("(A:0.10,(B:0.20,C:0.30)N:0.40)R:0.50;")
 
-    edge_by_pair = {
-        (edge.source, edge.target): edge.distance for edge in parsed.edges
-    }
+    edge_by_pair = {(edge.source, edge.target): edge.distance for edge in parsed.edges}
     assert edge_by_pair == {
-        ("a", "r"): 0.10,
-        ("b", "n"): 0.20,
-        ("c", "n"): 0.30,
-        ("n", "r"): 0.40,
+        ("r", "a"): 0.10,
+        ("n", "b"): 0.20,
+        ("n", "c"): 0.30,
+        ("r", "n"): 0.40,
     }
     assert parsed.explicit_node_ids == {"a", "b", "c", "n", "r"}
 
@@ -109,27 +106,36 @@ def test_parse_newick_ignores_empty_children_from_trailing_commas() -> None:
     """Confirm loose Newick separators do not create phantom missing-distance nodes."""
     parsed = parse_newick("((A:1,B:1,)X:2,(C:3,D:5,)Y:4,)Root;")
 
-    edge_by_pair = {
-        (edge.source, edge.target): edge.distance for edge in parsed.edges
-    }
+    edge_by_pair = {(edge.source, edge.target): edge.distance for edge in parsed.edges}
     assert edge_by_pair == {
-        ("a", "x"): 1.0,
-        ("b", "x"): 1.0,
-        ("c", "y"): 3.0,
-        ("d", "y"): 5.0,
+        ("x", "a"): 1.0,
+        ("x", "b"): 1.0,
+        ("y", "c"): 3.0,
+        ("y", "d"): 5.0,
         ("root", "x"): 2.0,
         ("root", "y"): 4.0,
     }
     assert all(edge.distance is not None for edge in parsed.edges)
-    assert len(parsed.warnings) == 3
+    # Trailing commas before ')' or ';' are a benign phylolib dialect quirk and
+    # must not inflate the warning list (previously O(N) empty-child warnings).
+    assert parsed.warnings == []
 
 
-def test_parse_edgelist_accepts_optional_distance_column() -> None:
-    """Confirm edge-list rows may carry an optional numeric distance."""
-    parsed = parse_edgelist("source,target,distance\na,b,0.5\nb,c,1.25\n")
+def test_parse_newick_warns_on_genuine_empty_child() -> None:
+    """Confirm a genuine empty child position (double comma) still warns."""
+    parsed = parse_newick("(A:1,,B:1)Root;")
 
-    assert parsed.nodes == ["a", "b", "c"]
-    assert [(edge.source, edge.target, edge.distance) for edge in parsed.edges] == [
-        ("a", "b", 0.5),
-        ("b", "c", 1.25),
-    ]
+    edge_by_pair = {(edge.source, edge.target): edge.distance for edge in parsed.edges}
+    assert edge_by_pair == {
+        ("root", "a"): 1.0,
+        ("root", "b"): 1.0,
+    }
+    assert len(parsed.warnings) == 1
+
+
+def test_parse_newick_does_not_flag_meaningless_underscore_labels_as_explicit() -> None:
+    """Confirm '_' junction labels slugify to empty and are not join-eligible."""
+    parsed = parse_newick("(4365:0.5,4601:0.5,)_:0.5;")
+
+    assert parsed.explicit_node_ids == {"4365", "4601"}
+    assert parsed.warnings == []

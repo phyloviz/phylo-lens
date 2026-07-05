@@ -81,7 +81,6 @@ describe("uiShell", () => {
         layout: "force",
         lodLevel: 0,
         sliceNodeCount: 1,
-        collapsedClusterCount: 0,
         zoom: 4,
       },
     });

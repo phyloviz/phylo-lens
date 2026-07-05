@@ -27,7 +27,6 @@ from phylo_lens_server.core.metadata_keys import (
 from phylo_lens_server.core.validators import validate_canonical_dataset
 from phylo_lens_server.data.parsers import (
     ParseError,
-    parse_edgelist,
     parse_newick,
     slugify_label,
 )
@@ -37,7 +36,6 @@ class NormalizeFormat(StrEnum):
     """Supported input formats for dataset normalization requests."""
 
     NEWICK = "newick"
-    EDGELIST = "edgelist"
     # TYPING_DATA = "typing_data"
 
 
@@ -128,8 +126,6 @@ def normalize_dataset(
     match request.format:
         case NormalizeFormat.NEWICK:
             parsed = parse_newick(request.content)
-        case NormalizeFormat.EDGELIST:
-            parsed = parse_edgelist(request.content)
 
         # If a invalid format is provided, raise a ParseError which will be handled by the caller to return a 400 response.
         case _:
@@ -146,7 +142,8 @@ def normalize_dataset(
     for parsed_edge in sorted(
         parsed.edges, key=lambda edge: (edge.source, edge.target)
     ):
-        source, target = sorted((parsed_edge.source, parsed_edge.target))
+        source = parsed_edge.source
+        target = parsed_edge.target
         distance = _normalize_edge_distance(
             parsed_edge.distance,
             source=source,
@@ -312,10 +309,12 @@ def _parse_ancillary_metadata(
             )
             continue
 
-        rows_by_node_id.setdefault(node_id, []).append({
-            key: _coerce_ancillary_value(value, field_types[key])
-            for key, value in values.items()
-        })
+        rows_by_node_id.setdefault(node_id, []).append(
+            {
+                key: _coerce_ancillary_value(value, field_types[key])
+                for key, value in values.items()
+            }
+        )
 
     metadata_by_node_id = {
         node_id: _aggregate_ancillary_rows(rows)
@@ -324,9 +323,7 @@ def _parse_ancillary_metadata(
 
     missing_count = len(node_ids - set(metadata_by_node_id))
     if missing_count:
-        warnings.append(
-            WARN_ANCILLARY_UNMATCHED_NODE_COUNT.format(count=missing_count)
-        )
+        warnings.append(WARN_ANCILLARY_UNMATCHED_NODE_COUNT.format(count=missing_count))
 
     return metadata_by_node_id, rows_by_node_id, warnings
 

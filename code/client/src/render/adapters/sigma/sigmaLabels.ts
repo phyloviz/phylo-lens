@@ -2,14 +2,14 @@ import type {
   EdgeLabelDrawingFunction,
   NodeLabelDrawingFunction,
 } from "sigma/rendering";
-import { isPhyloVizUnionNode } from "../../phylovizNodes";
+import { isUnionNode } from "../../unionNodes";
 import { SIGMA_DEFAULT_LABEL_COLOR } from "./sigmaRenderingConstants";
 
 export function deriveNodeLabel(
   nodeId: string,
   attributes: Record<string, unknown> | undefined,
 ): string {
-  if (isPhyloVizUnionNode(nodeId, attributes)) {
+  if (isUnionNode(nodeId, attributes)) {
     return "";
   }
 

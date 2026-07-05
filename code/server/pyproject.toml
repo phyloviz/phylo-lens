@@ -6,7 +6,6 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
   "fastapi>=0.115.0,<1.0.0",
-  "igraph>=1.0.0,<2.0.0",
   "uvicorn>=0.32.0,<1.0.0",
   "pydantic>=2.9.0,<3.0.0"
 ]
@@ -23,7 +22,6 @@ dev = [
 
 [project.scripts]
 phylo-lens-server = "phylo_lens_server.main:run"
-phylo-lens-benchmark-lod = "phylo_lens_server.benchmarking.cli:main"
 
 [build-system]
 requires = ["setuptools>=68", "wheel"]
