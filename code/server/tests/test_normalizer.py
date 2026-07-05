@@ -470,16 +470,18 @@ TYPING_PROFILES = "ST\tadk\tfumC\nA\t1\t2\nB\t1\t3\nC\t4\t5\n"
 TYPING_NEWICK = "((A:1,B:1):1,C:2);"
 
 
-def test_typing_data_maps_phylolib_newick_into_pipeline(monkeypatch) -> None:
-    """A typing_data request converts profiles to Newick then normalizes as usual."""
+def test_typing_data_maps_phylolib_graph_into_pipeline(monkeypatch) -> None:
+    """A typing_data request converts profiles to a graph then normalizes as usual."""
+    from phylo_lens_server.data.parsers import parse_newick
+
     calls: list[str] = []
 
-    def fake_convert(profiles: str, **kwargs) -> str:
+    def fake_convert(profiles: str, **kwargs):
         calls.append(profiles)
-        return TYPING_NEWICK
+        return parse_newick(TYPING_NEWICK)
 
     monkeypatch.setattr(
-        "phylo_lens_server.data.normalizer.typing_profiles_to_newick", fake_convert
+        "phylo_lens_server.data.normalizer.typing_profiles_to_graph", fake_convert
     )
 
     result = normalize_dataset(
@@ -561,3 +563,33 @@ def test_typing_profiles_to_newick_stage_failure_raises(monkeypatch) -> None:
         phylolib.typing_profiles_to_newick(TYPING_PROFILES)
 
     assert excinfo.value.reason == phylolib.TYPING_PHYLOLIB_DISTANCE_FAILED
+
+
+TYPING_FOREST_NEWICK = "(B:1.0)A;(D:1.0)C;"
+
+
+def test_typing_profiles_to_graph_merges_forest(monkeypatch) -> None:
+    """A goeBURST forest is kept as one disconnected graph, no ST dropped."""
+    monkeypatch.setattr(
+        phylolib, "typing_profiles_to_newick", lambda profiles, **kwargs: TYPING_FOREST_NEWICK
+    )
+
+    graph = phylolib.typing_profiles_to_graph(TYPING_PROFILES)
+
+    assert sorted(graph.nodes) == ["a", "b", "c", "d"]
+    assert sorted((edge.source, edge.target) for edge in graph.edges) == [
+        ("a", "b"),
+        ("c", "d"),
+    ]
+    assert any("disconnected components" in warning for warning in graph.warnings)
+
+
+def test_typing_profiles_to_graph_single_tree_has_no_forest_warning(monkeypatch) -> None:
+    """A single connected component passes through without a forest warning."""
+    monkeypatch.setattr(
+        phylolib, "typing_profiles_to_newick", lambda profiles, **kwargs: TYPING_NEWICK
+    )
+
+    graph = phylolib.typing_profiles_to_graph(TYPING_PROFILES)
+
+    assert not any("disconnected components" in warning for warning in graph.warnings)

@@ -86,14 +86,21 @@ left as-is; only the per-threshold repetition was the waste.
 
 ## 4. Typing-data input via Phylolib (MLST/cgMLST profiles) — IMPLEMENTED
 
-**Status:** Implemented in `data/phylolib.py` and wired into `normalize_dataset`
-via `NormalizeFormat.TYPING_DATA`. Uses image `gonfrutuoso/phylolib:latest`, a
-two-stage subprocess (`distance hamming` → `algorithm goeburst --lvs=3`) writing
-through a `/files` bind mount, and feeds the existing `parse_newick` path.
-Requires Docker to be reachable; failures raise `ParseError` (400). The original
-design notes below are retained for context. Remaining live-verification once a
-local Docker daemon is available: confirm the exact `ml` profile-file layout and
-flag behavior end-to-end against the published image.
+**Status:** Implemented and **live-verified** against `gonfrutuoso/phylolib:latest`.
+`data/phylolib.py` runs a two-stage subprocess (`distance hamming` →
+`algorithm goeburst --lvs=3`) through a `/files` bind mount;
+`typing_profiles_to_graph` feeds the result through the existing `parse_newick`
+path and is wired into `normalize_dataset` via `NormalizeFormat.TYPING_DATA`.
+Requires Docker to be reachable; failures raise `ParseError` (400).
+
+Live verification (real container + full `prepare → poll → viewport`) confirmed
+the `ml:` profile layout (tab-separated, header row) and flag behavior, and
+surfaced one real issue now handled: **goeBURST emits a forest** (one
+`;`-terminated tree per connected component) for typical typing data. The
+forest is parsed per-component and merged into a single **disconnected**
+`ParsedGraph` (no synthetic root), so no ST is dropped; clustering/sfdp tolerate
+disconnected components end-to-end. The original design notes below are retained
+for context.
 
 **Area:** server ingest — new input format.
 

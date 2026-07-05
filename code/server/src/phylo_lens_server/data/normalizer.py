@@ -32,7 +32,7 @@ from phylo_lens_server.data.parsers import (
 )
 from phylo_lens_server.data.phylolib import (
     TypingNormalizeError,
-    typing_profiles_to_newick,
+    typing_profiles_to_graph,
 )
 
 
@@ -131,15 +131,15 @@ def normalize_dataset(
         case NormalizeFormat.NEWICK:
             parsed = parse_newick(request.content)
 
-        # Typing data (MLST/cgMLST allelic profiles) is converted to Newick by
-        # the containerized PhyloLib CLI, then parsed by the existing path so
-        # everything downstream operates on the same ParsedGraph.
+        # Typing data (MLST/cgMLST allelic profiles) is converted to a graph by
+        # the containerized PhyloLib CLI. goeBURST may emit a forest (one tree
+        # per connected component); typing_profiles_to_graph merges these into a
+        # single disconnected ParsedGraph so everything downstream is unchanged.
         case NormalizeFormat.TYPING_DATA:
             try:
-                newick = typing_profiles_to_newick(request.content)
+                parsed = typing_profiles_to_graph(request.content)
             except TypingNormalizeError as error:
                 raise ParseError(str(error)) from error
-            parsed = parse_newick(newick)
 
         # If a invalid format is provided, raise a ParseError which will be handled by the caller to return a 400 response.
         case _:
