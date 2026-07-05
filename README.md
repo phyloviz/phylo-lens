@@ -1,93 +1,77 @@
 # PhyloLens
 
-PhyloLens is a prototype data engine and client for scalable phylogenetic
-visualization. It is designed around map-like semantic zoom: the server
-precomputes level-of-detail data structures and the client renders only the
-visible slice for the current camera viewport.
+PhyloLens is a scalable phylogenetic visualization system that re-imagines the
+PHYLOViZ desktop experience as a **server-precomputed, semantic-zoom** web tool.
+A dataset is prepared once — parsed, normalized, clustered into a distance
+threshold hierarchy, and laid out — then the client renders only the slice of
+the graph visible in the current camera viewport at the current zoom tier. The
+browser never holds the full topology of a large tree.
 
-The project is thesis-oriented, but the implementation follows production-style
-boundaries:
+The runtime contract is `O(visible slice)`: precomputation absorbs the expensive
+global work, and every interaction is a cheap bounded read.
 
-- `code/server`: FastAPI service for parsing, normalization, LoD precompute,
-  spatial indexing, and visible-slice queries.
-- `code/client`: TypeScript/Sigma client for camera interaction, proxy-aware
-  rendering, and metadata-driven visual mappings.
-- `docs`: maintained technical documentation only.
-- `examples`: small input datasets for local runs and tests.
+## Repository Layout
 
-## Current Runtime
+| Path | What it is |
+| --- | --- |
+| [`code/server`](code/server/README.md) | **Backend** — FastAPI service for normalization, threshold clustering, `sfdp` layout precompute, and bounded viewport/region reads, backed by a SQLite prepared-layout store. |
+| [`code/client`](code/client/README.md) | **Frontend** — TypeScript/Sigma.js renderer with server-driven level-of-detail, metadata-driven coloring/sizing, and box-select region isolation. Also packaged as a consumable library. |
+| [`docs`](docs/README.md) | Maintained technical documentation (architecture, data model, pipeline, LoD, rendering, API reference). |
+| [`examples`](examples/README.md) | Small input datasets for local runs and tests. |
 
-The active path is weighted threshold LoD:
+## How It Works
 
-1. `POST /dataset/prepare` parses and normalizes Newick or edge-list input.
-2. The server builds a deterministic distance-threshold hierarchy using
-   Union-Find over weighted edges.
-3. The server computes stable representative coordinates and cluster bounds.
-4. The server builds static STR-packed spatial indexes per LoD level.
-5. `POST /dataset/view-slice` translates camera viewport + zoom into a bounded
-   graph slice.
-6. The client renders backend-positioned real nodes and proxy nodes in Sigma.
+1. **`POST /api/graph/prepare`** normalizes and validates the dataset
+   synchronously, then submits a background layout job (returns `202`).
+2. The server builds a deterministic distance-threshold hierarchy (Union-Find
+   over weighted edges, up to 16 tiers) and computes force-directed positions
+   (Graphviz `sfdp`), persisting the result to SQLite keyed by
+   `(dataset_id, layout_version)`.
+3. The client **polls `GET /api/graph/prepare/{job_id}`** until the layout is
+   `ready`, then maps camera zoom to a LoD tier and calls
+   **`POST /api/graph/viewport`** for each camera change to pull a bounded slice.
+4. **`POST /api/graph/region`** serves an on-demand box-select read with
+   aggregated metadata for a hand-drawn selection.
 
-PhyloLens deliberately avoids full-graph rendering for large datasets. The
-runtime contract is `O(visible slice)` transfer and rendering, with server-side
-precomputation absorbing the expensive global work.
+See [`docs/ARCHITECTURE_SPEC.md`](docs/ARCHITECTURE_SPEC.md) for the system map
+and [`docs/API_REFERENCE.md`](docs/API_REFERENCE.md) for the field-level API
+reference with runnable examples.
 
-## Algorithms And Data Structures
+## Quick Start
 
-- **Canonical normalization**: deterministic node/edge contracts for Newick and
-  edge-list inputs.
-- **Union-Find threshold hierarchy**: clusters are generated from weighted edge
-  thresholds, ordered from coarse to fine LoD.
-- **Representative proxy nodes**: collapsed clusters are represented by stable
-  real node ids with explicit `cluster_id`, `subtree_size`, and `leaf_count`.
-- **Global coordinate space**: server-provided `global_bounds` keeps camera
-  queries stable across slice refreshes.
-- **STR-packed R-tree**: each LoD level has a static spatial index over cluster
-  bounding boxes for efficient viewport/window queries.
-
-The design is inspired by large-graph map exploration systems such as
-graphVizdb: offline layout/index construction, followed by low-latency spatial
-queries during interaction.
-
-## Development
-
-Server:
+**Backend** (see [`code/server/README.md`](code/server/README.md)):
 
 ```bash
 cd code/server
-pip install -e '.[test]'
-uvicorn phylo_lens_server.main:app --reload
+pip install -e '.[test,dev]'
+uvicorn phylo_lens_server.main:app --reload   # serves http://localhost:8000
 ```
 
-Client:
+**Frontend** (see [`code/client/README.md`](code/client/README.md)):
 
 ```bash
 cd code/client
 npm ci
-npm run dev
+npm run dev                                    # serves http://localhost:3000
 ```
 
-Validation:
+**Validation:**
 
 ```bash
-cd code/server
-pytest -q
-
-cd ../client
-npm run build
-npm test
-```
-
-Benchmarking:
-
-```bash
-cd code/server
-phylo-lens-benchmark-lod --sizes 1000 10000 100000 --repeats 7
+cd code/server && pytest -q
+cd ../client   && npm run build && npm test
 ```
 
 ## Documentation
 
-- [Architecture](docs/ARCHITECTURE_SPEC.md)
-- [LoD and Spatial Indexing](docs/LOD_SPATIAL_INDEX.md)
-- [Server API](code/server/README.md)
-- [Examples](examples/README.md)
+Start at [`docs/README.md`](docs/README.md) for the full reading guide. Key entry
+points:
+
+- [Architecture](docs/ARCHITECTURE_SPEC.md) — the whole system at a glance
+- [API Reference](docs/API_REFERENCE.md) — HTTP routes, models, errors, examples
+- [Server pipeline](docs/SERVER_PIPELINE.md) — how a dataset becomes a layout
+- [LoD and clustering](docs/LOD_AND_CLUSTERING.md) — how zoom maps to detail
+- [Client rendering](docs/CLIENT_RENDERING.md) — rendering, coloring, and
+  consuming the client as a library
+- [Backend README](code/server/README.md) · [Frontend README](code/client/README.md)
+  · [Examples](examples/README.md)

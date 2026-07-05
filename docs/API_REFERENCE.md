@@ -72,6 +72,164 @@ Error bodies follow FastAPI's `{"detail": ...}` convention (`api/errors.py`):
 
 ---
 
+## Endpoint reference
+
+Runnable examples against a local server (`http://localhost:8000`). The API is
+**unauthenticated** — there is no `Authorization` header. The three interaction
+routes are `POST` with a JSON body (not path-param `GET`s), because each carries
+a structured query (a dataset, a viewport, a region) rather than a single id.
+Field-level model tables follow in [Request/response models](#requestresponse-models).
+
+### `GET /health`
+
+**Description:** Liveness probe for local runs and CI.
+
+**Request:** no body.
+
+```bash
+curl --location --request GET 'http://localhost:8000/health'
+```
+
+**Success — `200 OK`** (`application/json`):
+
+```json
+{ "status": "ok" }
+```
+
+### `POST /api/graph/prepare`
+
+**Description:** Normalize + validate a dataset synchronously, then submit the
+force-directed layout as a background job. Returns immediately; poll the status
+route until the layout is `ready`.
+
+**Request** (`application/json`) — a `NormalizeRequest`. Only `format`,
+`content` are required; metadata/ancillary fields are optional:
+
+```json
+{
+  "format": "newick",
+  "dataset_name": "example-tree",
+  "content": "(A:1,(B:2,C:4)N:3)R;"
+}
+```
+
+```bash
+curl --location --request POST 'http://localhost:8000/api/graph/prepare' \
+  --header 'Content-Type: application/json' \
+  --data-raw '{ "format": "newick", "dataset_name": "example-tree", "content": "(A:1,(B:2,C:4)N:3)R;" }'
+```
+
+**Success — `202 Accepted`** (`application/json`) — a `GraphPrepareJob`:
+
+```json
+{ "job_id": "…", "status": "pending", "dataset_id": "example-tree" }
+```
+
+**Error responses:** `400` (malformed Newick) · `422` (schema/domain validation).
+
+### `GET /api/graph/prepare/{job_id}`
+
+**Description:** Poll a prepare job. Repeat until `status` is `ready` or `failed`.
+
+**URI params:** `job_id` (`str`) — the id returned by `POST /prepare`.
+
+```bash
+curl --location --request GET 'http://localhost:8000/api/graph/prepare/JOB_ID'
+```
+
+**Success — `200 OK`** (`application/json`) — a `GraphPrepareStatus`. When
+`ready`, the full `GraphPrepareResponse` is nested under `result`:
+
+```json
+{
+  "job_id": "…",
+  "status": "ready",
+  "result": {
+    "dataset_id": "example-tree",
+    "layout_version": "…",
+    "node_count": 5,
+    "edge_count": 4,
+    "cluster_count": 2,
+    "lod_tier_count": 1,
+    "layout_status": "ready",
+    "warnings": []
+  }
+}
+```
+
+**Error responses:** `404` (unknown `job_id`).
+
+### `POST /api/graph/viewport`
+
+**Description:** Read a bounded, LoD-appropriate slice of a prepared dataset for
+the current camera. Bounds are all-present-or-all-absent; omit them for the
+tier-0 overview.
+
+**Request** (`application/json`) — a `GraphViewportQuery`:
+
+```bash
+curl --location --request POST 'http://localhost:8000/api/graph/viewport' \
+  --header 'Content-Type: application/json' \
+  --data-raw '{ "dataset_id": "example-tree", "layout_version": "…", "xmin": 0, "xmax": 1000, "ymin": 0, "ymax": 600, "zoom": 2.0, "lod_level": 1, "max_nodes": 2500 }'
+```
+
+**Success — `200 OK`** (`application/json`) — a `GraphViewportResponse`:
+
+```json
+{
+  "dataset_id": "example-tree",
+  "layout_version": "…",
+  "lod_level": 1,
+  "zoom": 2.0,
+  "layout_status": "ready",
+  "truncated": false,
+  "total_node_count": 5,
+  "nodes": [ { "id": "A", "cluster_id": "c0", "x": 12.3, "y": 45.6, "layout_status": "ready", "member_count": 1 } ],
+  "edges": [ { "id": "A->N", "source": "A", "target": "N", "distance": 1.0 } ],
+  "metadata_schema": []
+}
+```
+
+**Error responses:** `404` (dataset/layout not found) · `422` (partial bounds,
+or `max_nodes` out of `1..20000`).
+
+### `POST /api/graph/region`
+
+**Description:** Read the finest-detail subgraph inside a hand-drawn box, plus a
+one-shot metadata summary for the selection. Always full detail — takes no
+`zoom`/`lod_level`.
+
+**Request** (`application/json`) — a `GraphRegionQuery`; all four bounds
+required:
+
+```bash
+curl --location --request POST 'http://localhost:8000/api/graph/region' \
+  --header 'Content-Type: application/json' \
+  --data-raw '{ "dataset_id": "example-tree", "layout_version": "…", "xmin": 0, "xmax": 500, "ymin": 0, "ymax": 300, "max_nodes": 2500 }'
+```
+
+**Success — `200 OK`** (`application/json`) — a `GraphRegionResponse` (viewport
+shape minus `lod_level`/`zoom`, plus `aggregated_metadata`):
+
+```json
+{
+  "dataset_id": "example-tree",
+  "layout_version": "…",
+  "layout_status": "ready",
+  "truncated": false,
+  "total_node_count": 3,
+  "nodes": [ { "id": "B", "cluster_id": "c1", "x": 20.0, "y": 30.0, "layout_status": "ready", "member_count": 1 } ],
+  "edges": [],
+  "metadata_schema": [ { "key": "region", "type": "string" } ],
+  "aggregated_metadata": { "region": "EU" }
+}
+```
+
+**Error responses:** `404` (dataset/layout not found) · `422` (`xmax < xmin` or
+`ymax < ymin`, or `max_nodes` out of range).
+
+---
+
 ## Request/response models
 
 ### `NormalizeRequest` — body of `POST /prepare`
