@@ -1,9 +1,13 @@
+from pathlib import Path
+
 import pytest
 
+from phylo_lens_server.data import phylolib
 from phylo_lens_server.data.normalizer import NormalizeRequest, normalize_dataset
 from phylo_lens_server.data.parsers import ParseError
 
 FORMAT_NEWICK = "newick"
+FORMAT_TYPING_DATA = "typing_data"
 
 DATASET_DETERMINISTIC = "tree-deterministic"
 
@@ -460,3 +464,100 @@ def test_normalize_ancillary_data_allows_blank_cells_in_typed_columns() -> None:
         "year": "number",
     }
     assert "profile_count" not in schema
+
+
+TYPING_PROFILES = "ST\tadk\tfumC\nA\t1\t2\nB\t1\t3\nC\t4\t5\n"
+TYPING_NEWICK = "((A:1,B:1):1,C:2);"
+
+
+def test_typing_data_maps_phylolib_newick_into_pipeline(monkeypatch) -> None:
+    """A typing_data request converts profiles to Newick then normalizes as usual."""
+    calls: list[str] = []
+
+    def fake_convert(profiles: str, **kwargs) -> str:
+        calls.append(profiles)
+        return TYPING_NEWICK
+
+    monkeypatch.setattr(
+        "phylo_lens_server.data.normalizer.typing_profiles_to_newick", fake_convert
+    )
+
+    result = normalize_dataset(
+        NormalizeRequest(
+            format=FORMAT_TYPING_DATA,
+            dataset_name="typing-dataset",
+            content=TYPING_PROFILES,
+        )
+    )
+
+    assert calls == [TYPING_PROFILES]
+    assert result.dataset.source.format == "typing_data"
+    assert len(result.dataset.nodes) == len(
+        normalize_dataset(
+            NormalizeRequest(
+                format=FORMAT_NEWICK,
+                dataset_name="ref",
+                content=TYPING_NEWICK,
+            )
+        ).dataset.nodes
+    )
+
+
+def test_typing_data_docker_missing_raises_parse_error(monkeypatch) -> None:
+    """When Docker is unavailable, typing ingest fails as a client-facing error."""
+    monkeypatch.setattr(phylolib, "docker_available", lambda: False)
+
+    with pytest.raises(ParseError) as excinfo:
+        normalize_dataset(
+            NormalizeRequest(
+                format=FORMAT_TYPING_DATA,
+                dataset_name="typing-dataset",
+                content=TYPING_PROFILES,
+            )
+        )
+
+    assert "Docker" in str(excinfo.value)
+
+
+def test_typing_profiles_to_newick_reads_container_output(monkeypatch, tmp_path) -> None:
+    """The two-stage phylolib path returns the Newick the container wrote."""
+    monkeypatch.setattr(phylolib, "docker_available", lambda: True)
+
+    def fake_run(command, **kwargs):
+        # The algorithm stage is responsible for producing the tree file. We
+        # locate the mounted host dir from the -v argument and write the tree.
+        if "algorithm" in command:
+            mount = command[command.index("-v") + 1]
+            host_dir = mount.split(":", 1)[0]
+            (Path(host_dir) / phylolib.TREE_FILENAME).write_text(
+                TYPING_NEWICK, encoding="utf-8"
+            )
+
+        class _Completed:
+            stdout = ""
+            stderr = ""
+
+        return _Completed()
+
+    monkeypatch.setattr(phylolib.subprocess, "run", fake_run)
+
+    newick = phylolib.typing_profiles_to_newick(TYPING_PROFILES)
+
+    assert newick == TYPING_NEWICK
+
+
+def test_typing_profiles_to_newick_stage_failure_raises(monkeypatch) -> None:
+    """A non-zero container exit surfaces a typed TypingNormalizeError."""
+    monkeypatch.setattr(phylolib, "docker_available", lambda: True)
+
+    def fake_run(command, **kwargs):
+        raise phylolib.subprocess.CalledProcessError(
+            returncode=1, cmd=command, stderr="boom"
+        )
+
+    monkeypatch.setattr(phylolib.subprocess, "run", fake_run)
+
+    with pytest.raises(phylolib.TypingNormalizeError) as excinfo:
+        phylolib.typing_profiles_to_newick(TYPING_PROFILES)
+
+    assert excinfo.value.reason == phylolib.TYPING_PHYLOLIB_DISTANCE_FAILED

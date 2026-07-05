@@ -8,7 +8,7 @@ import {
   isRecord,
   isString,
 } from "../validation/guards";
-import { SOURCE_FORMAT_NEWICK } from "../contracts/models";
+import { type SourceFormat } from "../contracts/models";
 import { createHttpClient, type HttpClient } from "./httpClient";
 
 export const ROUTE_GRAPH_PREPARE = "/api/graph/prepare";
@@ -40,7 +40,7 @@ export interface GraphMetadataField {
 }
 
 export interface NormalizeRequest {
-  format: typeof SOURCE_FORMAT_NEWICK;
+  format: SourceFormat;
   dataset_name: string;
   content: string;
   options?: {

@@ -84,7 +84,16 @@ left as-is; only the per-threshold repetition was the waste.
 
 ---
 
-## 4. Typing-data input via Phylolib (MLST/cgMLST profiles) — DESIGNED, ready to implement
+## 4. Typing-data input via Phylolib (MLST/cgMLST profiles) — IMPLEMENTED
+
+**Status:** Implemented in `data/phylolib.py` and wired into `normalize_dataset`
+via `NormalizeFormat.TYPING_DATA`. Uses image `gonfrutuoso/phylolib:latest`, a
+two-stage subprocess (`distance hamming` → `algorithm goeburst --lvs=3`) writing
+through a `/files` bind mount, and feeds the existing `parse_newick` path.
+Requires Docker to be reachable; failures raise `ParseError` (400). The original
+design notes below are retained for context. Remaining live-verification once a
+local Docker daemon is available: confirm the exact `ml` profile-file layout and
+flag behavior end-to-end against the published image.
 
 **Area:** server ingest — new input format.
 

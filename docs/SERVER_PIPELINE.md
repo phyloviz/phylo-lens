@@ -39,6 +39,20 @@ returns once ready (see [Async Job Flow](#async-job-flow)).
 with aligned per-node metadata and a metadata schema. `parse_newick` reads
 branch lengths as edge distances.
 
+Two input formats are accepted (`NormalizeFormat`):
+
+- **`newick`** — parsed directly by `parse_newick`.
+- **`typing_data`** — MLST/cgMLST allelic profiles. `data/phylolib.py` shells
+  out to the containerized PhyloLib CLI (`gonfrutuoso/phylolib:latest`) in two
+  stages against a temp directory bind-mounted at `/files`:
+  `distance hamming --dataset=ml:… --out=symmetric:…` then
+  `algorithm goeburst --matrix=symmetric:… --out=newick:… --lvs=3`. The
+  resulting Newick feeds the *same* `parse_newick` path, so everything
+  downstream is unchanged. Typing ingest requires Docker to be reachable; when
+  it is unavailable or a PhyloLib stage fails, normalization raises a
+  `ParseError` (surfaced as a `400`) — there is no meaningful tree fallback,
+  unlike the layout step's circular degrade.
+
 `ensure_graph_edge_distances` guarantees every edge carries a distance:
 missing values default to `1.0` and add a warning. Threshold clustering requires
 weighted edges, so this keeps unweighted inputs usable.

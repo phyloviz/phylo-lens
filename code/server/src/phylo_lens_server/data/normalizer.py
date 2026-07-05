@@ -30,13 +30,17 @@ from phylo_lens_server.data.parsers import (
     parse_newick,
     slugify_label,
 )
+from phylo_lens_server.data.phylolib import (
+    TypingNormalizeError,
+    typing_profiles_to_newick,
+)
 
 
 class NormalizeFormat(StrEnum):
     """Supported input formats for dataset normalization requests."""
 
     NEWICK = "newick"
-    # TYPING_DATA = "typing_data"
+    TYPING_DATA = "typing_data"
 
 
 DEFAULT_DATASET_NAME = "dataset"
@@ -126,6 +130,16 @@ def normalize_dataset(
     match request.format:
         case NormalizeFormat.NEWICK:
             parsed = parse_newick(request.content)
+
+        # Typing data (MLST/cgMLST allelic profiles) is converted to Newick by
+        # the containerized PhyloLib CLI, then parsed by the existing path so
+        # everything downstream operates on the same ParsedGraph.
+        case NormalizeFormat.TYPING_DATA:
+            try:
+                newick = typing_profiles_to_newick(request.content)
+            except TypingNormalizeError as error:
+                raise ParseError(str(error)) from error
+            parsed = parse_newick(newick)
 
         # If a invalid format is provided, raise a ParseError which will be handled by the caller to return a 400 response.
         case _:
