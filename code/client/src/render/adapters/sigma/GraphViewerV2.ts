@@ -12,10 +12,7 @@ import {
   GRAPH_VIEWER_V2_SMALL_TREE_NODE_THRESHOLD,
   sigmaDisplayZoom,
 } from "./graphViewerV2Query";
-import {
-  fitSigmaToClusterResponse,
-  fitSigmaToViewportResponse,
-} from "./graphViewerV2Fit";
+import { fitSigmaToViewportResponse } from "./graphViewerV2Fit";
 import {
   isExpandableRepresentative,
   reconcileGraphologyViewport,
@@ -34,6 +31,7 @@ export {
   GRAPH_VIEWER_V2_SMALL_TREE_NODE_THRESHOLD,
   GRAPH_VIEWER_V2_VIEWPORT_PADDING_RATIO,
   semanticLodLevelForCameraRatio,
+  semanticLodLevelForCameraRatioWithHysteresis,
   sigmaViewportBounds,
 } from "./graphViewerV2Query";
 export {
@@ -52,6 +50,7 @@ export {
   GRAPH_VIEWER_V2_MEMBER_SIZE_FACTOR,
   GRAPH_VIEWER_V2_NODE_COLOR,
   GRAPH_VIEWER_V2_REPRESENTATIVE_COLOR,
+  deriveViewportNodeColor,
   nodeSizeForMemberCount,
   reconcileGraphologyViewport,
   syncGraphologyViewport,
@@ -67,6 +66,10 @@ export interface GraphViewerV2Options {
   sigma: SigmaViewportLike;
   debounceMs?: number;
   maxNodes?: number;
+  // Number of precomputed LoD tiers from the prepare response. Governs how many
+  // semantic-zoom levels the camera ratio is mapped across. Defaults to 1
+  // (overview only) when the prepare response predates this field.
+  lodTierCount?: number;
   // Trees at or below this node count skip semantic zooming: the whole tree is
   // rendered once at LOD 0 and camera movement never re-queries the server.
   smallTreeThreshold?: number;
@@ -83,6 +86,24 @@ export interface GraphViewerV2Options {
   onGraphSynced?: () => void;
 }
 
+// One incident edge of a cluster representative, captured before expansion so
+// collapse can restore it verbatim.
+interface CachedIncidentEdge {
+  id: string;
+  source: string;
+  target: string;
+  attributes: Record<string, unknown>;
+}
+
+// Everything needed to rebuild a collapsed cluster proxy from cache without a
+// server round-trip: the representative node and the edges that touched it.
+interface ExpandedClusterSnapshot {
+  representativeId: string;
+  representativeAttributes: Record<string, unknown>;
+  incidentEdges: CachedIncidentEdge[];
+  memberIds: string[];
+}
+
 export class GraphViewerV2 {
   private readonly datasetId: string;
   private layoutVersion?: string | null;
@@ -91,6 +112,7 @@ export class GraphViewerV2 {
   private sigma: SigmaViewportLike;
   private readonly debounceMs: number;
   private readonly maxNodes: number;
+  private readonly lodTierCount: number;
   private readonly smallTreeThreshold: number;
   private readonly getPaused?: () => boolean;
   private readonly onViewportLoaded?: (
@@ -108,6 +130,16 @@ export class GraphViewerV2 {
   // Total node count of the loaded tree (from the initial viewport response).
   // Once known, drives the small-tree bypass. null until the first load.
   private totalNodeCount: number | null = null;
+  // Clusters currently expanded into their members via a click. Tracked so a
+  // double-click can collapse them back without a server round-trip.
+  private readonly expandedClusterIds = new Set<string>();
+  // Snapshot captured at expand time so collapse can restore the cluster
+  // proxy exactly: the representative node (id + attributes) and the edges
+  // that were incident to it before expansion replaced it with members.
+  private readonly expandedClusterCache = new Map<
+    string,
+    ExpandedClusterSnapshot
+  >();
   private readonly cameraUpdated = () =>
     this.scheduleViewportRefreshForCamera();
   private readonly nodeClicked = (payload: {
@@ -115,6 +147,12 @@ export class GraphViewerV2 {
     event?: { node?: string };
   }) => {
     void this.expandClusterFromClick(payload);
+  };
+  private readonly nodeDoubleClicked = (payload: {
+    node?: string;
+    event?: { node?: string };
+  }) => {
+    this.collapseClusterFromDoubleClick(payload);
   };
 
   constructor(options: GraphViewerV2Options) {
@@ -125,6 +163,7 @@ export class GraphViewerV2 {
     this.sigma = options.sigma as SigmaViewportLike;
     this.debounceMs = options.debounceMs ?? DEFAULT_GRAPH_VIEWER_V2_DEBOUNCE_MS;
     this.maxNodes = options.maxNodes ?? DEFAULT_GRAPH_VIEWER_V2_MAX_NODES;
+    this.lodTierCount = Math.max(options.lodTierCount ?? 1, 1);
     this.smallTreeThreshold =
       options.smallTreeThreshold ?? GRAPH_VIEWER_V2_SMALL_TREE_NODE_THRESHOLD;
     this.getPaused = options.getPaused;
@@ -162,11 +201,14 @@ export class GraphViewerV2 {
     camera.on?.("updated", this.cameraUpdated);
     this.sigma.off?.("clickNode", this.nodeClicked);
     this.sigma.on?.("clickNode", this.nodeClicked);
+    this.sigma.off?.("doubleClickNode", this.nodeDoubleClicked);
+    this.sigma.on?.("doubleClickNode", this.nodeDoubleClicked);
   }
 
   private unbindSigmaEvents(): void {
     this.sigma.getCamera().off?.("updated", this.cameraUpdated);
     this.sigma.off?.("clickNode", this.nodeClicked);
+    this.sigma.off?.("doubleClickNode", this.nodeDoubleClicked);
   }
 
   unmount(): void {
@@ -202,14 +244,24 @@ export class GraphViewerV2 {
     if (this.getPaused?.()) {
       return;
     }
-    // Small trees are loaded whole once at LOD 0; camera movement never issues
-    // another server query.
-    if (this.isSmallTreeLoaded()) {
-      return;
-    }
     const nextLodLevel = this.currentLodLevel();
     const lodChanged =
       this.loadedInitialViewport && nextLodLevel !== this.lastRequestedLodLevel;
+    // Small trees are loaded whole at LOD 0; suppress re-queries for same-tier
+    // pans but still allow LoD transitions so zooming in reveals individual
+    // nodes instead of leaving the triangle overview frozen on screen.
+    if (!lodChanged && this.isSmallTreeLoaded()) {
+      return;
+    }
+    // At LOD 0 the query carries no bounds (a fixed global overview), so a
+    // same-tier pan would refetch the identical slice; skip it. At finer tiers
+    // the query is bounds-driven, so a pan shifts the visible region and must
+    // refetch to reveal nodes the camera moved onto. The debounce collapses a
+    // burst of pan events into a single query, and no refetch moves the camera,
+    // so exploration stays smooth without jumps or a flood of requests.
+    if (!lodChanged && nextLodLevel === 0) {
+      return;
+    }
     this.scheduleViewportRefresh(
       lodChanged ? GRAPH_VIEWER_V2_LOD_CHANGE_DEBOUNCE_MS : this.debounceMs,
     );
@@ -244,6 +296,8 @@ export class GraphViewerV2 {
       sigma: this.sigma,
       maxNodes: this.maxNodes,
       forceGlobal: !this.loadedInitialViewport,
+      lodTierCount: this.lodTierCount,
+      currentLodLevel: this.lastRequestedLodLevel ?? null,
     });
     this.lastRequestedLodLevel = query.lod_level;
 
@@ -299,6 +353,10 @@ export class GraphViewerV2 {
       typeof attributes.cluster_id === "string"
         ? attributes.cluster_id
         : nodeId;
+    // Snapshot the proxy (representative node + its incident edges) before the
+    // expansion overwrites it, so a later double-click can collapse it back
+    // without re-querying the server.
+    const snapshot = this.captureClusterSnapshot(nodeId, attributes);
     const sequence = ++this.requestSequence;
     try {
       const response = await this.client.readViewport({
@@ -314,8 +372,16 @@ export class GraphViewerV2 {
       }
       this.layoutVersion = response.layout_version;
       syncGraphologyViewport(this.graph, response, this.getRenderSettings?.());
+      snapshot.memberIds = response.nodes
+        .filter((node) => !node.is_representative)
+        .map((node) => node.id);
+      this.expandedClusterCache.set(clusterId, snapshot);
+      this.expandedClusterIds.add(clusterId);
       this.onGraphSynced?.();
-      fitSigmaToClusterResponse(this.sigma, response);
+      // Expanding a cluster adds its members in place; the camera is left
+      // untouched so the surrounding graph stays visible and the user can keep
+      // expanding additional clusters up to the node budget without the view
+      // snapping to a single expanded region.
       this.sigma.refresh?.();
       this.sigma.scheduleRender?.();
       this.onViewportLoaded?.(response);
@@ -327,6 +393,99 @@ export class GraphViewerV2 {
     }
   }
 
+  // Capture the representative node and its incident edges so collapse can
+  // rebuild the proxy verbatim. Edge attributes are shallow-copied because
+  // graphology returns live references.
+  private captureClusterSnapshot(
+    representativeId: string,
+    representativeAttributes: Record<string, unknown>,
+  ): ExpandedClusterSnapshot {
+    const incidentEdges: CachedIncidentEdge[] = this.graph
+      .edges(representativeId)
+      .map((edgeId) => ({
+        id: edgeId,
+        source: this.graph.source(edgeId),
+        target: this.graph.target(edgeId),
+        attributes: {
+          ...(this.graph.getEdgeAttributes(edgeId) as Record<string, unknown>),
+        },
+      }));
+    return {
+      representativeId,
+      representativeAttributes: { ...representativeAttributes },
+      incidentEdges,
+      memberIds: [],
+    };
+  }
+
+  private collapseClusterFromDoubleClick(payload: {
+    node?: string;
+    event?: { node?: string };
+  }): void {
+    const nodeId =
+      typeof payload.node === "string"
+        ? payload.node
+        : typeof payload.event?.node === "string"
+          ? payload.event.node
+          : undefined;
+    if (!nodeId || !this.graph.hasNode(nodeId)) {
+      return;
+    }
+    const attributes = this.graph.getNodeAttributes(nodeId) as Record<
+      string,
+      unknown
+    >;
+    const clusterId =
+      typeof attributes.cluster_id === "string"
+        ? attributes.cluster_id
+        : nodeId;
+    this.collapseCluster(clusterId);
+  }
+
+  // Restore a previously expanded cluster to its proxy from cache. No server
+  // round-trip: drops the member nodes, re-adds the representative node, and
+  // restores the edges that were incident to it. A no-op for clusters that
+  // were never expanded (or already collapsed).
+  collapseCluster(clusterId: string): void {
+    const snapshot = this.expandedClusterCache.get(clusterId);
+    if (!snapshot) {
+      return;
+    }
+
+    // Drop the expanded members. The representative is re-added afterwards, so
+    // dropping it here too (when it doubled as a member medoid) is fine.
+    for (const memberId of snapshot.memberIds) {
+      if (this.graph.hasNode(memberId)) {
+        this.graph.dropNode(memberId);
+      }
+    }
+    if (this.graph.hasNode(snapshot.representativeId)) {
+      this.graph.dropNode(snapshot.representativeId);
+    }
+
+    this.graph.addNode(snapshot.representativeId, {
+      ...snapshot.representativeAttributes,
+    });
+    for (const edge of snapshot.incidentEdges) {
+      if (
+        !this.graph.hasNode(edge.source) ||
+        !this.graph.hasNode(edge.target) ||
+        this.graph.hasEdge(edge.id)
+      ) {
+        continue;
+      }
+      this.graph.addEdgeWithKey(edge.id, edge.source, edge.target, {
+        ...edge.attributes,
+      });
+    }
+
+    this.expandedClusterCache.delete(clusterId);
+    this.expandedClusterIds.delete(clusterId);
+    this.onGraphSynced?.();
+    this.sigma.refresh?.();
+    this.sigma.scheduleRender?.();
+  }
+
   private currentLodLevel(): number | null {
     return (
       buildGraphV2ViewportQuery({
@@ -335,6 +494,8 @@ export class GraphViewerV2 {
         sigma: this.sigma,
         maxNodes: this.maxNodes,
         forceGlobal: !this.loadedInitialViewport,
+        lodTierCount: this.lodTierCount,
+        currentLodLevel: this.lastRequestedLodLevel ?? null,
       }).lod_level ?? null
     );
   }

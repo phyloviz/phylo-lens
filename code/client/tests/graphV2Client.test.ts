@@ -1,15 +1,27 @@
 import {
   createGraphV2Client,
-  ERR_INVALID_GRAPH_V2_PREPARE_RESPONSE,
+  ERR_GRAPH_V2_PREPARE_FAILED,
+  ERR_INVALID_GRAPH_V2_PREPARE_JOB,
   ERR_INVALID_GRAPH_V2_VIEWPORT_RESPONSE,
   isGraphV2PrepareResponse,
   isGraphV2ViewportResponse,
   ROUTE_GRAPH_V2_PREPARE,
   ROUTE_GRAPH_V2_VIEWPORT,
+  type GraphV2PrepareStatus,
 } from "../src/api/graphV2Client";
 import { SOURCE_FORMAT_NEWICK } from "../src/contracts/models";
 
 const BASE_URL = "http://localhost:8000";
+
+const PREPARE_JOB_FIXTURE = {
+  job_id: "job-1",
+  status: "pending",
+  dataset_id: "tree",
+} satisfies unknown;
+
+// No polling delay in tests: the client sleeps between polls, so inject a
+// no-op sleep to keep the suite fast.
+const NO_SLEEP = { sleep: async () => {} };
 
 const VIEWPORT_FIXTURE = {
   dataset_id: "tree",
@@ -61,6 +73,58 @@ describe("graphV2Client", () => {
     expect(isGraphV2ViewportResponse({ ...VIEWPORT_FIXTURE, nodes: [{}] })).toBe(
       false,
     );
+  });
+
+  it("accepts meta-edge fields on edges and rejects wrong types", () => {
+    const withMetaEdge = {
+      ...VIEWPORT_FIXTURE,
+      edges: [
+        {
+          id: "meta_edge:a:cluster_1",
+          source: "a",
+          target: "cluster_1",
+          distance: 2,
+          is_meta: true,
+          bundled_edge_count: 3,
+        },
+      ],
+    };
+    expect(isGraphV2ViewportResponse(withMetaEdge)).toBe(true);
+
+    // Ordinary edges omit the meta fields entirely.
+    const plainEdge = {
+      ...VIEWPORT_FIXTURE,
+      edges: [{ id: "e1", source: "a", target: "cluster_1", distance: 1 }],
+    };
+    expect(isGraphV2ViewportResponse(plainEdge)).toBe(true);
+
+    // Wrong types are rejected.
+    expect(
+      isGraphV2ViewportResponse({
+        ...VIEWPORT_FIXTURE,
+        edges: [
+          {
+            id: "e1",
+            source: "a",
+            target: "cluster_1",
+            is_meta: "yes",
+          },
+        ],
+      }),
+    ).toBe(false);
+    expect(
+      isGraphV2ViewportResponse({
+        ...VIEWPORT_FIXTURE,
+        edges: [
+          {
+            id: "e1",
+            source: "a",
+            target: "cluster_1",
+            bundled_edge_count: "3",
+          },
+        ],
+      }),
+    ).toBe(false);
   });
 
   it("accepts node metadata and a metadata schema", () => {
@@ -165,10 +229,27 @@ describe("graphV2Client", () => {
     expect(isGraphV2ViewportResponse(notAnArray)).toBe(false);
   });
 
-  it("posts prepare requests to the v2 endpoint", async () => {
+  it("submits a prepare job then polls until it is ready", async () => {
+    const statusUrl = `${BASE_URL}${ROUTE_GRAPH_V2_PREPARE}/job-1`;
+    const pending: GraphV2PrepareStatus = {
+      job_id: "job-1",
+      status: "pending",
+    };
+    const ready: GraphV2PrepareStatus = {
+      job_id: "job-1",
+      status: "ready",
+      result: PREPARE_FIXTURE as never,
+    };
+    // POST submit -> pending poll -> ready poll.
+    const responses = [
+      makeJsonResponse(PREPARE_JOB_FIXTURE, 202),
+      makeJsonResponse(pending),
+      makeJsonResponse(ready),
+    ];
+    const seen: string[] = [];
     const fetchSpy = vi.fn(async (input: RequestInfo | URL) => {
-      expect(String(input)).toBe(`${BASE_URL}${ROUTE_GRAPH_V2_PREPARE}`);
-      return makeJsonResponse(PREPARE_FIXTURE);
+      seen.push(String(input));
+      return responses.shift() ?? makeJsonResponse(ready);
     }) as unknown as typeof fetch;
 
     const client = createGraphV2Client({
@@ -176,13 +257,73 @@ describe("graphV2Client", () => {
       fetchImpl: fetchSpy,
     });
 
-    const response = await client.prepareGraph({
-      format: SOURCE_FORMAT_NEWICK,
-      dataset_name: "tree",
-      content: "(A,B)Root;",
-    });
+    const onPending = vi.fn();
+    const response = await client.prepareGraph(
+      {
+        format: SOURCE_FORMAT_NEWICK,
+        dataset_name: "tree",
+        content: "(A,B)Root;",
+      },
+      { ...NO_SLEEP, onPending },
+    );
 
     expect(response.layout_version).toBe("abc123");
+    expect(seen[0]).toBe(`${BASE_URL}${ROUTE_GRAPH_V2_PREPARE}`);
+    expect(seen[1]).toBe(statusUrl);
+    expect(seen[2]).toBe(statusUrl);
+    expect(onPending).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects when a prepare job resolves to failed", async () => {
+    const responses = [
+      makeJsonResponse(PREPARE_JOB_FIXTURE, 202),
+      makeJsonResponse({
+        job_id: "job-1",
+        status: "failed",
+        error: "sfdp exploded",
+      }),
+    ];
+    const client = createGraphV2Client({
+      baseUrl: BASE_URL,
+      fetchImpl: vi.fn(
+        async () => responses.shift() ?? makeJsonResponse({}),
+      ) as unknown as typeof fetch,
+    });
+
+    await expect(
+      client.prepareGraph(
+        {
+          format: SOURCE_FORMAT_NEWICK,
+          dataset_name: "tree",
+          content: "(A,B)Root;",
+        },
+        NO_SLEEP,
+      ),
+    ).rejects.toThrow("sfdp exploded");
+  });
+
+  it("uses a default failure message when a failed job omits an error", async () => {
+    const responses = [
+      makeJsonResponse(PREPARE_JOB_FIXTURE, 202),
+      makeJsonResponse({ job_id: "job-1", status: "failed" }),
+    ];
+    const client = createGraphV2Client({
+      baseUrl: BASE_URL,
+      fetchImpl: vi.fn(
+        async () => responses.shift() ?? makeJsonResponse({}),
+      ) as unknown as typeof fetch,
+    });
+
+    await expect(
+      client.prepareGraph(
+        {
+          format: SOURCE_FORMAT_NEWICK,
+          dataset_name: "tree",
+          content: "(A,B)Root;",
+        },
+        NO_SLEEP,
+      ),
+    ).rejects.toThrow(ERR_GRAPH_V2_PREPARE_FAILED);
   });
 
   it("posts viewport queries to the v2 endpoint", async () => {
@@ -227,7 +368,7 @@ describe("graphV2Client", () => {
     ).rejects.toThrow(ERR_INVALID_GRAPH_V2_VIEWPORT_RESPONSE);
   });
 
-  it("rejects invalid prepare responses", async () => {
+  it("rejects an invalid prepare-job submit response", async () => {
     const client = createGraphV2Client({
       baseUrl: BASE_URL,
       fetchImpl: vi.fn(async () =>
@@ -236,11 +377,14 @@ describe("graphV2Client", () => {
     });
 
     await expect(
-      client.prepareGraph({
-        format: SOURCE_FORMAT_NEWICK,
-        dataset_name: "tree",
-        content: "(A,B)Root;",
-      }),
-    ).rejects.toThrow(ERR_INVALID_GRAPH_V2_PREPARE_RESPONSE);
+      client.prepareGraph(
+        {
+          format: SOURCE_FORMAT_NEWICK,
+          dataset_name: "tree",
+          content: "(A,B)Root;",
+        },
+        NO_SLEEP,
+      ),
+    ).rejects.toThrow(ERR_INVALID_GRAPH_V2_PREPARE_JOB);
   });
 });

@@ -15,13 +15,24 @@ export const DEFAULT_GRAPH_VIEWER_V2_DEBOUNCE_MS = 120;
 // A short debounce keeps the transition responsive while collapsing bursts of
 // threshold crossings into a single query.
 export const GRAPH_VIEWER_V2_LOD_CHANGE_DEBOUNCE_MS = 60;
-export const DEFAULT_GRAPH_VIEWER_V2_MAX_NODES = 2_500;
+export const DEFAULT_GRAPH_VIEWER_V2_MAX_NODES = 5_000;
 // Trees at or below this node count are rendered whole once at LOD 0 and never
 // re-queried on camera movement: semantic zooming is bypassed entirely to save
-// server round-trips because the full tree already fits in the client.
+// server round-trips because the full tree already fits in the client. Kept
+// below the per-viewport cap so mid-size trees still get bounded pan-refetch
+// while exploring rather than freezing on the initial overview.
 export const GRAPH_VIEWER_V2_SMALL_TREE_NODE_THRESHOLD = 2_500;
 export const GRAPH_VIEWER_V2_VIEWPORT_PADDING_RATIO = 0.5;
+// Camera ratio at or above which the coarsest overview (tier 0) is shown. This
+// is also the first zoom-in boundary: crossing below it reveals the next tier.
 export const GRAPH_VIEWER_V2_DETAIL_RATIO_THRESHOLD = 0.8;
+// Each finer tier boundary is this fraction of the previous one, so every tier
+// requires ~2.5x more zoom-in than the last. Boundary B_k = 0.8 * 0.4^(k-1).
+export const GRAPH_VIEWER_V2_LOD_RATIO_STEP = 0.4;
+// Symmetric dead-band (in ratio space) around each tier boundary. While the
+// camera ratio sits inside the band the current tier is held, so small zoom
+// wobble near a boundary does not thrash back and forth between tiers.
+export const GRAPH_VIEWER_V2_LOD_RATIO_HYSTERESIS = 0.05;
 
 export function buildGraphV2ViewportQuery({
   datasetId,
@@ -29,16 +40,30 @@ export function buildGraphV2ViewportQuery({
   sigma,
   maxNodes,
   forceGlobal = false,
+  lodTierCount = 1,
+  currentLodLevel = null,
 }: {
   datasetId: string;
   layoutVersion?: string | null;
   sigma: SigmaViewportLike;
   maxNodes: number;
   forceGlobal?: boolean;
+  // Number of precomputed LoD tiers reported by the prepare response. With a
+  // value of 1 the mapping always resolves to tier 0 (current behavior).
+  lodTierCount?: number;
+  // The tier last requested, used as the hysteresis anchor. null on the first
+  // query (no prior tier to hold).
+  currentLodLevel?: number | null;
 }): GraphV2ViewportQuery {
   const ratio = sigmaCameraRatio(sigma.getCamera());
   const viewportBounds = sigmaViewportBounds(sigma);
-  const lodLevel = forceGlobal ? 0 : semanticLodLevelForCameraRatio(ratio);
+  const lodLevel = forceGlobal
+    ? 0
+    : semanticLodLevelForCameraRatioWithHysteresis(
+        ratio,
+        lodTierCount,
+        currentLodLevel,
+      );
   const bounds =
     lodLevel === 0
       ? null
@@ -84,11 +109,57 @@ export function sigmaViewportBounds(
   };
 }
 
-export function semanticLodLevelForCameraRatio(ratio: number): number {
-  if (!Number.isFinite(ratio) || ratio <= 0) {
-    return 1;
+// Map a camera ratio to a discrete LoD tier index in [0, lodTierCount - 1].
+// Tier 0 is the overview (ratio >= 0.8); each finer tier's boundary is the
+// previous one scaled by GRAPH_VIEWER_V2_LOD_RATIO_STEP, so zooming in walks
+// down the tiers geometrically. Clamps to the finest available tier.
+export function semanticLodLevelForCameraRatio(
+  ratio: number,
+  lodTierCount = 1,
+): number {
+  if (!Number.isFinite(ratio) || ratio <= 0 || lodTierCount <= 1) {
+    return 0;
   }
-  return ratio < GRAPH_VIEWER_V2_DETAIL_RATIO_THRESHOLD ? 1 : 0;
+  if (ratio >= GRAPH_VIEWER_V2_DETAIL_RATIO_THRESHOLD) {
+    return 0;
+  }
+  let tier = 1;
+  let boundary =
+    GRAPH_VIEWER_V2_DETAIL_RATIO_THRESHOLD * GRAPH_VIEWER_V2_LOD_RATIO_STEP;
+  while (tier < lodTierCount - 1 && ratio < boundary) {
+    tier += 1;
+    boundary *= GRAPH_VIEWER_V2_LOD_RATIO_STEP;
+  }
+  return tier;
+}
+
+// Wrap the band mapping with a dead-band so a ratio hovering near a tier
+// boundary keeps the current tier instead of oscillating. currentLodLevel is
+// the tier last requested; null means there is no prior tier to hold.
+export function semanticLodLevelForCameraRatioWithHysteresis(
+  ratio: number,
+  lodTierCount = 1,
+  currentLodLevel: number | null = null,
+): number {
+  const naiveTier = semanticLodLevelForCameraRatio(ratio, lodTierCount);
+  if (
+    currentLodLevel === null ||
+    !Number.isFinite(ratio) ||
+    ratio <= 0 ||
+    naiveTier === currentLodLevel
+  ) {
+    return naiveTier;
+  }
+  // Boundary that separates the current tier from the naive one: the lower of
+  // the two tier indices identifies which geometric boundary is being crossed.
+  const boundaryTier = Math.min(currentLodLevel, naiveTier);
+  const boundary =
+    GRAPH_VIEWER_V2_DETAIL_RATIO_THRESHOLD *
+    Math.pow(GRAPH_VIEWER_V2_LOD_RATIO_STEP, boundaryTier);
+  const inDeadBand =
+    ratio > boundary - GRAPH_VIEWER_V2_LOD_RATIO_HYSTERESIS &&
+    ratio < boundary + GRAPH_VIEWER_V2_LOD_RATIO_HYSTERESIS;
+  return inDeadBand ? currentLodLevel : naiveTier;
 }
 
 export function expandViewportBounds(

@@ -19,13 +19,15 @@ export type SigmaCameraLike = {
   ratio?: number;
 };
 
+export type SigmaNodeEvent = "clickNode" | "doubleClickNode";
+
 export type SigmaViewportLike = Sigma & {
   on?: (
-    event: "clickNode",
+    event: SigmaNodeEvent,
     handler: (payload: { node?: string; event?: { node?: string } }) => void,
   ) => void;
   off?: (
-    event: "clickNode",
+    event: SigmaNodeEvent,
     handler: (payload: { node?: string; event?: { node?: string } }) => void,
   ) => void;
   getCamera: () => SigmaCameraLike;

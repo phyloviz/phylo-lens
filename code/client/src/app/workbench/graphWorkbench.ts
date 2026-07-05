@@ -211,6 +211,7 @@ async function renderNewick({
       datasetId: preparedGraph.dataset_id,
       layoutVersion: preparedGraph.layout_version,
       maxNodes: state.preparedSession.lod.maxNodes,
+      lodTierCount: preparedGraph.lod_tier_count,
       getPaused: () => state.lodRefreshPaused,
       onViewportLoaded: (response) => {
         updateStateFromGraphV2Viewport(state, response);

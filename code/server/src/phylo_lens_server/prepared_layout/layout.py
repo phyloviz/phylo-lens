@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from math import cos, hypot, pi, sin
+from math import cos, hypot, log2, pi, sin
 from random import Random
 import shlex
 import shutil
@@ -29,18 +29,14 @@ GRAPHVIZ_TARGET_EDGE_LENGTH = 2.5
 GRAPHVIZ_MIN_EDGE_LENGTH = 0.5
 GRAPHVIZ_MAX_EDGE_LENGTH = 12.0
 
-# Layout cost scales with node count; cap iterations and wall time so a very
-# large graph degrades to the fallback deterministically instead of hanging.
-GRAPHVIZ_BASE_TIMEOUT_SECONDS = 15
-GRAPHVIZ_MAX_TIMEOUT_SECONDS = 60
-GRAPHVIZ_BASE_MAXITER = 100
-GRAPHVIZ_MIN_MAXITER = 40
+# Default iteration count used when a caller does not derive one from the graph
+# size; graphviz_sfdp_positions always passes sfdp_maxiter(node_count) instead.
+GRAPHVIZ_BASE_MAXITER = 600
 
 # Reasons a layout degraded to the circular fallback, surfaced to the API so
 # the client warning reflects the real cause instead of assuming a missing binary.
 LAYOUT_DEGRADED_SFDP_MISSING = "sfdp_missing"
 LAYOUT_DEGRADED_SFDP_FAILED = "sfdp_failed"
-LAYOUT_DEGRADED_SFDP_TIMEOUT = "sfdp_timeout"
 LAYOUT_DEGRADED_SFDP_INCOMPLETE = "sfdp_incomplete"
 
 
@@ -129,15 +125,13 @@ def compute_global_node_positions(
 
 
 def sfdp_maxiter(node_count: int) -> int:
-    """Fewer iterations for larger graphs so wall time stays bounded."""
-    scaled = GRAPHVIZ_BASE_MAXITER - node_count // 200
-    return max(GRAPHVIZ_MIN_MAXITER, scaled)
+    """Scale iterations as n*log2(n) for layout quality.
 
-
-def sfdp_timeout_seconds(node_count: int) -> int:
-    """Allow more wall time for larger graphs, capped to avoid unbounded hangs."""
-    scaled = GRAPHVIZ_BASE_TIMEOUT_SECONDS + node_count // 500
-    return min(GRAPHVIZ_MAX_TIMEOUT_SECONDS, scaled)
+    Prepare runs off the request thread as a background job, so there is no
+    wall-time budget to respect; more iterations simply yield a better-converged
+    force layout. Larger graphs get proportionally more iterations.
+    """
+    return round(node_count * log2(max(node_count, 2)))
 
 
 def graphviz_sfdp_positions(
@@ -160,16 +154,7 @@ def graphviz_sfdp_positions(
             text=True,
             capture_output=True,
             check=True,
-            timeout=sfdp_timeout_seconds(len(node_ids)),
         )
-    except subprocess.TimeoutExpired:
-        logger.warning(
-            "Graphviz '%s' layout timed out for %d nodes; "
-            "falling back to a circular layout.",
-            GRAPHVIZ_SFDP_COMMAND,
-            len(node_ids),
-        )
-        return None, LAYOUT_DEGRADED_SFDP_TIMEOUT
     except (OSError, subprocess.CalledProcessError) as error:
         logger.warning(
             "Graphviz '%s' layout failed (%s); falling back to a circular layout.",

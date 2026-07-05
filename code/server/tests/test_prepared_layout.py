@@ -241,6 +241,93 @@ def test_prepared_edges_project_original_edges_to_real_representative_ids() -> N
     assert all(edge.source != edge.target for edge in prepared_edges)
 
 
+def _multi_tier_dataset() -> CanonicalDataset:
+    """A chain large enough that adaptive threshold selection yields several
+    distinct LoD tiers (unlike the tiny _dataset fixture, which collapses to
+    one). The 1000-node varied-distance chain produces three tiers."""
+    content = "m999"
+    for index in range(998, -1, -1):
+        content = f"({content}:{(index % 7) + 1})m{index}"
+    content = f"{content};"
+    normalized = normalize_dataset(
+        NormalizeRequest(
+            format=FORMAT_NEWICK,
+            dataset_name=DATASET_ID,
+            content=content,
+        )
+    ).dataset
+    return normalized.model_copy(
+        update={
+            "nodes": [
+                node.model_copy(
+                    update={
+                        "x": float(int(node.id.removeprefix("m"))),
+                        "y": 0.0,
+                    }
+                )
+                for node in normalized.nodes
+            ]
+        }
+    )
+
+
+def test_intermediate_lod_levels_index_into_precomputed_thresholds(
+    tmp_path,
+) -> None:
+    store = PreparedLayoutStore(tmp_path)
+    worker = PreparedLayoutWorker(store)
+    dataset = _multi_tier_dataset()
+    result = worker.prepare_dataset(dataset)
+    layout_version = result.artifacts.layout_version
+    all_node_ids = {node.id for node in dataset.nodes}
+
+    # Distinct thresholds, coarsest first, mirror the lod_level indexing used by
+    # _threshold_for_lod_level and compute_prepared_edges.
+    thresholds_desc = sorted(
+        {
+            cluster.threshold
+            for cluster in result.artifacts.clusters
+            if cluster.threshold is not None
+        },
+        reverse=True,
+    )
+    # The fixture must actually have more than the two extreme tiers for this
+    # test to mean anything.
+    assert len(thresholds_desc) >= 2
+
+    def read(level: int):
+        return store.read_viewport(
+            dataset_id=DATASET_ID,
+            layout_version=layout_version,
+            xmin=None,
+            xmax=None,
+            ymin=None,
+            ymax=None,
+            max_nodes=500,
+            lod_level=level,
+        )
+
+    # The finest tier (min threshold) resolves to individual ready-node detail:
+    # returned nodes stand alone rather than proxying clusters.
+    finest = read(len(thresholds_desc) - 1)
+    assert finest.nodes
+    assert {node.node_id for node in finest.nodes} <= all_node_ids
+    assert not any(node.is_representative for node in finest.nodes)
+
+    # A middle tier (previously collapsed to None by the >=1 short-circuit) now
+    # returns cluster representatives instead of falling straight through to
+    # individual nodes, and there are strictly fewer of them than nodes.
+    middle = read(1)
+    assert any(node.is_representative for node in middle.nodes)
+    assert len(middle.nodes) < len(all_node_ids)
+
+    # Levels beyond the finest tier clamp to the finest tier (individual nodes)
+    # instead of erroring, matching the finest-tier read.
+    clamped = read(len(thresholds_desc) + 5)
+    assert clamped.nodes
+    assert not any(node.is_representative for node in clamped.nodes)
+
+
 def test_graphviz_plain_parser_handles_quoted_node_ids() -> None:
     positions = parse_graphviz_plain_positions(
         "graph 1 3 1\n"
@@ -412,6 +499,58 @@ def test_viewport_cluster_members_carry_public_node_metadata(tmp_path) -> None:
     )
     schema_keys = {field.key for field in read.metadata_schema}
     assert schema_keys == {"region", "score", "flag"}
+
+
+def test_viewport_expansion_reroutes_boundary_edges_to_neighbor_representatives(
+    tmp_path,
+) -> None:
+    # At threshold 1.0 the tree splits into cluster (a, b, c) plus singleton
+    # clusters {d} and {e}. Expanding (a, b, c) exposes members a/b/c and their
+    # internal edges, and reroutes the two boundary edges c-d and c-e to the
+    # neighbor representatives d and e as meta-edges.
+    store = PreparedLayoutStore(tmp_path)
+    worker = PreparedLayoutWorker(store)
+    result = worker.prepare_dataset(_dataset())
+    abc_cluster = next(
+        cluster
+        for cluster in result.artifacts.clusters
+        if cluster.member_node_ids == ("a", "b", "c")
+    )
+
+    read = store.read_viewport(
+        dataset_id=DATASET_ID,
+        layout_version=result.artifacts.layout_version,
+        xmin=None,
+        xmax=None,
+        ymin=None,
+        ymax=None,
+        max_nodes=50,
+        cluster_id=abc_cluster.cluster_id,
+    )
+
+    node_ids = {node.node_id for node in read.nodes}
+    # Members plus the two surfaced neighbor representatives.
+    assert node_ids == {"a", "b", "c", "d", "e"}
+    reps = {node.node_id for node in read.nodes if node.is_representative}
+    assert reps == {"d", "e"}
+
+    # Every emitted edge references a returned node (visibility invariant).
+    for edge in read.edges:
+        assert edge.source in node_ids
+        assert edge.target in node_ids
+
+    meta_edges = {
+        (edge.source, edge.target): edge for edge in read.edges if edge.is_meta
+    }
+    assert set(meta_edges) == {("c", "d"), ("c", "e")}
+    assert meta_edges[("c", "d")].distance == 3.0
+    assert meta_edges[("c", "e")].distance == 4.0
+    assert all(edge.bundled_edge_count == 1 for edge in meta_edges.values())
+
+    # Ordinary internal edges stay non-meta.
+    internal_edges = [edge for edge in read.edges if not edge.is_meta]
+    assert {edge.edge_id for edge in internal_edges} == {"e_a_b_1", "e_b_c_1"}
+    assert all(edge.bundled_edge_count is None for edge in internal_edges)
 
 
 def _chain_dataset_with_metadata(node_count: int) -> CanonicalDataset:

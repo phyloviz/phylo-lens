@@ -3,8 +3,12 @@ import shutil
 import pytest
 from fastapi.testclient import TestClient
 
-from phylo_lens_server.api.v2_graph import get_prepared_layout_store
+from phylo_lens_server.api.v2_graph import (
+    get_prepare_job_registry,
+    get_prepared_layout_store,
+)
 from phylo_lens_server.main import app
+from phylo_lens_server.prepared_layout.jobs import PrepareJobRegistry
 from phylo_lens_server.prepared_layout.layout import GRAPHVIZ_SFDP_COMMAND
 from phylo_lens_server.prepared_layout.store import PreparedLayoutStore
 from phylo_lens_server.prepared_layout.worker import PreparedLayoutWorker
@@ -18,7 +22,10 @@ ROUTE_GRAPH_V2_PREPARE = "/api/v2/graph/prepare"
 ROUTE_GRAPH_V2_VIEWPORT = "/api/v2/graph/viewport"
 
 STATUS_OK = 200
+STATUS_ACCEPTED = 202
 STATUS_NOT_FOUND = 404
+
+PREPARE_POLL_ATTEMPTS = 200
 
 DATASET_API_TREE = "api-tree"
 DATASET_UNKNOWN = "missing-tree"
@@ -29,12 +36,39 @@ WEIGHTED_TREE_CONTENT = "(((d:4)c:2)b:1)a;"
 @pytest.fixture
 def client(tmp_path):
     prepared_layout_store = PreparedLayoutStore(tmp_path / "prepared_layout")
+    # The background prepare worker must write into the same store the viewport
+    # route reads from, so bind the job registry to this test store explicitly.
+    # dependency_overrides only patches FastAPI-injected params, not the direct
+    # get_prepared_layout_store() call inside the cached registry factory.
+    job_registry = PrepareJobRegistry(PreparedLayoutWorker(prepared_layout_store))
     get_prepared_layout_store.cache_clear()
+    get_prepare_job_registry.cache_clear()
     app.dependency_overrides[get_prepared_layout_store] = lambda: prepared_layout_store
+    app.dependency_overrides[get_prepare_job_registry] = lambda: job_registry
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()
     get_prepared_layout_store.cache_clear()
+    get_prepare_job_registry.cache_clear()
+    job_registry.shutdown()
+
+
+def prepare_and_wait(client: TestClient, payload: dict) -> dict:
+    """Submit a prepare job and poll until it resolves; return the status body.
+
+    The prepare route now runs the layout on a background worker, so tests submit
+    then poll ``/prepare/{job_id}`` until the job is no longer pending.
+    """
+    accepted = client.post(ROUTE_GRAPH_V2_PREPARE, json=payload)
+    assert accepted.status_code == STATUS_ACCEPTED
+    job_id = accepted.json()["job_id"]
+    for _ in range(PREPARE_POLL_ATTEMPTS):
+        status_response = client.get(f"{ROUTE_GRAPH_V2_PREPARE}/{job_id}")
+        assert status_response.status_code == STATUS_OK
+        body = status_response.json()
+        if body["status"] != "pending":
+            return body
+    raise AssertionError("Prepare job did not complete within the poll budget.")
 
 
 @pytest.fixture
@@ -50,20 +84,23 @@ def test_health(client) -> None:
 
 
 def test_graph_v2_prepare_materializes_layout_for_viewport_reads(client) -> None:
-    prepare_response = client.post(
-        ROUTE_GRAPH_V2_PREPARE,
-        json={
+    status_body = prepare_and_wait(
+        client,
+        {
             "format": FORMAT_NEWICK,
             "dataset_name": DATASET_API_TREE,
             "content": WEIGHTED_TREE_CONTENT,
         },
     )
-    prepare_body = prepare_response.json()
 
-    assert prepare_response.status_code == STATUS_OK
+    assert status_body["status"] == "ready"
+    prepare_body = status_body["result"]
     assert prepare_body["dataset_id"] == DATASET_API_TREE
     assert prepare_body["layout_version"]
     assert prepare_body["layout_status"] == EXPECTED_LAYOUT_STATUS
+    # The number of precomputed LoD tiers is surfaced so the client can map
+    # camera zoom across the available semantic-zoom levels.
+    assert prepare_body["lod_tier_count"] >= 1
 
     viewport_response = client.post(
         ROUTE_GRAPH_V2_VIEWPORT,
@@ -88,17 +125,17 @@ def test_graph_v2_prepare_reports_degraded_status_when_sfdp_is_missing(
         lambda command: None,
     )
 
-    prepare_response = client.post(
-        ROUTE_GRAPH_V2_PREPARE,
-        json={
+    status_body = prepare_and_wait(
+        client,
+        {
             "format": FORMAT_NEWICK,
             "dataset_name": DATASET_API_TREE,
             "content": WEIGHTED_TREE_CONTENT,
         },
     )
-    prepare_body = prepare_response.json()
 
-    assert prepare_response.status_code == STATUS_OK
+    assert status_body["status"] == "ready"
+    prepare_body = status_body["result"]
     assert prepare_body["layout_status"] == "degraded"
     assert any("sfdp" in warning for warning in prepare_body["warnings"])
 
@@ -263,6 +300,52 @@ def test_graph_v2_viewport_reads_cluster_members_without_bounds(
     assert body["edges"]
 
 
+def test_graph_v2_viewport_expansion_serializes_meta_edges(
+    client,
+    prepared_layout_store,
+) -> None:
+    # A cluster (a, b, c) with singleton neighbors d and e. Expanding it emits
+    # rerouted boundary edges c->d and c->e as meta-edges, while its internal
+    # edges stay ordinary (no is_meta / bundled_edge_count in the payload).
+    dataset = normalize_split_neighbor_tree()
+    result = PreparedLayoutWorker(prepared_layout_store).prepare_dataset(dataset)
+    app.dependency_overrides[get_prepared_layout_store] = lambda: prepared_layout_store
+    abc_cluster = next(
+        cluster
+        for cluster in result.artifacts.clusters
+        if cluster.member_node_ids == ("a", "b", "c")
+    )
+
+    response = client.post(
+        ROUTE_GRAPH_V2_VIEWPORT,
+        json={
+            "dataset_id": DATASET_API_TREE,
+            "layout_version": result.artifacts.layout_version,
+            "cluster_id": abc_cluster.cluster_id,
+            "max_nodes": 50,
+        },
+    )
+    body = response.json()
+
+    assert response.status_code == STATUS_OK
+    assert {node["id"] for node in body["nodes"]} == {"a", "b", "c", "d", "e"}
+
+    meta_edges = {
+        (edge["source"], edge["target"]): edge
+        for edge in body["edges"]
+        if edge.get("is_meta")
+    }
+    assert set(meta_edges) == {("c", "d"), ("c", "e")}
+    assert all(edge["bundled_edge_count"] == 1 for edge in meta_edges.values())
+
+    # Ordinary edges omit the meta-edge fields entirely (exclude_none).
+    ordinary_edges = [edge for edge in body["edges"] if not edge.get("is_meta")]
+    assert ordinary_edges
+    for edge in ordinary_edges:
+        assert "is_meta" not in edge
+        assert "bundled_edge_count" not in edge
+
+
 def test_graph_v2_viewport_rejects_unknown_prepared_layout(client) -> None:
     response = client.post(
         ROUTE_GRAPH_V2_VIEWPORT,
@@ -291,6 +374,39 @@ def normalize_weighted_api_tree():
         "b": (1.0, 0.0),
         "c": (2.0, 0.0),
         "d": (3.0, 0.0),
+    }
+    return normalized.model_copy(
+        update={
+            "nodes": [
+                node.model_copy(
+                    update={
+                        "x": positions[node.id][0],
+                        "y": positions[node.id][1],
+                    }
+                )
+                for node in normalized.nodes
+            ]
+        }
+    )
+
+
+def normalize_split_neighbor_tree():
+    # (a, b, c) form one distance cluster at threshold 1.0; d and e are
+    # singleton clusters connected to c, so expanding (a, b, c) produces
+    # meta-edges to the d and e representatives.
+    normalized = normalize_dataset(
+        NormalizeRequest(
+            format=FORMAT_NEWICK,
+            dataset_name=DATASET_API_TREE,
+            content="(((d:3,e:4)c:1)b:1)a;",
+        )
+    ).dataset
+    positions = {
+        "a": (0.0, 0.0),
+        "b": (1.0, 0.0),
+        "c": (2.0, 0.0),
+        "d": (6.0, 0.0),
+        "e": (8.0, 0.0),
     }
     return normalized.model_copy(
         update={

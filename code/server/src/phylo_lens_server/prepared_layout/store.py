@@ -124,6 +124,20 @@ def has_bounds(
     return None not in (xmin, xmax, ymin, ymax)
 
 
+def _min_distance(left: float | None, right: float | None) -> float | None:
+    """Minimum of two optional distances, treating None as "no distance".
+
+    Used when folding several boundary edges into one meta-edge: the bundled
+    distance is the shortest concrete edge, and stays None only when every
+    folded edge lacked a distance.
+    """
+    if left is None:
+        return right
+    if right is None:
+        return left
+    return left if left <= right else right
+
+
 class PreparedLayoutStore:
     """SQLite store for materialized layout artifacts consumed by a read API."""
 
@@ -131,9 +145,19 @@ class PreparedLayoutStore:
         self.root = Path(root)
         self.root.mkdir(parents=True, exist_ok=True)
         self.path = self.root / DEFAULT_DB_NAME
+        # Threshold lists are immutable after prepare; cache them to avoid a
+        # full-table scan on prepared_clusters for every viewport request.
+        self._threshold_cache: dict[tuple[str, str], tuple[float, ...]] = {}
         self._init_schema()
 
     def clear_dataset(self, dataset_id: str) -> None:
+        # Evict all cached threshold lists for this dataset so re-preparing
+        # does not serve stale thresholds from the old layout version.
+        self._threshold_cache = {
+            key: value
+            for key, value in self._threshold_cache.items()
+            if key[0] != dataset_id
+        }
         with self._connect() as connection:
             for table in (
                 "node_positions",
@@ -553,12 +577,27 @@ class PreparedLayoutStore:
                     cluster_id=cluster_id,
                     max_nodes=max_nodes,
                 )
+                member_ids = {node.node_id for node in nodes}
                 edges = self._read_edges_for_nodes(
                     connection,
                     dataset_id=dataset_id,
                     layout_version=layout_version,
-                    node_ids={node.node_id for node in nodes},
+                    node_ids=member_ids,
                 )
+                # Keep the expanded members connected to the still-collapsed
+                # rest of the tree by rerouting their boundary edges to the
+                # neighbor representatives at the cluster's threshold. The
+                # surfaced neighbor representatives are appended so every
+                # meta-edge references a returned node (visibility invariant).
+                meta_edges, neighbor_reps = self._read_expansion_meta_edges(
+                    connection,
+                    dataset_id=dataset_id,
+                    layout_version=layout_version,
+                    cluster_id=cluster_id,
+                    member_ids=member_ids,
+                )
+                nodes = list(nodes) + neighbor_reps
+                edges = list(edges) + meta_edges
                 layout_status = aggregate_layout_status(
                     {node.layout_status for node in nodes}
                 )
@@ -872,8 +911,35 @@ class PreparedLayoutStore:
         layout_version: str,
         lod_level: int | None,
     ) -> float | None:
-        if lod_level is None or lod_level >= 1:
+        if lod_level is None:
             return None
+        thresholds = self._cached_thresholds(
+            connection, dataset_id=dataset_id, layout_version=layout_version
+        )
+        if not thresholds:
+            return None
+        index = min(max(lod_level, 0), len(thresholds) - 1)
+        threshold = thresholds[index]
+        min_threshold = thresholds[-1]
+        return None if threshold == min_threshold else threshold
+
+    def _cached_thresholds(
+        self,
+        connection: sqlite3.Connection,
+        *,
+        dataset_id: str,
+        layout_version: str,
+    ) -> tuple[float, ...]:
+        """Return distinct thresholds desc for a dataset, using the in-memory cache.
+
+        The threshold list is immutable once a layout is prepared, so it is
+        safe to cache for the lifetime of the store instance. The cache is
+        evicted when ``clear_dataset`` is called for the dataset.
+        """
+        key = (dataset_id, layout_version)
+        cached = self._threshold_cache.get(key)
+        if cached is not None:
+            return cached
         rows = connection.execute(
             """
             select distinct threshold
@@ -885,12 +951,9 @@ class PreparedLayoutStore:
             """,
             (dataset_id, layout_version),
         ).fetchall()
-        if not rows:
-            return None
-        index = min(max(lod_level, 0), len(rows) - 1)
-        threshold = rows[index]["threshold"]
-        min_threshold = rows[-1]["threshold"]
-        return None if threshold == min_threshold else threshold
+        result = tuple(row["threshold"] for row in rows)
+        self._threshold_cache[key] = result
+        return result
 
     def _read_ready_nodes(
         self,
@@ -910,6 +973,40 @@ class PreparedLayoutStore:
             ymin=ymin,
             ymax=ymax,
         )
+        # The count and the row read share the same base-threshold join + bounds
+        # filter, but are issued separately: a `count(*) over()` window would
+        # force SQLite to materialize the full matched set (ignoring `limit`)
+        # just to stamp the total on each returned row, which is the dominant
+        # cost on deep-zoom slices. A bare `count(*)` scans the same index
+        # without building or sorting the result set.
+        count_params = (
+            dataset_id,
+            layout_version,
+            dataset_id,
+            layout_version,
+            *bounds_params,
+        )
+        total_row = connection.execute(
+            f"""
+            with base_threshold as (
+                select min(threshold) as value
+                from prepared_clusters
+                where dataset_id = ? and layout_version = ?
+            )
+            select count(*) as total_count
+            from node_positions np
+            join prepared_clusters pc
+              on pc.dataset_id = np.dataset_id
+             and pc.layout_version = np.layout_version
+             and pc.cluster_id = np.cluster_id
+            where np.dataset_id = ?
+              and np.layout_version = ?
+              and pc.threshold = (select value from base_threshold)
+              {bounds_filter}
+            """,
+            count_params,
+        ).fetchone()
+        total = int(total_row["total_count"]) if total_row is not None else 0
         rows = connection.execute(
             f"""
             with base_threshold as (
@@ -917,8 +1014,7 @@ class PreparedLayoutStore:
                 from prepared_clusters
                 where dataset_id = ? and layout_version = ?
             )
-            select np.node_id, np.cluster_id, np.x, np.y, np.status,
-                   count(*) over() as total_count
+            select np.node_id, np.cluster_id, np.x, np.y, np.status
             from node_positions np
             join prepared_clusters pc
               on pc.dataset_id = np.dataset_id
@@ -931,16 +1027,8 @@ class PreparedLayoutStore:
             order by np.cluster_id, np.node_id
             limit ?
             """,
-            (
-                dataset_id,
-                layout_version,
-                dataset_id,
-                layout_version,
-                *bounds_params,
-                max_nodes,
-            ),
+            (*count_params, max_nodes),
         ).fetchall()
-        total = int(rows[0]["total_count"]) if rows else 0
         return (
             [
                 ViewportNode(
@@ -965,10 +1053,23 @@ class PreparedLayoutStore:
         cluster_id: str,
         max_nodes: int,
     ) -> tuple[list[ViewportNode], int]:
+        # Separate count from row read: a `count(*) over()` window materializes
+        # every member row before `limit`; a bare `count(*)` uses the
+        # node_positions primary-key prefix (dataset, version, cluster) directly.
+        total_row = connection.execute(
+            """
+            select count(*) as total_count
+            from node_positions
+            where dataset_id = ?
+              and layout_version = ?
+              and cluster_id = ?
+            """,
+            (dataset_id, layout_version, cluster_id),
+        ).fetchone()
+        total = int(total_row["total_count"]) if total_row is not None else 0
         rows = connection.execute(
             """
-            select np.node_id, np.cluster_id, np.x, np.y, np.status,
-                   count(*) over() as total_count
+            select np.node_id, np.cluster_id, np.x, np.y, np.status
             from node_positions np
             where np.dataset_id = ?
               and np.layout_version = ?
@@ -978,7 +1079,6 @@ class PreparedLayoutStore:
             """,
             (dataset_id, layout_version, cluster_id, max_nodes),
         ).fetchall()
-        total = int(rows[0]["total_count"]) if rows else 0
         return (
             [
                 ViewportNode(
@@ -995,6 +1095,171 @@ class PreparedLayoutStore:
             total,
         )
 
+    def _read_expansion_meta_edges(
+        self,
+        connection: sqlite3.Connection,
+        *,
+        dataset_id: str,
+        layout_version: str,
+        cluster_id: str,
+        member_ids: set[str],
+    ) -> tuple[list[ViewportEdge], list[ViewportNode]]:
+        """Reroute an expanded cluster's boundary edges to neighbor proxies.
+
+        When a single cluster is expanded into its members, the members' edges
+        to the rest of the tree would otherwise be dropped for referencing
+        off-slice nodes. This resolves each such outside endpoint to the
+        representative of the cluster it belongs to *at the same threshold* as
+        the expanded cluster (the nearest visible representative), bundles the
+        boundary edges by (member, neighbor representative) with the minimum
+        boundary distance, and surfaces those neighbor representatives as nodes
+        so every emitted meta-edge references a returned node.
+        """
+        if not member_ids:
+            return [], []
+
+        threshold_row = connection.execute(
+            """
+            select threshold
+            from prepared_clusters
+            where dataset_id = ? and layout_version = ? and cluster_id = ?
+            """,
+            (dataset_id, layout_version, cluster_id),
+        ).fetchone()
+        if threshold_row is None or threshold_row["threshold"] is None:
+            return [], []
+        threshold = threshold_row["threshold"]
+
+        member_placeholders = ",".join("?" for _ in member_ids)
+        sorted_members = sorted(member_ids)
+        boundary_rows = connection.execute(
+            f"""
+            select edge_id, source_node_id, target_node_id, distance
+            from graph_edges
+            where dataset_id = ?
+              and layout_version = ?
+              and (source_node_id in ({member_placeholders})
+                   or target_node_id in ({member_placeholders}))
+            order by source_node_id, target_node_id, edge_id
+            """,
+            (dataset_id, layout_version, *sorted_members, *sorted_members),
+        ).fetchall()
+
+        # Keep only genuine boundary edges: exactly one endpoint is a member.
+        boundary: list[tuple[str, str, float | None]] = []
+        outside_ids: set[str] = set()
+        for row in boundary_rows:
+            source_inside = row["source_node_id"] in member_ids
+            target_inside = row["target_node_id"] in member_ids
+            if source_inside == target_inside:
+                continue
+            inside = row["source_node_id"] if source_inside else row["target_node_id"]
+            outside = row["target_node_id"] if source_inside else row["source_node_id"]
+            boundary.append((inside, outside, row["distance"]))
+            outside_ids.add(outside)
+        if not boundary:
+            return [], []
+
+        neighbor_reps = self._representatives_for_nodes(
+            connection,
+            dataset_id=dataset_id,
+            layout_version=layout_version,
+            threshold=threshold,
+            node_ids=outside_ids,
+        )
+
+        # Bundle boundary edges by (inside member, neighbor representative),
+        # taking the minimum boundary distance and counting folded edges.
+        bundled: dict[tuple[str, str], tuple[float | None, int]] = {}
+        for inside, outside, distance in boundary:
+            neighbor = neighbor_reps.get(outside)
+            if neighbor is None:
+                continue
+            rep_id = neighbor.node_id
+            # A self-loop can arise if the outside node resolves back to the
+            # expanded cluster's own representative; skip it.
+            if rep_id in member_ids:
+                continue
+            key = (inside, rep_id)
+            existing = bundled.get(key)
+            if existing is None:
+                bundled[key] = (distance, 1)
+                continue
+            existing_distance, count = existing
+            bundled[key] = (_min_distance(existing_distance, distance), count + 1)
+
+        meta_edges = [
+            ViewportEdge(
+                edge_id=f"meta_edge:{inside}:{rep_id}",
+                source=inside,
+                target=rep_id,
+                distance=distance,
+                is_meta=True,
+                bundled_edge_count=count,
+            )
+            for (inside, rep_id), (distance, count) in sorted(bundled.items())
+        ]
+        # Surface one node per distinct neighbor representative referenced by a
+        # meta-edge. Several outside nodes can resolve to the same
+        # representative, so deduplicate by representative node id.
+        referenced_rep_ids = {rep_id for (_inside, rep_id) in bundled}
+        surfaced_by_id: dict[str, ViewportNode] = {}
+        for neighbor in neighbor_reps.values():
+            if neighbor.node_id in referenced_rep_ids:
+                surfaced_by_id.setdefault(neighbor.node_id, neighbor)
+        surfaced_reps = [
+            surfaced_by_id[rep_id] for rep_id in sorted(surfaced_by_id)
+        ]
+        return meta_edges, surfaced_reps
+
+    def _representatives_for_nodes(
+        self,
+        connection: sqlite3.Connection,
+        *,
+        dataset_id: str,
+        layout_version: str,
+        threshold: float,
+        node_ids: set[str],
+    ) -> dict[str, ViewportNode]:
+        """Map each node id to its cluster representative at ``threshold``."""
+        if not node_ids:
+            return {}
+        placeholders = ",".join("?" for _ in node_ids)
+        rows = connection.execute(
+            f"""
+            select cm.node_id as node_id,
+                   pc.cluster_id as cluster_id,
+                   pc.representative_node_id as representative_node_id,
+                   pc.member_count as member_count,
+                   pc.x as x,
+                   pc.y as y,
+                   pc.status as status
+            from cluster_members cm
+            join prepared_clusters pc
+              on pc.dataset_id = cm.dataset_id
+             and pc.layout_version = cm.layout_version
+             and pc.cluster_id = cm.cluster_id
+            where cm.dataset_id = ?
+              and cm.layout_version = ?
+              and pc.threshold = ?
+              and pc.x is not null
+              and cm.node_id in ({placeholders})
+            """,
+            (dataset_id, layout_version, threshold, *sorted(node_ids)),
+        ).fetchall()
+        return {
+            row["node_id"]: ViewportNode(
+                node_id=row["representative_node_id"],
+                cluster_id=row["cluster_id"],
+                x=row["x"],
+                y=row["y"],
+                layout_status=row["status"],
+                member_count=row["member_count"],
+                is_representative=True,
+            )
+            for row in rows
+        }
+
     def _read_distinct_node_positions(
         self,
         connection: sqlite3.Connection,
@@ -1003,27 +1268,38 @@ class PreparedLayoutStore:
         layout_version: str,
         max_nodes: int,
     ) -> tuple[list[ViewportNode], int]:
-        rows = connection.execute(
+        # Count the distinct (node_id, x, y) groups without the window function,
+        # which would otherwise materialize every grouped row before `limit`.
+        total_row = connection.execute(
             """
-            select node_id, cluster_id, x, y, status,
-                   count(*) over() as total_count
+            select count(*) as total_count
             from (
-                select node_id,
-                       min(cluster_id) as cluster_id,
-                       x,
-                       y,
-                       max(status) as status
+                select node_id, x, y
                 from node_positions
                 where dataset_id = ?
                   and layout_version = ?
                 group by node_id, x, y
             )
+            """,
+            (dataset_id, layout_version),
+        ).fetchone()
+        total = int(total_row["total_count"]) if total_row is not None else 0
+        rows = connection.execute(
+            """
+            select node_id,
+                   min(cluster_id) as cluster_id,
+                   x,
+                   y,
+                   max(status) as status
+            from node_positions
+            where dataset_id = ?
+              and layout_version = ?
+            group by node_id, x, y
             order by node_id
             limit ?
             """,
             (dataset_id, layout_version, max_nodes),
         ).fetchall()
-        total = int(rows[0]["total_count"]) if rows else 0
         return (
             [
                 ViewportNode(
@@ -1134,27 +1410,38 @@ class PreparedLayoutStore:
     ) -> list[ViewportEdge]:
         if not node_ids:
             return []
-        placeholders = ",".join("?" for _ in node_ids)
-        sorted_node_ids = sorted(node_ids)
-        rows = connection.execute(
-            f"""
-            select edge_id, source_node_id, target_node_id, distance
-            from prepared_edges
-            where dataset_id = ?
-              and layout_version = ?
-              and lod_level = ?
-              and source_node_id in ({placeholders})
-              and target_node_id in ({placeholders})
-            order by source_node_id, target_node_id
-            """,
-            (
-                dataset_id,
-                layout_version,
-                lod_level,
-                *sorted_node_ids,
-                *sorted_node_ids,
-            ),
-        ).fetchall()
+        # Both endpoints must be in ``node_ids``. Expressing that as two
+        # ``in (<thousands of placeholders>)`` predicates makes SQLite
+        # re-scan each list linearly for every candidate row, which is
+        # O(rows * len(node_ids)) and reaches multiple seconds once a tier
+        # has ~10k representatives. Loading the ids into an indexed temp
+        # table and joining twice turns each endpoint check into a single
+        # index probe, keeping the read in the low-millisecond range.
+        connection.execute(
+            "create temp table if not exists _viewport_node_ids("
+            "node_id text primary key)"
+        )
+        try:
+            connection.execute("delete from _viewport_node_ids")
+            connection.executemany(
+                "insert or ignore into _viewport_node_ids(node_id) values (?)",
+                [(node_id,) for node_id in node_ids],
+            )
+            rows = connection.execute(
+                """
+                select e.edge_id, e.source_node_id, e.target_node_id, e.distance
+                from prepared_edges e
+                join _viewport_node_ids src on src.node_id = e.source_node_id
+                join _viewport_node_ids tgt on tgt.node_id = e.target_node_id
+                where e.dataset_id = ?
+                  and e.layout_version = ?
+                  and e.lod_level = ?
+                order by e.source_node_id, e.target_node_id
+                """,
+                (dataset_id, layout_version, lod_level),
+            ).fetchall()
+        finally:
+            connection.execute("delete from _viewport_node_ids")
         return [
             ViewportEdge(
                 edge_id=row["edge_id"],
@@ -1446,5 +1733,13 @@ class PreparedLayoutStore:
 
                 create index if not exists idx_prepared_clusters_threshold
                 on prepared_clusters(dataset_id, layout_version, threshold);
+
+                create index if not exists idx_node_positions_cluster
+                on node_positions(dataset_id, layout_version, cluster_id);
+
+                create index if not exists idx_prepared_clusters_threshold_cluster
+                on prepared_clusters(
+                    dataset_id, layout_version, threshold, cluster_id
+                );
                 """
             )

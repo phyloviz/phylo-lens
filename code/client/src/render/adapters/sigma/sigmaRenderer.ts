@@ -15,7 +15,7 @@ import type {
   RendererKind,
   RenderViewportState,
 } from "../../types";
-import { detectPieSliceKeys } from "../../pieMapping";
+import { detectPieSliceKeys, PIE_ATTRIBUTE_PREFIX } from "../../pieMapping";
 import {
   defaultCameraState,
   deriveGraphBounds,
@@ -234,6 +234,7 @@ export class SigmaRenderer implements GraphRenderer {
     datasetId: string;
     layoutVersion?: string | null;
     maxNodes?: number;
+    lodTierCount?: number;
     getPaused?: () => boolean;
     onViewportLoaded?: (response: GraphV2ViewportResponse) => void;
     onError?: (error: unknown) => void;
@@ -253,6 +254,7 @@ export class SigmaRenderer implements GraphRenderer {
       graph: this.graph,
       sigma: this.sigma,
       maxNodes: options.maxNodes,
+      lodTierCount: options.lodTierCount,
       getPaused: options.getPaused,
       onViewportLoaded: options.onViewportLoaded,
       onError: options.onError,
@@ -291,6 +293,22 @@ export class SigmaRenderer implements GraphRenderer {
       return;
     }
 
+    // Pie mapping is opt-in via `pie__*` node attributes rather than an explicit
+    // flag (the renderer is constructed with no piechart options), so `enabled`
+    // is normally `undefined` and the guard above never fires. Probe the live
+    // graph cheaply first: `findNode` short-circuits on the first pie-bearing
+    // node, so a plain role-color slice with N nodes costs O(1)-O(k) instead of
+    // the full O(N) graphNodeViews + detect + signature scan on every sync. When
+    // no pie attributes are present and no pie program is registered, there is
+    // nothing to do; if a program is registered but pies have since vanished,
+    // tear it down once.
+    if (!this.graphHasPieAttributes()) {
+      if (this.pieSliceKeys.length > 0) {
+        this.rebuildSigma([], []);
+      }
+      return;
+    }
+
     const nodeViews = graphNodeViews(this.graph);
     const detectedSliceKeys = detectPieSliceKeys(nodeViews);
     const nextSignature = buildPieProgramSignature(detectedSliceKeys, nodeViews);
@@ -314,6 +332,22 @@ export class SigmaRenderer implements GraphRenderer {
     }
 
     applyPieChartNodeTypes(this.graph, this.pieSliceKeys);
+  }
+
+  // Cheap probe: does any live node carry a `pie__*` attribute? `findNode`
+  // returns on the first match, so a slice with no pie mapping active pays only
+  // for the scan up to the first node rather than materializing every node view.
+  private graphHasPieAttributes(): boolean {
+    if (!this.graph) {
+      return false;
+    }
+    return (
+      this.graph.findNode((_nodeId, attributes) =>
+        Object.keys(attributes).some((key) =>
+          key.startsWith(PIE_ATTRIBUTE_PREFIX),
+        ),
+      ) !== undefined
+    );
   }
 
   private suppressViewChangesFor(durationMs: number): void {

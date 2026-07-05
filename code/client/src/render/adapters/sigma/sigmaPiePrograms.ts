@@ -3,7 +3,7 @@ import {
   resolvePieSliceColors,
 } from "../../pieMapping";
 import {
-  SIGMA_DEFAULT_NODE_COLOR,
+  PHYLOVIZ_NODE_COMMON_COLOR,
   SIGMA_NODE_TYPE_PIECHART,
 } from "./sigmaRenderingConstants";
 import type {
@@ -41,7 +41,7 @@ export function piechartProgramClasses(
 
   return {
     [SIGMA_NODE_TYPE_PIECHART]: createNodePiechartProgram({
-      defaultColor: SIGMA_DEFAULT_NODE_COLOR,
+      defaultColor: PHYLOVIZ_NODE_COMMON_COLOR,
       slices,
     }),
   };

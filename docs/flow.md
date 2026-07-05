@@ -1,85 +1,85 @@
 # PhyloLens Runtime Flow
 
+End-to-end runtime for the v2 architecture: one `prepare` (submitted async, then
+polled) to materialize the layout, then repeated bounded `viewport` reads driven
+by the camera. For the data contracts see [`DATA_MODEL.md`](./DATA_MODEL.md); for
+tier selection see [`LOD_AND_CLUSTERING.md`](./LOD_AND_CLUSTERING.md); for the
+prepare job flow see [`SERVER_PIPELINE.md`](./SERVER_PIPELINE.md#async-job-flow).
+
 ```mermaid
 flowchart TD
-    A["User clicks Normalize and Render"] --> B["Client UI reads input:
-    weighted Newick
-    dataset name
-    ancillary metadata
-    initial LoD zoom
-    max visible nodes"]
+    A["renderNewick(newick, metadata)"] --> B["POST /api/v2/graph/prepare
+    (NormalizeRequest)"]
 
-    B --> C["Client POST /dataset/prepare"]
+    B --> C["normalize_dataset -> CanonicalDataset (sync)
+    deterministic node/edge ids
+    branch lengths as edge distances"]
+    C --> C2["ensure_graph_v2_edge_distances
+    fill missing distance = 1.0"]
 
-    C --> C1{"Prepared source fingerprint cached?"}
-    C1 -->|Yes| K["Store prepared dataset and hierarchy
-    under dataset_id"]
-    C1 -->|No| D["Server parses source content"]
-    D --> E["Server normalizes canonical dataset:
-    deterministic node ids
-    deterministic edge ids
-    branch lengths as edge distances
-    optional metadata schema and values"]
+    C2 --> SUB["submit to background worker
+    return 202 { job_id, status: pending }"]
 
-    E --> F{"Every edge has a distance?"}
-    F -->|No| G["Reject prepare request:
-    current runtime is threshold-only"]
+    SUB --> POLL["client polls GET /prepare/{job_id}
+    (DEFAULT_PREPARE_POLL_INTERVAL_MS)"]
 
-    F -->|Yes| H["Build weighted threshold hierarchy:
-    select distance thresholds
+    POLL --> D["ingest (on worker): select up to 16 distance thresholds
     Union-Find components per threshold
-    link parent/child containment levels
-    choose stable representative nodes"]
+    medoid representative per cluster"]
 
-    H --> I["Compute server layout geometry:
-    representative coordinates
-    cluster centroids
-    cluster bounds
-    global bounds"]
+    D --> E["layout (Graphviz sfdp, no timeout):
+    global node positions
+    cluster positions, radius, bounds
+    degrade to circular fallback if sfdp unavailable"]
 
-    I --> J["Build static STR spatial indexes
-    per LoD threshold level"]
+    D --> F["compute_prepared_edges:
+    per-tier quotient edge lists
+    (representative-to-representative, min distance)"]
 
-    J --> K["Store prepared dataset and hierarchy
-    under dataset_id"]
+    E --> G["persist to SQLite
+    keyed by (dataset_id, layout_version)"]
+    F --> G
 
-    K --> L["Client POST /dataset/view-slice:
-    dataset_id
-    viewport
-    zoom
-    max_nodes
-    optional focus_node_id"]
+    G --> H["status ready -> GraphV2PrepareResponse
+    lod_tier_count, layout_status, warnings"]
 
-    L --> M["Server selects visible slice:
-    choose target LoD from zoom or lod_hint
-    use spatial index for viewport priority
-    keep focus path visible
-    expand hierarchy within max_nodes budget"]
+    H --> I["startGraphV2ViewportSync(lodTierCount)"]
 
-    M --> N["Server returns positioned slice:
-    real nodes
-    proxy nodes for collapsed clusters
-    visible hierarchy edges
-    collapsed cluster metadata
-    global bounds and view metadata"]
+    I --> J["POST /api/v2/graph/viewport
+    dataset_id, layout_version
+    bounds, zoom, lod_level, max_nodes"]
 
-    N --> O["Client preserves server coordinates
-    and maps metadata:
-    visual colors
-    pie slices
-    ancillary wheel stats"]
+    J --> K{"read_viewport path"}
+    K -->|cluster_id set| K1["expand cluster into members
+    + reroute boundary edges as meta-edges"]
+    K -->|lod_level 0, no bounds| K2["overview representatives"]
+    K -->|threshold is None| K3["finest 'ready' node positions in bounds"]
+    K -->|else| K4["representatives at level's threshold, in bounds"]
 
-    O --> P["Sigma renders server-positioned slice
-    without client ForceAtlas2 refinement"]
+    K1 --> L["GraphViewportResponse
+    nodes, edges, total_node_count, truncated"]
+    K2 --> L
+    K3 --> L
+    K4 --> L
 
-    P --> Q{"User interacts?"}
+    L --> M["syncGraphologyViewport + reconcileGraphologyViewport
+    triangle proxies, PHYLOViZ role colors, metadata mapping"]
 
-    Q -->|Pan or zoom| R["Client maps Sigma camera
-    to server viewport and LoD zoom"]
-    R --> L
+    M --> N["Sigma renders the slice"]
 
-    Q -->|Click cluster proxy| S["Client recenters on proxy,
-    increases zoom,
-    sends focus_node_id"]
-    S --> L
+    N --> O{"User interacts?"}
+
+    O -->|Pan / zoom| P["semanticLodLevelForCameraRatioWithHysteresis
+    pick tier; debounced 60ms (LoD) / 120ms (pan)"]
+    P --> J
+
+    O -->|Single-click representative| Q["snapshot proxy,
+    query cluster_id (lod_level=null),
+    swap proxy for members, fit camera"]
+    Q --> J
+
+    O -->|Double-click representative| R["collapseCluster:
+    restore proxy from client cache
+    (no server round-trip)"]
+    R --> N
 ```

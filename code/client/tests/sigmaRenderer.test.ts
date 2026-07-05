@@ -32,6 +32,7 @@ let pieProgramInputs: Array<{
 }> = [];
 let forceMotionStarts = 0;
 let forceMotionKills = 0;
+let sigmaConstructions = 0;
 let lastForceMotionSettings: Record<string, number> | null = null;
 let animationFrameCallback: FrameRequestCallback | null = null;
 let animationFrameId = 0;
@@ -98,6 +99,7 @@ vi.mock("sigma", () => {
       lastSigmaOptions = options ?? null;
       lastGraph = graph ?? null;
       lastCamera = this.camera;
+      sigmaConstructions += 1;
     }
 
     getCamera() {
@@ -171,6 +173,7 @@ describe("sigmaRenderer", () => {
     pieProgramInputs = [];
     forceMotionStarts = 0;
     forceMotionKills = 0;
+    sigmaConstructions = 0;
     lastForceMotionSettings = null;
     animationFrameCallback = null;
     animationFrameId = 0;
@@ -776,6 +779,61 @@ describe("sigmaRenderer", () => {
 
     renderer.unmount();
     warnSpy.mockRestore();
+  });
+
+  it("does not reconstruct Sigma on a plain (no-pie) viewport sync", async () => {
+    document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
+    vi.useFakeTimers();
+
+    const plainResponse = {
+      dataset_id: "tree",
+      layout_version: "layout-1",
+      lod_level: 0,
+      zoom: 1,
+      layout_status: "ready" as const,
+      truncated: false,
+      total_node_count: 1,
+      metadata_schema: [],
+      nodes: [
+        {
+          id: "leaf",
+          cluster_id: "c1",
+          x: 0,
+          y: 0,
+          layout_status: "ready" as const,
+          member_count: 1,
+          is_representative: false,
+        },
+      ],
+      edges: [],
+    };
+    const client = {
+      readViewport: vi.fn(async () => plainResponse),
+    };
+
+    const renderer = new SigmaRenderer();
+    renderer.mount({ containerId: CONTAINER_ID });
+    // One construction from mount(); reset so we count only sync-driven rebuilds.
+    sigmaConstructions = 0;
+
+    renderer.startGraphV2ViewportSync({
+      client: client as never,
+      datasetId: "tree",
+      layoutVersion: "layout-1",
+      lodTierCount: 1,
+    });
+    // Flush the debounced initial read + a second refresh: a plain role-color
+    // slice carries no pie__* attributes, so the cheap probe short-circuits and
+    // Sigma is never torn down and rebuilt.
+    await vi.advanceTimersByTimeAsync(500);
+    renderer.refreshGraphV2ViewportSync();
+    await vi.advanceTimersByTimeAsync(500);
+
+    expect(client.readViewport).toHaveBeenCalled();
+    expect(sigmaConstructions).toBe(0);
+
+    renderer.unmount();
+    vi.useRealTimers();
   });
 
   it("rebuilds pie programs when category colors change", () => {

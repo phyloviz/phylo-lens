@@ -31,8 +31,16 @@ import {
 import type { PieMappingOptions } from "../../pieMapping";
 import {
   PHYLOVIZ_NODE_COMMON_COLOR,
+  PHYLOVIZ_NODE_GROUP_FOUNDER_COLOR,
+  PHYLOVIZ_NODE_SELECTED_COLOR,
+  PHYLOVIZ_NODE_SUBGROUP_FOUNDER_COLOR,
   SIGMA_NODE_TYPE_TRIANGLE,
 } from "./sigmaRenderingConstants";
+import {
+  firstAttributeValue,
+  isTruthyAttribute,
+  normalizeRoleValue,
+} from "./sigmaAttributeUtils";
 
 export const DEFAULT_GRAPH_VIEWER_V2_NODE_SIZE = 5;
 export const GRAPH_VIEWER_V2_MEMBER_SIZE_FACTOR = 1.25;
@@ -76,6 +84,15 @@ export function syncGraphologyViewport(
   });
 }
 
+// Graph mutation events that Sigma subscribes to with a *full* re-index per
+// event (its dropNode/dropEdge handlers call refresh() without a partialGraph,
+// forcing an O(N+E) reindex every time). Removing stale nodes one-by-one while
+// those handlers are attached is therefore O(n²) and can stall for seconds on a
+// large LoD transition. We suspend just these two events for the duration of
+// the batch; the single sigma.refresh() the caller runs afterward performs one
+// correct re-index for the final graph state.
+const SIGMA_DROP_EVENTS = ["nodeDropped", "edgeDropped"] as const;
+
 export function reconcileGraphologyViewport(
   graph: Graph,
   response: GraphV2ViewportResponse,
@@ -83,18 +100,36 @@ export function reconcileGraphologyViewport(
 ): void {
   const nodes = filteredViewportNodes(response, settings);
   const liveNodeIds = new Set(nodes.map((node) => node.id));
-  graph.nodes().forEach((nodeId) => {
-    if (!liveNodeIds.has(nodeId)) {
-      graph.dropNode(nodeId);
-    }
-  });
-
   const liveEdgeIds = new Set(response.edges.map((edge) => edge.id));
-  graph.edges().forEach((edgeId) => {
-    if (!liveEdgeIds.has(edgeId)) {
-      graph.dropEdge(edgeId);
-    }
-  });
+
+  // Snapshot and detach the per-drop listeners so the batch does not trigger a
+  // full Sigma re-index for every removed node/edge.
+  const suspendedListeners = SIGMA_DROP_EVENTS.map(
+    (event) =>
+      [event, graph.rawListeners(event) as ((...args: unknown[]) => void)[]] as const,
+  );
+  suspendedListeners.forEach(([event]) => graph.removeAllListeners(event));
+
+  try {
+    // Drop stale edges first so subsequent dropNode calls have no incident
+    // edges left to cascade through.
+    graph.edges().forEach((edgeId) => {
+      if (!liveEdgeIds.has(edgeId)) {
+        graph.dropEdge(edgeId);
+      }
+    });
+    graph.nodes().forEach((nodeId) => {
+      if (!liveNodeIds.has(nodeId)) {
+        graph.dropNode(nodeId);
+      }
+    });
+  } finally {
+    // Restore the listeners even if a drop threw, so Sigma keeps tracking
+    // future mutations.
+    suspendedListeners.forEach(([event, listeners]) => {
+      listeners.forEach((listener) => graph.on(event, listener));
+    });
+  }
 }
 
 // Restrict a viewport response to nodes passing the active metadata filters.
@@ -219,17 +254,75 @@ function upsertGraphEdge(graph: Graph, edge: GraphV2ViewportEdge): void {
   });
 }
 
+// Resolve a leaf/member node's default color from its PHYLOViZ role, mirroring
+// the role logic in sigmaNodeAttributes.deriveNodeColor: selected wins, then
+// group founder (light green), then sub-group founder (dark green), otherwise
+// the common node blue. Roles are read from node metadata under any of the
+// accepted key aliases. Representatives (triangles) are colored separately and
+// never routed through here.
+export function deriveViewportNodeColor(node: GraphV2ViewportNode): string {
+  const metadata = node.metadata ?? undefined;
+  const attributes = metadata ? { metadata } : undefined;
+
+  if (isTruthyAttribute(attributes, ["selected", "is_selected"])) {
+    return PHYLOVIZ_NODE_SELECTED_COLOR;
+  }
+
+  // Only genuine PHYLOViZ role keys drive founder coloring. Generic metadata
+  // field names like "category"/"type" are NOT PHYLOViZ role indicators, so a
+  // dataset carrying such fields (or aggregated cluster metadata) must not tint
+  // ordinary nodes green: absent explicit role/founder data, nodes stay common
+  // blue.
+  const role = normalizeRoleValue(
+    firstAttributeValue(attributes, [
+      "phyloviz_role",
+      "st_role",
+      "node_role",
+      "role",
+    ]),
+  );
+
+  if (
+    role === "group_founder" ||
+    isTruthyAttribute(attributes, [
+      "group_founder",
+      "is_group_founder",
+      "founder",
+      "is_founder",
+    ])
+  ) {
+    return PHYLOVIZ_NODE_GROUP_FOUNDER_COLOR;
+  }
+
+  if (
+    role === "subgroup_founder" ||
+    isTruthyAttribute(attributes, [
+      "subgroup_founder",
+      "sub_group_founder",
+      "is_subgroup_founder",
+      "is_sub_group_founder",
+    ])
+  ) {
+    return PHYLOVIZ_NODE_SUBGROUP_FOUNDER_COLOR;
+  }
+
+  return PHYLOVIZ_NODE_COMMON_COLOR;
+}
+
 function graphNodeAttributes(
   node: GraphV2ViewportNode,
   visuals: ResolvedViewportVisuals | null,
 ): Record<string, unknown> {
   const isRepresentative = node.is_representative || node.member_count > 1;
   const metadata = node.metadata ?? undefined;
+  // Color precedence: an active metadata visual mapping is an explicit user
+  // choice and wins; otherwise representatives keep their distinct triangle
+  // tone; otherwise leaf/member nodes fall back to their PHYLOViZ role color.
   const color = visuals
     ? deriveColor(metadata?.[visuals.colorField], visuals.palette)
     : isRepresentative
       ? GRAPH_VIEWER_V2_REPRESENTATIVE_COLOR
-      : GRAPH_VIEWER_V2_NODE_COLOR;
+      : deriveViewportNodeColor(node);
   const size =
     visuals && visuals.numericStats
       ? deriveSize(metadata?.[visuals.sizeField], visuals.numericStats, visuals.scale)
@@ -286,6 +379,7 @@ function pieNodeAttributes(
 function graphEdgeAttributes(
   edge: GraphV2ViewportEdge,
 ): Record<string, unknown> {
+  const isMeta = edge.is_meta === true;
   return {
     color: GRAPH_VIEWER_V2_EDGE_COLOR,
     size: 1,
@@ -294,5 +388,9 @@ function graphEdgeAttributes(
       typeof edge.distance === "number" && Number.isFinite(edge.distance)
         ? String(edge.distance)
         : "",
+    // Carry meta-edge provenance so downstream styling can distinguish
+    // rerouted boundary edges. Phase 1 only surfaces the attributes.
+    isMeta,
+    bundledEdgeCount: isMeta ? (edge.bundled_edge_count ?? 1) : undefined,
   };
 }

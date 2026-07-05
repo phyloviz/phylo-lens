@@ -5,8 +5,9 @@ from functools import lru_cache
 import logging
 from pathlib import Path
 from tempfile import gettempdir
+from time import perf_counter
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, status
 from fastapi.params import Depends
 from pydantic import BaseModel, Field, ValidationError, model_validator
 
@@ -27,13 +28,21 @@ from phylo_lens_server.data.normalizer import (
     normalize_dataset,
 )
 from phylo_lens_server.data.parsers import ParseError
+from phylo_lens_server.prepared_layout.jobs import (
+    JOB_STATUS_FAILED,
+    JOB_STATUS_READY,
+    PrepareJobRegistry,
+    PrepareJobSnapshot,
+)
 from phylo_lens_server.prepared_layout.layout import (
     LAYOUT_DEGRADED_SFDP_FAILED,
     LAYOUT_DEGRADED_SFDP_INCOMPLETE,
     LAYOUT_DEGRADED_SFDP_MISSING,
-    LAYOUT_DEGRADED_SFDP_TIMEOUT,
 )
-from phylo_lens_server.prepared_layout.models import LayoutStatus
+from phylo_lens_server.prepared_layout.models import (
+    LayoutStatus,
+    PreparedLayoutResult,
+)
 from phylo_lens_server.prepared_layout.store import PreparedLayoutStore
 from phylo_lens_server.prepared_layout.worker import PreparedLayoutWorker
 
@@ -41,6 +50,7 @@ ROUTER_PREFIX = "/api/v2/graph"
 ROUTER_TAG = "graph-v2"
 
 ROUTE_PREPARE = "/prepare"
+ROUTE_PREPARE_STATUS = "/prepare/{job_id}"
 ROUTE_VIEWPORT = "/viewport"
 
 ENV_PREPARED_LAYOUT_STORE_DIR = "PHYLO_LENS_PREPARED_LAYOUT_STORE_DIR"
@@ -56,11 +66,6 @@ _LAYOUT_DEGRADED_WARNINGS = {
         "Graphviz 'sfdp' was unavailable; produced a circular fallback layout "
         "instead of a force-directed one. Install Graphviz and re-prepare for a "
         "topology-aware layout."
-    ),
-    LAYOUT_DEGRADED_SFDP_TIMEOUT: (
-        "Graphviz 'sfdp' timed out on this graph; produced a circular fallback "
-        "layout instead of a force-directed one. The graph may be too large for "
-        "the configured layout budget."
     ),
     LAYOUT_DEGRADED_SFDP_FAILED: (
         "Graphviz 'sfdp' failed to run; produced a circular fallback layout "
@@ -87,8 +92,37 @@ class GraphV2PrepareResponse(BaseModel):
     node_count: int = Field(ge=0)
     edge_count: int = Field(ge=0)
     cluster_count: int = Field(ge=0)
+    # Number of distinct distance thresholds (LoD tiers, coarsest to finest)
+    # precomputed for this dataset. The client maps camera zoom onto these tiers
+    # for semantic zooming; a value of 1 means only the finest detail exists.
+    lod_tier_count: int = Field(default=1, ge=1)
     layout_status: LayoutStatus
     warnings: list[str] = Field(default_factory=list)
+
+
+class GraphV2PrepareJob(BaseModel):
+    """Acknowledgement returned when a prepare job is accepted.
+
+    Layout runs on a background worker, so ``/prepare`` returns immediately with
+    a ``job_id`` the client polls at ``/prepare/{job_id}`` until it is ready.
+    """
+
+    job_id: str
+    status: str
+    dataset_id: str
+
+
+class GraphV2PrepareStatus(BaseModel):
+    """Poll result for a prepare job.
+
+    ``result`` is populated only once ``status == "ready"``; ``error`` only when
+    ``status == "failed"``. Both are absent while the job is still pending.
+    """
+
+    job_id: str
+    status: str
+    result: GraphV2PrepareResponse | None = None
+    error: str | None = None
 
 
 class GraphViewportQuery(BaseModel):
@@ -142,6 +176,11 @@ class GraphViewportEdge(BaseModel):
     source: str
     target: str
     distance: float | None = None
+    # Meta-edge fields. Left unset (None) for ordinary edges so that
+    # response_model_exclude_none keeps their payload unchanged; populated only
+    # for rerouted boundary edges of a collapsed cluster.
+    is_meta: bool | None = None
+    bundled_edge_count: int | None = None
 
 
 class GraphViewportResponse(BaseModel):
@@ -167,35 +206,66 @@ def get_prepared_layout_store() -> PreparedLayoutStore:
     )
 
 
+@lru_cache(maxsize=1)
+def get_prepare_job_registry() -> PrepareJobRegistry:
+    return PrepareJobRegistry(PreparedLayoutWorker(get_prepared_layout_store()))
+
+
+def prepare_response_from_result(
+    dataset_id: str,
+    result: PreparedLayoutResult,
+    submit_warnings: tuple[str, ...],
+) -> GraphV2PrepareResponse:
+    """Build the ready-state prepare response from a finished layout result."""
+    layout_warnings: list[str] = []
+    if result.layout_status == "degraded":
+        layout_warnings.append(layout_degraded_warning(result.layout_degraded_reason))
+    # Distinct non-None thresholds are the LoD tiers the client can zoom across.
+    # This mirrors the enumeration in compute_prepared_edges, where each distinct
+    # threshold maps to a lod_level index.
+    distinct_thresholds = {
+        cluster.threshold
+        for cluster in result.artifacts.clusters
+        if cluster.threshold is not None
+    }
+    return GraphV2PrepareResponse(
+        dataset_id=dataset_id,
+        layout_version=result.artifacts.layout_version,
+        node_count=len(result.artifacts.dataset.nodes),
+        edge_count=len(result.artifacts.dataset.edges),
+        cluster_count=len(result.artifacts.clusters),
+        lod_tier_count=max(len(distinct_thresholds), 1),
+        layout_status=result.layout_status,
+        warnings=[*submit_warnings, *layout_warnings],
+    )
+
+
 @router.post(
     ROUTE_PREPARE,
-    response_model=GraphV2PrepareResponse,
-    response_model_exclude_none=True,
+    response_model=GraphV2PrepareJob,
+    status_code=status.HTTP_202_ACCEPTED,
 )
 def prepare_graph_v2(
     request: NormalizeRequest,
-    store: PreparedLayoutStore = Depends(get_prepared_layout_store),
-) -> GraphV2PrepareResponse:
-    """Normalize and materialize graph layout artifacts for v2 viewport reads."""
+    registry: PrepareJobRegistry = Depends(get_prepare_job_registry),
+) -> GraphV2PrepareJob:
+    """Submit a background layout job and return a job id to poll.
+
+    Normalization and distance validation run synchronously so malformed input
+    fails fast with a 4xx; the force-directed layout itself runs on a background
+    worker and is polled via ``/prepare/{job_id}``.
+    """
     try:
         normalized = normalize_dataset(request, expose_internal_schema=True)
         dataset, distance_warnings = ensure_graph_v2_edge_distances(
             normalized.dataset,
         )
-        result = PreparedLayoutWorker(store).prepare_dataset(dataset)
-        layout_warnings: list[str] = []
-        if result.layout_status == "degraded":
-            layout_warnings.append(
-                layout_degraded_warning(result.layout_degraded_reason)
-            )
-        return GraphV2PrepareResponse(
+        submit_warnings = (*normalized.warnings, *distance_warnings)
+        job_id = registry.submit(dataset, submit_warnings)
+        return GraphV2PrepareJob(
+            job_id=job_id,
+            status="pending",
             dataset_id=dataset.dataset_id,
-            layout_version=result.artifacts.layout_version,
-            node_count=len(dataset.nodes),
-            edge_count=len(dataset.edges),
-            cluster_count=len(result.artifacts.clusters),
-            layout_status=result.layout_status,
-            warnings=[*normalized.warnings, *distance_warnings, *layout_warnings],
         )
 
     except ParseError as exc:
@@ -208,6 +278,44 @@ def prepare_graph_v2(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:  # pragma: no cover
         raise unexpected_server_error(exc) from exc
+
+
+@router.get(
+    ROUTE_PREPARE_STATUS,
+    response_model=GraphV2PrepareStatus,
+    response_model_exclude_none=True,
+)
+def prepare_graph_v2_status(
+    job_id: str,
+    registry: PrepareJobRegistry = Depends(get_prepare_job_registry),
+) -> GraphV2PrepareStatus:
+    """Poll a prepare job; returns the full response once the layout is ready."""
+    snapshot = registry.snapshot(job_id)
+    if snapshot is None:
+        raise not_found_error(f"Prepare job '{job_id}' was not found.")
+
+    if snapshot.status == JOB_STATUS_READY and snapshot.result is not None:
+        return GraphV2PrepareStatus(
+            job_id=snapshot.job_id,
+            status=snapshot.status,
+            result=prepare_response_from_result(
+                _dataset_id_for_snapshot(snapshot),
+                snapshot.result,
+                snapshot.warnings,
+            ),
+        )
+    if snapshot.status == JOB_STATUS_FAILED:
+        return GraphV2PrepareStatus(
+            job_id=snapshot.job_id,
+            status=snapshot.status,
+            error=snapshot.error or "Layout preparation failed.",
+        )
+    return GraphV2PrepareStatus(job_id=snapshot.job_id, status=snapshot.status)
+
+
+def _dataset_id_for_snapshot(snapshot: PrepareJobSnapshot) -> str:
+    assert snapshot.result is not None
+    return snapshot.result.artifacts.dataset.dataset_id
 
 
 @router.post(
@@ -229,6 +337,7 @@ def read_graph_viewport(
                 f"Prepared layout for dataset '{query.dataset_id}' was not found."
             )
 
+        read_started = perf_counter()
         result = store.read_viewport(
             dataset_id=query.dataset_id,
             layout_version=layout_version,
@@ -240,20 +349,10 @@ def read_graph_viewport(
             lod_level=effective_lod_level(query),
             cluster_id=query.cluster_id,
         )
-        logger.info(
-            "graph_v2 viewport dataset_id=%s layout_version=%s lod_level=%s "
-            "cluster_id=%s bounds=%s nodes=%s edges=%s total=%s truncated=%s",
-            query.dataset_id,
-            layout_version,
-            effective_lod_level(query),
-            query.cluster_id,
-            "present" if query.xmin is not None else "absent",
-            len(result.nodes),
-            len(result.edges),
-            result.total_node_count,
-            result.truncated,
-        )
-        return GraphViewportResponse(
+        read_ms = (perf_counter() - read_started) * 1000.0
+
+        serialize_started = perf_counter()
+        response = GraphViewportResponse(
             dataset_id=result.dataset_id,
             layout_version=result.layout_version,
             lod_level=effective_lod_level(query),
@@ -280,6 +379,8 @@ def read_graph_viewport(
                     source=edge.source,
                     target=edge.target,
                     distance=edge.distance,
+                    is_meta=edge.is_meta,
+                    bundled_edge_count=edge.bundled_edge_count,
                 )
                 for edge in result.edges
             ],
@@ -288,6 +389,25 @@ def read_graph_viewport(
                 for field in result.metadata_schema
             ],
         )
+        serialize_ms = (perf_counter() - serialize_started) * 1000.0
+        logger.info(
+            "graph_v2 viewport dataset_id=%s layout_version=%s lod_level=%s "
+            "cluster_id=%s bounds=%s nodes=%s edges=%s total=%s truncated=%s "
+            "max_nodes=%s read_ms=%.1f serialize_ms=%.1f",
+            query.dataset_id,
+            layout_version,
+            effective_lod_level(query),
+            query.cluster_id,
+            "present" if query.xmin is not None else "absent",
+            len(result.nodes),
+            len(result.edges),
+            result.total_node_count,
+            result.truncated,
+            query.max_nodes,
+            read_ms,
+            serialize_ms,
+        )
+        return response
     except HTTPException:
         raise
     except Exception as exc:  # pragma: no cover
