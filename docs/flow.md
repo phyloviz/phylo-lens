@@ -25,7 +25,7 @@ flowchart TD
 
     POLL --> D["ingest (on worker): select up to 16 distance thresholds
     Union-Find components per threshold
-    medoid representative per cluster"]
+    centroid representative per cluster"]
 
     D --> E["layout (Graphviz sfdp, no timeout):
     global node positions

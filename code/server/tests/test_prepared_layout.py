@@ -110,7 +110,7 @@ def _branching_dataset() -> CanonicalDataset:
     return result.dataset
 
 
-def test_prepare_layout_artifacts_builds_distance_clusters_with_medoids() -> None:
+def test_prepare_layout_artifacts_builds_distance_clusters_with_representatives() -> None:
     artifacts = prepare_layout_artifacts(_dataset())
 
     assert artifacts.dataset.dataset_id == DATASET_ID

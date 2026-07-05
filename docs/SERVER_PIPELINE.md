@@ -55,8 +55,10 @@ the cluster hierarchy:
 3. Build clusters at each threshold via `distance_clusters`, which runs
    Union-Find over edges sorted by distance and forms one `PreparedCluster` per
    multi-node connected component (singletons are not clustered).
-4. Each cluster records its medoid `representative_node_id` and its
-   `internal_edge_ids` / `boundary_edge_ids`.
+4. Each cluster records a `representative_node_id` (via
+   `representative_by_centroid` — the member nearest the cluster's layout
+   centroid, not a distance medoid) and its `internal_edge_ids` /
+   `boundary_edge_ids`.
 
 The result is a `PreparedLayoutArtifacts` (`dataset`, `layout_version`,
 `clusters`).

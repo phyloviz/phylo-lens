@@ -80,7 +80,7 @@ A cluster representative summarizes its members' metadata:
 | `cluster_id` | `str` | deterministic hash |
 | `threshold` | `float \| None` | distance threshold; `None` = finest detail |
 | `member_node_ids` | `tuple[str, ...]` | members |
-| `representative_node_id` | `str` | medoid |
+| `representative_node_id` | `str` | member nearest the cluster's layout centroid (not a distance medoid) |
 | `internal_edge_ids` | `tuple[str, ...]` | edges within the cluster |
 | `boundary_edge_ids` | `tuple[str, ...]` | edges crossing the boundary |
 | `member_count` | property | `len(member_node_ids)` |

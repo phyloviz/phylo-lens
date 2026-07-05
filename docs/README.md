@@ -65,8 +65,9 @@ flowchart TD
   per-tier edges, node positions, and metadata into a nine-table store keyed by
   `(dataset_id, layout_version)`. See [`DATA_MODEL.md`](./DATA_MODEL.md).
 - **Clustering is threshold-based.** Weighted edges feed Union-Find at up to 16
-  distance thresholds. Each threshold is one LoD tier; each tier's medoid
-  representatives stand in for their members at coarser zoom. See
+  distance thresholds. Each threshold is one LoD tier; each tier's
+  representatives (the member nearest the cluster's layout centroid) stand in for
+  their members at coarser zoom. See
   [`LOD_AND_CLUSTERING.md`](./LOD_AND_CLUSTERING.md).
 - **Layout is force-directed (Graphviz `sfdp`)**, computed once during prepare,
   with node-count-aware iteration and timeout budgets and a graceful degrade

@@ -354,16 +354,25 @@ def prepared_cluster(
         cluster_id=cluster_id_for_component(threshold, member_node_ids),
         threshold=threshold,
         member_node_ids=member_node_ids,
-        representative_node_id=representative_medoid(dataset, member_node_ids),
+        representative_node_id=representative_by_centroid(dataset, member_node_ids),
         internal_edge_ids=internal_edges,
         boundary_edge_ids=boundary_edges,
     )
 
 
-def representative_medoid(
+def representative_by_centroid(
     dataset: CanonicalDataset,
     member_node_ids: tuple[str, ...],
 ) -> str:
+    """Pick the member that stands in for its cluster at coarser tiers.
+
+    This is a layout-centroid heuristic, not a distance medoid: when members are
+    already positioned, it returns the member closest to the cluster's spatial
+    centroid (tie-broken by higher internal degree, then id) so the proxy sits
+    visually in the middle of its cluster. Before positions exist, it falls back
+    to the most internally connected member. It intentionally does not minimize
+    summed genetic distance, so it is named for what it computes.
+    """
     member_set = set(member_node_ids)
     nodes = {node.id: node for node in dataset.nodes if node.id in member_set}
     internal_degree: dict[str, int] = {node_id: 0 for node_id in member_node_ids}

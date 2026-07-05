@@ -46,11 +46,16 @@ usefully rather than arbitrarily:
 `lod_tier_count` in `GraphV2PrepareResponse` is the count of distinct non-None
 thresholds actually produced — the number of tiers the client may zoom across.
 
-## Representatives (Medoids)
+## Representatives
 
-Each cluster names one `representative_node_id`: the **medoid**, the member that
-minimizes total distance to the other members. The medoid stands in for its
-cluster at coarser tiers and becomes the click target for expansion (see
+Each cluster names one `representative_node_id`, chosen by
+`representative_by_centroid`. This is a **layout-centroid heuristic, not a
+distance medoid**: once members are positioned it picks the member closest to
+the cluster's spatial centroid (tie-broken by higher internal degree, then id)
+so the proxy sits visually in the middle of its cluster; before positions exist
+it falls back to the most internally connected member. It does not minimize
+summed genetic distance. The representative stands in for its cluster at coarser
+tiers and becomes the click target for expansion (see
 [`EXPAND_COLLAPSE.md`](./EXPAND_COLLAPSE.md)).
 
 ## `lod_level` ↔ threshold

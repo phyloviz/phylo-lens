@@ -46,7 +46,7 @@ Returns service health.
 Normalizes input (synchronously) and submits a background job that materializes
 the LoD runtime artifacts into the SQLite prepared-layout store:
 
-- threshold clusters (up to 16 tiers) with medoid representatives;
+- threshold clusters (up to 16 tiers) with layout-centroid representatives;
 - `sfdp` force-directed node and cluster positions;
 - per-tier quotient edge lists.
 
