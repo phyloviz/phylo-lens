@@ -21,6 +21,37 @@ global work, and every interaction is a cheap bounded read.
 
 ## How It Works
 
+```mermaid
+sequenceDiagram
+  participant C as Client (Sigma.js)
+  participant S as Server (FastAPI)
+  participant W as Layout worker
+  participant DB as SQLite store
+
+  C->>S: POST /api/graph/prepare (Newick)
+  S->>S: normalize + validate (sync)
+  S->>W: submit layout job
+  S-->>C: 202 { job_id }
+  W->>W: threshold clustering + sfdp layout
+  W->>DB: persist (dataset_id, layout_version)
+
+  loop poll until ready
+    C->>S: GET /api/graph/prepare/{job_id}
+    S-->>C: { status } (pending → ready + result)
+  end
+
+  loop each camera change
+    C->>S: POST /api/graph/viewport (bounds + zoom)
+    S->>DB: read LoD tier slice
+    S-->>C: bounded { nodes, edges, metadata }
+  end
+
+  opt box select
+    C->>S: POST /api/graph/region (bounds)
+    S-->>C: subgraph + aggregated_metadata
+  end
+```
+
 1. **`POST /api/graph/prepare`** normalizes and validates the dataset
    synchronously, then submits a background layout job (returns `202`).
 2. The server builds a deterministic distance-threshold hierarchy (Union-Find
