@@ -12,6 +12,11 @@ import {
   renderAncillaryWheel,
 } from "../components/ancillaryWheel";
 import type { PositionedGraph } from "../contracts/positioned";
+import {
+  SOURCE_FORMAT_NEWICK,
+  SOURCE_FORMAT_TYPING_DATA,
+  type SourceFormat,
+} from "../contracts/models";
 import { buildRenderedStatus } from "./shell/status/renderedStatus";
 import {
   isHexColor,
@@ -102,6 +107,8 @@ export interface UiShellElements {
   form: HTMLFormElement;
   newickInput: HTMLTextAreaElement;
   newickFileInput?: HTMLInputElement;
+  sourceFormatSelect?: HTMLSelectElement;
+  typingFileInput?: HTMLInputElement;
   datasetNameInput?: HTMLInputElement;
   ancillaryInput?: HTMLTextAreaElement;
   ancillaryFileInput?: HTMLInputElement;
@@ -142,6 +149,8 @@ export class UiShellController {
   private readonly form: HTMLFormElement;
   private readonly newickInput: HTMLTextAreaElement;
   private readonly newickFileInput?: HTMLInputElement;
+  private readonly sourceFormatSelect?: HTMLSelectElement;
+  private readonly typingFileInput?: HTMLInputElement;
   private readonly datasetNameInput?: HTMLInputElement;
   private readonly ancillaryInput?: HTMLTextAreaElement;
   private readonly ancillaryFileInput?: HTMLInputElement;
@@ -204,6 +213,8 @@ export class UiShellController {
     this.form = options.elements.form;
     this.newickInput = options.elements.newickInput;
     this.newickFileInput = options.elements.newickFileInput;
+    this.sourceFormatSelect = options.elements.sourceFormatSelect;
+    this.typingFileInput = options.elements.typingFileInput;
     this.datasetNameInput = options.elements.datasetNameInput;
     this.ancillaryInput = options.elements.ancillaryInput;
     this.ancillaryFileInput = options.elements.ancillaryFileInput;
@@ -403,12 +414,17 @@ export class UiShellController {
 
   // Normalize and render using current user input values.
   async renderCurrentInput(): Promise<void> {
-    const newick = (await this.getNewickInput()).trim();
+    const sourceFormat = this.getSourceFormat();
+    const content = (await this.getSourceContent(sourceFormat)).trim();
     const datasetName = this.datasetNameInput?.value.trim();
     const ancillaryRaw = this.ancillaryInput?.value.trim() ?? "";
 
-    if (!newick) {
-      this.setStatus(`${STATUS_FAILED_PREFIX}: empty Newick input`);
+    if (!content) {
+      const label =
+        sourceFormat === SOURCE_FORMAT_TYPING_DATA
+          ? "empty typing data input"
+          : "empty Newick input";
+      this.setStatus(`${STATUS_FAILED_PREFIX}: ${label}`);
       return;
     }
 
@@ -419,7 +435,8 @@ export class UiShellController {
       const ancillaryData = await this.getAncillaryDataInput();
       this.baseVisualMapping = ancillaryPayload.visual_mapping ?? {};
       this.currentVisualMapping = this.buildCurrentVisualMapping();
-      await this.workbench.renderNewick(newick, datasetName || undefined, {
+      await this.workbench.renderNewick(content, datasetName || undefined, {
+        sourceFormat,
         metadataSchema: ancillaryPayload.metadata_schema,
         metadataByNodeId: ancillaryPayload.metadata_by_node_id,
         ancillaryData,
@@ -1125,7 +1142,21 @@ export class UiShellController {
     return buildDisplayOptions(getSelectedOptions(this.displayOptionsSelect));
   }
 
-  private async getNewickInput(): Promise<string> {
+  private getSourceFormat(): SourceFormat {
+    return this.sourceFormatSelect?.value === SOURCE_FORMAT_TYPING_DATA
+      ? SOURCE_FORMAT_TYPING_DATA
+      : SOURCE_FORMAT_NEWICK;
+  }
+
+  // Read the raw dataset content for the active source format: a typing-data
+  // allelic-profile file when in typing mode, otherwise the Newick file (with
+  // the hidden textarea as a fallback so a no-file demo still works).
+  private async getSourceContent(sourceFormat: SourceFormat): Promise<string> {
+    if (sourceFormat === SOURCE_FORMAT_TYPING_DATA) {
+      const typingFile = this.typingFileInput?.files?.[0];
+      return typingFile ? readTextFile(typingFile) : "";
+    }
+
     const file = this.newickFileInput?.files?.[0];
     if (file) {
       return readTextFile(file);

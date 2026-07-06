@@ -32,10 +32,13 @@ export {
 export const CLUSTER_PROXY_COLOR = "#b45309";
 
 export const DEFAULT_NODE_SIZE = 5;
-export const MIN_NODE_SIZE = 3;
-export const MAX_NODE_SIZE = 10;
+export const MIN_NODE_SIZE = 4;
+// A wide upper bound so metadata-driven sizing is clearly legible and the
+// difference between linear and logarithmic scaling is visible on the canvas
+// (a narrow 3-10px span made both scales look nearly identical).
+export const MAX_NODE_SIZE = 22;
 export const CLUSTER_PROXY_MIN_SIZE = 6;
-export const CLUSTER_PROXY_MAX_SIZE = 10;
+export const CLUSTER_PROXY_MAX_SIZE = 22;
 
 export const DEFAULT_COLOR_FIELD = "region";
 export const DEFAULT_SIZE_FIELD = "distance";

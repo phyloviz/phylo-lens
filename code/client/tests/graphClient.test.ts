@@ -2,11 +2,13 @@ import {
   createGraphClient,
   ERR_GRAPH_PREPARE_FAILED,
   isGraphRegionResponse,
+  isGraphSearchResponse,
   ERR_INVALID_GRAPH_PREPARE_JOB,
   ERR_INVALID_GRAPH_VIEWPORT_RESPONSE,
   isGraphPrepareResponse,
   isGraphViewportResponse,
   ROUTE_GRAPH_PREPARE,
+  ROUTE_GRAPH_SEARCH,
   ROUTE_GRAPH_VIEWPORT,
   type GraphPrepareStatus,
 } from "../src/api/graphClient";
@@ -74,6 +76,17 @@ const REGION_FIXTURE = {
   ],
   edges: [],
   aggregated_metadata: { region: "north", score: 16 },
+} satisfies unknown;
+
+const SEARCH_FIXTURE = {
+  dataset_id: "tree",
+  layout_version: "abc123",
+  query: "port",
+  total_count: 2,
+  matches: [
+    { node_id: "portugal_1", score: 60, matched_text: "portugal_1" },
+    { node_id: "isolate_x", score: 20, matched_text: "isolate_x Portugal" },
+  ],
 } satisfies unknown;
 
 function makeJsonResponse(payload: unknown, status = 200): Response {
@@ -268,6 +281,37 @@ describe("graphClient", () => {
 
     expect(isGraphViewportResponse(missingType)).toBe(false);
     expect(isGraphViewportResponse(notAnArray)).toBe(false);
+  });
+
+  it("validates search responses", () => {
+    expect(isGraphSearchResponse(SEARCH_FIXTURE)).toBe(true);
+    // total_count must be numeric.
+    expect(isGraphSearchResponse({ ...SEARCH_FIXTURE, total_count: "2" })).toBe(
+      false,
+    );
+    // Malformed matches are rejected.
+    expect(
+      isGraphSearchResponse({ ...SEARCH_FIXTURE, matches: [{ node_id: "x" }] }),
+    ).toBe(false);
+  });
+
+  it("posts a whole-tree search and returns scored matches", async () => {
+    const seen: string[] = [];
+    const fetchSpy = vi.fn(async (input: RequestInfo | URL) => {
+      seen.push(String(input));
+      return makeJsonResponse(SEARCH_FIXTURE);
+    }) as unknown as typeof fetch;
+
+    const client = createGraphClient({ baseUrl: BASE_URL, fetchImpl: fetchSpy });
+    const response = await client.searchGraph({
+      dataset_id: "tree",
+      query: "port",
+      limit: 25,
+    });
+
+    expect(seen[0]).toBe(`${BASE_URL}${ROUTE_GRAPH_SEARCH}`);
+    expect(response.total_count).toBe(2);
+    expect(response.matches[0]!.node_id).toBe("portugal_1");
   });
 
   it("submits a prepare job then polls until it is ready", async () => {

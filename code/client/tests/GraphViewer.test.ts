@@ -280,6 +280,33 @@ describe("GraphViewer", () => {
     expect(graph.getEdgeAttribute("edge_a_b", "distance")).toBe(3);
   });
 
+  it("renders a single-member cluster proxy as a plain leaf, not a triangle", () => {
+    // The server materializes a single-member cluster per node at each tier, so
+    // some viewport nodes arrive with is_representative === true yet
+    // member_count === 1. These must render as ordinary leaves (labeled circle),
+    // never as expandable triangle "clusters" holding one node.
+    const graph = new Graph();
+    syncGraphologyViewport(graph, {
+      ...VIEWPORT_RESPONSE,
+      nodes: [
+        {
+          id: "lone",
+          cluster_id: "cluster_lone",
+          x: 0,
+          y: 0,
+          layout_status: "ready" as const,
+          member_count: 1,
+          is_representative: true,
+        },
+      ],
+      edges: [],
+    });
+
+    expect(graph.getNodeAttribute("lone", "type")).toBeUndefined();
+    expect(graph.getNodeAttribute("lone", "is_cluster_proxy")).toBeUndefined();
+    expect(graph.getNodeAttribute("lone", "label")).toBe("lone");
+  });
+
   it("colors leaf nodes by their PHYLOViZ role", () => {
     const roleNode = (id: string, role: unknown) => ({
       id,
@@ -1240,6 +1267,58 @@ describe("GraphViewer metadata-driven sync", () => {
     expect(graph.hasNode("a")).toBe(true);
     expect(graph.hasNode("b")).toBe(false);
     expect(graph.hasEdge("edge_a_b")).toBe(false);
+  });
+});
+
+describe("GraphViewer display options under LoD", () => {
+  it("labels leaves and hides edge labels/weighting by default", () => {
+    const graph = new Graph();
+
+    syncGraphologyViewport(graph, VIEWPORT_RESPONSE);
+
+    // Leaf keeps its id label; representative (triangle) stays unlabeled.
+    expect(graph.getNodeAttribute("a", "label")).toBe("a");
+    expect(graph.getNodeAttribute("cluster_b", "label")).toBe("");
+    // No display options => no edge distance labels and base (unweighted) size.
+    expect(graph.getEdgeAttribute("edge_a_b", "label")).toBe("");
+    expect(graph.getEdgeAttribute("edge_a_b", "forceLabel")).toBe(false);
+    expect(graph.getEdgeAttribute("edge_a_b", "size")).toBe(1);
+  });
+
+  it("blanks leaf labels when node labels are disabled", () => {
+    const graph = new Graph();
+
+    syncGraphologyViewport(graph, VIEWPORT_RESPONSE, {
+      displayOptions: { nodeLabels: false },
+    });
+
+    expect(graph.getNodeAttribute("a", "label")).toBe("");
+    // Representatives were already unlabeled regardless of the toggle.
+    expect(graph.getNodeAttribute("cluster_b", "label")).toBe("");
+  });
+
+  it("shows edge distance labels when the option is enabled", () => {
+    const graph = new Graph();
+
+    syncGraphologyViewport(graph, VIEWPORT_RESPONSE, {
+      displayOptions: { edgeDistanceLabels: true },
+    });
+
+    expect(graph.getEdgeAttribute("edge_a_b", "label")).toBe("3");
+    expect(graph.getEdgeAttribute("edge_a_b", "forceLabel")).toBe(true);
+  });
+
+  it("widens edges by distance when distance weighting is enabled", () => {
+    const graph = new Graph();
+
+    syncGraphologyViewport(graph, VIEWPORT_RESPONSE, {
+      displayOptions: { distanceWeightedEdges: true },
+    });
+
+    // Base size (1) widened by log1p(distance); strictly larger than the base.
+    expect(
+      graph.getEdgeAttribute("edge_a_b", "size") as number,
+    ).toBeGreaterThan(1);
   });
 });
 

@@ -15,6 +15,7 @@ import {
   isCategoryCountMetadataKey,
 } from "../../render/pieMapping";
 import type {
+  GraphDisplayOptions,
   GraphRenderer,
   RenderNodeClickState,
 } from "../../render/types";
@@ -40,7 +41,6 @@ import {
   ERR_LOD_PLAYBACK_REQUIRES_LOD,
   ERR_NO_GRAPH_RENDERED,
 } from "./workbenchErrors";
-import { searchDatasetNodes } from "./nodeSearch";
 import {
   clearPendingViewRefresh,
   createInitialGraphWorkbenchState,
@@ -120,12 +120,8 @@ export function createGraphWorkbench(
         visualMapping,
       }),
 
-    updateDisplayOptions: (displayOptions) => {
-      renderer.updateDisplayOptions?.(displayOptions);
-      if (state.currentGraph) {
-        renderer.render(state.currentGraph);
-      }
-    },
+    updateDisplayOptions: (displayOptions) =>
+      updateDisplayOptions({ state, renderer, displayOptions }),
 
     setLodRefreshPaused: (paused) =>
       setLodRefreshPaused({
@@ -139,6 +135,7 @@ export function createGraphWorkbench(
     searchNodes: (query) =>
       searchNodes({
         state,
+        graphClient: options.graphClient,
         query,
       }),
 
@@ -244,7 +241,7 @@ async function renderNewick({
   renderer.focusNode?.(null);
 
   const request: NormalizeRequest = {
-    format: SOURCE_FORMAT_NEWICK,
+    format: options.sourceFormat ?? SOURCE_FORMAT_NEWICK,
     dataset_name: datasetName,
     content: newick,
     metadata_schema: options.metadataSchema ?? [],
@@ -263,6 +260,7 @@ async function renderNewick({
       metadataByNodeId: options.metadataByNodeId ?? {},
       ancillaryRowsByNodeId: {},
       visualMapping: options.visualMapping,
+      layoutWarnings: preparedGraph.warnings,
       layout: options.layout,
       lod: {
         maxNodes: options.lod?.maxNodes ?? DEFAULT_VIEW_SLICE_MAX_NODES,
@@ -287,6 +285,7 @@ async function renderNewick({
         visualMapping: state.preparedSession?.visualMapping,
         filterState: state.activeFilters,
         metadataSchema: state.preparedSession?.metadataSchema,
+        displayOptions: state.preparedSession?.displayOptions,
       }),
     });
 
@@ -299,6 +298,36 @@ async function renderNewick({
   }
 
   throw new Error("Graph viewport sync is required for LoD rendering.");
+}
+
+interface UpdateDisplayOptionsArgs {
+  state: GraphWorkbenchState;
+  renderer: GraphRenderer;
+  displayOptions: GraphDisplayOptions;
+}
+
+// Apply presentation toggles (node labels, edge distance labels, distance-
+// weighted edges) to the live LoD view. The renderer owns two concerns:
+// updateDisplayOptions rebuilds Sigma settings (so the node-label toggle takes
+// effect and the live viewer stays bound), and the persisted session options
+// are re-read by getRenderSettings on the next viewport sync, which
+// refreshGraphViewportSync forces immediately. We deliberately do NOT call
+// renderer.render() here: under LoD that clears the live viewport graph and
+// repopulates it from a stale coarse snapshot, resurfacing cluster-proxy
+// triangles and freezing the sync loop.
+function updateDisplayOptions({
+  state,
+  renderer,
+  displayOptions,
+}: UpdateDisplayOptionsArgs): void {
+  if (state.preparedSession) {
+    state.preparedSession.displayOptions = {
+      ...state.preparedSession.displayOptions,
+      ...displayOptions,
+    };
+  }
+  renderer.updateDisplayOptions?.(displayOptions);
+  renderer.refreshGraphViewportSync?.();
 }
 
 interface SetLodRefreshPausedArgs {
@@ -357,6 +386,7 @@ async function handleNodeClick({
 
 interface SearchNodesArgs {
   state: GraphWorkbenchState;
+  graphClient: GraphClient;
   query: {
     query: string;
     limit?: number;
@@ -364,8 +394,13 @@ interface SearchNodesArgs {
   };
 }
 
+// Whole-tree search runs on the server against the immutable prepared layout, so
+// a node is found regardless of the current zoom/pan (the visible slice only
+// ever holds a viewport's worth of nodes). The server scores id and metadata
+// hits; we map its matches onto the existing SearchDatasetResponse contract.
 async function searchNodes({
   state,
+  graphClient,
   query,
 }: SearchNodesArgs): Promise<SearchDatasetResponse> {
   const session = state.preparedSession;
@@ -374,11 +409,24 @@ async function searchNodes({
     throw new Error(ERR_NO_GRAPH_RENDERED);
   }
 
-  return searchDatasetNodes(
-    session.datasetId,
-    session.metadataByNodeId,
-    query,
-  );
+  const response = await graphClient.searchGraph({
+    dataset_id: session.datasetId,
+    layout_version: session.layoutVersion ?? null,
+    query: query.query,
+    limit: query.limit,
+  });
+
+  return {
+    dataset_id: response.dataset_id,
+    query: response.query,
+    matches: response.matches.map((match) => ({
+      node_id: match.node_id,
+      score: match.score,
+      matched_text: match.matched_text,
+      metadata: {},
+    })),
+    total_count: response.total_count,
+  };
 }
 
 interface FocusNodeArgs {
@@ -482,6 +530,8 @@ function updateStateFromGraphViewport(
       sliceNodeCount: response.nodes.length,
       sliceEdgeCount: response.edges.length,
       zoom: response.zoom,
+      layoutStatus: response.layout_status,
+      layoutWarnings: state.preparedSession?.layoutWarnings,
     },
   };
 

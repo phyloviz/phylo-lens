@@ -14,6 +14,7 @@ import { createHttpClient, type HttpClient } from "./httpClient";
 export const ROUTE_GRAPH_PREPARE = "/api/graph/prepare";
 export const ROUTE_GRAPH_VIEWPORT = "/api/graph/viewport";
 export const ROUTE_GRAPH_REGION = "/api/graph/region";
+export const ROUTE_GRAPH_SEARCH = "/api/graph/search";
 export const ERR_INVALID_GRAPH_PREPARE_RESPONSE = "Invalid graph prepare response contract.";
 export const ERR_INVALID_GRAPH_PREPARE_JOB = "Invalid graph prepare job contract.";
 export const ERR_INVALID_GRAPH_PREPARE_STATUS = "Invalid graph prepare status contract.";
@@ -21,6 +22,7 @@ export const ERR_GRAPH_PREPARE_FAILED = "Graph layout preparation failed.";
 export const ERR_GRAPH_PREPARE_TIMED_OUT = "Graph layout preparation did not complete in time.";
 export const ERR_INVALID_GRAPH_VIEWPORT_RESPONSE = "Invalid graph viewport response contract.";
 export const ERR_INVALID_GRAPH_REGION_RESPONSE = "Invalid graph region response contract.";
+export const ERR_INVALID_GRAPH_SEARCH_RESPONSE = "Invalid graph search response contract.";
 
 // Layout runs on a background worker, so /prepare returns a job the client polls
 // at /prepare/{job_id} until it is ready. These govern the polling cadence and
@@ -30,7 +32,16 @@ export const DEFAULT_PREPARE_POLL_TIMEOUT_MS = 600_000;
 
 export type GraphPrepareJobStatus = "pending" | "ready" | "failed";
 
-export type GraphLayoutStatus = "pending" | "refining" | "ready" | "failed";
+// "degraded" is emitted by the server when the force layout fell back to a
+// circular scatter (e.g. Graphviz sfdp missing/failed); the coordinates then
+// ignore tree topology, so the client surfaces a warning rather than implying a
+// faithful layout.
+export type GraphLayoutStatus =
+  | "pending"
+  | "refining"
+  | "ready"
+  | "degraded"
+  | "failed";
 
 export type GraphMetadataValue = string | number | boolean | null;
 
@@ -157,6 +168,26 @@ export interface GraphRegionResponse {
   aggregated_metadata: Record<string, GraphMetadataValue>;
 }
 
+export interface GraphSearchQuery {
+  dataset_id: string;
+  layout_version?: string | null;
+  query: string;
+  limit?: number;
+}
+
+export interface GraphSearchMatch {
+  node_id: string;
+  score: number;
+  matched_text: string;
+}
+
+export interface GraphSearchResponse {
+  dataset_id: string;
+  query: string;
+  matches: GraphSearchMatch[];
+  total_count: number;
+}
+
 export interface PrepareGraphOptions {
   // Notified on each poll while the background layout job is still pending, so a
   // caller can drive a progress indicator. Fired once per poll attempt.
@@ -179,6 +210,7 @@ export interface GraphClient {
   ) => Promise<GraphPrepareResponse>;
   readViewport: (query: GraphViewportQuery,) => Promise<GraphViewportResponse>;
   readRegion: (query: GraphRegionQuery) => Promise<GraphRegionResponse>;
+  searchGraph: (query: GraphSearchQuery) => Promise<GraphSearchResponse>;
 }
 
 export function createGraphClient(options: GraphClientOptions): GraphClient {
@@ -195,6 +227,7 @@ export function createGraphClientFromHttp(http: HttpClient): GraphClient {
     prepareGraph: (request, options) => prepareGraph(http, request, options),
     readViewport: (query) => readGraphViewport(http, query),
     readRegion: (query) => readGraphRegion(http, query),
+    searchGraph: (query) => searchGraph(http, query),
   };
 }
 
@@ -309,6 +342,22 @@ export async function readGraphRegion(
   return response;
 }
 
+export async function searchGraph(
+  http: HttpClient,
+  query: GraphSearchQuery,
+): Promise<GraphSearchResponse> {
+  const response = await http.post<GraphSearchQuery, unknown>(
+    ROUTE_GRAPH_SEARCH,
+    query,
+  );
+
+  if (!isGraphSearchResponse(response)) {
+    throw new Error(ERR_INVALID_GRAPH_SEARCH_RESPONSE);
+  }
+
+  return response;
+}
+
 export function isGraphPrepareResponse(
   value: unknown,
 ): value is GraphPrepareResponse {
@@ -397,6 +446,27 @@ function isGraphAggregatedMetadata(
   return isRecord(value) && Object.values(value).every(isGraphMetadataValue);
 }
 
+export function isGraphSearchResponse(
+  value: unknown,
+): value is GraphSearchResponse {
+  return (
+    isRecord(value) &&
+    isString(value.dataset_id) &&
+    isString(value.query) &&
+    isFiniteNumber(value.total_count) &&
+    isArrayOf(value.matches, isGraphSearchMatch)
+  );
+}
+
+function isGraphSearchMatch(value: unknown): value is GraphSearchMatch {
+  return (
+    isRecord(value) &&
+    isString(value.node_id) &&
+    isFiniteNumber(value.score) &&
+    isString(value.matched_text)
+  );
+}
+
 function isGraphViewportNode(value: unknown): value is GraphViewportNode {
   return (
     isRecord(value) &&
@@ -462,6 +532,7 @@ function isGraphLayoutStatus(value: unknown): value is GraphLayoutStatus {
     (value === "pending" ||
       value === "refining" ||
       value === "ready" ||
+      value === "degraded" ||
       value === "failed")
   );
 }

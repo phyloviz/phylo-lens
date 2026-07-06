@@ -53,11 +53,14 @@ ROUTE_PREPARE = "/prepare"
 ROUTE_PREPARE_STATUS = "/prepare/{job_id}"
 ROUTE_VIEWPORT = "/viewport"
 ROUTE_REGION = "/region"
+ROUTE_SEARCH = "/search"
 
 ENV_PREPARED_LAYOUT_STORE_DIR = "PHYLO_LENS_PREPARED_LAYOUT_STORE_DIR"
 DEFAULT_PREPARED_LAYOUT_STORE_DIR = Path(gettempdir()) / "phylo_lens_prepared_layout"
 DEFAULT_MAX_VIEWPORT_NODES = 2_500
 HARD_MAX_VIEWPORT_NODES = 20_000
+DEFAULT_SEARCH_LIMIT = 25
+HARD_MAX_SEARCH_LIMIT = 500
 
 router = APIRouter(prefix=ROUTER_PREFIX, tags=[ROUTER_TAG])
 logger = logging.getLogger(__name__)
@@ -231,6 +234,31 @@ class GraphRegionResponse(BaseModel):
     aggregated_metadata: dict[str, str | float | bool | None] = Field(
         default_factory=dict
     )
+
+
+class GraphSearchQuery(BaseModel):
+    dataset_id: str = Field(min_length=1)
+    layout_version: str | None = None
+    query: str = Field(min_length=1)
+    limit: int = Field(
+        default=DEFAULT_SEARCH_LIMIT,
+        ge=1,
+        le=HARD_MAX_SEARCH_LIMIT,
+    )
+
+
+class GraphSearchMatch(BaseModel):
+    node_id: str
+    score: int
+    matched_text: str
+
+
+class GraphSearchResponse(BaseModel):
+    dataset_id: str
+    layout_version: str
+    query: str
+    matches: list[GraphSearchMatch]
+    total_count: int
 
 
 @lru_cache(maxsize=1)
@@ -515,6 +543,52 @@ def read_graph_region(
                 for field in result.metadata_schema
             ],
             aggregated_metadata=result.aggregated_metadata,
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:  # pragma: no cover
+        raise unexpected_server_error(exc) from exc
+
+
+@router.post(
+    ROUTE_SEARCH,
+    response_model=GraphSearchResponse,
+    response_model_exclude_none=True,
+)
+def search_graph_nodes(
+    query: GraphSearchQuery,
+    store: PreparedLayoutStore = Depends(get_prepared_layout_store),
+) -> GraphSearchResponse:
+    """Search the whole prepared tree by node id and metadata value."""
+    try:
+        layout_version = query.layout_version or store.latest_layout_version(
+            query.dataset_id
+        )
+        if layout_version is None:
+            raise not_found_error(
+                f"Prepared layout for dataset '{query.dataset_id}' was not found."
+            )
+
+        result = store.search_nodes(
+            dataset_id=query.dataset_id,
+            layout_version=layout_version,
+            query=query.query,
+            limit=query.limit,
+        )
+
+        return GraphSearchResponse(
+            dataset_id=result.dataset_id,
+            layout_version=result.layout_version,
+            query=result.query,
+            matches=[
+                GraphSearchMatch(
+                    node_id=match.node_id,
+                    score=match.score,
+                    matched_text=match.matched_text,
+                )
+                for match in result.matches
+            ],
+            total_count=result.total_count,
         )
     except HTTPException:
         raise

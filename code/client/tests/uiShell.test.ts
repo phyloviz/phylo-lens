@@ -136,6 +136,51 @@ describe("uiShell", () => {
     shell.unmount();
   });
 
+  it("warns in the status line when the layout is degraded", async () => {
+    document.body.innerHTML = `
+      <form id="render-form"></form>
+      <textarea id="newick-input"></textarea>
+      <div id="status"></div>
+    `;
+
+    const form = document.getElementById("render-form") as HTMLFormElement;
+    const input = document.getElementById(
+      "newick-input",
+    ) as HTMLTextAreaElement;
+    const status = document.getElementById("status") as HTMLElement;
+
+    input.value = "(A,B)Root;";
+
+    const fakeWorkbench = makeFakeWorkbench({
+      nodes: [{ id: "root", x: 0, y: 0 }],
+      edges: [],
+      viewMeta: {
+        layout: "server",
+        lodLevel: 0,
+        sliceNodeCount: 1,
+        layoutStatus: "degraded",
+      },
+    });
+
+    const shell = new UiShellController({
+      workbench: fakeWorkbench,
+      elements: {
+        form,
+        newickInput: input,
+        status,
+      },
+    });
+
+    shell.mount();
+    await shell.renderCurrentInput();
+
+    // Still reports the render, but appends the degraded-layout warning so a
+    // topology-ignoring circular fallback is not mistaken for a real layout.
+    expect(status.textContent).toContain("Rendered");
+    expect(status.textContent).toContain("Degraded layout");
+    shell.unmount();
+  });
+
   it("shows failure status on empty Newick input", async () => {
     document.body.innerHTML = `
       <form id="render-form"></form>
@@ -350,6 +395,68 @@ describe("uiShell", () => {
           format: "tsv",
         },
       }),
+    );
+    shell.unmount();
+  });
+
+  it("forwards typing data with the typing_data source format", async () => {
+    document.body.innerHTML = `
+      <form id="render-form"></form>
+      <textarea id="newick-input"></textarea>
+      <input id="newick-file" type="file" />
+      <input id="typing-file" type="file" />
+      <select id="source-format">
+        <option value="newick">Newick tree</option>
+        <option value="typing_data">Typing data</option>
+      </select>
+      <div id="status"></div>
+    `;
+
+    const form = document.getElementById("render-form") as HTMLFormElement;
+    const input = document.getElementById(
+      "newick-input",
+    ) as HTMLTextAreaElement;
+    const newickFileInput = document.getElementById(
+      "newick-file",
+    ) as HTMLInputElement;
+    const typingFileInput = document.getElementById(
+      "typing-file",
+    ) as HTMLInputElement;
+    const sourceFormatSelect = document.getElementById(
+      "source-format",
+    ) as HTMLSelectElement;
+    const status = document.getElementById("status") as HTMLElement;
+
+    sourceFormatSelect.value = "typing_data";
+    setInputFiles(typingFileInput, [
+      new File(["ST\tgene1\tgene2\n1\t1\t2\n"], "profiles.tsv"),
+    ]);
+
+    const fakeWorkbench = makeFakeWorkbench({
+      nodes: [{ id: "1", x: 0, y: 0 }],
+      edges: [],
+      viewMeta: { layout: "force", lodLevel: 0 },
+    });
+
+    const shell = new UiShellController({
+      workbench: fakeWorkbench,
+      elements: {
+        form,
+        newickInput: input,
+        newickFileInput,
+        typingFileInput,
+        sourceFormatSelect,
+        status,
+      },
+    });
+
+    shell.mount();
+    await shell.renderCurrentInput();
+
+    expect(fakeWorkbench.renderNewick).toHaveBeenCalledWith(
+      "ST\tgene1\tgene2\n1\t1\t2",
+      undefined,
+      expect.objectContaining({ sourceFormat: "typing_data" }),
     );
     shell.unmount();
   });

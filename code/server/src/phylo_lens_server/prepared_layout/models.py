@@ -127,6 +127,23 @@ class ViewportReadResult:
 
 
 @dataclass(frozen=True)
+class SearchMatch:
+    node_id: str
+    score: int
+    matched_text: str
+    metadata: dict[str, str | float | bool | None] | None = None
+
+
+@dataclass(frozen=True)
+class SearchReadResult:
+    dataset_id: str
+    layout_version: str
+    query: str
+    matches: tuple[SearchMatch, ...]
+    total_count: int
+
+
+@dataclass(frozen=True)
 class RegionReadResult:
     dataset_id: str
     layout_version: str

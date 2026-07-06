@@ -21,6 +21,7 @@ ROUTE_HEALTH = "/health"
 ROUTE_GRAPH_PREPARE = "/api/graph/prepare"
 ROUTE_GRAPH_VIEWPORT = "/api/graph/viewport"
 ROUTE_GRAPH_REGION = "/api/graph/region"
+ROUTE_GRAPH_SEARCH = "/api/graph/search"
 
 STATUS_OK = 200
 STATUS_ACCEPTED = 202
@@ -116,6 +117,43 @@ def test_graph_prepare_materializes_layout_for_viewport_reads(client) -> None:
 
     assert viewport_response.status_code == STATUS_OK
     assert {node["id"] for node in viewport_body["nodes"]} >= {"a", "b", "c", "d"}
+
+
+def test_graph_search_finds_nodes_across_whole_tree(client) -> None:
+    status_body = prepare_and_wait(
+        client,
+        {
+            "format": FORMAT_NEWICK,
+            "dataset_name": DATASET_API_TREE,
+            "content": WEIGHTED_TREE_CONTENT,
+        },
+    )
+    layout_version = status_body["result"]["layout_version"]
+
+    search_response = client.post(
+        ROUTE_GRAPH_SEARCH,
+        json={
+            "dataset_id": DATASET_API_TREE,
+            "layout_version": layout_version,
+            "query": "d",
+            "limit": 25,
+        },
+    )
+    body = search_response.json()
+
+    assert search_response.status_code == STATUS_OK
+    assert body["dataset_id"] == DATASET_API_TREE
+    assert "d" in {match["node_id"] for match in body["matches"]}
+    exact = next(match for match in body["matches"] if match["node_id"] == "d")
+    assert exact["score"] == 100
+
+
+def test_graph_search_missing_dataset_returns_not_found(client) -> None:
+    response = client.post(
+        ROUTE_GRAPH_SEARCH,
+        json={"dataset_id": DATASET_UNKNOWN, "query": "x"},
+    )
+    assert response.status_code == STATUS_NOT_FOUND
 
 
 def test_graph_prepare_reports_degraded_status_when_sfdp_is_missing(

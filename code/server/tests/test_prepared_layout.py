@@ -501,6 +501,60 @@ def test_viewport_cluster_members_carry_public_node_metadata(tmp_path) -> None:
     assert schema_keys == {"region", "score", "flag"}
 
 
+def test_search_nodes_matches_node_id_and_metadata_across_whole_tree(
+    tmp_path,
+) -> None:
+    store = PreparedLayoutStore(tmp_path)
+    worker = PreparedLayoutWorker(store)
+    result = worker.prepare_dataset(_dataset_with_metadata())
+    version = result.artifacts.layout_version
+
+    # A node-id hit outranks a metadata-value hit and is found regardless of any
+    # viewport bounds (this is a whole-tree scan, not a slice read).
+    by_id = store.search_nodes(
+        dataset_id=DATASET_ID, layout_version=version, query="a", limit=25
+    )
+    ids = [match.node_id for match in by_id.matches]
+    assert "a" in ids
+    exact = next(match for match in by_id.matches if match.node_id == "a")
+    assert exact.score == 100  # SEARCH_SCORE_ID_EXACT
+
+    # Metadata values are searchable; "north" belongs to a and b.
+    by_meta = store.search_nodes(
+        dataset_id=DATASET_ID, layout_version=version, query="north", limit=25
+    )
+    meta_ids = {match.node_id for match in by_meta.matches}
+    assert {"a", "b"} <= meta_ids
+    assert all(match.score == 20 for match in by_meta.matches)  # METADATA_VALUE
+
+
+def test_search_nodes_excludes_internal_keys_and_respects_limit(tmp_path) -> None:
+    store = PreparedLayoutStore(tmp_path)
+    worker = PreparedLayoutWorker(store)
+    result = worker.prepare_dataset(_dataset_with_metadata())
+    version = result.artifacts.layout_version
+
+    # The internal __category_count__ value (2) must never surface as a match.
+    internal = store.search_nodes(
+        dataset_id=DATASET_ID, layout_version=version, query="2", limit=25
+    )
+    assert all(match.score != 20 for match in internal.matches) or not any(
+        "region" in match.matched_text for match in internal.matches
+    )
+
+    # An empty query yields nothing; the limit truncates but total_count is full.
+    blank = store.search_nodes(
+        dataset_id=DATASET_ID, layout_version=version, query="   ", limit=25
+    )
+    assert blank.matches == () and blank.total_count == 0
+
+    capped = store.search_nodes(
+        dataset_id=DATASET_ID, layout_version=version, query="south", limit=1
+    )
+    assert len(capped.matches) == 1
+    assert capped.total_count >= 2
+
+
 def test_viewport_expansion_reroutes_boundary_edges_to_neighbor_representatives(
     tmp_path,
 ) -> None:

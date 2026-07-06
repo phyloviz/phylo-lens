@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 import sqlite3
 
+import re
+
 from phylo_lens_server.core.metadata_keys import is_internal_metadata_key
 from phylo_lens_server.prepared_layout.models import (
     ClusterLayout,
@@ -16,6 +18,8 @@ from phylo_lens_server.prepared_layout.models import (
     PreparedLayoutArtifacts,
     PreparedEdge,
     RegionReadResult,
+    SearchMatch,
+    SearchReadResult,
     ViewportEdge,
     ViewportNode,
     ViewportReadResult,
@@ -25,6 +29,44 @@ DEFAULT_DB_NAME = "prepared_layout.sqlite3"
 
 MetadataValue = str | float | bool | None
 MetadataMap = dict[str, MetadataValue]
+
+# Relevance tiers for node search (higher = better). A node-id hit always
+# outranks a match that came only from a metadata value, mirroring the intent of
+# the former client-side scorer so result ordering is unchanged.
+SEARCH_SCORE_ID_EXACT = 100
+SEARCH_SCORE_ID_PREFIX = 60
+SEARCH_SCORE_ID_SUBSTRING = 40
+SEARCH_SCORE_METADATA_VALUE = 20
+
+# The Newick parser only ever emits generated structural ids of the shape
+# ``union_<counter>`` (with optional ``_<n>`` collision suffixes). These are
+# junctions, never real isolates, and must never surface as search results.
+_GENERATED_UNION_NODE_ID = re.compile(r"^union_[0-9]+(?:_[0-9]+)*$")
+
+
+def _is_union_node_id(node_id: str) -> bool:
+    return _GENERATED_UNION_NODE_ID.match(node_id) is not None
+
+
+def _escape_like(term: str) -> str:
+    """Escape LIKE wildcards so a raw needle matches literally under ESCAPE."""
+    return term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+def _first_matching_value(metadata: MetadataMap, lowered_needle: str) -> str | None:
+    """Return the first public metadata value containing the needle, or None.
+
+    The broad ``metadata_json LIKE`` prefilter can match on internal keys or on
+    the JSON structure itself, so each candidate row is re-checked here against
+    only its public, non-null field values.
+    """
+    for key, value in metadata.items():
+        if value is None or is_internal_metadata_key(key):
+            continue
+        text = str(value)
+        if lowered_needle in text.lower():
+            return text
+    return None
 
 
 def aggregate_layout_status(statuses: set[LayoutStatus]) -> LayoutStatus:
@@ -824,6 +866,162 @@ class PreparedLayoutStore:
             layout_status=layout_status,
             metadata_schema=metadata_schema,
             aggregated_metadata=aggregated_metadata,
+        )
+
+    def search_nodes(
+        self,
+        *,
+        dataset_id: str,
+        layout_version: str,
+        query: str,
+        limit: int,
+    ) -> SearchReadResult:
+        """Search the whole prepared tree by node id and metadata value.
+
+        Unlike the viewport reads, this ignores layout coordinates and LoD tiers
+        entirely: it scans every materialized leaf for the dataset so a match is
+        found regardless of the current zoom/pan. Two indexed passes drive it:
+
+        1. A ``node_id LIKE`` scan (backed by ``idx_node_positions_node_id``)
+           yields id hits, scored exact > prefix > substring.
+        2. A ``metadata_json LIKE`` scan yields candidate rows whose stored JSON
+           contains the needle; each candidate's public fields are checked in
+           Python so only genuine value matches (not internal keys) score.
+
+        Results are merged (a node keeps its best score), union junctions are
+        dropped, and the list is sorted by score then node id before ``limit``.
+        """
+        needle = query.strip()
+        if not needle:
+            return SearchReadResult(
+                dataset_id=dataset_id,
+                layout_version=layout_version,
+                query=query.strip(),
+                matches=(),
+                total_count=0,
+            )
+
+        with self._connect() as connection:
+            best: dict[str, SearchMatch] = {}
+            self._search_by_node_id(
+                connection,
+                dataset_id=dataset_id,
+                layout_version=layout_version,
+                needle=needle,
+                best=best,
+            )
+            self._search_by_metadata_value(
+                connection,
+                dataset_id=dataset_id,
+                layout_version=layout_version,
+                needle=needle,
+                best=best,
+            )
+
+        ordered = sorted(
+            best.values(),
+            key=lambda match: (-match.score, match.node_id),
+        )
+        total_count = len(ordered)
+        matches = tuple(ordered[:limit]) if limit >= 0 else tuple(ordered)
+        return SearchReadResult(
+            dataset_id=dataset_id,
+            layout_version=layout_version,
+            query=needle,
+            matches=matches,
+            total_count=total_count,
+        )
+
+    def _search_by_node_id(
+        self,
+        connection: sqlite3.Connection,
+        *,
+        dataset_id: str,
+        layout_version: str,
+        needle: str,
+        best: dict[str, SearchMatch],
+    ) -> None:
+        pattern = f"%{_escape_like(needle)}%"
+        rows = connection.execute(
+            """
+            select distinct node_id
+            from node_positions
+            where dataset_id = ?
+              and layout_version = ?
+              and node_id like ? escape '\\'
+            """,
+            (dataset_id, layout_version, pattern),
+        ).fetchall()
+        lowered = needle.lower()
+        for row in rows:
+            node_id = row["node_id"]
+            if _is_union_node_id(node_id):
+                continue
+            lower_id = node_id.lower()
+            if lower_id == lowered:
+                score = SEARCH_SCORE_ID_EXACT
+            elif lower_id.startswith(lowered):
+                score = SEARCH_SCORE_ID_PREFIX
+            else:
+                score = SEARCH_SCORE_ID_SUBSTRING
+            self._record_match(
+                best,
+                node_id=node_id,
+                score=score,
+                matched_text=node_id,
+            )
+
+    def _search_by_metadata_value(
+        self,
+        connection: sqlite3.Connection,
+        *,
+        dataset_id: str,
+        layout_version: str,
+        needle: str,
+        best: dict[str, SearchMatch],
+    ) -> None:
+        pattern = f"%{_escape_like(needle)}%"
+        rows = connection.execute(
+            """
+            select node_id, metadata_json
+            from node_metadata
+            where dataset_id = ?
+              and layout_version = ?
+              and metadata_json like ? escape '\\'
+            """,
+            (dataset_id, layout_version, pattern),
+        ).fetchall()
+        lowered = needle.lower()
+        for row in rows:
+            node_id = row["node_id"]
+            if _is_union_node_id(node_id):
+                continue
+            metadata: MetadataMap = json.loads(row["metadata_json"])
+            matched_value = _first_matching_value(metadata, lowered)
+            if matched_value is None:
+                continue
+            self._record_match(
+                best,
+                node_id=node_id,
+                score=SEARCH_SCORE_METADATA_VALUE,
+                matched_text=f"{node_id} {matched_value}",
+            )
+
+    @staticmethod
+    def _record_match(
+        best: dict[str, SearchMatch],
+        *,
+        node_id: str,
+        score: int,
+        matched_text: str,
+    ) -> None:
+        existing = best.get(node_id)
+        if existing is not None and existing.score >= score:
+            return
+        best[node_id] = SearchMatch(
+            node_id=node_id,
+            score=score,
+            matched_text=matched_text,
         )
 
     def _attach_node_metadata(
@@ -1806,6 +2004,9 @@ class PreparedLayoutStore:
 
                 create index if not exists idx_node_positions_cluster
                 on node_positions(dataset_id, layout_version, cluster_id);
+
+                create index if not exists idx_node_positions_node_id
+                on node_positions(dataset_id, layout_version, node_id);
 
                 create index if not exists idx_prepared_clusters_threshold_cluster
                 on prepared_clusters(

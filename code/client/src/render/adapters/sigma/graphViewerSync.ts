@@ -7,6 +7,7 @@ import type {
   GraphViewportResponse,
 } from "../../../api/graphClient";
 import type { MetadataField } from "../../../contracts/models";
+import type { GraphDisplayOptions } from "../../types";
 import {
   hasActiveFilters,
   matchesFilterState,
@@ -35,6 +36,7 @@ import {
   PHYLOVIZ_NODE_GROUP_FOUNDER_COLOR,
   PHYLOVIZ_NODE_SELECTED_COLOR,
   PHYLOVIZ_NODE_SUBGROUP_FOUNDER_COLOR,
+  SIGMA_DISTANCE_EDGE_SIZE_FACTOR,
   SIGMA_NODE_TYPE_TRIANGLE,
 } from "./sigmaRenderingConstants";
 import {
@@ -49,12 +51,18 @@ export const GRAPH_VIEWER_MAX_MEMBER_SIZE_BOOST = 6;
 export const GRAPH_VIEWER_REPRESENTATIVE_COLOR = "#b45309";
 export const GRAPH_VIEWER_NODE_COLOR = PHYLOVIZ_NODE_COMMON_COLOR;
 export const GRAPH_VIEWER_EDGE_COLOR = "#94a3b8";
+// Base thickness for a viewport edge before any distance weighting is applied.
+export const GRAPH_VIEWER_BASE_EDGE_SIZE = 1;
 
 // Metadata-driven color/size + filter settings applied while syncing a viewport.
 export interface ViewportSyncSettings {
   visualMapping?: VisualMappingOptions;
   filterState?: MetadataFilterState;
   metadataSchema?: MetadataField[];
+  // Presentation toggles (node labels, edge distance labels, distance-weighted
+  // edge thickness). Applied per-node/edge during sync so the LoD path honors
+  // the same display options as the static render path.
+  displayOptions?: GraphDisplayOptions;
 }
 
 // Resolved per-viewport color/size parameters when a visual mapping is active.
@@ -79,13 +87,16 @@ export function syncGraphologyViewport(
 ): void {
   const nodes = filteredViewportNodes(response, settings);
   const visuals = resolveViewportVisuals(nodes, settings);
+  const displayOptions = settings?.displayOptions;
   const liveNodeIds = new Set(nodes.map((node) => node.id));
-  nodes.forEach((node) => upsertGraphNode(graph, node, visuals));
+  nodes.forEach((node) =>
+    upsertGraphNode(graph, node, visuals, displayOptions),
+  );
   response.edges.forEach((edge) => {
     if (!liveNodeIds.has(edge.source) || !liveNodeIds.has(edge.target)) {
       return;
     }
-    upsertGraphEdge(graph, edge);
+    upsertGraphEdge(graph, edge, displayOptions);
   });
 }
 
@@ -246,8 +257,9 @@ function upsertGraphNode(
   graph: Graph,
   node: GraphViewportNode,
   visuals: ResolvedViewportVisuals | null,
+  displayOptions?: GraphDisplayOptions,
 ): void {
-  const attributes = graphNodeAttributes(node, visuals);
+  const attributes = graphNodeAttributes(node, visuals, displayOptions);
   if (!graph.hasNode(node.id)) {
     graph.addNode(node.id, attributes);
     return;
@@ -270,11 +282,15 @@ function upsertGraphNode(
   }
 }
 
-function upsertGraphEdge(graph: Graph, edge: GraphViewportEdge): void {
+function upsertGraphEdge(
+  graph: Graph,
+  edge: GraphViewportEdge,
+  displayOptions?: GraphDisplayOptions,
+): void {
   if (!graph.hasNode(edge.source) || !graph.hasNode(edge.target)) {
     return;
   }
-  const attributes = graphEdgeAttributes(edge);
+  const attributes = graphEdgeAttributes(edge, displayOptions);
   if (!graph.hasEdge(edge.id)) {
     graph.addEdgeWithKey(edge.id, edge.source, edge.target, attributes);
     return;
@@ -342,8 +358,15 @@ export function deriveViewportNodeColor(node: GraphViewportNode): string {
 function graphNodeAttributes(
   node: GraphViewportNode,
   visuals: ResolvedViewportVisuals | null,
+  displayOptions?: GraphDisplayOptions,
 ): Record<string, unknown> {
-  const isRepresentative = node.is_representative || node.member_count > 1;
+  // A proxy only renders as an (expandable) triangle when it actually stands in
+  // for more than one node. The server materializes a single-member cluster per
+  // node at each tier (so every node has a representative for meta-edge
+  // rerouting), and those arrive with is_representative === true; drawing them
+  // as triangles produced the "cluster with just one node under it" artifact on
+  // larger trees. Gating on member_count > 1 renders them as plain leaves.
+  const isRepresentative = node.member_count > 1;
   const metadata = node.metadata ?? undefined;
   // Color precedence: an active metadata visual mapping is an explicit user
   // choice and wins WHEN the node actually has a value for the colour field;
@@ -365,11 +388,14 @@ function graphNodeAttributes(
     visuals && visuals.numericStats
       ? deriveSize(metadata?.[visuals.sizeField], visuals.numericStats, visuals.scale)
       : nodeSizeForMemberCount(node.member_count);
+  // Node labels are on by default; a representative (triangle) never carries a
+  // label, and toggling the node-labels display option off blanks leaf labels.
+  const showNodeLabel = displayOptions?.nodeLabels !== false;
   return {
     x: node.x,
     y: node.y,
     size,
-    label: node.is_representative ? "" : node.id,
+    label: isRepresentative || !showNodeLabel ? "" : node.id,
     color,
     cluster_id: node.cluster_id,
     member_count: node.member_count,
@@ -416,19 +442,41 @@ function pieNodeAttributes(
 
 function graphEdgeAttributes(
   edge: GraphViewportEdge,
+  displayOptions?: GraphDisplayOptions,
 ): Record<string, unknown> {
   const isMeta = edge.is_meta === true;
+  const hasDistance =
+    typeof edge.distance === "number" && Number.isFinite(edge.distance);
+  const showEdgeLabel = displayOptions?.edgeDistanceLabels === true;
   return {
     color: GRAPH_VIEWER_EDGE_COLOR,
-    size: 1,
+    size: edgeSizeForDistance(edge.distance, displayOptions),
     distance: edge.distance ?? undefined,
-    label:
-      typeof edge.distance === "number" && Number.isFinite(edge.distance)
-        ? String(edge.distance)
-        : "",
+    label: showEdgeLabel && hasDistance ? String(edge.distance) : "",
+    forceLabel: showEdgeLabel,
     // Carry meta-edge provenance so downstream styling can distinguish
     // rerouted boundary edges. Phase 1 only surfaces the attributes.
     isMeta,
     bundledEdgeCount: isMeta ? (edge.bundled_edge_count ?? 1) : undefined,
   };
+}
+
+// Thickness for a viewport edge: the base size, optionally widened by branch
+// distance when the distance-weighted-edges display option is on. Mirrors the
+// static render path's deriveEdgeSize (sigmaEdgeAttributes) so both rendering
+// paths weight edges identically.
+function edgeSizeForDistance(
+  distance: number | null | undefined,
+  displayOptions?: GraphDisplayOptions,
+): number {
+  if (displayOptions?.distanceWeightedEdges !== true) {
+    return GRAPH_VIEWER_BASE_EDGE_SIZE;
+  }
+  if (typeof distance !== "number" || !Number.isFinite(distance) || distance <= 0) {
+    return GRAPH_VIEWER_BASE_EDGE_SIZE;
+  }
+  return (
+    GRAPH_VIEWER_BASE_EDGE_SIZE +
+    Math.log1p(distance) * SIGMA_DISTANCE_EDGE_SIZE_FACTOR
+  );
 }

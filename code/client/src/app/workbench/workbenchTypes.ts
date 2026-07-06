@@ -6,6 +6,7 @@ import type {
 import type {
   CanonicalDataset,
   SearchDatasetResponse,
+  SourceFormat,
   Viewport,
 } from "../../contracts/models";
 import type { PositionedGraph } from "../../contracts/positioned";
@@ -36,6 +37,10 @@ export interface RegionSelectionResult {
 export type RegionSelectedHandler = (bounds: SigmaViewportBounds) => void;
 
 export interface RenderNewickOptions {
+  // Source family of `content`: "newick" parses the text directly; "typing_data"
+  // routes an allelic-profile matrix through the server's PhyloLib tree build.
+  // Defaults to "newick" when unset so existing callers are unaffected.
+  sourceFormat?: SourceFormat;
   metadataSchema?: CanonicalDataset["metadata_schema"];
   metadataByNodeId?: CanonicalDataset["metadata_by_node_id"];
   ancillaryData?: {
@@ -121,6 +126,13 @@ export interface PreparedDatasetSession {
   metadataByNodeId: CanonicalDataset["metadata_by_node_id"];
   ancillaryRowsByNodeId: CanonicalDataset["ancillary_rows_by_node_id"];
   visualMapping?: VisualMappingOptions;
+  // Presentation toggles applied during viewport sync (node labels, edge
+  // distance labels, distance-weighted edge thickness). Undefined until the
+  // user changes an option, at which point the sync honors the new values.
+  displayOptions?: GraphDisplayOptions;
+  // Prepare-time warnings (e.g. a degraded force layout that fell back to a
+  // topology-ignoring circular scatter), surfaced by the shell on every slice.
+  layoutWarnings?: string[];
   layout?: RenderNewickOptions["layout"];
   lod: {
     maxNodes: number;

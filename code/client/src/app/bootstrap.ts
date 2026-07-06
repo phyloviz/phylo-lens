@@ -9,6 +9,8 @@ export const DEFAULT_SERVER_BASE_URL = "http://localhost:8000";
 export const ID_RENDER_FORM = "render-form";
 export const ID_NEWICK_INPUT = "newick-input";
 export const ID_NEWICK_FILE_INPUT = "newick-file-input";
+export const ID_SOURCE_FORMAT = "source-format";
+export const ID_TYPING_FILE_INPUT = "typing-file-input";
 export const ID_DATASET_NAME_INPUT = "dataset-name-input";
 export const ID_ANCILLARY_INPUT = "ancillary-input";
 export const ID_ANCILLARY_FILE_INPUT = "ancillary-file-input";
@@ -54,6 +56,12 @@ export default function bootstrapClientShell(
   ) as HTMLTextAreaElement | null;
   const newickFileInput = document.getElementById(
     ID_NEWICK_FILE_INPUT,
+  ) as HTMLInputElement | null;
+  const sourceFormatSelect = document.getElementById(
+    ID_SOURCE_FORMAT,
+  ) as HTMLSelectElement | null;
+  const typingFileInput = document.getElementById(
+    ID_TYPING_FILE_INPUT,
   ) as HTMLInputElement | null;
   const datasetNameInput = document.getElementById(
     ID_DATASET_NAME_INPUT,
@@ -155,6 +163,8 @@ export default function bootstrapClientShell(
       form,
       newickInput,
       newickFileInput: newickFileInput ?? undefined,
+      sourceFormatSelect: sourceFormatSelect ?? undefined,
+      typingFileInput: typingFileInput ?? undefined,
       datasetNameInput: datasetNameInput ?? undefined,
       ancillaryInput: ancillaryInput ?? undefined,
       ancillaryFileInput: ancillaryFileInput ?? undefined,
