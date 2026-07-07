@@ -176,6 +176,41 @@ def graphviz_sfdp_positions(
     return positions, None
 
 
+def has_multiple_components(
+    node_ids: tuple[str, ...],
+    edges: tuple[CanonicalEdge, ...],
+) -> bool:
+    """Report whether the graph splits into more than one connected component.
+
+    sfdp's ``overlap=scale`` runs global overlap removal across every component
+    at once, which is pathological for a forest with thousands of disconnected
+    pieces (a goeBURST export leaves distant STs unlinked). When the graph is
+    disconnected we lay each component out independently and pack the results,
+    which keeps a single connected tree's layout unchanged.
+    """
+    known_node_ids = set(node_ids)
+    parent = {node_id: node_id for node_id in node_ids}
+
+    def find(node_id: str) -> str:
+        root = node_id
+        while parent[root] != root:
+            parent[root] = parent[parent[root]]
+            root = parent[root]
+        return root
+
+    components = len(node_ids)
+    for edge in edges:
+        if edge.source not in known_node_ids or edge.target not in known_node_ids:
+            continue
+        left, right = find(edge.source), find(edge.target)
+        if left != right:
+            parent[right] = left
+            components -= 1
+            if components == 1:
+                return False
+    return components > 1
+
+
 def graphviz_dot_payload(
     node_ids: tuple[str, ...],
     edges: tuple[CanonicalEdge, ...],
@@ -184,12 +219,22 @@ def graphviz_dot_payload(
 ) -> str:
     known_node_ids = set(node_ids)
     reference_distance = reference_edge_distance(edges, known_node_ids)
-    lines = [
-        "graph {",
-        (
+    # A connected tree keeps sfdp's default global overlap removal; a disconnected
+    # forest lays each component out independently and packs them, which avoids
+    # the pathological global overlap pass without altering the connected case.
+    if has_multiple_components(node_ids, edges):
+        graph_attrs = (
+            "  graph [layout=sfdp, overlap=prism, pack=true, packmode=array, "
+            f"splines=false, outputorder=edgesfirst, maxiter={maxiter}];"
+        )
+    else:
+        graph_attrs = (
             "  graph [layout=sfdp, overlap=scale, splines=false, "
             f"outputorder=edgesfirst, maxiter={maxiter}];"
-        ),
+        )
+    lines = [
+        "graph {",
+        graph_attrs,
         '  node [shape=point, width=0.04, height=0.04, label=""];',
     ]
     for node_id in node_ids:

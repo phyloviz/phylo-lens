@@ -5,7 +5,11 @@ from dataclasses import dataclass
 from hashlib import sha1
 from math import hypot, sqrt
 
-from phylo_lens_server.core.models import CanonicalDataset, CanonicalEdge
+from phylo_lens_server.core.models import (
+    CanonicalDataset,
+    CanonicalEdge,
+    CanonicalNode,
+)
 from phylo_lens_server.prepared_layout.models import (
     PreparedCluster,
     PreparedLayoutArtifacts,
@@ -47,6 +51,32 @@ def _edge_distance(edge: CanonicalEdge) -> float:
 
 class PreparedLayoutIngestError(ValueError):
     """Raised when a dataset cannot be prepared for materialized layout."""
+
+
+@dataclass(frozen=True)
+class _ClusterIndex:
+    """Precomputed lookups so per-cluster work scales with cluster size.
+
+    Building ``prepared_cluster`` for thousands of components previously rescanned
+    every node and edge per cluster (O(clusters * (nodes + edges))). These indexes
+    are built once so each cluster only touches edges incident to its own members,
+    while preserving the original ``dataset.edges`` ordering of emitted edge ids.
+    """
+
+    node_by_id: dict[str, CanonicalNode]
+    # For each node id, the incident edges as (edge_position, edge_id, other_end).
+    # ``edge_position`` is the index into ``dataset.edges`` so callers can restore
+    # the original edge ordering after gathering a cluster's incident edges.
+    incident_by_node: dict[str, list[tuple[int, str, str]]]
+
+    @classmethod
+    def build(cls, dataset: CanonicalDataset) -> _ClusterIndex:
+        node_by_id = {node.id: node for node in dataset.nodes}
+        incident_by_node: dict[str, list[tuple[int, str, str]]] = defaultdict(list)
+        for position, edge in enumerate(dataset.edges):
+            incident_by_node[edge.source].append((position, edge.id, edge.target))
+            incident_by_node[edge.target].append((position, edge.id, edge.source))
+        return cls(node_by_id=node_by_id, incident_by_node=incident_by_node)
 
 
 @dataclass
@@ -93,26 +123,29 @@ def prepare_layout_artifacts(
         raise PreparedLayoutIngestError(ERR_MISSING_DISTANCE)
 
     node_ids = tuple(sorted(node.id for node in dataset.nodes))
+    index = _ClusterIndex.build(dataset)
     thresholds = selected_distance_thresholds(node_ids, dataset.edges, max_thresholds)
-    clusters = distance_clusters(dataset, node_ids, thresholds)
+    clusters = distance_clusters(dataset, node_ids, thresholds, index=index)
     clusters_by_id = {cluster.cluster_id: cluster for cluster in clusters}
     sorted_edges = sort_edges_by_distance(dataset.edges)
     for threshold in thresholds:
         partition = partition_for_threshold(
             dataset, node_ids, threshold, sorted_edges=sorted_edges
         )
-        for cluster_id in sorted(set(partition.values())):
+        # Group members by cluster id in a single pass so each cluster is built
+        # from its own members rather than re-filtering the full partition per id.
+        members_by_cluster_id: dict[str, list[str]] = defaultdict(list)
+        for node_id, node_cluster_id in partition.items():
+            members_by_cluster_id[node_cluster_id].append(node_id)
+        for cluster_id in sorted(members_by_cluster_id):
             if cluster_id in clusters_by_id:
                 continue
-            member_node_ids = tuple(
-                node_id
-                for node_id, node_cluster_id in partition.items()
-                if node_cluster_id == cluster_id
-            )
+            member_node_ids = tuple(members_by_cluster_id[cluster_id])
             clusters_by_id[cluster_id] = prepared_cluster(
                 dataset,
                 threshold,
                 member_node_ids,
+                index=index,
             )
     clusters = sorted(
         clusters_by_id.values(),
@@ -249,8 +282,11 @@ def distance_clusters(
     dataset: CanonicalDataset,
     node_ids: tuple[str, ...],
     thresholds_desc: tuple[float, ...],
+    *,
+    index: _ClusterIndex | None = None,
 ) -> list[PreparedCluster]:
-    node_index_by_id = {node_id: index for index, node_id in enumerate(node_ids)}
+    node_index_by_id = {node_id: index_ for index_, node_id in enumerate(node_ids)}
+    cluster_index = index if index is not None else _ClusterIndex.build(dataset)
     weighted_edges = sorted(
         ((_edge_distance(edge), edge.source, edge.target) for edge in dataset.edges),
         key=lambda item: (item[0], item[1], item[2]),
@@ -271,7 +307,9 @@ def distance_clusters(
         for component in components_for_union_find(node_ids, union_find):
             if len(component) <= 1 or component in clusters_by_key:
                 continue
-            clusters_by_key[component] = prepared_cluster(dataset, threshold, component)
+            clusters_by_key[component] = prepared_cluster(
+                dataset, threshold, component, index=cluster_index
+            )
 
     return sorted(
         clusters_by_key.values(),
@@ -338,23 +376,46 @@ def prepared_cluster(
     dataset: CanonicalDataset,
     threshold: float,
     member_node_ids: tuple[str, ...],
+    *,
+    index: _ClusterIndex | None = None,
 ) -> PreparedCluster:
+    cluster_index = index if index is not None else _ClusterIndex.build(dataset)
     member_set = set(member_node_ids)
+    # Gather only edges incident to this cluster's members, then restore the
+    # original ``dataset.edges`` order via the recorded edge position. An internal
+    # edge is seen from both endpoints, so it is deduplicated by position; a
+    # boundary edge is seen from exactly one member. This preserves the previous
+    # full-scan output while touching O(cluster incident edges) instead of O(E).
+    internal_by_position: dict[int, str] = {}
+    boundary_by_position: dict[int, str] = {}
+    internal_degree: dict[str, int] = {node_id: 0 for node_id in member_node_ids}
+    for member in member_node_ids:
+        for position, edge_id, other_end in cluster_index.incident_by_node.get(
+            member, ()
+        ):
+            if other_end in member_set:
+                if position not in internal_by_position:
+                    internal_by_position[position] = edge_id
+                    internal_degree[member] += 1
+                    internal_degree[other_end] += 1
+            else:
+                boundary_by_position[position] = edge_id
     internal_edges = tuple(
-        edge.id
-        for edge in dataset.edges
-        if edge.source in member_set and edge.target in member_set
+        internal_by_position[position] for position in sorted(internal_by_position)
     )
     boundary_edges = tuple(
-        edge.id
-        for edge in dataset.edges
-        if (edge.source in member_set) != (edge.target in member_set)
+        boundary_by_position[position] for position in sorted(boundary_by_position)
     )
     return PreparedCluster(
         cluster_id=cluster_id_for_component(threshold, member_node_ids),
         threshold=threshold,
         member_node_ids=member_node_ids,
-        representative_node_id=representative_by_centroid(dataset, member_node_ids),
+        representative_node_id=representative_by_centroid(
+            dataset,
+            member_node_ids,
+            node_by_id=cluster_index.node_by_id,
+            internal_degree=internal_degree,
+        ),
         internal_edge_ids=internal_edges,
         boundary_edge_ids=boundary_edges,
     )
@@ -363,6 +424,9 @@ def prepared_cluster(
 def representative_by_centroid(
     dataset: CanonicalDataset,
     member_node_ids: tuple[str, ...],
+    *,
+    node_by_id: dict[str, CanonicalNode] | None = None,
+    internal_degree: dict[str, int] | None = None,
 ) -> str:
     """Pick the member that stands in for its cluster at coarser tiers.
 
@@ -372,14 +436,27 @@ def representative_by_centroid(
     visually in the middle of its cluster. Before positions exist, it falls back
     to the most internally connected member. It intentionally does not minimize
     summed genetic distance, so it is named for what it computes.
+
+    ``node_by_id`` and ``internal_degree`` may be supplied by the caller to avoid
+    rescanning the full node and edge lists per cluster; when omitted they are
+    derived here so direct callers keep the original behaviour.
     """
     member_set = set(member_node_ids)
-    nodes = {node.id: node for node in dataset.nodes if node.id in member_set}
-    internal_degree: dict[str, int] = {node_id: 0 for node_id in member_node_ids}
-    for edge in dataset.edges:
-        if edge.source in member_set and edge.target in member_set:
-            internal_degree[edge.source] += 1
-            internal_degree[edge.target] += 1
+    if node_by_id is None:
+        node_lookup = {node.id: node for node in dataset.nodes}
+    else:
+        node_lookup = node_by_id
+    nodes = {
+        node_id: node_lookup[node_id]
+        for node_id in member_node_ids
+        if node_id in node_lookup
+    }
+    if internal_degree is None:
+        internal_degree = {node_id: 0 for node_id in member_node_ids}
+        for edge in dataset.edges:
+            if edge.source in member_set and edge.target in member_set:
+                internal_degree[edge.source] += 1
+                internal_degree[edge.target] += 1
 
     positioned = [
         node for node in nodes.values() if node.x is not None and node.y is not None

@@ -27,7 +27,7 @@ from phylo_lens_server.core.metadata_keys import (
 from phylo_lens_server.core.validators import validate_canonical_dataset
 from phylo_lens_server.data.parsers import (
     ParseError,
-    parse_newick,
+    parse_newick_forest,
     slugify_label,
 )
 from phylo_lens_server.data.phylolib import (
@@ -128,8 +128,12 @@ def normalize_dataset(
     )
 
     match request.format:
+        # A raw Newick upload may be a single tree or a ``;``-separated forest
+        # (e.g. precomputed goeBURST output, which is routinely disconnected).
+        # parse_newick_forest handles both, merging components into one
+        # disconnected graph so everything downstream is unchanged.
         case NormalizeFormat.NEWICK:
-            parsed = parse_newick(request.content)
+            parsed = parse_newick_forest(request.content)
 
         # Typing data (MLST/cgMLST allelic profiles) is converted to a graph by
         # the containerized PhyloLib CLI. goeBURST may emit a forest (one tree

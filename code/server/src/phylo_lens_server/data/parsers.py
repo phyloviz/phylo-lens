@@ -27,6 +27,14 @@ WARN_DUPLICATE_LABEL = (
 WARN_NEWICK_EMPTY_CHILD = (
     "Ignored empty child position in Newick content near index {index}."
 )
+# A Newick file may contain several ``;``-terminated trees (a forest); goeBURST
+# output is routinely disconnected (distant STs never join the MST), so a
+# precomputed .nwk is often a forest with many single-node components. We parse
+# each independently and merge into one disconnected graph, preserving true
+# topology (no synthetic root).
+WARN_NEWICK_FOREST = (
+    "Newick input contains {count} disconnected components; kept as a forest."
+)
 
 
 class ParseError(ValueError):
@@ -249,6 +257,80 @@ def parse_newick(content: str) -> ParsedGraph:
         warnings=warnings,
         explicit_node_ids=explicit_node_ids,
     )
+
+
+def _split_forest(content: str) -> list[str]:
+    """Split Newick text into individual ``;``-terminated trees."""
+    return [
+        f"{part.strip()}{TOKEN_TERMINATOR}"
+        for part in content.split(TOKEN_TERMINATOR)
+        if part.strip()
+    ]
+
+
+def _merge_parsed_forest(graphs: list[ParsedGraph]) -> ParsedGraph:
+    """Merge per-component graphs into one disconnected graph without a root.
+
+    Each component is parsed independently, so ``parse_newick`` restarts its
+    generated-id counters (``leaf_N`` / ``union_N``) per component and would
+    collide across components. We namespace generated ids with a per-component
+    prefix while leaving explicit labels untouched, preserving true topology.
+    """
+    nodes: list[str] = []
+    edges: list[ParsedEdge] = []
+    warnings: list[str] = []
+    explicit_node_ids: set[str] = set()
+
+    for component_index, graph in enumerate(graphs):
+        remap: dict[str, str] = {}
+        for node_id in graph.nodes:
+            if node_id in graph.explicit_node_ids:
+                remap[node_id] = node_id
+            else:
+                remap[node_id] = f"c{component_index}_{node_id}"
+        nodes.extend(remap[node_id] for node_id in graph.nodes)
+        explicit_node_ids.update(
+            remap[node_id] for node_id in graph.explicit_node_ids
+        )
+        edges.extend(
+            ParsedEdge(
+                source=remap[edge.source],
+                target=remap[edge.target],
+                distance=edge.distance,
+            )
+            for edge in graph.edges
+        )
+        warnings.extend(graph.warnings)
+
+    return ParsedGraph(
+        nodes=nodes,
+        edges=edges,
+        warnings=warnings,
+        explicit_node_ids=explicit_node_ids,
+    )
+
+
+def parse_newick_forest(content: str) -> ParsedGraph:
+    """Parse Newick text that may hold one tree or a ``;``-separated forest.
+
+    A single tree flows through unchanged; multiple ``;``-terminated components
+    are parsed independently and merged into one disconnected ParsedGraph.
+    Downstream clustering already partitions by connected component, so a forest
+    flows through unchanged.
+    """
+    trees = _split_forest(content)
+    if not trees:
+        # Defer to the single-tree parser so the empty-content error is raised
+        # with the same message as a direct parse_newick call.
+        return parse_newick(content)
+
+    graphs = [parse_newick(tree) for tree in trees]
+    if len(graphs) == 1:
+        return graphs[0]
+
+    merged = _merge_parsed_forest(graphs)
+    merged.warnings.append(WARN_NEWICK_FOREST.format(count=len(graphs)))
+    return merged
 
 
 def slugify_label(label: str) -> str:

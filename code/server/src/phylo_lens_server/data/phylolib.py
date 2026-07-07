@@ -7,10 +7,9 @@ import tempfile
 from pathlib import Path
 
 from phylo_lens_server.data.parsers import (
-    TOKEN_TERMINATOR,
-    ParsedEdge,
+    WARN_NEWICK_FOREST,
     ParsedGraph,
-    parse_newick,
+    parse_newick_forest,
 )
 
 logger = logging.getLogger(__name__)
@@ -155,57 +154,6 @@ def typing_profiles_to_newick(
     return newick
 
 
-def _split_forest(newick: str) -> list[str]:
-    """Split PhyloLib output into individual ``;``-terminated Newick trees."""
-    return [
-        f"{part.strip()};"
-        for part in newick.split(TOKEN_TERMINATOR)
-        if part.strip()
-    ]
-
-
-def _merge_parsed_graphs(graphs: list[ParsedGraph]) -> ParsedGraph:
-    """Merge per-component graphs into one disconnected graph without a root.
-
-    Each subtree is parsed independently, so ``parse_newick`` restarts its
-    generated-id counters (``leaf_N`` / ``union_N``) per component and would
-    collide across components. We namespace generated ids with a per-component
-    prefix while leaving explicit ST labels untouched, preserving true topology.
-    """
-    nodes: list[str] = []
-    edges: list[ParsedEdge] = []
-    warnings: list[str] = []
-    explicit_node_ids: set[str] = set()
-
-    for component_index, graph in enumerate(graphs):
-        remap: dict[str, str] = {}
-        for node_id in graph.nodes:
-            if node_id in graph.explicit_node_ids:
-                remap[node_id] = node_id
-            else:
-                remap[node_id] = f"c{component_index}_{node_id}"
-        nodes.extend(remap[node_id] for node_id in graph.nodes)
-        explicit_node_ids.update(
-            remap[node_id] for node_id in graph.explicit_node_ids
-        )
-        edges.extend(
-            ParsedEdge(
-                source=remap[edge.source],
-                target=remap[edge.target],
-                distance=edge.distance,
-            )
-            for edge in graph.edges
-        )
-        warnings.extend(graph.warnings)
-
-    return ParsedGraph(
-        nodes=nodes,
-        edges=edges,
-        warnings=warnings,
-        explicit_node_ids=explicit_node_ids,
-    )
-
-
 def typing_profiles_to_graph(
     profiles: str,
     *,
@@ -214,22 +162,29 @@ def typing_profiles_to_graph(
 ) -> ParsedGraph:
     """Convert typing profiles into a ParsedGraph, tolerating a goeBURST forest.
 
-    Wraps :func:`typing_profiles_to_newick`, then parses each ``;``-terminated
-    component with the shared ``parse_newick`` path and merges them into a
-    single disconnected graph (no synthetic root). Downstream clustering already
-    partitions by connected component, so a forest flows through unchanged.
+    Wraps :func:`typing_profiles_to_newick`, then delegates to the shared
+    ``parse_newick_forest`` path, which parses each ``;``-terminated component
+    and merges them into a single disconnected graph (no synthetic root).
+    Downstream clustering already partitions by connected component, so a forest
+    flows through unchanged. The generic forest warning is swapped for a
+    typing-specific one so an operator can tell where the components came from.
     """
     newick = typing_profiles_to_newick(
         profiles, distance_method=distance_method, goeburst_lvs=goeburst_lvs
     )
 
-    trees = _split_forest(newick)
-    graphs = [parse_newick(tree) for tree in trees]
+    parsed = parse_newick_forest(newick)
 
-    if len(graphs) == 1:
-        return graphs[0]
+    generic_prefix = WARN_NEWICK_FOREST.split("{", 1)[0]
+    if any(warning.startswith(generic_prefix) for warning in parsed.warnings):
+        component_count = sum(1 for part in newick.split(";") if part.strip())
+        parsed.warnings = [
+            warning
+            for warning in parsed.warnings
+            if not warning.startswith(generic_prefix)
+        ]
+        typing_warning = WARN_TYPING_FOREST.format(count=component_count)
+        parsed.warnings.append(typing_warning)
+        logger.info(typing_warning)
 
-    merged = _merge_parsed_graphs(graphs)
-    merged.warnings.append(WARN_TYPING_FOREST.format(count=len(graphs)))
-    logger.info(WARN_TYPING_FOREST.format(count=len(graphs)))
-    return merged
+    return parsed

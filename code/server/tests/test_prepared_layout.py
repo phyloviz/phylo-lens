@@ -4,6 +4,7 @@ import pytest
 
 from phylo_lens_server.core.models import (
     CanonicalDataset,
+    CanonicalEdge,
     MetadataField,
     MetadataType,
 )
@@ -19,6 +20,8 @@ from phylo_lens_server.prepared_layout.layout import (
     GRAPHVIZ_SFDP_COMMAND,
     LAYOUT_DEGRADED_SFDP_MISSING,
     compute_prepared_layouts,
+    graphviz_dot_payload,
+    has_multiple_components,
     parse_graphviz_plain_positions,
 )
 
@@ -125,6 +128,43 @@ def test_prepare_layout_artifacts_builds_distance_clusters_with_representatives(
     assert abc_cluster.member_count == 3
     assert set(abc_cluster.internal_edge_ids) == {"e_a_b_1", "e_b_c_1"}
     assert set(abc_cluster.boundary_edge_ids) == {"e_c_d_1", "e_c_e_1"}
+
+
+def test_has_multiple_components_distinguishes_tree_from_forest() -> None:
+    node_ids = ("a", "b", "c")
+    connected = (
+        CanonicalEdge(id="e1", source="a", target="b", distance=1.0),
+        CanonicalEdge(id="e2", source="b", target="c", distance=1.0),
+    )
+    forest = (CanonicalEdge(id="e1", source="a", target="b", distance=1.0),)
+
+    assert has_multiple_components(node_ids, connected) is False
+    # 'c' is an isolated singleton, mirroring a goeBURST forest export.
+    assert has_multiple_components(node_ids, forest) is True
+
+
+def test_dot_payload_packs_only_when_graph_is_disconnected() -> None:
+    """A forest lays each component out independently; a tree keeps overlap=scale.
+
+    ``overlap=scale`` runs global overlap removal that is pathological for a graph
+    with many disconnected components, so the payload must switch to a packed
+    per-component layout there while leaving the connected case unchanged.
+    """
+    node_ids = ("a", "b", "c")
+    connected = (
+        CanonicalEdge(id="e1", source="a", target="b", distance=1.0),
+        CanonicalEdge(id="e2", source="b", target="c", distance=1.0),
+    )
+    forest = (CanonicalEdge(id="e1", source="a", target="b", distance=1.0),)
+
+    connected_payload = graphviz_dot_payload(node_ids, connected)
+    forest_payload = graphviz_dot_payload(node_ids, forest)
+
+    assert "overlap=scale" in connected_payload
+    assert "pack=true" not in connected_payload
+    assert "overlap=prism" in forest_payload
+    assert "pack=true" in forest_payload
+    assert "packmode=array" in forest_payload
 
 
 def test_prepare_layout_artifacts_uses_progressive_density_thresholds() -> None:

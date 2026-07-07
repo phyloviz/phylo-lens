@@ -4,7 +4,11 @@ from pathlib import Path
 
 import pytest
 
-from phylo_lens_server.data.parsers import ParseError, parse_newick
+from phylo_lens_server.data.parsers import (
+    ParseError,
+    parse_newick,
+    parse_newick_forest,
+)
 
 FIXTURES_DIRNAME = "fixtures"
 NEWICK_CASES_FILENAME = "newick_cases.json"
@@ -139,3 +143,43 @@ def test_parse_newick_does_not_flag_meaningless_underscore_labels_as_explicit() 
 
     assert parsed.explicit_node_ids == {"4365", "4601"}
     assert parsed.warnings == []
+
+
+def test_parse_newick_forest_single_tree_passes_through() -> None:
+    """A single-tree input flows through parse_newick_forest with no warning."""
+    parsed = parse_newick_forest("(A,B)Root;")
+
+    assert sorted(parsed.nodes) == ["a", "b", "root"]
+    assert not any("disconnected components" in warning for warning in parsed.warnings)
+
+
+def test_parse_newick_forest_merges_disconnected_components() -> None:
+    """Multiple ``;``-terminated trees merge into one disconnected graph.
+
+    This is the shape of precomputed goeBURST output: some parenthesized
+    components plus bare singleton STs, each terminated by ``;``.
+    """
+    parsed = parse_newick_forest("(A:1.0)B;(C:1.0)D;99;")
+
+    assert sorted(parsed.nodes) == ["99", "a", "b", "c", "d"]
+    assert sorted((edge.source, edge.target) for edge in parsed.edges) == [
+        ("b", "a"),
+        ("d", "c"),
+    ]
+    # Singleton component contributes a node with no edge.
+    assert "99" in parsed.nodes
+    assert any("3 disconnected components" in warning for warning in parsed.warnings)
+
+
+def test_parse_newick_forest_namespaces_generated_ids_across_components() -> None:
+    """Unlabeled union ids restart per component; merge must avoid collisions."""
+    parsed = parse_newick_forest("(A,B);(C,D);")
+
+    assert len(parsed.nodes) == len(set(parsed.nodes))
+    assert len(parsed.nodes) == 6
+
+
+def test_parse_newick_forest_empty_content_raises() -> None:
+    """Empty input defers to parse_newick so the same error is surfaced."""
+    with pytest.raises(ParseError):
+        parse_newick_forest("   ")
