@@ -34,9 +34,11 @@ import type { PieMappingOptions } from "../../pieMapping";
 import {
   PHYLOVIZ_NODE_COMMON_COLOR,
   PHYLOVIZ_NODE_GROUP_FOUNDER_COLOR,
+  PHYLOVIZ_NODE_SELECTED_BORDER_COLOR,
   PHYLOVIZ_NODE_SELECTED_COLOR,
   PHYLOVIZ_NODE_SUBGROUP_FOUNDER_COLOR,
   SIGMA_DISTANCE_EDGE_SIZE_FACTOR,
+  SIGMA_NODE_TYPE_BORDER,
   SIGMA_NODE_TYPE_TRIANGLE,
 } from "./sigmaRenderingConstants";
 import {
@@ -63,6 +65,11 @@ export interface ViewportSyncSettings {
   // edge thickness). Applied per-node/edge during sync so the LoD path honors
   // the same display options as the static render path.
   displayOptions?: GraphDisplayOptions;
+  // Node currently focused via search. Colored/enlarged red on every sync so the
+  // highlight is durable across re-fetches and appears as soon as the node's
+  // slice loads (the static render path highlights via selectedNodeId; this is
+  // the LoD equivalent).
+  selectedNodeId?: string | null;
 }
 
 // Resolved per-viewport color/size parameters when a visual mapping is active.
@@ -88,9 +95,10 @@ export function syncGraphologyViewport(
   const nodes = filteredViewportNodes(response, settings);
   const visuals = resolveViewportVisuals(nodes, settings);
   const displayOptions = settings?.displayOptions;
+  const selectedNodeId = settings?.selectedNodeId ?? null;
   const liveNodeIds = new Set(nodes.map((node) => node.id));
   nodes.forEach((node) =>
-    upsertGraphNode(graph, node, visuals, displayOptions),
+    upsertGraphNode(graph, node, visuals, displayOptions, selectedNodeId),
   );
   response.edges.forEach((edge) => {
     if (!liveNodeIds.has(edge.source) || !liveNodeIds.has(edge.target)) {
@@ -258,8 +266,14 @@ function upsertGraphNode(
   node: GraphViewportNode,
   visuals: ResolvedViewportVisuals | null,
   displayOptions?: GraphDisplayOptions,
+  selectedNodeId?: string | null,
 ): void {
-  const attributes = graphNodeAttributes(node, visuals, displayOptions);
+  const attributes = graphNodeAttributes(
+    node,
+    visuals,
+    displayOptions,
+    selectedNodeId,
+  );
   if (!graph.hasNode(node.id)) {
     graph.addNode(node.id, attributes);
     return;
@@ -359,6 +373,7 @@ function graphNodeAttributes(
   node: GraphViewportNode,
   visuals: ResolvedViewportVisuals | null,
   displayOptions?: GraphDisplayOptions,
+  selectedNodeId?: string | null,
 ): Record<string, unknown> {
   // A proxy only renders as an (expandable) triangle when it actually stands in
   // for more than one node. The server materializes a single-member cluster per
@@ -367,6 +382,10 @@ function graphNodeAttributes(
   // as triangles produced the "cluster with just one node under it" artifact on
   // larger trees. Gating on member_count > 1 renders them as plain leaves.
   const isRepresentative = node.member_count > 1;
+  // A focused (searched) leaf wins over every other role/mapping color: it is
+  // painted red, enlarged, and given a border so it stands out once its slice
+  // loads. Representatives keep their triangle treatment even when focused.
+  const isSelected = !isRepresentative && node.id === (selectedNodeId ?? null);
   const metadata = node.metadata ?? undefined;
   // Color precedence: an active metadata visual mapping is an explicit user
   // choice and wins WHEN the node actually has a value for the colour field;
@@ -380,14 +399,16 @@ function graphNodeAttributes(
   const roleColor = isRepresentative
     ? GRAPH_VIEWER_REPRESENTATIVE_COLOR
     : deriveViewportNodeColor(node);
-  const color =
-    visuals && hasMappedValue
+  const color = isSelected
+    ? PHYLOVIZ_NODE_SELECTED_COLOR
+    : visuals && hasMappedValue
       ? visuals.colorForValue(mappedValue)
       : roleColor;
-  const size =
+  const baseSize =
     visuals && visuals.numericStats
       ? deriveSize(metadata?.[visuals.sizeField], visuals.numericStats, visuals.scale)
       : nodeSizeForMemberCount(node.member_count);
+  const size = isSelected ? Math.max(baseSize * 1.55, baseSize + 6) : baseSize;
   // Node labels are on by default; a representative (triangle) never carries a
   // label, and toggling the node-labels display option off blanks leaf labels.
   const showNodeLabel = displayOptions?.nodeLabels !== false;
@@ -400,7 +421,12 @@ function graphNodeAttributes(
     cluster_id: node.cluster_id,
     member_count: node.member_count,
     is_cluster_proxy: isRepresentative || undefined,
-    type: isRepresentative ? SIGMA_NODE_TYPE_TRIANGLE : undefined,
+    type: isSelected
+      ? SIGMA_NODE_TYPE_BORDER
+      : isRepresentative
+        ? SIGMA_NODE_TYPE_TRIANGLE
+        : undefined,
+    borderColor: isSelected ? PHYLOVIZ_NODE_SELECTED_BORDER_COLOR : undefined,
     layout_status: node.layout_status,
     ...(metadata ? { metadata } : {}),
     ...pieNodeAttributes(metadata, visuals),

@@ -251,6 +251,11 @@ class GraphSearchMatch(BaseModel):
     node_id: str
     score: int
     matched_text: str
+    # Global layout coordinates of the matched node (omitted when unavailable),
+    # so the client can fetch a bounded region around a hit to center/highlight
+    # a node that lies outside the current LoD slice.
+    x: float | None = None
+    y: float | None = None
 
 
 class GraphSearchResponse(BaseModel):
@@ -585,6 +590,8 @@ def search_graph_nodes(
                     node_id=match.node_id,
                     score=match.score,
                     matched_text=match.matched_text,
+                    x=match.x,
+                    y=match.y,
                 )
                 for match in result.matches
             ],

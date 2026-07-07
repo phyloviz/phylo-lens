@@ -84,6 +84,41 @@ export function centerCameraOnGraphNode({
     return false;
   }
 
+  return centerCameraOnCoordinates({
+    sigma,
+    coordinateBounds,
+    x: nodeX,
+    y: nodeY,
+    beforeSetState,
+  });
+}
+
+// Center the camera on raw graph coordinates without requiring the node to be
+// present in the rendered graph. Used to focus a searched node that lives
+// outside the current LoD slice: move the camera to where the node will be,
+// then let a viewport re-fetch pull its slice in.
+export function centerCameraOnCoordinates({
+  sigma,
+  coordinateBounds,
+  x,
+  y,
+  beforeSetState,
+}: {
+  sigma: Sigma | null;
+  coordinateBounds: GraphBounds | null;
+  x: number;
+  y: number;
+  beforeSetState?: () => void;
+}): boolean {
+  if (
+    !sigma ||
+    !coordinateBounds ||
+    !Number.isFinite(x) ||
+    !Number.isFinite(y)
+  ) {
+    return false;
+  }
+
   const camera = sigma.getCamera() as {
     x?: number;
     y?: number;
@@ -93,8 +128,8 @@ export function centerCameraOnGraphNode({
   };
   const currentState = camera.getState?.() ?? camera;
   const nextCenter = graphCoordinatesToCameraCenter(coordinateBounds, {
-    x: nodeX,
-    y: nodeY,
+    x,
+    y,
   });
 
   beforeSetState?.();

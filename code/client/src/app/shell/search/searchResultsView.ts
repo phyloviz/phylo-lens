@@ -2,12 +2,16 @@ export interface SearchResultItem {
   node_id: string;
   matched_text: string;
   score: number;
+  // Global layout coordinates of the matched node (omitted when unavailable),
+  // forwarded to the focus handler so it can fetch a region around the hit.
+  x?: number | null;
+  y?: number | null;
 }
 
 export function renderSearchResults(
   container: HTMLElement | undefined,
   matches: SearchResultItem[],
-  onFocusNode: (nodeId: string) => void,
+  onFocusNode: (match: SearchResultItem) => void,
 ): void {
   if (!container) {
     return;
@@ -22,7 +26,7 @@ export function renderSearchResults(
     item.textContent = match.node_id;
     item.title = match.matched_text;
     item.addEventListener("click", () => {
-      onFocusNode(match.node_id);
+      onFocusNode(match);
     });
     container.appendChild(item);
   });

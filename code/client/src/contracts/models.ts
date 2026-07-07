@@ -73,6 +73,10 @@ export interface SearchDatasetMatch {
   score: number;
   matched_text: string;
   metadata: Record<string, string | number | boolean | null>;
+  // Global layout coordinates of the matched node (null when unavailable),
+  // used to center/highlight a hit outside the current LoD slice.
+  x?: number | null;
+  y?: number | null;
 }
 
 export interface SearchDatasetResponse {

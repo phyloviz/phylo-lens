@@ -179,6 +179,11 @@ export interface GraphSearchMatch {
   node_id: string;
   score: number;
   matched_text: string;
+  // Global layout coordinates of the matched node (omitted by the server when
+  // unavailable). Used to fetch a bounded region around a hit so a node outside
+  // the current LoD slice can be centered and highlighted.
+  x?: number | null;
+  y?: number | null;
 }
 
 export interface GraphSearchResponse {
@@ -463,7 +468,9 @@ function isGraphSearchMatch(value: unknown): value is GraphSearchMatch {
     isRecord(value) &&
     isString(value.node_id) &&
     isFiniteNumber(value.score) &&
-    isString(value.matched_text)
+    isString(value.matched_text) &&
+    isOptionalFiniteNumber(value.x) &&
+    isOptionalFiniteNumber(value.y)
   );
 }
 

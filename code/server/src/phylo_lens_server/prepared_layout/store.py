@@ -918,12 +918,29 @@ class PreparedLayoutStore:
                 best=best,
             )
 
-        ordered = sorted(
-            best.values(),
-            key=lambda match: (-match.score, match.node_id),
+            ordered = sorted(
+                best.values(),
+                key=lambda match: (-match.score, match.node_id),
+            )
+            total_count = len(ordered)
+            limited = list(ordered[:limit]) if limit >= 0 else list(ordered)
+            # Resolve global layout coordinates only for the returned page so a
+            # client can center/highlight a hit that lies outside the current
+            # LoD slice by fetching a bounded region around these coordinates.
+            coordinates = self._node_coordinates(
+                connection,
+                dataset_id=dataset_id,
+                layout_version=layout_version,
+                node_ids=[match.node_id for match in limited],
+            )
+        matches = tuple(
+            replace(
+                match,
+                x=coordinates.get(match.node_id, (None, None))[0],
+                y=coordinates.get(match.node_id, (None, None))[1],
+            )
+            for match in limited
         )
-        total_count = len(ordered)
-        matches = tuple(ordered[:limit]) if limit >= 0 else tuple(ordered)
         return SearchReadResult(
             dataset_id=dataset_id,
             layout_version=layout_version,
@@ -1023,6 +1040,35 @@ class PreparedLayoutStore:
             score=score,
             matched_text=matched_text,
         )
+
+    def _node_coordinates(
+        self,
+        connection: sqlite3.Connection,
+        *,
+        dataset_id: str,
+        layout_version: str,
+        node_ids: list[str],
+    ) -> dict[str, tuple[float | None, float | None]]:
+        """Global layout x/y for the given nodes, keyed by node id.
+
+        Positions are frozen across LoD tiers, so a single row per node id
+        (any tier) carries the canonical coordinates. Nodes without a stored
+        position are simply absent from the result.
+        """
+        if not node_ids:
+            return {}
+        placeholders = ",".join("?" for _ in node_ids)
+        rows = connection.execute(
+            f"""
+            select node_id, x, y
+            from node_positions
+            where dataset_id = ?
+              and layout_version = ?
+              and node_id in ({placeholders})
+            """,
+            (dataset_id, layout_version, *node_ids),
+        ).fetchall()
+        return {row["node_id"]: (row["x"], row["y"]) for row in rows}
 
     def _attach_node_metadata(
         self,

@@ -46,6 +46,7 @@ import {
 } from "./sigmaNodeRendering";
 import {
   applyStableCameraBounds,
+  centerCameraOnCoordinates,
   centerCameraOnGraphNode,
   readCameraState,
   restoreCameraState,
@@ -93,6 +94,10 @@ export class SigmaRenderer implements GraphRenderer {
     | null = null;
   private highlightedNodeIds: ReadonlySet<string> | null = null;
   private suppressViewChangesUntil = 0;
+  // One-shot guard: swallows exactly the next view-change emission caused by a
+  // programmatic camera move (e.g. focusing a search result), then re-enables
+  // immediately so user panning is never blocked by a time window.
+  private suppressNextViewChange = false;
   private suppressNodeClicksUntil = 0;
   private lastRenderedGraph: PositionedGraph | null = null;
   private selectedNodeId: string | null = null;
@@ -195,21 +200,42 @@ export class SigmaRenderer implements GraphRenderer {
     this.nodeClickHandler = handler;
   }
 
-  centerOnNode(nodeId: string): void {
+  centerOnNode(nodeId: string): boolean {
     if (
       !centerCameraOnGraphNode({
         graph: this.graph,
         sigma: this.sigma,
         coordinateBounds: this.coordinateBounds,
         nodeId,
-        beforeSetState: () => this.suppressViewChangesFor(450),
+        // Swallow only the single programmatic camera move; user panning stays
+        // responsive immediately afterward (no time window).
+        beforeSetState: () => {
+          this.suppressNextViewChange = true;
+        },
       })
     ) {
-      return;
+      return false;
     }
 
     this.selectedNodeId = nodeId;
     this.renderSelectedNodeState();
+    return true;
+  }
+
+  // Move the camera to raw graph coordinates without requiring the node to be
+  // in the rendered graph. Used by search focus so a node outside the current
+  // LoD slice can be centered; a subsequent viewport re-fetch pulls in its
+  // slice, where the node then renders as the selected (red) node.
+  centerOnCoordinates(x: number, y: number): boolean {
+    return centerCameraOnCoordinates({
+      sigma: this.sigma,
+      coordinateBounds: this.coordinateBounds,
+      x,
+      y,
+      beforeSetState: () => {
+        this.suppressNextViewChange = true;
+      },
+    });
   }
 
   focusNode(nodeId: string | null): void {
@@ -595,6 +621,10 @@ export class SigmaRenderer implements GraphRenderer {
   }
 
   private emitViewChange(viewState: SigmaSemanticViewState | null): void {
+    if (this.suppressNextViewChange) {
+      this.suppressNextViewChange = false;
+      return;
+    }
     if (Date.now() < this.suppressViewChangesUntil) {
       return;
     }

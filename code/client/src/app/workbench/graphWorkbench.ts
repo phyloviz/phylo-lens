@@ -139,11 +139,12 @@ export function createGraphWorkbench(
         query,
       }),
 
-    focusNode: (nodeId) =>
+    focusNode: (nodeId, coordinates) =>
       focusNode({
         state,
         renderer,
         nodeId,
+        coordinates,
       }),
 
     setGraphRenderedHandler: (handler) => {
@@ -262,6 +263,7 @@ async function renderNewick({
       visualMapping: options.visualMapping,
       layoutWarnings: preparedGraph.warnings,
       layout: options.layout,
+      lodTierCount: preparedGraph.lod_tier_count,
       lod: {
         maxNodes: options.lod?.maxNodes ?? DEFAULT_VIEW_SLICE_MAX_NODES,
         lodHint: options.lod?.lodHint,
@@ -286,6 +288,7 @@ async function renderNewick({
         filterState: state.activeFilters,
         metadataSchema: state.preparedSession?.metadataSchema,
         displayOptions: state.preparedSession?.displayOptions,
+        selectedNodeId: state.focusedNodeId,
       }),
     });
 
@@ -424,6 +427,10 @@ async function searchNodes({
       score: match.score,
       matched_text: match.matched_text,
       metadata: {},
+      // Carry the server-resolved global coordinates so the focus flow can fetch
+      // a region around a hit that lies outside the current LoD slice.
+      x: match.x ?? null,
+      y: match.y ?? null,
     })),
     total_count: response.total_count,
   };
@@ -433,12 +440,14 @@ interface FocusNodeArgs {
   state: GraphWorkbenchState;
   renderer: GraphRenderer;
   nodeId: string;
+  coordinates?: { x: number | null; y: number | null };
 }
 
 async function focusNode({
   state,
   renderer,
   nodeId,
+  coordinates,
 }: FocusNodeArgs): Promise<PositionedGraph> {
   const session = state.preparedSession;
 
@@ -446,8 +455,26 @@ async function focusNode({
     throw new Error(ERR_NO_GRAPH_RENDERED);
   }
 
+  // Remember the focus so every subsequent viewport re-fetch re-highlights the
+  // node in red (the LoD sync reads this via getRenderSettings.selectedNodeId).
+  state.focusedNodeId = nodeId;
   renderer.focusNode?.(nodeId);
-  renderer.centerOnNode?.(nodeId);
+
+  // Try to center on the node in the current slice first. If it is not loaded
+  // (outside the current LoD view), move the camera to the search hit's global
+  // coordinates and force a viewport re-fetch so the node's slice is pulled in;
+  // the sync then renders it as the selected (red) node.
+  const centeredInSlice = renderer.centerOnNode?.(nodeId);
+  if (
+    centeredInSlice !== true &&
+    coordinates &&
+    coordinates.x !== null &&
+    coordinates.y !== null &&
+    renderer.centerOnCoordinates?.(coordinates.x, coordinates.y) === true
+  ) {
+    renderer.refreshGraphViewportSync?.();
+  }
+
   return state.currentGraph ?? state.currentSliceGraph ?? emptyGraph();
 }
 
@@ -527,6 +554,7 @@ function updateStateFromGraphViewport(
     viewMeta: {
       layout: "server",
       lodLevel: response.lod_level ?? GRAPH_DETAIL_LOD_LEVEL,
+      lodTierCount: state.preparedSession?.lodTierCount,
       sliceNodeCount: response.nodes.length,
       sliceEdgeCount: response.edges.length,
       zoom: response.zoom,

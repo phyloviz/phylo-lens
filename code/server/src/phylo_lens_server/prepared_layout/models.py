@@ -132,6 +132,11 @@ class SearchMatch:
     score: int
     matched_text: str
     metadata: dict[str, str | float | bool | None] | None = None
+    # Global layout coordinates for the matched node, resolved from
+    # node_positions. Let the client fetch a bounded region around a search hit
+    # so a node outside the current LoD slice can be centered and highlighted.
+    x: float | None = None
+    y: float | None = None
 
 
 @dataclass(frozen=True)

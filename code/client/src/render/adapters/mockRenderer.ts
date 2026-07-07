@@ -17,6 +17,7 @@ export class MockRenderer implements GraphRenderer {
   private containerId: string = MOCK_RENDERER_EMPTY_CONTAINER;
   private lastGraph: PositionedGraph | null = null;
   private lastCenteredNodeId: string | null = null;
+  private lastCenteredCoordinates: { x: number; y: number } | null = null;
   private lastFocusedNodeId: string | null = null;
   private viewChangeHandler: ((state: RenderViewportState) => void) | null =
     null;
@@ -28,6 +29,7 @@ export class MockRenderer implements GraphRenderer {
     this.containerId = context.containerId;
     this.lastGraph = null;
     this.lastCenteredNodeId = null;
+    this.lastCenteredCoordinates = null;
     this.lastFocusedNodeId = null;
   }
 
@@ -48,8 +50,14 @@ export class MockRenderer implements GraphRenderer {
     this.nodeClickHandler = handler;
   }
 
-  centerOnNode(nodeId: string): void {
+  centerOnNode(nodeId: string): boolean {
     this.lastCenteredNodeId = nodeId;
+    return true;
+  }
+
+  centerOnCoordinates(x: number, y: number): boolean {
+    this.lastCenteredCoordinates = { x, y };
+    return true;
   }
 
   focusNode(nodeId: string | null): void {
@@ -77,6 +85,10 @@ export class MockRenderer implements GraphRenderer {
 
   getLastCenteredNodeId(): string | null {
     return this.lastCenteredNodeId;
+  }
+
+  getLastCenteredCoordinates(): { x: number; y: number } | null {
+    return this.lastCenteredCoordinates;
   }
 
   getLastFocusedNodeId(): string | null {

@@ -97,7 +97,10 @@ export interface GraphWorkbench {
     includeMetadataKeys?: string[];
   }) => Promise<SearchDatasetResponse>;
 
-  focusNode: (nodeId: string) => Promise<PositionedGraph>;
+  focusNode: (
+    nodeId: string,
+    coordinates?: { x: number | null; y: number | null },
+  ) => Promise<PositionedGraph>;
 
   setGraphRenderedHandler: (handler: GraphRenderedHandler | null) => void;
 
@@ -134,6 +137,10 @@ export interface PreparedDatasetSession {
   // topology-ignoring circular scatter), surfaced by the shell on every slice.
   layoutWarnings?: string[];
   layout?: RenderNewickOptions["layout"];
+  // Total precomputed LoD tiers for the dataset (from the prepare response).
+  // Surfaced in the status bar as "LoD tier X/Y" so semantic-zoom transitions
+  // are observable.
+  lodTierCount?: number;
   lod: {
     maxNodes: number;
     lodHint?: number;
@@ -162,4 +169,8 @@ export interface GraphWorkbenchState {
   nodeClickedHandler: GraphNodeClickedHandler | null;
   suppressViewChangesUntil: number;
   renderMode: RenderMode | null;
+  // Node currently focused via search. Forwarded to the LoD sync so it is
+  // highlighted (red) on every viewport re-fetch, including the slice pulled in
+  // by focusing a node that was outside the current view.
+  focusedNodeId: string | null;
 }

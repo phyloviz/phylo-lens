@@ -851,14 +851,21 @@ export class UiShellController {
   private renderSearchResults(
     matches: SearchResultItem[],
   ): void {
-    renderSearchResults(this.searchResults, matches, (nodeId) => {
-      void this.focusSearchResult(nodeId);
+    renderSearchResults(this.searchResults, matches, (match) => {
+      void this.focusSearchResult(match);
     });
   }
 
-  private async focusSearchResult(nodeId: string): Promise<void> {
+  private async focusSearchResult(match: SearchResultItem): Promise<void> {
+    const nodeId = match.node_id;
     try {
-      await this.workbench.focusNode(nodeId);
+      // Pass the match's global coordinates so the workbench can fetch a region
+      // around the hit when it lies outside the current LoD slice; only then is
+      // the node present in the rendered graph to center and highlight.
+      await this.workbench.focusNode(nodeId, {
+        x: match.x ?? null,
+        y: match.y ?? null,
+      });
       this.handleGraphNodeClick(nodeId);
       this.setStatus(`Focused ${nodeId}`);
     } catch (error) {

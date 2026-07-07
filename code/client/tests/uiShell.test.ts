@@ -46,6 +46,8 @@ function makeFakeWorkbench(
           score: 8,
           matched_text: "a Portugal",
           metadata: { country: "Portugal" },
+          x: 12,
+          y: 34,
         },
       ],
       total_count: 1,
@@ -110,8 +112,9 @@ describe("uiShell", () => {
       nodes: [{ id: "root", x: 0, y: 0 }],
       edges: [],
       viewMeta: {
-        layout: "force",
+        layout: "server",
         lodLevel: 0,
+        lodTierCount: 3,
         sliceNodeCount: 1,
         zoom: 4,
       },
@@ -131,7 +134,9 @@ describe("uiShell", () => {
 
     expect(status.textContent).toContain("Rendered");
     expect(status.textContent).toContain("slice 1 nodes");
-    expect(status.textContent).toContain("rendered depth 0");
+    // Tier is 1-based: lodLevel 0 of 3 tiers reads "LoD tier 1/3", making a
+    // semantic-zoom transition observable in the status bar.
+    expect(status.textContent).toContain("LoD tier 1/3");
     expect(status.textContent).toContain("LoD zoom 4.00");
     shell.unmount();
   });
@@ -1219,7 +1224,10 @@ describe("uiShell", () => {
     resultButton.click();
     await Promise.resolve();
 
-    expect(fakeWorkbench.focusNode).toHaveBeenCalledWith("a");
+    expect(fakeWorkbench.focusNode).toHaveBeenCalledWith("a", {
+      x: 12,
+      y: 34,
+    });
     // Focusing a search result populates the selected-node panel, not the
     // overview wheel or its mode selector.
     expect(ancillaryModeSelect.value).toBe("global");

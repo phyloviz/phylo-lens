@@ -23,6 +23,7 @@ export function createInitialGraphWorkbenchState(): GraphWorkbenchState {
     nodeClickedHandler: null,
     suppressViewChangesUntil: 0,
     renderMode: null,
+    focusedNodeId: null,
   };
 }
 
@@ -43,6 +44,7 @@ export function resetWorkbenchForNewDataset(
   state.deferredViewState = null;
   state.lodRefreshPaused = false;
   state.renderMode = null;
+  state.focusedNodeId = null;
 }
 
 export function clearPendingViewRefresh(state: GraphWorkbenchState): void {

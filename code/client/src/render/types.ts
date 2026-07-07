@@ -51,7 +51,14 @@ export interface GraphRenderer {
     handler: ((state: RenderNodeClickState) => void) | null,
   ) => void;
 
-  centerOnNode?: (nodeId: string) => void;
+  // Center the camera on a node already present in the rendered graph. Returns
+  // true when it centered, false when the node is not in the current slice.
+  centerOnNode?: (nodeId: string) => boolean;
+
+  // Center the camera on raw graph coordinates without requiring the node to be
+  // present in the rendered graph. Returns false when it could not move (no
+  // sigma/bounds or non-finite coordinates).
+  centerOnCoordinates?: (x: number, y: number) => boolean;
 
   focusNode?: (nodeId: string | null) => void;
 
