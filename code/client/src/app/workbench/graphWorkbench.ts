@@ -1,8 +1,8 @@
+import type { GraphClient } from "../../api/graphClient";
 import type {
-  GraphClient,
   GraphViewportResponse,
   NormalizeRequest,
-} from "../../api/graphClient";
+} from "../../api/graphContracts";
 import {
   type CanonicalDataset,
   type SearchDatasetResponse,

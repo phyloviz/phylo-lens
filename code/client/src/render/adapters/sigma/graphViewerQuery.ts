@@ -1,4 +1,4 @@
-import type { GraphViewportQuery } from "../../../api/graphClient";
+import type { GraphViewportQuery } from "../../../api/graphContracts";
 import type {
   SigmaCameraLike,
   SigmaViewportBounds,

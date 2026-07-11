@@ -1,8 +1,10 @@
 import type {
   GraphClient,
+} from "../../api/graphClient";
+import type {
   GraphMetadataField,
   GraphMetadataValue,
-} from "../../api/graphClient";
+} from "../../api/graphContracts";
 import type {
   CanonicalDataset,
   SearchDatasetResponse,

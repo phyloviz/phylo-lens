@@ -2,6 +2,8 @@ export * from "./contracts/models";
 export * from "./contracts/positioned";
 
 export * from "./api/graphClient";
+export * from "./api/graphContracts";
+export * from "./api/graphGuards";
 export * from "./ancillary/metadataIndex";
 export * from "./ancillary/filterEngine";
 

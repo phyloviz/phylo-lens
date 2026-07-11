@@ -1,8 +1,6 @@
 import type { PositionedGraph } from "../contracts/positioned";
-import type {
-  GraphClient,
-  GraphViewportResponse,
-} from "../api/graphClient";
+import type { GraphClient } from "../api/graphClient";
+import type { GraphViewportResponse } from "../api/graphContracts";
 import type { ViewportSyncSettings } from "./adapters/sigma/graphViewerSync";
 import type { SigmaViewportBounds } from "./adapters/sigma/graphViewerTypes";
 

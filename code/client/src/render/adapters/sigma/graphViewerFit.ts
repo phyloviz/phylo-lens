@@ -1,4 +1,4 @@
-import type { GraphViewportResponse } from "../../../api/graphClient";
+import type { GraphViewportResponse } from "../../../api/graphContracts";
 import { sigmaDimensions } from "./graphViewerQuery";
 import type {
   SigmaViewportBounds,

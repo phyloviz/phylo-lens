@@ -5,7 +5,7 @@ import type {
   GraphViewportEdge,
   GraphViewportNode,
   GraphViewportResponse,
-} from "../../../api/graphClient";
+} from "../../../api/graphContracts";
 import type { MetadataField } from "../../../contracts/models";
 import type { GraphDisplayOptions } from "../../types";
 import {

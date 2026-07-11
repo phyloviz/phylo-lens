@@ -1,9 +1,7 @@
 import type Graph from "graphology";
 
-import type {
-  GraphClient,
-  GraphViewportResponse,
-} from "../../../api/graphClient";
+import type { GraphClient } from "../../../api/graphClient";
+import type { GraphViewportResponse } from "../../../api/graphContracts";
 import {
   buildGraphViewportQuery,
   DEFAULT_GRAPH_VIEWER_DEBOUNCE_MS,

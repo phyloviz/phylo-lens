@@ -1,4 +1,4 @@
-import type { GraphMetadataValue } from "../../../api/graphClient";
+import type { GraphMetadataValue } from "../../../api/graphContracts";
 import {
   type AncillaryWheelStats,
   renderAncillaryWheel,

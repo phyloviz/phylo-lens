@@ -1,10 +1,8 @@
 import Graph from "graphology";
 import Sigma from "sigma";
 
-import type {
-  GraphClient,
-  GraphViewportResponse,
-} from "../../../api/graphClient";
+import type { GraphClient } from "../../../api/graphClient";
+import type { GraphViewportResponse } from "../../../api/graphContracts";
 import type { PositionedGraph } from "../../../contracts/positioned";
 import { RENDERER_KIND_SIGMA } from "../../types";
 import type {
