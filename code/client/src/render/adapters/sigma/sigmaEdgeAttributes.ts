@@ -15,9 +15,9 @@ import {
   PHYLOVIZ_EDGE_TIEBREAK_RULE_4_OR_5_COLOR,
   PHYLOVIZ_EDGE_TLV_COLOR,
   SIGMA_DEFAULT_EDGE_SIZE,
-  SIGMA_DISTANCE_EDGE_SIZE_FACTOR,
 } from "./sigmaRenderingConstants";
 import type { SigmaRendererOptions } from "./sigmaTypes";
+import { edgeSizeForDistance } from "./sigmaStyle";
 
 export function addPositionedEdges(
   graph: Graph,
@@ -52,16 +52,11 @@ function deriveEdgeSize(
   rendererOptions: SigmaRendererOptions,
 ): number {
   const baseSize = rendererOptions.edge?.size ?? SIGMA_DEFAULT_EDGE_SIZE;
-  if (rendererOptions.display?.distanceWeightedEdges !== true) {
-    return baseSize;
-  }
-
-  const distance = toPositiveNumber(attributes?.distance);
-  if (distance === 0) {
-    return baseSize;
-  }
-
-  return baseSize + Math.log1p(distance) * SIGMA_DISTANCE_EDGE_SIZE_FACTOR;
+  return edgeSizeForDistance(
+    toPositiveNumber(attributes?.distance),
+    baseSize,
+    rendererOptions.display?.distanceWeightedEdges === true,
+  );
 }
 
 function deriveEdgeColor(

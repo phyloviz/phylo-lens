@@ -275,7 +275,6 @@ describe("uiShell", () => {
       <form id="render-form"></form>
       <textarea id="newick-input"></textarea>
       <input id="max-nodes" type="number" />
-      <input id="initial-zoom" type="number" />
       <div id="status"></div>
     `;
 
@@ -286,14 +285,10 @@ describe("uiShell", () => {
     const maxNodesInput = document.getElementById(
       "max-nodes",
     ) as HTMLInputElement;
-    const initialZoomInput = document.getElementById(
-      "initial-zoom",
-    ) as HTMLInputElement;
     const status = document.getElementById("status") as HTMLElement;
 
     input.value = "(A,B)Root;";
     maxNodesInput.value = "2400";
-    initialZoomInput.value = "3.5";
 
     const fakeWorkbench = makeFakeWorkbench({
       nodes: [{ id: "root", x: 0, y: 0 }],
@@ -308,7 +303,6 @@ describe("uiShell", () => {
         newickInput: input,
         status,
         maxNodesInput,
-        initialZoomInput,
       },
     });
 
@@ -321,7 +315,6 @@ describe("uiShell", () => {
       expect.objectContaining({
         lod: expect.objectContaining({
           maxNodes: 2400,
-          zoom: 3.5,
         }),
       }),
     );

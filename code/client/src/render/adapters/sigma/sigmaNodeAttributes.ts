@@ -5,18 +5,13 @@ import {
   PIE_OTHER_SLICE_KEY,
 } from "../../pieMapping";
 import {
-  firstAttributeValue,
   isTruthyAttribute,
-  normalizeRoleValue,
   toPositiveNumber,
 } from "./sigmaAttributeUtils";
 import { deriveNodeLabel } from "./sigmaLabels";
 import {
-  PHYLOVIZ_NODE_COMMON_COLOR,
-  PHYLOVIZ_NODE_GROUP_FOUNDER_COLOR,
   PHYLOVIZ_NODE_SELECTED_BORDER_COLOR,
   PHYLOVIZ_NODE_SELECTED_COLOR,
-  PHYLOVIZ_NODE_SUBGROUP_FOUNDER_COLOR,
   SIGMA_DEFAULT_NODE_SIZE,
   SIGMA_NODE_TYPE_BORDER,
   SIGMA_NODE_TYPE_DEFAULT,
@@ -29,6 +24,7 @@ import {
   UNION_NODE_SIZE,
 } from "../../unionNodes";
 import type { SigmaRendererOptions } from "./sigmaTypes";
+import { derivePhylovizNodeColor } from "./sigmaStyle";
 
 export function addPositionedNode(
   graph: Graph,
@@ -164,40 +160,5 @@ function deriveNodeColor(
     return PHYLOVIZ_NODE_SELECTED_COLOR;
   }
 
-  const role = normalizeRoleValue(
-    firstAttributeValue(node.attributes, [
-      "phyloviz_role",
-      "st_role",
-      "node_role",
-      "role",
-      "category",
-      "type",
-    ]),
-  );
-
-  if (
-    role === "group_founder" ||
-    isTruthyAttribute(node.attributes, [
-      "group_founder",
-      "is_group_founder",
-      "founder",
-      "is_founder",
-    ])
-  ) {
-    return PHYLOVIZ_NODE_GROUP_FOUNDER_COLOR;
-  }
-
-  if (
-    role === "subgroup_founder" ||
-    isTruthyAttribute(node.attributes, [
-      "subgroup_founder",
-      "sub_group_founder",
-      "is_subgroup_founder",
-      "is_sub_group_founder",
-    ])
-  ) {
-    return PHYLOVIZ_NODE_SUBGROUP_FOUNDER_COLOR;
-  }
-
-  return PHYLOVIZ_NODE_COMMON_COLOR;
+  return derivePhylovizNodeColor(node.attributes);
 }

@@ -1,7 +1,6 @@
 import type { PositionedGraph } from "../../../contracts/positioned";
 
 export const DEFAULT_MAX_NODES = 6000;
-export const DEFAULT_INITIAL_ZOOM = 1;
 
 export function updateLodPlaybackControls({
   playButton,
@@ -35,12 +34,4 @@ export function parseMaxNodes(value: string | undefined): number {
     return DEFAULT_MAX_NODES;
   }
   return Math.round(parsed);
-}
-
-export function parseInitialZoom(value: string | undefined): number {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed < 0) {
-    return DEFAULT_INITIAL_ZOOM;
-  }
-  return parsed;
 }

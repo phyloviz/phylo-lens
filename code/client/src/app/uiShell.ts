@@ -48,10 +48,8 @@ import {
   toggleClickedOption,
 } from "./shell/controls/displayOptionsControls";
 import {
-  DEFAULT_INITIAL_ZOOM,
   DEFAULT_MAX_NODES,
   isLodGraph,
-  parseInitialZoom,
   parseMaxNodes,
   updateLodPlaybackControls,
 } from "./shell/controls/lodControls";
@@ -89,7 +87,6 @@ export {
   ANCILLARY_MODE_GLOBAL,
   ANCILLARY_MODE_CURRENT,
   ANCILLARY_MODE_SELECTED,
-  DEFAULT_INITIAL_ZOOM,
   DEFAULT_MAX_NODES,
   DISPLAY_OPTION_DISTANCE_WEIGHTED_EDGES,
   DISPLAY_OPTION_EDGE_DISTANCE_LABELS,
@@ -130,7 +127,6 @@ export interface UiShellElements {
   lodPlayButton?: HTMLButtonElement;
   lodPauseButton?: HTMLButtonElement;
   maxNodesInput?: HTMLInputElement;
-  initialZoomInput?: HTMLInputElement;
   searchInput?: HTMLInputElement;
   searchButton?: HTMLButtonElement;
   searchResults?: HTMLElement;
@@ -172,7 +168,6 @@ export class UiShellController {
   private readonly lodPlayButton?: HTMLButtonElement;
   private readonly lodPauseButton?: HTMLButtonElement;
   private readonly maxNodesInput?: HTMLInputElement;
-  private readonly initialZoomInput?: HTMLInputElement;
   private readonly searchInput?: HTMLInputElement;
   private readonly searchButton?: HTMLButtonElement;
   private readonly searchResults?: HTMLElement;
@@ -237,7 +232,6 @@ export class UiShellController {
     this.lodPlayButton = options.elements.lodPlayButton;
     this.lodPauseButton = options.elements.lodPauseButton;
     this.maxNodesInput = options.elements.maxNodesInput;
-    this.initialZoomInput = options.elements.initialZoomInput;
     this.searchInput = options.elements.searchInput;
     this.searchButton = options.elements.searchButton;
     this.searchResults = options.elements.searchResults;
@@ -443,7 +437,6 @@ export class UiShellController {
         visualMapping: this.currentVisualMapping,
         lod: {
           maxNodes: this.getSelectedMaxNodes(),
-          zoom: this.getSelectedInitialZoom(),
         },
       });
     } catch (error) {
@@ -1092,10 +1085,6 @@ export class UiShellController {
 
   private getSelectedMaxNodes(): number {
     return parseMaxNodes(this.maxNodesInput?.value);
-  }
-
-  private getSelectedInitialZoom(): number {
-    return parseInitialZoom(this.initialZoomInput?.value);
   }
 
   private buildCurrentVisualMapping(): VisualMappingOptions {

@@ -48,12 +48,8 @@ import {
 } from "./workbenchState";
 
 export {
-  DEFAULT_RENDER_VIEW_SUPPRESSION_MS,
   DEFAULT_VIEWPORT,
-  DEFAULT_VIEW_CHANGE_DEBOUNCE_MS,
   DEFAULT_VIEW_SLICE_MAX_NODES,
-  DEFAULT_VIEW_SLICE_ZOOM,
-  MAX_DYNAMIC_VIEW_SLICE_NODES,
 } from "./graphViewport";
 export type {
   GraphNodeClickedHandler,

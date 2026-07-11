@@ -33,19 +33,12 @@ import {
 import type { PieMappingOptions } from "../../pieMapping";
 import {
   PHYLOVIZ_NODE_COMMON_COLOR,
-  PHYLOVIZ_NODE_GROUP_FOUNDER_COLOR,
   PHYLOVIZ_NODE_SELECTED_BORDER_COLOR,
   PHYLOVIZ_NODE_SELECTED_COLOR,
-  PHYLOVIZ_NODE_SUBGROUP_FOUNDER_COLOR,
-  SIGMA_DISTANCE_EDGE_SIZE_FACTOR,
   SIGMA_NODE_TYPE_BORDER,
   SIGMA_NODE_TYPE_TRIANGLE,
 } from "./sigmaRenderingConstants";
-import {
-  firstAttributeValue,
-  isTruthyAttribute,
-  normalizeRoleValue,
-} from "./sigmaAttributeUtils";
+import { derivePhylovizNodeColor, edgeSizeForDistance } from "./sigmaStyle";
 
 export const DEFAULT_GRAPH_VIEWER_NODE_SIZE = 5;
 export const GRAPH_VIEWER_MEMBER_SIZE_FACTOR = 1.25;
@@ -323,50 +316,7 @@ function upsertGraphEdge(
 export function deriveViewportNodeColor(node: GraphViewportNode): string {
   const metadata = node.metadata ?? undefined;
   const attributes = metadata ? { metadata } : undefined;
-
-  if (isTruthyAttribute(attributes, ["selected", "is_selected"])) {
-    return PHYLOVIZ_NODE_SELECTED_COLOR;
-  }
-
-  // Only genuine PHYLOViZ role keys drive founder coloring. Generic metadata
-  // field names like "category"/"type" are NOT PHYLOViZ role indicators, so a
-  // dataset carrying such fields (or aggregated cluster metadata) must not tint
-  // ordinary nodes green: absent explicit role/founder data, nodes stay common
-  // blue.
-  const role = normalizeRoleValue(
-    firstAttributeValue(attributes, [
-      "phyloviz_role",
-      "st_role",
-      "node_role",
-      "role",
-    ]),
-  );
-
-  if (
-    role === "group_founder" ||
-    isTruthyAttribute(attributes, [
-      "group_founder",
-      "is_group_founder",
-      "founder",
-      "is_founder",
-    ])
-  ) {
-    return PHYLOVIZ_NODE_GROUP_FOUNDER_COLOR;
-  }
-
-  if (
-    role === "subgroup_founder" ||
-    isTruthyAttribute(attributes, [
-      "subgroup_founder",
-      "sub_group_founder",
-      "is_subgroup_founder",
-      "is_sub_group_founder",
-    ])
-  ) {
-    return PHYLOVIZ_NODE_SUBGROUP_FOUNDER_COLOR;
-  }
-
-  return PHYLOVIZ_NODE_COMMON_COLOR;
+  return derivePhylovizNodeColor(attributes);
 }
 
 function graphNodeAttributes(
@@ -476,7 +426,11 @@ function graphEdgeAttributes(
   const showEdgeLabel = displayOptions?.edgeDistanceLabels === true;
   return {
     color: GRAPH_VIEWER_EDGE_COLOR,
-    size: edgeSizeForDistance(edge.distance, displayOptions),
+    size: edgeSizeForDistance(
+      edge.distance,
+      GRAPH_VIEWER_BASE_EDGE_SIZE,
+      displayOptions?.distanceWeightedEdges === true,
+    ),
     distance: edge.distance ?? undefined,
     label: showEdgeLabel && hasDistance ? String(edge.distance) : "",
     forceLabel: showEdgeLabel,
@@ -485,24 +439,4 @@ function graphEdgeAttributes(
     isMeta,
     bundledEdgeCount: isMeta ? (edge.bundled_edge_count ?? 1) : undefined,
   };
-}
-
-// Thickness for a viewport edge: the base size, optionally widened by branch
-// distance when the distance-weighted-edges display option is on. Mirrors the
-// static render path's deriveEdgeSize (sigmaEdgeAttributes) so both rendering
-// paths weight edges identically.
-function edgeSizeForDistance(
-  distance: number | null | undefined,
-  displayOptions?: GraphDisplayOptions,
-): number {
-  if (displayOptions?.distanceWeightedEdges !== true) {
-    return GRAPH_VIEWER_BASE_EDGE_SIZE;
-  }
-  if (typeof distance !== "number" || !Number.isFinite(distance) || distance <= 0) {
-    return GRAPH_VIEWER_BASE_EDGE_SIZE;
-  }
-  return (
-    GRAPH_VIEWER_BASE_EDGE_SIZE +
-    Math.log1p(distance) * SIGMA_DISTANCE_EDGE_SIZE_FACTOR
-  );
 }

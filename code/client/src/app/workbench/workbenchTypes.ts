@@ -55,9 +55,6 @@ export interface RenderNewickOptions {
     forceIterations?: number;
   };
   lod?: {
-    enabled?: boolean;
-    fullRenderNodeLimit?: number;
-    zoom?: number;
     maxNodes?: number;
     lodHint?: number;
     viewport?: Viewport;

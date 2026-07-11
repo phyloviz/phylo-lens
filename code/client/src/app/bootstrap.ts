@@ -33,7 +33,6 @@ export const ID_DISPLAY_OPTIONS = "display-options";
 export const ID_LOD_PLAY_BUTTON = "lod-play-button";
 export const ID_LOD_PAUSE_BUTTON = "lod-pause-button";
 export const ID_MAX_NODES_INPUT = "max-nodes-input";
-export const ID_INITIAL_ZOOM_INPUT = "initial-zoom-input";
 export const ID_SEARCH_INPUT = "search-input";
 export const ID_SEARCH_BUTTON = "search-button";
 export const ID_SEARCH_RESULTS = "search-results";
@@ -120,9 +119,6 @@ export default function bootstrapClientShell(
   const maxNodesInput = document.getElementById(
     ID_MAX_NODES_INPUT,
   ) as HTMLInputElement | null;
-  const initialZoomInput = document.getElementById(
-    ID_INITIAL_ZOOM_INPUT,
-  ) as HTMLInputElement | null;
   const searchInput = document.getElementById(
     ID_SEARCH_INPUT,
   ) as HTMLInputElement | null;
@@ -187,7 +183,6 @@ export default function bootstrapClientShell(
       lodPlayButton: lodPlayButton ?? undefined,
       lodPauseButton: lodPauseButton ?? undefined,
       maxNodesInput: maxNodesInput ?? undefined,
-      initialZoomInput: initialZoomInput ?? undefined,
       searchInput: searchInput ?? undefined,
       searchButton: searchButton ?? undefined,
       searchResults: searchResults ?? undefined,
