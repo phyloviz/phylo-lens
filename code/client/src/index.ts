@@ -5,8 +5,6 @@ export * from "./api/graphClient";
 export * from "./ancillary/metadataIndex";
 export * from "./ancillary/filterEngine";
 
-export * from "./layout/forceDirectedLayout";
-
 export * from "./render/types";
 export * from "./render/rendererFactory";
 export * from "./render/visualMappings";
