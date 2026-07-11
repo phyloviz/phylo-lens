@@ -22,8 +22,8 @@ import {
   type SigmaSemanticViewState,
   sigmaCameraToSemanticViewState,
 } from "./sigmaCamera";
-import { SigmaBoxSelectController } from "./sigmaBoxSelectController";
-import { SigmaDragController } from "./sigmaDragController";
+import sigmaBoxSelectController from "./sigmaBoxSelectController";
+import sigmaDragController from "./sigmaDragController";
 import createSigmaForceMotion from "./sigmaForceMotion";
 import {
   SIGMA_REGION_DIMMED_EDGE_COLOR,
@@ -78,8 +78,10 @@ export class SigmaRenderer implements GraphRenderer {
   private coordinateBounds: GraphBounds | null = null;
   private piechartOptions: SigmaPiechartOptions;
   private rendererOptions: SigmaRendererOptions;
-  private readonly dragController: SigmaDragController;
-  private readonly boxSelectController: SigmaBoxSelectController;
+  private readonly dragController: ReturnType<typeof sigmaDragController>;
+  private readonly boxSelectController: ReturnType<
+    typeof sigmaBoxSelectController
+  >;
   private readonly forceMotion: ReturnType<typeof createSigmaForceMotion>;
   private graphViewer: GraphViewer | null = null;
   private viewChangeHandler: ((state: RenderViewportState) => void) | null =
@@ -115,7 +117,7 @@ export class SigmaRenderer implements GraphRenderer {
     this.forceMotion = createSigmaForceMotion(options.forceMotion, {
       onTick: () => this.updateClusterTriangleRotations(),
     });
-    this.dragController = new SigmaDragController({
+    this.dragController = sigmaDragController({
       getGraph: () => this.graph,
       getSigma: () => this.sigma,
       suppressViewChangesFor: (durationMs) =>
@@ -123,7 +125,7 @@ export class SigmaRenderer implements GraphRenderer {
       suppressNodeClicksFor: (durationMs) =>
         this.suppressNodeClicksFor(durationMs),
     });
-    this.boxSelectController = new SigmaBoxSelectController({
+    this.boxSelectController = sigmaBoxSelectController({
       getSigma: () => this.sigma,
       getContainer: () => this.containerElement,
       isModeEnabled: () => this.regionSelectModeEnabled,

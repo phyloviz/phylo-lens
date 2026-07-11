@@ -51,76 +51,78 @@ const SPRING_STRENGTH = 0.22;
 const VELOCITY_DAMPING = 0.68;
 const REST_THRESHOLD = 0.01;
 
-export class SigmaDragController {
-  private readonly options: SigmaDragControllerOptions;
-  private draggedNodeId: string | null = null;
-  private draggedNodeMoved = false;
-  private previousCameraPanningEnabled: boolean | null = null;
-  private draggedNodeWasFixed: boolean | null = null;
-  private animationFrameId: number | null = null;
-  private readonly motionNodes = new Map<string, MotionNode>();
-  private readonly boundNodeDragStarted = (payload: SigmaNodeEventPayload) => {
-    this.startNodeDrag(payload);
+export default function (options: SigmaDragControllerOptions) {
+  let draggedNodeId: string | null = null;
+  let draggedNodeMoved = false;
+  let previousCameraPanningEnabled: boolean | null = null;
+  let draggedNodeWasFixed: boolean | null = null;
+  let animationFrameId: number | null = null;
+  const motionNodes = new Map<string, MotionNode>();
+
+  const boundNodeDragStarted = (payload: SigmaNodeEventPayload) => {
+    startNodeDrag(payload);
   };
-  private readonly boundNodeDragged = (payload: MouseEventPayload) => {
-    this.dragNode(payload);
+  const boundNodeDragged = (payload: MouseEventPayload) => {
+    dragNode(payload);
   };
-  private readonly boundNodeDragEnded = () => {
-    this.endNodeDrag();
+  const boundNodeDragEnded = () => {
+    endNodeDrag();
   };
 
-  constructor(options: SigmaDragControllerOptions) {
-    this.options = options;
-  }
+  return {
+    bind: bind,
+    unbind: unbind,
+    reset: reset,
+  };
 
-  bind(): void {
-    const sigma = this.options.getSigma() as SigmaEventTarget | null;
-    const mouseCaptor = this.options.getSigma()?.getMouseCaptor?.() as
+  function bind(): void {
+    const sigma = options.getSigma() as SigmaEventTarget | null;
+    const mouseCaptor = options.getSigma()?.getMouseCaptor?.() as
       | SigmaMouseCaptor
       | undefined;
 
-    sigma?.off?.("downNode", this.boundNodeDragStarted);
-    sigma?.on?.("downNode", this.boundNodeDragStarted);
-    mouseCaptor?.off?.("mousemovebody", this.boundNodeDragged);
-    mouseCaptor?.on?.("mousemovebody", this.boundNodeDragged);
-    mouseCaptor?.off?.("mouseup", this.boundNodeDragEnded);
-    mouseCaptor?.on?.("mouseup", this.boundNodeDragEnded);
+    sigma?.off?.("downNode", boundNodeDragStarted);
+    sigma?.on?.("downNode", boundNodeDragStarted);
+    mouseCaptor?.off?.("mousemovebody", boundNodeDragged);
+    mouseCaptor?.on?.("mousemovebody", boundNodeDragged);
+    mouseCaptor?.off?.("mouseup", boundNodeDragEnded);
+    mouseCaptor?.on?.("mouseup", boundNodeDragEnded);
   }
 
-  unbind(): void {
-    const sigma = this.options.getSigma() as SigmaEventTarget | null;
-    const mouseCaptor = this.options.getSigma()?.getMouseCaptor?.() as
+  function unbind(): void {
+    const sigma = options.getSigma() as SigmaEventTarget | null;
+    const mouseCaptor = options.getSigma()?.getMouseCaptor?.() as
       | SigmaMouseCaptor
       | undefined;
 
-    sigma?.off?.("downNode", this.boundNodeDragStarted);
-    mouseCaptor?.off?.("mousemovebody", this.boundNodeDragged);
-    mouseCaptor?.off?.("mouseup", this.boundNodeDragEnded);
+    sigma?.off?.("downNode", boundNodeDragStarted);
+    mouseCaptor?.off?.("mousemovebody", boundNodeDragged);
+    mouseCaptor?.off?.("mouseup", boundNodeDragEnded);
   }
 
-  reset(): void {
-    this.draggedNodeId = null;
-    this.draggedNodeMoved = false;
-    this.previousCameraPanningEnabled = null;
-    this.draggedNodeWasFixed = null;
-    this.releaseMotionNodes();
+  function reset(): void {
+    draggedNodeId = null;
+    draggedNodeMoved = false;
+    previousCameraPanningEnabled = null;
+    draggedNodeWasFixed = null;
+    releaseMotionNodes();
   }
 
-  private startNodeDrag(payload: SigmaNodeEventPayload): void {
-    const graph = this.options.getGraph();
-    const sigma = this.options.getSigma();
+  function startNodeDrag(payload: SigmaNodeEventPayload): void {
+    const graph = options.getGraph();
+    const sigma = options.getSigma();
     const nodeId = payload.node;
 
     if (!nodeId || !graph?.hasNode(nodeId) || !sigma) {
       return;
     }
 
-    this.draggedNodeId = nodeId;
-    this.draggedNodeMoved = false;
-    this.draggedNodeWasFixed = graph.getNodeAttribute(nodeId, "fixed") === true;
+    draggedNodeId = nodeId;
+    draggedNodeMoved = false;
+    draggedNodeWasFixed = graph.getNodeAttribute(nodeId, "fixed") === true;
     graph.setNodeAttribute(nodeId, "fixed", true);
-    this.options.suppressViewChangesFor(250);
-    this.previousCameraPanningEnabled = sigma.getSetting?.(
+    options.suppressViewChangesFor(250);
+    previousCameraPanningEnabled = sigma.getSetting?.(
       "enableCameraPanning",
     ) as boolean | null;
     sigma.setSetting?.("enableCameraPanning", false);
@@ -128,11 +130,11 @@ export class SigmaDragController {
     payload.event?.preventSigmaDefault?.();
   }
 
-  private dragNode(payload: MouseEventPayload): void {
-    const graph = this.options.getGraph();
-    const sigma = this.options.getSigma();
+  function dragNode(payload: MouseEventPayload): void {
+    const graph = options.getGraph();
+    const sigma = options.getSigma();
 
-    if (!this.draggedNodeId || !graph || !sigma) {
+    if (!draggedNodeId || !graph || !sigma) {
       return;
     }
 
@@ -141,61 +143,61 @@ export class SigmaDragController {
       y: payload.y,
     });
 
-    graph.setNodeAttribute(this.draggedNodeId, "x", position.x);
-    graph.setNodeAttribute(this.draggedNodeId, "y", position.y);
-    this.repelNearbyNodes(payload);
-    this.draggedNodeMoved = true;
-    this.options.suppressViewChangesFor(250);
+    graph.setNodeAttribute(draggedNodeId, "x", position.x);
+    graph.setNodeAttribute(draggedNodeId, "y", position.y);
+    repelNearbyNodes(payload);
+    draggedNodeMoved = true;
+    options.suppressViewChangesFor(250);
     payload.preventSigmaDefault?.();
     sigma.refresh({
-      partialGraph: { nodes: [this.draggedNodeId] },
+      partialGraph: { nodes: [draggedNodeId] },
       skipIndexation: false,
     });
   }
 
-  private endNodeDrag(): void {
-    const graph = this.options.getGraph();
-    const sigma = this.options.getSigma();
+  function endNodeDrag(): void {
+    const graph = options.getGraph();
+    const sigma = options.getSigma();
 
-    if (!sigma || !this.draggedNodeId) {
+    if (!sigma || !draggedNodeId) {
       return;
     }
 
-    if (typeof this.previousCameraPanningEnabled === "boolean") {
-      sigma.setSetting?.("enableCameraPanning", this.previousCameraPanningEnabled);
+    if (typeof previousCameraPanningEnabled === "boolean") {
+      sigma.setSetting?.("enableCameraPanning", previousCameraPanningEnabled);
     }
 
-    if (this.draggedNodeMoved) {
-      this.options.suppressNodeClicksFor(250);
+    if (draggedNodeMoved) {
+      options.suppressNodeClicksFor(250);
     }
 
-    if (graph?.hasNode(this.draggedNodeId)) {
+    if (graph?.hasNode(draggedNodeId)) {
       graph.setNodeAttribute(
-        this.draggedNodeId,
+        draggedNodeId,
         "fixed",
-        this.draggedNodeWasFixed === true,
+        draggedNodeWasFixed === true,
       );
     }
 
-    this.reset();
-    this.options.suppressViewChangesFor(250);
+    reset();
+    options.suppressViewChangesFor(250);
   }
 
-  private repelNearbyNodes(dragPoint: Point): void {
-    const graph = this.options.getGraph();
-    const sigma = this.options.getSigma();
+  function repelNearbyNodes(dragPoint: Point): void {
+    const graph = options.getGraph();
+    const sigma = options.getSigma();
 
-    if (!graph || !sigma || !this.draggedNodeId) {
+    if (!graph || !sigma || !draggedNodeId) {
       return;
     }
 
-    this.clearRepulsionTargets();
+    clearRepulsionTargets();
     graph.forEachNode((nodeId) => {
-      if (nodeId === this.draggedNodeId) {
+      if (nodeId === draggedNodeId) {
         return;
       }
 
-      const home = this.getStableNodePosition(graph, nodeId);
+      const home = getStableNodePosition(graph, nodeId);
       if (!home) {
         return;
       }
@@ -213,7 +215,7 @@ export class SigmaDragController {
         y: viewportPosition.y + direction.y * pushDistance,
       };
       const targetGraphPosition = sigma.viewportToGraph(targetViewportPosition);
-      const motionNode = this.ensureMotionNode(nodeId, home);
+      const motionNode = ensureMotionNode(nodeId, home);
 
       motionNode.targetOffset = {
         x: targetGraphPosition.x - motionNode.home.x,
@@ -221,17 +223,17 @@ export class SigmaDragController {
       };
     });
 
-    this.scheduleMotion();
+    scheduleMotion();
   }
 
-  private clearRepulsionTargets(): void {
-    this.motionNodes.forEach((motionNode) => {
+  function clearRepulsionTargets(): void {
+    motionNodes.forEach((motionNode) => {
       motionNode.targetOffset = { x: 0, y: 0 };
     });
   }
 
-  private getStableNodePosition(graph: Graph, nodeId: string): Point | null {
-    const existingMotion = this.motionNodes.get(nodeId);
+  function getStableNodePosition(graph: Graph, nodeId: string): Point | null {
+    const existingMotion = motionNodes.get(nodeId);
     if (existingMotion) {
       return existingMotion.home;
     }
@@ -245,8 +247,8 @@ export class SigmaDragController {
     return { x, y };
   }
 
-  private ensureMotionNode(nodeId: string, home: Point): MotionNode {
-    const existingMotion = this.motionNodes.get(nodeId);
+  function ensureMotionNode(nodeId: string, home: Point): MotionNode {
+    const existingMotion = motionNodes.get(nodeId);
     if (existingMotion) {
       return existingMotion;
     }
@@ -256,40 +258,40 @@ export class SigmaDragController {
       velocity: { x: 0, y: 0 },
       targetOffset: { x: 0, y: 0 },
     };
-    this.motionNodes.set(nodeId, motionNode);
+    motionNodes.set(nodeId, motionNode);
     return motionNode;
   }
 
-  private scheduleMotion(): void {
-    if (this.animationFrameId !== null) {
+  function scheduleMotion(): void {
+    if (animationFrameId !== null) {
       return;
     }
 
-    this.animationFrameId = window.requestAnimationFrame(() => {
-      this.animationFrameId = null;
-      this.animateMotionNodes();
+    animationFrameId = window.requestAnimationFrame(() => {
+      animationFrameId = null;
+      animateMotionNodes();
     });
   }
 
-  private animateMotionNodes(): void {
-    const graph = this.options.getGraph();
-    const sigma = this.options.getSigma();
+  function animateMotionNodes(): void {
+    const graph = options.getGraph();
+    const sigma = options.getSigma();
 
     if (!graph || !sigma) {
-      this.motionNodes.clear();
+      motionNodes.clear();
       return;
     }
 
     const movedNodeIds: string[] = [];
-    this.motionNodes.forEach((motionNode, nodeId) => {
+    motionNodes.forEach((motionNode, nodeId) => {
       if (!graph.hasNode(nodeId)) {
-        this.motionNodes.delete(nodeId);
+        motionNodes.delete(nodeId);
         return;
       }
 
-      const currentPosition = this.getCurrentNodePosition(graph, nodeId);
+      const currentPosition = getCurrentNodePosition(graph, nodeId);
       if (!currentPosition) {
-        this.motionNodes.delete(nodeId);
+        motionNodes.delete(nodeId);
         return;
       }
 
@@ -312,10 +314,10 @@ export class SigmaDragController {
       graph.setNodeAttribute(nodeId, "y", nextPosition.y);
       movedNodeIds.push(nodeId);
 
-      if (this.hasComeToRest(motionNode, nextPosition)) {
+      if (hasComeToRest(motionNode, nextPosition)) {
         graph.setNodeAttribute(nodeId, "x", motionNode.home.x);
         graph.setNodeAttribute(nodeId, "y", motionNode.home.y);
-        this.motionNodes.delete(nodeId);
+        motionNodes.delete(nodeId);
       }
     });
 
@@ -326,12 +328,12 @@ export class SigmaDragController {
       });
     }
 
-    if (this.motionNodes.size > 0) {
-      this.scheduleMotion();
+    if (motionNodes.size > 0) {
+      scheduleMotion();
     }
   }
 
-  private getCurrentNodePosition(graph: Graph, nodeId: string): Point | null {
+  function getCurrentNodePosition(graph: Graph, nodeId: string): Point | null {
     const x = graph.getNodeAttribute(nodeId, "x");
     const y = graph.getNodeAttribute(nodeId, "y");
     if (!isFiniteNumber(x) || !isFiniteNumber(y)) {
@@ -341,8 +343,8 @@ export class SigmaDragController {
     return { x, y };
   }
 
-  private hasComeToRest(motionNode: MotionNode, position: Point): boolean {
-    if (this.draggedNodeId !== null) {
+  function hasComeToRest(motionNode: MotionNode, position: Point): boolean {
+    if (draggedNodeId !== null) {
       return false;
     }
 
@@ -351,10 +353,10 @@ export class SigmaDragController {
     return homeDistance < REST_THRESHOLD && speed < REST_THRESHOLD;
   }
 
-  private releaseMotionNodes(): void {
-    this.clearRepulsionTargets();
-    if (this.motionNodes.size > 0) {
-      this.scheduleMotion();
+  function releaseMotionNodes(): void {
+    clearRepulsionTargets();
+    if (motionNodes.size > 0) {
+      scheduleMotion();
     }
   }
 }

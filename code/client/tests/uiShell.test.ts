@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { UiShellController } from "../src/app/uiShell";
+import uiShell from "../src/app/uiShell";
 import type { GraphWorkbench } from "../src/app/workbench/graphWorkbench";
 import type { PositionedGraph } from "../src/contracts/positioned";
 
@@ -122,7 +122,7 @@ describe("uiShell", () => {
       },
     });
 
-    const shell = new UiShellController({
+    const shell = uiShell({
       workbench: fakeWorkbench,
       elements: {
         form,
@@ -169,7 +169,7 @@ describe("uiShell", () => {
       },
     });
 
-    const shell = new UiShellController({
+    const shell = uiShell({
       workbench: fakeWorkbench,
       elements: {
         form,
@@ -209,7 +209,7 @@ describe("uiShell", () => {
       viewMeta: { layout: "force", lodLevel: 0 },
     });
 
-    const shell = new UiShellController({
+    const shell = uiShell({
       workbench: fakeWorkbench,
       elements: {
         form,
@@ -252,7 +252,7 @@ describe("uiShell", () => {
       viewMeta: { layout: "force", lodLevel: 0 },
     });
 
-    const shell = new UiShellController({
+    const shell = uiShell({
       workbench: fakeWorkbench,
       elements: {
         form,
@@ -296,7 +296,7 @@ describe("uiShell", () => {
       viewMeta: { layout: "force", lodLevel: 1 },
     });
 
-    const shell = new UiShellController({
+    const shell = uiShell({
       workbench: fakeWorkbench,
       elements: {
         form,
@@ -369,7 +369,7 @@ describe("uiShell", () => {
       viewMeta: { layout: "force", lodLevel: 0 },
     });
 
-    const shell = new UiShellController({
+    const shell = uiShell({
       workbench: fakeWorkbench,
       elements: {
         form,
@@ -438,7 +438,7 @@ describe("uiShell", () => {
       viewMeta: { layout: "force", lodLevel: 0 },
     });
 
-    const shell = new UiShellController({
+    const shell = uiShell({
       workbench: fakeWorkbench,
       elements: {
         form,
@@ -508,7 +508,7 @@ describe("uiShell", () => {
       viewMeta: { layout: "force", lodLevel: 0 },
     });
 
-    const shell = new UiShellController({
+    const shell = uiShell({
       workbench: fakeWorkbench,
       elements: {
         form,
@@ -611,7 +611,7 @@ describe("uiShell", () => {
       "ancillary-selected-node-wheel",
     ) as HTMLElement;
 
-    const shell = new UiShellController({
+    const shell = uiShell({
       workbench: fakeWorkbench,
       elements: {
         form: document.getElementById("render-form") as HTMLFormElement,
@@ -689,7 +689,7 @@ describe("uiShell", () => {
       edges: [],
       viewMeta: { layout: "force", lodLevel: 0 },
     });
-    const shell = new UiShellController({
+    const shell = uiShell({
       workbench: fakeWorkbench,
       elements: {
         form,
@@ -756,7 +756,7 @@ describe("uiShell", () => {
 
     input.value = "(A,B)Root;";
     const fakeWorkbench = makeFakeWorkbench();
-    const shell = new UiShellController({
+    const shell = uiShell({
       workbench: fakeWorkbench,
       elements: {
         form,
@@ -839,7 +839,7 @@ describe("uiShell", () => {
       edges: [],
       viewMeta: { layout: "force", lodLevel: 0 },
     });
-    const shell = new UiShellController({
+    const shell = uiShell({
       workbench: fakeWorkbench,
       elements: {
         form,
@@ -952,7 +952,7 @@ describe("uiShell", () => {
     const status = document.getElementById("status") as HTMLElement;
 
     const fakeWorkbench = makeFakeWorkbench();
-    const shell = new UiShellController({
+    const shell = uiShell({
       workbench: fakeWorkbench,
       elements: {
         form,
@@ -997,7 +997,7 @@ describe("uiShell", () => {
     const status = document.getElementById("status") as HTMLElement;
 
     const fakeWorkbench = makeFakeWorkbench();
-    const shell = new UiShellController({
+    const shell = uiShell({
       workbench: fakeWorkbench,
       elements: {
         form,
@@ -1071,7 +1071,7 @@ describe("uiShell", () => {
         sliceNodeCount: 1,
       },
     });
-    const shell = new UiShellController({
+    const shell = uiShell({
       workbench: fakeWorkbench,
       elements: {
         form,
@@ -1179,7 +1179,7 @@ describe("uiShell", () => {
       viewMeta: { layout: "force", lodLevel: 0 },
     });
 
-    const shell = new UiShellController({
+    const shell = uiShell({
       workbench: fakeWorkbench,
       elements: {
         form,
@@ -1256,7 +1256,7 @@ describe("uiShell", () => {
     const status = document.getElementById("status") as HTMLElement;
 
     const fakeWorkbench = makeFakeWorkbench();
-    const shell = new UiShellController({
+    const shell = uiShell({
       workbench: fakeWorkbench,
       elements: {
         form,
@@ -1318,7 +1318,7 @@ describe("uiShell", () => {
         ymax: number;
       }) => void;
     };
-    const shell = new UiShellController({
+    const shell = uiShell({
       workbench: fakeWorkbench,
       elements: {
         form,

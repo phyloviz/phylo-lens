@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   BOX_SELECT_OVERLAY_CLASS,
-  SigmaBoxSelectController,
+  default as sigmaBoxSelectController,
 } from "../src/render/adapters/sigma/sigmaBoxSelectController";
 import type { SigmaViewportBounds } from "../src/render/adapters/sigma/graphViewerTypes";
 
@@ -48,7 +48,7 @@ describe("SigmaBoxSelectController", () => {
     const rig = makeFakeSigma();
     const onRegionSelected = vi.fn<[SigmaViewportBounds], void>();
 
-    const controller = new SigmaBoxSelectController({
+    const controller = sigmaBoxSelectController({
       getSigma: () => rig.sigma as never,
       getContainer: () => container,
       isModeEnabled: () => false,
@@ -87,7 +87,7 @@ describe("SigmaBoxSelectController", () => {
     const rig = makeFakeSigma();
     const onRegionSelected = vi.fn<[SigmaViewportBounds], void>();
 
-    const controller = new SigmaBoxSelectController({
+    const controller = sigmaBoxSelectController({
       getSigma: () => rig.sigma as never,
       getContainer: () => container,
       isModeEnabled: () => false,
@@ -110,7 +110,7 @@ describe("SigmaBoxSelectController", () => {
     const rig = makeFakeSigma();
     const onRegionSelected = vi.fn<[SigmaViewportBounds], void>();
 
-    const controller = new SigmaBoxSelectController({
+    const controller = sigmaBoxSelectController({
       getSigma: () => rig.sigma as never,
       getContainer: () => container,
       isModeEnabled: () => true,
@@ -130,7 +130,7 @@ describe("SigmaBoxSelectController", () => {
     const rig = makeFakeSigma();
     const onRegionSelected = vi.fn<[SigmaViewportBounds], void>();
 
-    const controller = new SigmaBoxSelectController({
+    const controller = sigmaBoxSelectController({
       getSigma: () => rig.sigma as never,
       getContainer: () => container,
       isModeEnabled: () => true,
@@ -148,7 +148,7 @@ describe("SigmaBoxSelectController", () => {
   it("detaches its captor handlers on unbind", () => {
     const container = document.createElement("div");
     const rig = makeFakeSigma();
-    const controller = new SigmaBoxSelectController({
+    const controller = sigmaBoxSelectController({
       getSigma: () => rig.sigma as never,
       getContainer: () => container,
       isModeEnabled: () => true,

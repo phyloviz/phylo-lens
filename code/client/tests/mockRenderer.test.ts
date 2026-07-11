@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { MockRenderer } from "../src/render/adapters/mockRenderer";
+import mockRenderer from "../src/render/adapters/mockRenderer";
 import { RENDERER_KIND_MOCK } from "../src/render/types";
 import type { PositionedGraph } from "../src/contracts/positioned";
 
@@ -12,7 +12,7 @@ describe("mockRenderer", () => {
   } as PositionedGraph;
 
   it("captures mount, render, and emitted events", () => {
-    const renderer = new MockRenderer();
+    const renderer = mockRenderer();
     const viewHandler = vi.fn();
     const clickHandler = vi.fn();
 

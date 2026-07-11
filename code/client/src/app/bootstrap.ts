@@ -1,7 +1,7 @@
 import { createGraphWorkbench } from "./workbench/graphWorkbench";
 import { createGraphClient } from "../api/graphClient";
-import { UiShellController } from "./uiShell";
-import { DefaultRendererFactory } from "../render/rendererFactory";
+import uiShell, { type UiShell } from "./uiShell";
+import rendererFactory from "../render/rendererFactory";
 import { RENDERER_KIND_SIGMA } from "../render/types";
 
 export const DEFAULT_SERVER_BASE_URL = "http://localhost:8000";
@@ -46,7 +46,7 @@ export const ERR_MISSING_STATUS = "Missing status element.";
 // Bootstrap the client shell using DOM ids and the modular workbench pipeline.
 export default function bootstrapClientShell(
   baseUrl = DEFAULT_SERVER_BASE_URL,
-): UiShellController {
+): UiShell {
   const form = document.getElementById(
     ID_RENDER_FORM,
   ) as HTMLFormElement | null;
@@ -148,12 +148,12 @@ export default function bootstrapClientShell(
   const graphClient = createGraphClient({ baseUrl });
   const workbench = createGraphWorkbench({
     graphClient,
-    rendererFactory: new DefaultRendererFactory(),
+    rendererFactory: rendererFactory(),
     rendererKind: RENDERER_KIND_SIGMA,
     renderContext: { containerId: ID_GRAPH_ROOT },
   });
 
-  const shell = new UiShellController({
+  const shell = uiShell({
     workbench,
     elements: {
       form,

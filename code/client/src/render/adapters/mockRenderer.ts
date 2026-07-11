@@ -11,95 +11,119 @@ import {
 export const MOCK_RENDERER_EMPTY_CONTAINER = "";
 
 // Mock renderer adapter supports testing and local dry-runs without Sigma runtime.
-export class MockRenderer implements GraphRenderer {
-  readonly kind: RendererKind = RENDERER_KIND_MOCK;
+export default function () {
+  let containerId: string = MOCK_RENDERER_EMPTY_CONTAINER;
+  let lastGraph: PositionedGraph | null = null;
+  let lastCenteredNodeId: string | null = null;
+  let lastCenteredCoordinates: { x: number; y: number } | null = null;
+  let lastFocusedNodeId: string | null = null;
+  let viewChangeHandler: ((state: RenderViewportState) => void) | null = null;
+  let nodeClickHandler: ((state: RenderNodeClickState) => void) | null = null;
 
-  private containerId: string = MOCK_RENDERER_EMPTY_CONTAINER;
-  private lastGraph: PositionedGraph | null = null;
-  private lastCenteredNodeId: string | null = null;
-  private lastCenteredCoordinates: { x: number; y: number } | null = null;
-  private lastFocusedNodeId: string | null = null;
-  private viewChangeHandler: ((state: RenderViewportState) => void) | null =
-    null;
-  private nodeClickHandler: ((state: RenderNodeClickState) => void) | null =
-    null;
+  return {
+    kind: RENDERER_KIND_MOCK as RendererKind,
+    mount: mount,
+    render: render,
+    setViewChangeHandler: setViewChangeHandler,
+    setNodeClickHandler: setNodeClickHandler,
+    centerOnNode: centerOnNode,
+    centerOnCoordinates: centerOnCoordinates,
+    focusNode: focusNode,
+    unmount: unmount,
+    getRenderedGraph: getRenderedGraph,
+    getMountedContainerId: getMountedContainerId,
+    getLastCenteredNodeId: getLastCenteredNodeId,
+    getLastCenteredCoordinates: getLastCenteredCoordinates,
+    getLastFocusedNodeId: getLastFocusedNodeId,
+    emitViewChange: emitViewChange,
+    emitNodeClick: emitNodeClick,
+  } satisfies GraphRenderer & {
+    kind: RendererKind;
+    getRenderedGraph: typeof getRenderedGraph;
+    getMountedContainerId: typeof getMountedContainerId;
+    getLastCenteredNodeId: typeof getLastCenteredNodeId;
+    getLastCenteredCoordinates: typeof getLastCenteredCoordinates;
+    getLastFocusedNodeId: typeof getLastFocusedNodeId;
+    emitViewChange: typeof emitViewChange;
+    emitNodeClick: typeof emitNodeClick;
+  };
 
   // Bind the mock renderer to a container identifier.
-  mount(context: RenderContext): void {
-    this.containerId = context.containerId;
-    this.lastGraph = null;
-    this.lastCenteredNodeId = null;
-    this.lastCenteredCoordinates = null;
-    this.lastFocusedNodeId = null;
+  function mount(context: RenderContext): void {
+    containerId = context.containerId;
+    lastGraph = null;
+    lastCenteredNodeId = null;
+    lastCenteredCoordinates = null;
+    lastFocusedNodeId = null;
   }
 
   // Store rendered graph snapshot for assertions and debug checks.
-  render(graph: PositionedGraph): void {
-    this.lastGraph = graph;
+  function render(graph: PositionedGraph): void {
+    lastGraph = graph;
   }
 
-  setViewChangeHandler(
+  function setViewChangeHandler(
     handler: ((state: RenderViewportState) => void) | null,
   ): void {
-    this.viewChangeHandler = handler;
+    viewChangeHandler = handler;
   }
 
-  setNodeClickHandler(
+  function setNodeClickHandler(
     handler: ((state: RenderNodeClickState) => void) | null,
   ): void {
-    this.nodeClickHandler = handler;
+    nodeClickHandler = handler;
   }
 
-  centerOnNode(nodeId: string): boolean {
-    this.lastCenteredNodeId = nodeId;
+  function centerOnNode(nodeId: string): boolean {
+    lastCenteredNodeId = nodeId;
     return true;
   }
 
-  centerOnCoordinates(x: number, y: number): boolean {
-    this.lastCenteredCoordinates = { x, y };
+  function centerOnCoordinates(x: number, y: number): boolean {
+    lastCenteredCoordinates = { x, y };
     return true;
   }
 
-  focusNode(nodeId: string | null): void {
-    this.lastFocusedNodeId = nodeId;
+  function focusNode(nodeId: string | null): void {
+    lastFocusedNodeId = nodeId;
   }
 
   // Reset internal references on renderer teardown.
-  unmount(): void {
-    this.containerId = MOCK_RENDERER_EMPTY_CONTAINER;
-    this.lastGraph = null;
-    this.lastCenteredNodeId = null;
-    this.lastFocusedNodeId = null;
-    this.viewChangeHandler = null;
-    this.nodeClickHandler = null;
+  function unmount(): void {
+    containerId = MOCK_RENDERER_EMPTY_CONTAINER;
+    lastGraph = null;
+    lastCenteredNodeId = null;
+    lastFocusedNodeId = null;
+    viewChangeHandler = null;
+    nodeClickHandler = null;
   }
 
   // Expose the last rendered graph for tests and diagnostics.
-  getRenderedGraph(): PositionedGraph | null {
-    return this.lastGraph;
+  function getRenderedGraph(): PositionedGraph | null {
+    return lastGraph;
   }
 
-  getMountedContainerId(): string {
-    return this.containerId;
+  function getMountedContainerId(): string {
+    return containerId;
   }
 
-  getLastCenteredNodeId(): string | null {
-    return this.lastCenteredNodeId;
+  function getLastCenteredNodeId(): string | null {
+    return lastCenteredNodeId;
   }
 
-  getLastCenteredCoordinates(): { x: number; y: number } | null {
-    return this.lastCenteredCoordinates;
+  function getLastCenteredCoordinates(): { x: number; y: number } | null {
+    return lastCenteredCoordinates;
   }
 
-  getLastFocusedNodeId(): string | null {
-    return this.lastFocusedNodeId;
+  function getLastFocusedNodeId(): string | null {
+    return lastFocusedNodeId;
   }
 
-  emitViewChange(state: RenderViewportState): void {
-    this.viewChangeHandler?.(state);
+  function emitViewChange(state: RenderViewportState): void {
+    viewChangeHandler?.(state);
   }
 
-  emitNodeClick(state: RenderNodeClickState): void {
-    this.nodeClickHandler?.(state);
+  function emitNodeClick(state: RenderNodeClickState): void {
+    nodeClickHandler?.(state);
   }
 }

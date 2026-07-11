@@ -39,94 +39,94 @@ type Point = { x: number; y: number };
 // when region-select mode is enabled or the Shift modifier is held; while a box
 // is being drawn camera panning is suppressed so the drag does not move the
 // view.
-export class SigmaBoxSelectController {
-  private readonly options: SigmaBoxSelectControllerOptions;
-  private overlay: HTMLDivElement | null = null;
-  private startPoint: Point | null = null;
-  private previousCameraPanningEnabled: boolean | null = null;
-  private readonly boundMouseDown = (payload: MouseCaptorPayload) => {
-    this.startBox(payload);
+export default function (options: SigmaBoxSelectControllerOptions) {
+  let overlay: HTMLDivElement | null = null;
+  let startPoint: Point | null = null;
+  let previousCameraPanningEnabled: boolean | null = null;
+
+  const boundMouseDown = (payload: MouseCaptorPayload) => {
+    startBox(payload);
   };
-  private readonly boundMouseMove = (payload: MouseCaptorPayload) => {
-    this.updateBox(payload);
+  const boundMouseMove = (payload: MouseCaptorPayload) => {
+    updateBox(payload);
   };
-  private readonly boundMouseUp = (payload: MouseCaptorPayload) => {
-    this.endBox(payload);
+  const boundMouseUp = (payload: MouseCaptorPayload) => {
+    endBox(payload);
   };
 
-  constructor(options: SigmaBoxSelectControllerOptions) {
-    this.options = options;
+  return {
+    bind: bind,
+    unbind: unbind,
+    reset: reset,
+  };
+
+  function bind(): void {
+    const captor = mouseCaptor();
+    captor?.off?.("mousedown", boundMouseDown);
+    captor?.on?.("mousedown", boundMouseDown);
+    captor?.off?.("mousemovebody", boundMouseMove);
+    captor?.on?.("mousemovebody", boundMouseMove);
+    captor?.off?.("mouseup", boundMouseUp);
+    captor?.on?.("mouseup", boundMouseUp);
   }
 
-  bind(): void {
-    const mouseCaptor = this.mouseCaptor();
-    mouseCaptor?.off?.("mousedown", this.boundMouseDown);
-    mouseCaptor?.on?.("mousedown", this.boundMouseDown);
-    mouseCaptor?.off?.("mousemovebody", this.boundMouseMove);
-    mouseCaptor?.on?.("mousemovebody", this.boundMouseMove);
-    mouseCaptor?.off?.("mouseup", this.boundMouseUp);
-    mouseCaptor?.on?.("mouseup", this.boundMouseUp);
+  function unbind(): void {
+    const captor = mouseCaptor();
+    captor?.off?.("mousedown", boundMouseDown);
+    captor?.off?.("mousemovebody", boundMouseMove);
+    captor?.off?.("mouseup", boundMouseUp);
+    teardownBox();
   }
 
-  unbind(): void {
-    const mouseCaptor = this.mouseCaptor();
-    mouseCaptor?.off?.("mousedown", this.boundMouseDown);
-    mouseCaptor?.off?.("mousemovebody", this.boundMouseMove);
-    mouseCaptor?.off?.("mouseup", this.boundMouseUp);
-    this.teardownBox();
+  function reset(): void {
+    teardownBox();
   }
 
-  reset(): void {
-    this.teardownBox();
-  }
-
-  private mouseCaptor(): SigmaMouseCaptor | undefined {
-    return this.options.getSigma()?.getMouseCaptor?.() as
+  function mouseCaptor(): SigmaMouseCaptor | undefined {
+    return options.getSigma()?.getMouseCaptor?.() as
       | SigmaMouseCaptor
       | undefined;
   }
 
-  private isActivationAllowed(payload: MouseCaptorPayload): boolean {
-    return (
-      this.options.isModeEnabled() || payload.original?.shiftKey === true
-    );
+  function isActivationAllowed(payload: MouseCaptorPayload): boolean {
+    return options.isModeEnabled() || payload.original?.shiftKey === true;
   }
 
-  private startBox(payload: MouseCaptorPayload): void {
-    const sigma = this.options.getSigma();
-    const container = this.options.getContainer();
-    if (!sigma || !container || !this.isActivationAllowed(payload)) {
+  function startBox(payload: MouseCaptorPayload): void {
+    const sigma = options.getSigma();
+    const container = options.getContainer();
+    if (!sigma || !container || !isActivationAllowed(payload)) {
       return;
     }
 
-    this.startPoint = { x: payload.x, y: payload.y };
-    this.previousCameraPanningEnabled = sigma.getSetting?.(
+    startPoint = { x: payload.x, y: payload.y };
+    previousCameraPanningEnabled = sigma.getSetting?.(
       "enableCameraPanning",
     ) as boolean | null;
     sigma.setSetting?.("enableCameraPanning", false);
 
-    this.overlay = document.createElement("div");
-    this.overlay.className = BOX_SELECT_OVERLAY_CLASS;
-    this.overlay.style.position = "absolute";
-    this.overlay.style.pointerEvents = "none";
-    this.applyOverlayRect(this.startPoint, this.startPoint);
-    container.appendChild(this.overlay);
+    overlay = document.createElement("div");
+    overlay.className = BOX_SELECT_OVERLAY_CLASS;
+    overlay.style.position = "absolute";
+    overlay.style.pointerEvents = "none";
+    applyOverlayRect(startPoint, startPoint);
+    container.appendChild(overlay);
     payload.preventSigmaDefault?.();
   }
 
-  private updateBox(payload: MouseCaptorPayload): void {
-    if (!this.startPoint || !this.overlay) {
+  function updateBox(payload: MouseCaptorPayload): void {
+    if (!startPoint || !overlay) {
       return;
     }
-    this.applyOverlayRect(this.startPoint, { x: payload.x, y: payload.y });
+    applyOverlayRect(startPoint, { x: payload.x, y: payload.y });
     payload.preventSigmaDefault?.();
   }
 
-  private endBox(payload: MouseCaptorPayload): void {
-    const start = this.startPoint;
-    const sigma = this.options.getSigma();
+  function endBox(payload: MouseCaptorPayload): void {
+    const start = startPoint;
+    const sigma = options.getSigma();
     if (!start || !sigma) {
-      this.teardownBox();
+      teardownBox();
       return;
     }
 
@@ -135,7 +135,7 @@ export class SigmaBoxSelectController {
       Math.abs(end.x - start.x) >= MIN_BOX_DRAG_PX ||
       Math.abs(end.y - start.y) >= MIN_BOX_DRAG_PX;
 
-    this.teardownBox();
+    teardownBox();
 
     if (!draggedFarEnough) {
       return;
@@ -151,36 +151,36 @@ export class SigmaBoxSelectController {
     };
     // A box release lands as a Sigma click on the canvas; suppress the node
     // click that would otherwise reset the selection panel.
-    this.options.suppressNodeClicksFor?.(250);
+    options.suppressNodeClicksFor?.(250);
     payload.preventSigmaDefault?.();
-    this.options.onRegionSelected(bounds);
+    options.onRegionSelected(bounds);
   }
 
-  private applyOverlayRect(start: Point, end: Point): void {
-    if (!this.overlay) {
+  function applyOverlayRect(start: Point, end: Point): void {
+    if (!overlay) {
       return;
     }
     const left = Math.min(start.x, end.x);
     const top = Math.min(start.y, end.y);
-    this.overlay.style.left = `${left}px`;
-    this.overlay.style.top = `${top}px`;
-    this.overlay.style.width = `${Math.abs(end.x - start.x)}px`;
-    this.overlay.style.height = `${Math.abs(end.y - start.y)}px`;
+    overlay.style.left = `${left}px`;
+    overlay.style.top = `${top}px`;
+    overlay.style.width = `${Math.abs(end.x - start.x)}px`;
+    overlay.style.height = `${Math.abs(end.y - start.y)}px`;
   }
 
-  private teardownBox(): void {
-    const sigma = this.options.getSigma();
-    if (typeof this.previousCameraPanningEnabled === "boolean") {
+  function teardownBox(): void {
+    const sigma = options.getSigma();
+    if (typeof previousCameraPanningEnabled === "boolean") {
       sigma?.setSetting?.(
         "enableCameraPanning",
-        this.previousCameraPanningEnabled,
+        previousCameraPanningEnabled,
       );
     }
-    this.previousCameraPanningEnabled = null;
-    this.startPoint = null;
-    if (this.overlay?.parentElement) {
-      this.overlay.parentElement.removeChild(this.overlay);
+    previousCameraPanningEnabled = null;
+    startPoint = null;
+    if (overlay?.parentElement) {
+      overlay.parentElement.removeChild(overlay);
     }
-    this.overlay = null;
+    overlay = null;
   }
 }
