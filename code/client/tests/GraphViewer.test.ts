@@ -1,3 +1,5 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
 import Graph from "graphology";
 
 import type { GraphClient } from "../src/api/graphClient";

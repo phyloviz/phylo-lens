@@ -1,8 +1,10 @@
+import { describe, expect, it } from "vitest";
+
 import {
-  ClientGraphFilterEngine,
   EMPTY_METADATA_FILTER_STATE,
+  filterGraphByMetadata,
 } from "../src/ancillary/filterEngine";
-import type { MetadataFilterState } from "../src/ancillary/filterEngine";
+import type { MetadataFilterState } from "../src/ancillary/metadataTypes";
 import { buildMetadataIndex } from "../src/ancillary/metadataIndex";
 import type { CanonicalDataset } from "../src/contracts/models";
 import type { PositionedGraph } from "../src/contracts/positioned";
@@ -46,40 +48,40 @@ const GRAPH: PositionedGraph = {
   viewMeta: { layout: "force", lodLevel: 0 },
 };
 
-describe("filterEngine", () => {
-  it("returns full graph when no active filters exist", () => {
-    const engine = new ClientGraphFilterEngine();
+describe("filterGraphByMetadata", () => {
+  it("returns the original graph when no active filters exist", () => {
     const index = buildMetadataIndex(DATASET);
 
-    const filtered = engine.apply(GRAPH, index, EMPTY_METADATA_FILTER_STATE);
+    const filtered = filterGraphByMetadata(
+      GRAPH,
+      index,
+      EMPTY_METADATA_FILTER_STATE,
+    );
 
-    expect(filtered.nodes).toHaveLength(4);
-    expect(filtered.edges).toHaveLength(3);
+    expect(filtered).toBe(GRAPH);
   });
 
   it("filters by categorical values and keeps only valid connecting edges", () => {
-    const engine = new ClientGraphFilterEngine();
     const index = buildMetadataIndex(DATASET);
     const state: MetadataFilterState = {
       categorical: [{ fieldKey: "region", acceptedValues: ["EU"] }],
       numeric: [],
     };
 
-    const filtered = engine.apply(GRAPH, index, state);
+    const filtered = filterGraphByMetadata(GRAPH, index, state);
 
     expect(filtered.nodes.map((node) => node.id)).toEqual(["root", "a"]);
     expect(filtered.edges.map((edge) => edge.id)).toEqual(["e1"]);
   });
 
   it("supports numeric range filtering", () => {
-    const engine = new ClientGraphFilterEngine();
     const index = buildMetadataIndex(DATASET);
     const state: MetadataFilterState = {
       categorical: [],
       numeric: [{ fieldKey: "distance", min: 1, max: 3 }],
     };
 
-    const filtered = engine.apply(GRAPH, index, state);
+    const filtered = filterGraphByMetadata(GRAPH, index, state);
 
     expect(filtered.nodes.map((node) => node.id)).toEqual(["a", "b"]);
     expect(filtered.edges).toHaveLength(0);

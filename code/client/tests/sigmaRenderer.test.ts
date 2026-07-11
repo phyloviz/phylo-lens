@@ -1,3 +1,5 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
 let lastSigmaOptions: Record<string, unknown> | null = null;
 let lastGraph:
   | {

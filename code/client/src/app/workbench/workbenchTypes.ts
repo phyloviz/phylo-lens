@@ -11,7 +11,7 @@ import type {
 } from "../../contracts/models";
 import type { PositionedGraph } from "../../contracts/positioned";
 import type { MetadataIndexData } from "../../ancillary/metadataIndex";
-import type { MetadataFilterState } from "../../ancillary/filterEngine";
+import type { MetadataFilterState } from "../../ancillary/metadataTypes";
 import type { VisualMappingOptions } from "../../render/visualMappings";
 import type {
   GraphDisplayOptions,

@@ -11,8 +11,8 @@ import type { GraphDisplayOptions } from "../../types";
 import {
   hasActiveFilters,
   matchesFilterState,
-  type MetadataFilterState,
 } from "../../../ancillary/filterEngine";
+import type { MetadataFilterState } from "../../../ancillary/metadataTypes";
 import {
   buildValueColorMap,
   DEFAULT_COLOR_PALETTE,

@@ -1,3 +1,5 @@
+import { describe, expect, it, vi } from "vitest";
+
 describe("client bootstrap", () => {
   it("bootstraps immediately when the document is already ready", async () => {
     const { runWhenDocumentReady } = await import(

@@ -1,7 +1,5 @@
-import {
-  EMPTY_METADATA_FILTER_STATE,
-  type MetadataFilterState,
-} from "../../../ancillary/filterEngine";
+import { EMPTY_METADATA_FILTER_STATE } from "../../../ancillary/filterEngine";
+import type { MetadataFilterState } from "../../../ancillary/metadataTypes";
 import type { PositionedGraph } from "../../../contracts/positioned";
 import type { VisualMappingOptions } from "../../../render/visualMappings";
 import type { GraphRenderer } from "../../../render/types";

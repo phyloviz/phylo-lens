@@ -1,3 +1,5 @@
+import { describe, expect, it } from "vitest";
+
 import { DefaultRendererFactory } from "../src/render/rendererFactory";
 import { RENDERER_KIND_MOCK, RENDERER_KIND_SIGMA } from "../src/render/types";
 

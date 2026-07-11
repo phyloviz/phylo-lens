@@ -1,146 +1,149 @@
 import {
   METADATA_TYPE_NUMBER,
+  type CanonicalDataset,
 } from "../contracts/models";
-import type { CanonicalDataset, MetadataField } from "../contracts/models";
+import type { NodeMetadata, NumericStats } from "./metadataTypes";
 
-export const EMPTY_METADATA_RECORD = {} as Record<
-  string,
-  string | number | boolean | null
->;
+export const EMPTY_METADATA_RECORD: NodeMetadata = {};
+
 const GENERATED_NUMERIC_METADATA_KEYS = ["profile_count"];
 
-export interface NumericStats {
-  min: number;
-  max: number;
-}
-
 export interface MetadataIndexData {
-  byNodeId: Map<string, Record<string, string | number | boolean | null>>;
+  byNodeId: Map<string, NodeMetadata>;
   categoricalInverted: Map<string, Map<string, Set<string>>>;
   numericStats: Map<string, NumericStats>;
 }
 
-// Build fast lookup indexes for metadata filtering and visual mapping.
 export function buildMetadataIndex(
   dataset: CanonicalDataset,
 ): MetadataIndexData {
-  const byNodeId = new Map<
-    string,
-    Record<string, string | number | boolean | null>
-  >();
+  const byNodeId = buildMetadataByNodeId(dataset);
   const categoricalInverted = new Map<string, Map<string, Set<string>>>();
   const numericStats = new Map<string, NumericStats>();
 
-  dataset.nodes.forEach((node) => {
-    const metadata =
-      dataset.metadata_by_node_id[node.id] ?? EMPTY_METADATA_RECORD;
-    byNodeId.set(node.id, metadata);
-  });
-
-  dataset.metadata_schema.forEach((field) => {
+  for (const field of dataset.metadata_schema) {
     if (field.type === METADATA_TYPE_NUMBER) {
-      const stats = computeNumericStats(field, byNodeId);
-      if (stats) {
-        numericStats.set(field.key, stats);
-      }
-      return;
+      addNumericStats(field.key, byNodeId, numericStats);
+      continue;
     }
 
     categoricalInverted.set(
       field.key,
-      buildCategoricalInvertedIndex(field, byNodeId),
+      buildCategoricalInvertedIndex(field.key, byNodeId),
     );
-  });
-  GENERATED_NUMERIC_METADATA_KEYS.forEach((key) => {
-    if (numericStats.has(key)) {
-      return;
-    }
-    const stats = computeNumericStats(
-      { key, type: METADATA_TYPE_NUMBER },
-      byNodeId,
-    );
-    if (stats) {
-      numericStats.set(key, stats);
-    }
-  });
+  }
 
-  return { byNodeId, categoricalInverted, numericStats };
+  for (const fieldKey of GENERATED_NUMERIC_METADATA_KEYS) {
+    if (!numericStats.has(fieldKey)) {
+      addNumericStats(fieldKey, byNodeId, numericStats);
+    }
+  }
+
+  return {
+    byNodeId,
+    categoricalInverted,
+    numericStats,
+  };
 }
 
-// Return per-node metadata with O(1) access.
 export function getNodeMetadata(
   index: MetadataIndexData,
   nodeId: string,
-): Record<string, string | number | boolean | null> {
+): NodeMetadata {
   return index.byNodeId.get(nodeId) ?? EMPTY_METADATA_RECORD;
 }
 
-// Filter nodes by exact match against one metadata field.
 export function filterNodeIdsByFieldValues(
   index: MetadataIndexData,
   fieldKey: string,
   acceptedValues: string[],
 ): Set<string> {
-  const fieldMap = index.categoricalInverted.get(fieldKey);
-  if (!fieldMap || acceptedValues.length === 0) {
-    return new Set<string>();
+  const fieldIndex = index.categoricalInverted.get(fieldKey);
+
+  if (!fieldIndex || acceptedValues.length === 0) {
+    return new Set();
   }
 
-  const result = new Set<string>();
-  acceptedValues.forEach((value) => {
-    const ids = fieldMap.get(value);
-    if (!ids) {
-      return;
-    }
-    ids.forEach((id) => result.add(id));
-  });
+  const matchingNodeIds = new Set<string>();
 
-  return result;
+  for (const value of acceptedValues) {
+    const nodeIds = fieldIndex.get(value);
+
+    if (!nodeIds) {
+      continue;
+    }
+
+    for (const nodeId of nodeIds) {
+      matchingNodeIds.add(nodeId);
+    }
+  }
+
+  return matchingNodeIds;
 }
 
-// Build an inverted index map value -> node ids for one field.
-function buildCategoricalInvertedIndex(
-  field: MetadataField,
-  byNodeId: Map<string, Record<string, string | number | boolean | null>>,
-): Map<string, Set<string>> {
-  const inverted = new Map<string, Set<string>>();
+function buildMetadataByNodeId(
+  dataset: CanonicalDataset,
+): Map<string, NodeMetadata> {
+  return new Map(
+    dataset.nodes.map((node) => [
+      node.id,
+      dataset.metadata_by_node_id[node.id] ?? EMPTY_METADATA_RECORD,
+    ]),
+  );
+}
 
-  byNodeId.forEach((metadata, nodeId) => {
-    const value = metadata[field.key];
-    if (value === undefined || value === null) {
-      return;
+function buildCategoricalInvertedIndex(
+  fieldKey: string,
+  byNodeId: Map<string, NodeMetadata>,
+): Map<string, Set<string>> {
+  const invertedIndex = new Map<string, Set<string>>();
+
+  for (const [nodeId, metadata] of byNodeId) {
+    const value = metadata[fieldKey];
+
+    if (value == null) {
+      continue;
     }
 
     const normalizedValue = String(value);
-    const existingSet = inverted.get(normalizedValue) ?? new Set<string>();
-    existingSet.add(nodeId);
-    inverted.set(normalizedValue, existingSet);
-  });
+    const nodeIds = invertedIndex.get(normalizedValue) ?? new Set<string>();
 
-  return inverted;
+    nodeIds.add(nodeId);
+    invertedIndex.set(normalizedValue, nodeIds);
+  }
+
+  return invertedIndex;
 }
 
-// Compute numeric min and max for one metadata field.
+function addNumericStats(
+  fieldKey: string,
+  byNodeId: Map<string, NodeMetadata>,
+  numericStats: Map<string, NumericStats>,
+): void {
+  const stats = computeNumericStats(fieldKey, byNodeId);
+
+  if (stats) {
+    numericStats.set(fieldKey, stats);
+  }
+}
+
 function computeNumericStats(
-  field: MetadataField,
-  byNodeId: Map<string, Record<string, string | number | boolean | null>>,
+  fieldKey: string,
+  byNodeId: Map<string, NodeMetadata>,
 ): NumericStats | null {
   let min = Number.POSITIVE_INFINITY;
   let max = Number.NEGATIVE_INFINITY;
 
-  byNodeId.forEach((metadata) => {
-    const rawValue = metadata[field.key];
-    if (typeof rawValue !== "number") {
-      return;
+  for (const metadata of byNodeId.values()) {
+    const value = metadata[fieldKey];
+
+    if (typeof value !== "number") {
+      continue;
     }
 
-    min = Math.min(min, rawValue);
-    max = Math.max(max, rawValue);
-  });
-
-  if (!Number.isFinite(min) || !Number.isFinite(max)) {
-    return null;
+    min = Math.min(min, value);
+    max = Math.max(max, value);
   }
 
-  return { min, max };
+  return Number.isFinite(min) && Number.isFinite(max) ? { min, max } : null;
 }

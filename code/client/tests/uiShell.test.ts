@@ -1,3 +1,5 @@
+import { describe, expect, it, vi } from "vitest";
+
 import { UiShellController } from "../src/app/uiShell";
 import type { GraphWorkbench } from "../src/app/workbench/graphWorkbench";
 import type { PositionedGraph } from "../src/contracts/positioned";
