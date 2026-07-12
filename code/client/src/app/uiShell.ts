@@ -1,13 +1,6 @@
-import type {
-  GraphWorkbench,
-  RenderNewickOptions,
-} from "./workbench/graphWorkbench";
+import type { GraphWorkbench, RenderNewickOptions } from "./workbench/graphWorkbench";
 import type { PositionedGraph } from "../contracts/positioned";
-import {
-  SOURCE_FORMAT_NEWICK,
-  SOURCE_FORMAT_TYPING_DATA,
-  type SourceFormat,
-} from "../contracts/models";
+import { SOURCE_FORMAT_NEWICK, SOURCE_FORMAT_TYPING_DATA, type SourceFormat } from "../contracts/models";
 import { buildRenderedStatus } from "./shell/status/renderedStatus";
 import { parseAncillaryPayload } from "./shell/inputs/ancillaryPayload";
 import {
@@ -35,28 +28,26 @@ import {
 } from "./shell/controls/lodControls";
 import metadataPieFieldControls from "./shell/controls/metadataPieFieldControls";
 import { getSelectedOptions } from "./shell/controls/selectOptions";
-import {
-  readTextFile,
-  resolveAncillaryFormat,
-} from "./shell/inputs/fileInputs";
+import { readTextFile, resolveAncillaryFormat } from "./shell/inputs/fileInputs";
 import eventBindings from "./shell/events/eventBindings";
 import searchController from "./shell/search/searchController";
 import regionSelection from "./shell/region/regionSelection";
 import visualMappingPalette from "./shell/palette/visualMappingPalette";
 
+// Re-export constants for external use.
 export { STATUS_RENDERED_PREFIX } from "./shell/status/renderedStatus";
 export { ERR_INVALID_ANCILLARY_JSON } from "./shell/inputs/ancillaryPayload";
 export { CATEGORY_COLOR_INPUT_SELECTOR } from "./shell/palette/categoryColorControls";
 
+// Status and user feedback messages for the shell UI.
 export const DEFAULT_STATUS_READY = "Ready";
 export const STATUS_RENDERING_PREFIX = "Rendering";
 export const STATUS_FAILED_PREFIX = "Failed";
 export const CATEGORY_COLOR_SAVE_FILENAME = "phyloviz-category-colors.txt";
-export const SELECTED_NODE_WHEEL_EMPTY_MESSAGE =
-  "Click a node to view its ancillary distribution.";
-export const SELECT_PIE_FIELD_MESSAGE =
-  "Select a metadata field to view its ancillary distribution.";
+export const SELECTED_NODE_WHEEL_EMPTY_MESSAGE = "Click a node to view its ancillary distribution.";
+export const SELECT_PIE_FIELD_MESSAGE = "Select a metadata field to view its ancillary distribution.";
 
+// Re-export ancillary mode constants for external use.
 export {
   ANCILLARY_MODE_GLOBAL,
   ANCILLARY_MODE_CURRENT,
@@ -68,11 +59,11 @@ export {
 };
 export type { AncillaryMode };
 
+// Error messages for required shell elements.
 export const ERR_STATUS_ELEMENT_REQUIRED = "Status element is required.";
 export const ERR_RENDER_FORM_REQUIRED = "Render form is required.";
 export const ERR_NEWICK_INPUT_REQUIRED = "Newick input is required.";
-export const ERR_ANCILLARY_JOIN_COLUMN_REQUIRED =
-  "Ancillary table join column is required.";
+export const ERR_ANCILLARY_JOIN_COLUMN_REQUIRED = "Ancillary table join column is required.";
 
 export interface UiShellElements {
   form: HTMLFormElement;
