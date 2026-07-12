@@ -23,9 +23,11 @@ This document is the system-level map. For the runtime narrative see
 3. **Materialize, don't recompute.** Prepared artifacts (clusters, per-tier
    edges, node positions, metadata) are persisted in SQLite keyed by
    `(dataset_id, layout_version)` and read back by query, not rebuilt.
-4. **Keep runtime payloads bounded.** A viewport read returns at most
-   `max_nodes` nodes; the response carries a `truncated` flag and the true
-   `total_node_count` so the client knows it is seeing a slice.
+4. **Keep runtime payloads bounded.** A viewport read uses `max_nodes` as the
+   primary slice budget; the response carries a `truncated` flag and the true
+   `total_node_count` so the client knows it is seeing a slice. Edge-preserving
+   neighbor nodes and explicit cluster expansion may add nodes beyond that
+   primary budget.
 5. **Rendering is adapter-based.** Sigma-specific behavior lives behind the
    `GraphRenderer` interface and must not leak into API contracts or clustering.
 

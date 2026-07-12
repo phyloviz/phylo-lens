@@ -18,6 +18,7 @@ MAX_CLUSTER_THRESHOLDS = 16
 MIN_OVERVIEW_REPRESENTATIVES = 300
 MAX_OVERVIEW_REPRESENTATIVES = 800
 SMALL_GRAPH_OVERVIEW_FACTOR = 7
+LOD_REPRESENTATIVE_GROWTH_FACTOR = 2.5
 CLUSTER_ID_PREFIX = "distance_cluster"
 
 
@@ -91,11 +92,20 @@ def representative_targets(node_count: int, max_thresholds: int) -> tuple[int, .
             ),
         )
 
-    medium = min(node_count, max(overview, round(sqrt(overview * node_count))))
     targets = [overview]
-    if medium > overview:
-        targets.append(medium)
-    if node_count > medium:
+    current = overview
+    while current < node_count and len(targets) < max_thresholds - 1:
+        smooth_growth = round(sqrt(current * node_count))
+        capped_growth = round(current * LOD_REPRESENTATIVE_GROWTH_FACTOR)
+        next_target = min(
+            node_count,
+            max(current + 1, min(smooth_growth, capped_growth)),
+        )
+        if next_target >= node_count:
+            break
+        targets.append(next_target)
+        current = next_target
+    if targets[-1] != node_count:
         targets.append(node_count)
 
     return tuple(dict.fromkeys(targets[:max_thresholds]))

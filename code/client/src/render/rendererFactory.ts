@@ -1,4 +1,4 @@
-import mockRenderer from "./adapters/mockRenderer";
+import mockRenderer from "./adapters/mock/mockRenderer";
 import { SigmaRenderer } from "./adapters/sigma/sigmaRenderer";
 import {
   type GraphRenderer,

@@ -95,8 +95,10 @@ flowchart TD
 
 Bounds filtering applies to the representative and ready-node paths; the
 `cluster_id` expansion path intentionally ignores bounds so an opened cluster
-always returns all its members. Every path is capped at `max_nodes`; the result
-carries `total_node_count` and `truncated`.
+always returns all its members. `max_nodes` caps the primary slice read; detail
+views may surface off-screen neighbor nodes so returned edges keep both
+endpoints, and cluster expansion may return all members of the opened cluster.
+The result carries `total_node_count` and `truncated`.
 
 ## Client: Mapping Zoom to a Tier (`graphViewerQuery.ts`)
 
@@ -153,6 +155,7 @@ overview.
 
 Tier construction is prepare-time: Union-Find is near-linear in edges per
 threshold, over up to 16 thresholds. Viewport reads are index-bounded SQLite
-queries whose cost tracks the returned slice size (≤ `max_nodes`) rather than the
-total node count. Benchmark the whole `read_viewport` call, not just the index
+queries whose primary slice tracks `max_nodes` rather than the total node count;
+edge-preserving neighbor nodes and cluster expansion can add nodes after that
+primary read. Benchmark the whole `read_viewport` call, not just the index
 lookup, since metadata attachment and edge assembly are part of the cost.

@@ -1,18 +1,18 @@
 # Client Rendering
 
 The client renders with Sigma.js over a Graphology graph. The workbench prepares
-a dataset and starts a viewport-sync loop; `GraphViewer` keeps the Graphology
-graph in step with the camera by pulling viewport slices from the server and
-reconciling them into the graph. This document covers the viewer lifecycle,
-node/edge attribute derivation, the triangle rule, PHYLOViZ + value-based
-coloring, pie programs, and region (box) selection.
+a dataset and starts a viewport-sync loop; `GraphViewportController` keeps the
+Graphology graph in step with the camera by pulling viewport slices from the
+server and reconciling them into the graph. This document covers the viewport
+lifecycle, node/edge attribute derivation, the triangle rule, PHYLOViZ +
+value-based coloring, pie programs, and region (box) selection.
 
 For how zoom picks a tier, see [`LOD_AND_CLUSTERING.md`](./LOD_AND_CLUSTERING.md);
 for expand/collapse, see [`EXPAND_COLLAPSE.md`](./EXPAND_COLLAPSE.md).
 
-## Viewer Lifecycle (`GraphViewer.ts`)
+## Viewport Lifecycle (`render/adapters/sigma/viewport/graphViewportController.ts`)
 
-`GraphViewer` is constructed by the Sigma adapter's
+`GraphViewportController` is constructed by the Sigma adapter's
 `startGraphViewportSync`. Key options: `datasetId`, `layoutVersion`, `client`
 (`GraphClient`), `graph` (Graphology), `sigma`, `maxNodes`, and
 `lodTierCount` (from the prepare response, normalized to `>= 1`).
@@ -50,12 +50,14 @@ flowchart TD
 `semanticLodLevelForCameraRatioWithHysteresis` to pick the tier and expands the
 query bounds by `GRAPH_VIEWER_VIEWPORT_PADDING_RATIO = 0.5` for tiers > 0.
 
-## Sync and Reconcile (`graphViewerSync.ts`)
+## Sync and Reconcile (`render/adapters/sigma/viewport/graphViewportSync.ts`)
 
 - **`syncGraphologyViewport(graph, response, settings?)`** filters nodes by any
   active metadata filter (`matchesFilterState`), resolves visual-mapping palette
-  when active, then upserts each node and edge. `upsertGraphNode` merges only
-  changed attributes to emit a single Graphology event instead of one per field.
+  when active, then upserts each node and edge. Node attributes are built in
+  `graphViewportNodeAttributes.ts`; edge attributes are built in
+  `graphViewportEdgeAttributes.ts`. `upsertGraphNode` merges only changed
+  attributes to emit a single Graphology event instead of one per field.
 - **`reconcileGraphologyViewport(...)`** drops nodes and edges not present in the
   response — this is what makes the graph track the moving viewport instead of
   accumulating stale geometry. It **suspends Sigma's `nodeDropped`/`edgeDropped`
@@ -71,10 +73,10 @@ query bounds by `GRAPH_VIEWER_VIEWPORT_PADDING_RATIO = 0.5` for tiers > 0.
 ## The Triangle Rule
 
 A node renders as a **triangle** (cluster proxy) when it represents more than one
-underlying node. In `graphNodeAttributes`:
+underlying node. In `buildGraphViewportNodeAttributes`:
 
 ```typescript
-const isRepresentative = node.is_representative || node.member_count > 1;
+const isRepresentative = node.member_count > 1;
 // ...
 type: isRepresentative ? SIGMA_NODE_TYPE_TRIANGLE : undefined; // else "circle"
 ```
@@ -88,7 +90,7 @@ cluster never dominates the canvas.
 
 ## Node Coloring
 
-Color precedence in `graphNodeAttributes` (highest first):
+Color precedence in `buildGraphViewportNodeAttributes` (highest first):
 
 1. **Active visual mapping, when the node has a value for the color field** — an
    explicit user choice. Color comes from a graph-wide, frequency-ranked map
@@ -101,7 +103,7 @@ Color precedence in `graphNodeAttributes` (highest first):
    field also lands here: it keeps its role color rather than being painted a
    palette slot it does not belong to (which could collide with a real value).
 
-### Value Color Unification (`colorHash.ts`)
+### Value Color Unification (`render/mapping/colorMapping.ts`)
 
 Node fills, on-node pie slices, and the ancillary wheel share **one** color
 source so a clicked node always matches its wheel slice.
@@ -136,9 +138,9 @@ Resolution order:
 no role stays the common blue. These hex codes mirror the original PHYLOViZ
 goeBURST conventions. Edges use `GRAPH_VIEWER_EDGE_COLOR = "#94a3b8"`;
 edge-tiebreak color constants for goeBURST link rules also live in
-`sigmaRenderingConstants.ts`.
+`sigmaRendering.constants.ts`.
 
-## Camera Fit (`graphViewerFit.ts`)
+## Camera Fit (`render/adapters/sigma/viewport/graphViewportFit.ts`)
 
 - **`fitSigmaToViewportResponse`** — after the first tier-0 load, fits the
   overview into view after `GRAPH_VIEWER_INITIAL_FIT_DELAY_MS = 50ms` with a
@@ -149,14 +151,26 @@ edge-tiebreak color constants for goeBURST link rules also live in
   expansion adds members in place and leaves the camera untouched so the
   surrounding graph stays visible (see [`EXPAND_COLLAPSE.md`](./EXPAND_COLLAPSE.md)).
 
-## Pie Programs (`sigmaRenderer.ts`)
+## Pie Mapping and Programs
+
+Pie mapping is split by responsibility:
+
+- `render/mapping/pieMapping.ts` is the public facade that builds node pie
+  attributes from metadata.
+- `render/mapping/pieCategoryCounts.ts` parses and combines categorical-count
+  metadata.
+- `render/mapping/pieColors.ts` detects active slice keys and resolves slice
+  colours.
+- `render/adapters/sigma/programs/sigmaPiePrograms.ts` adapts those slice keys
+  into Sigma node programs.
 
 After each sync, `onGraphSynced` triggers `syncPieProgramsFromGraph`, which
 detects the pie-slice keys present in the live graph and rebuilds the Sigma
-instance only when the program signature changed, then rebinds `GraphViewer`
-to the new instance. When pie charts are disabled the work is skipped.
+instance only when the program signature changed, then rebinds
+`GraphViewportController` to the new instance. When pie charts are disabled the
+work is skipped.
 
-## Region Selection (`sigmaBoxSelectController.ts`)
+## Region Selection (`render/adapters/sigma/interaction/sigmaBoxSelectController.ts`)
 
 Holding **Shift** and dragging draws a selection box over the canvas (or plain
 drag when region-select mode is toggled on via

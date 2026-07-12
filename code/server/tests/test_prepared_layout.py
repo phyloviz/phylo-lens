@@ -185,6 +185,15 @@ def test_prepare_layout_artifacts_uses_progressive_density_thresholds() -> None:
     assert 300 <= overview_representatives <= 800
 
 
+def test_representative_targets_progressively_increase_for_large_trees() -> None:
+    targets = representative_targets(12_000, 16)
+
+    assert len(targets) >= 5
+    assert targets[0] < targets[1] < targets[2] < targets[-1]
+    assert targets[-1] == 12_000
+    assert all(target <= 12_000 for target in targets)
+
+
 def test_prepare_layout_artifacts_materializes_singletons_at_each_lod() -> None:
     dataset = _varied_chain_dataset(120)
     artifacts = prepare_layout_artifacts(dataset)

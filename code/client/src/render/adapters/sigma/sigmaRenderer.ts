@@ -4,7 +4,7 @@ import Sigma from "sigma";
 import type { GraphClient } from "../../../api/graphClient";
 import type { GraphViewportResponse } from "../../../api/graphContracts";
 import type { PositionedGraph } from "../../../contracts/positioned";
-import { RENDERER_KIND_SIGMA } from "../../types";
+import { RENDERER_KIND_SIGMA } from "../../renderer.types";
 import type {
   GraphDisplayOptions,
   GraphRenderer,
@@ -12,8 +12,8 @@ import type {
   RenderNodeClickState,
   RendererKind,
   RenderViewportState,
-} from "../../types";
-import { detectPieSliceKeys, PIE_ATTRIBUTE_PREFIX } from "../../pieMapping";
+} from "../../renderer.types";
+import { detectPieSliceKeys, PIE_ATTRIBUTE_PREFIX } from "../../mapping/pieMapping";
 import {
   defaultCameraState,
   deriveGraphBounds,
@@ -22,11 +22,11 @@ import {
   type SigmaSemanticViewState,
   sigmaCameraToSemanticViewState,
 } from "./sigmaCamera";
-import sigmaBoxSelectController from "./sigmaBoxSelectController";
-import sigmaDragController from "./sigmaDragController";
-import createSigmaForceMotion from "./sigmaForceMotion";
-import { SIGMA_REGION_DIMMED_EDGE_COLOR, SIGMA_REGION_DIMMED_NODE_COLOR } from "./sigmaRenderingConstants";
-import type { SigmaViewportBounds } from "./graphViewerTypes";
+import sigmaBoxSelectController from "./interaction/sigmaBoxSelectController";
+import sigmaDragController from "./interaction/sigmaDragController";
+import applySigmaHighlighting from "./interaction/sigmaHighlighting";
+import createSigmaForceMotion from "./motion/sigmaForceMotion";
+import type { SigmaViewportBounds } from "./viewport/graphViewport.types";
 import {
   addPositionedEdges,
   addPositionedNode,
@@ -38,16 +38,16 @@ import {
   piechartProgramClasses,
   type SigmaPiechartOptions,
   type SigmaRendererOptions,
-} from "./sigmaNodeRendering";
+} from "./programs/sigmaNodePrograms";
 import {
   applyStableCameraBounds,
   centerCameraOnCoordinates,
   centerCameraOnGraphNode,
   readCameraState,
   restoreCameraState,
-} from "./sigmaRendererCameraState";
-import { GraphViewer } from "./GraphViewer";
-import type { ViewportSyncSettings } from "./graphViewerSync";
+} from "./camera/sigmaCameraState";
+import { GraphViewportController } from "./viewport/graphViewportController";
+import type { ViewportSyncSettings } from "./viewport/graphViewportSync";
 
 export {
   SIGMA_DEFAULT_CAMERA_ZOOM,
@@ -77,7 +77,7 @@ export class SigmaRenderer implements GraphRenderer {
   private readonly dragController: ReturnType<typeof sigmaDragController>;
   private readonly boxSelectController: ReturnType<typeof sigmaBoxSelectController>;
   private readonly forceMotion: ReturnType<typeof createSigmaForceMotion>;
-  private graphViewer: GraphViewer | null = null;
+  private graphViewer: GraphViewportController | null = null;
   private viewChangeHandler: ((state: RenderViewportState) => void) | null = null;
   private nodeClickHandler: ((state: RenderNodeClickState) => void) | null = null;
   private regionSelectModeEnabled = false;
@@ -270,7 +270,7 @@ export class SigmaRenderer implements GraphRenderer {
     this.forceMotion.stop();
     this.graph.clear();
     this.graphViewer?.unmount();
-    this.graphViewer = new GraphViewer({
+    this.graphViewer = new GraphViewportController({
       datasetId: options.datasetId,
       layoutVersion: options.layoutVersion,
       client: options.client,
@@ -312,43 +312,27 @@ export class SigmaRenderer implements GraphRenderer {
   // An empty set or null clears the highlight and repaints at full opacity.
   setHighlightedNodes(nodeIds: ReadonlySet<string> | null): void {
     this.highlightedNodeIds = nodeIds && nodeIds.size > 0 ? nodeIds : null;
-    this.applyHighlightReducers();
+    this.applyHighlighting();
     this.sigma?.scheduleRender?.();
   }
 
   // Install node/edge reducers that grey out anything outside the active
   // highlight set. Reinstalled after every Sigma rebuild via bindSigmaHandlers
   // so the highlight survives piechart-program registration.
-  private applyHighlightReducers(): void {
-    const sigma = this.sigma;
-    if (!sigma) {
-      return;
-    }
-
-    const highlighted = this.highlightedNodeIds;
-    if (!highlighted) {
-      sigma.setSetting("nodeReducer", null);
-      sigma.setSetting("edgeReducer", null);
-      return;
-    }
-
-    sigma.setSetting("nodeReducer", (nodeId, data) =>
-      highlighted.has(nodeId) ? data : { ...data, color: SIGMA_REGION_DIMMED_NODE_COLOR, label: "" },
-    );
-    sigma.setSetting("edgeReducer", (edgeId, data) => {
-      const source = this.graph?.source(edgeId);
-      const target = this.graph?.target(edgeId);
-      const withinRegion =
-        source !== undefined && target !== undefined && highlighted.has(source) && highlighted.has(target);
-      return withinRegion ? data : { ...data, color: SIGMA_REGION_DIMMED_EDGE_COLOR };
+  private applyHighlighting(): void {
+    applySigmaHighlighting({
+      graph: this.graph,
+      sigma: this.sigma,
+      highlightedNodeIds: this.highlightedNodeIds,
     });
   }
 
   // Register piechart programs for the live LoD graph and flip pie nodes to the
   // piechart type once the program exists. Invoked after each viewport sync via
-  // GraphViewer's onGraphSynced hook, before Sigma refreshes. Mirrors the
-  // legacy ensureSigmaPiePrograms flow but reads slice keys from the graphology
-  // graph (sync writes attributes directly rather than via addPositionedNode).
+  // GraphViewportController's onGraphSynced hook, before Sigma refreshes.
+  // Mirrors the legacy ensureSigmaPiePrograms flow but reads slice keys from
+  // the graphology graph (sync writes attributes directly rather than via
+  // addPositionedNode).
   private syncPieProgramsFromGraph(): void {
     if (!this.graph || !this.sigma || !this.containerElement) {
       return;
@@ -479,7 +463,7 @@ export class SigmaRenderer implements GraphRenderer {
     this.bindNodeClickHandler();
     this.dragController.bind();
     this.boxSelectController.bind();
-    this.applyHighlightReducers();
+    this.applyHighlighting();
   }
 
   private unbindSigmaHandlers(): void {
