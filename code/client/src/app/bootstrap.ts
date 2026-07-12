@@ -1,8 +1,8 @@
-import { createGraphWorkbench } from "./workbench/graphWorkbench";
 import { createGraphClient } from "../api/graphClient";
-import uiShell, { type UiShell } from "./uiShell";
 import rendererFactory from "../render/rendererFactory";
 import { RENDERER_KIND_SIGMA } from "../render/types";
+import { createGraphWorkbench } from "./workbench/graphWorkbench";
+import uiShell, { type UiShell } from "./uiShell";
 
 export const DEFAULT_SERVER_BASE_URL = "http://localhost:8000";
 
@@ -43,107 +43,47 @@ export const ERR_MISSING_RENDER_FORM = "Missing render form element.";
 export const ERR_MISSING_NEWICK_INPUT = "Missing Newick input element.";
 export const ERR_MISSING_STATUS = "Missing status element.";
 
-// Bootstrap the client shell using DOM ids and the modular workbench pipeline.
-export default function bootstrapClientShell(
-  baseUrl = DEFAULT_SERVER_BASE_URL,
-): UiShell {
-  const form = document.getElementById(
-    ID_RENDER_FORM,
-  ) as HTMLFormElement | null;
-  const newickInput = document.getElementById(
-    ID_NEWICK_INPUT,
-  ) as HTMLTextAreaElement | null;
-  const newickFileInput = document.getElementById(
-    ID_NEWICK_FILE_INPUT,
-  ) as HTMLInputElement | null;
-  const sourceFormatSelect = document.getElementById(
-    ID_SOURCE_FORMAT,
-  ) as HTMLSelectElement | null;
-  const typingFileInput = document.getElementById(
-    ID_TYPING_FILE_INPUT,
-  ) as HTMLInputElement | null;
-  const datasetNameInput = document.getElementById(
-    ID_DATASET_NAME_INPUT,
-  ) as HTMLInputElement | null;
-  const ancillaryInput = document.getElementById(
-    ID_ANCILLARY_INPUT,
-  ) as HTMLTextAreaElement | null;
-  const ancillaryFileInput = document.getElementById(
-    ID_ANCILLARY_FILE_INPUT,
-  ) as HTMLInputElement | null;
-  const ancillaryJoinColumnInput = document.getElementById(
-    ID_ANCILLARY_JOIN_COLUMN_INPUT,
-  ) as HTMLInputElement | null;
-  const ancillaryFormatSelect = document.getElementById(
-    ID_ANCILLARY_FORMAT,
-  ) as HTMLSelectElement | null;
-  const status = document.getElementById(ID_STATUS);
-  const ancillaryWheelContainer = document.getElementById(ID_ANCILLARY_WHEEL);
-  const ancillarySelectedNodeWheelContainer = document.getElementById(
-    ID_ANCILLARY_SELECTED_NODE_WHEEL,
-  );
-  const ancillaryModeSelect = document.getElementById(
-    ID_ANCILLARY_MODE,
-  ) as HTMLSelectElement | null;
-  const ancillaryNodeSelect = document.getElementById(
-    ID_ANCILLARY_NODE,
-  ) as HTMLSelectElement | null;
-  const metadataPieFieldSelect = document.getElementById(
-    ID_METADATA_PIE_FIELD,
-  ) as HTMLSelectElement | null;
-  const metadataSizeFieldInput = document.getElementById(
-    ID_METADATA_SIZE_FIELD,
-  ) as HTMLInputElement | null;
-  const metadataSizeScaleSelect = document.getElementById(
-    ID_METADATA_SIZE_SCALE,
-  ) as HTMLSelectElement | null;
-  const paletteControlsContainer = document.getElementById(ID_PALETTE_CONTROLS);
-  const paletteLoadButton = document.getElementById(
-    ID_PALETTE_LOAD_BUTTON,
-  ) as HTMLButtonElement | null;
-  const paletteLoadInput = document.getElementById(
-    ID_PALETTE_LOAD_INPUT,
-  ) as HTMLInputElement | null;
-  const paletteSaveButton = document.getElementById(
-    ID_PALETTE_SAVE_BUTTON,
-  ) as HTMLButtonElement | null;
-  const displayOptionsSelect = document.getElementById(
-    ID_DISPLAY_OPTIONS,
-  ) as HTMLSelectElement | null;
-  const lodPlayButton = document.getElementById(
-    ID_LOD_PLAY_BUTTON,
-  ) as HTMLButtonElement | null;
-  const lodPauseButton = document.getElementById(
-    ID_LOD_PAUSE_BUTTON,
-  ) as HTMLButtonElement | null;
-  const maxNodesInput = document.getElementById(
-    ID_MAX_NODES_INPUT,
-  ) as HTMLInputElement | null;
-  const searchInput = document.getElementById(
-    ID_SEARCH_INPUT,
-  ) as HTMLInputElement | null;
-  const searchButton = document.getElementById(
-    ID_SEARCH_BUTTON,
-  ) as HTMLButtonElement | null;
-  const searchResults = document.getElementById(ID_SEARCH_RESULTS);
-  const regionSelectToggle = document.getElementById(
-    ID_REGION_SELECT_TOGGLE,
-  ) as HTMLButtonElement | null;
-  const regionSelectionPanel = document.getElementById(
-    ID_REGION_SELECTION_PANEL,
-  );
+export default function bootstrapClientShell(baseUrl = DEFAULT_SERVER_BASE_URL): UiShell {
+  const elements = {
+    form: requireElement<HTMLFormElement>(ID_RENDER_FORM, ERR_MISSING_RENDER_FORM),
+    newickInput: requireElement<HTMLTextAreaElement>(ID_NEWICK_INPUT, ERR_MISSING_NEWICK_INPUT),
+    status: requireElement(ID_STATUS, ERR_MISSING_STATUS),
 
-  if (!form) {
-    throw new Error(ERR_MISSING_RENDER_FORM);
-  }
+    newickFileInput: getInput(ID_NEWICK_FILE_INPUT),
+    sourceFormatSelect: getSelect(ID_SOURCE_FORMAT),
+    typingFileInput: getInput(ID_TYPING_FILE_INPUT),
+    datasetNameInput: getInput(ID_DATASET_NAME_INPUT),
 
-  if (!newickInput) {
-    throw new Error(ERR_MISSING_NEWICK_INPUT);
-  }
+    ancillaryInput: getTextArea(ID_ANCILLARY_INPUT),
+    ancillaryFileInput: getInput(ID_ANCILLARY_FILE_INPUT),
+    ancillaryJoinColumnInput: getInput(ID_ANCILLARY_JOIN_COLUMN_INPUT),
+    ancillaryFormatSelect: getSelect(ID_ANCILLARY_FORMAT),
+    ancillaryWheelContainer: getOptionalElement(ID_ANCILLARY_WHEEL),
+    ancillarySelectedNodeWheelContainer: getOptionalElement(ID_ANCILLARY_SELECTED_NODE_WHEEL),
+    ancillaryModeSelect: getSelect(ID_ANCILLARY_MODE),
+    ancillaryNodeSelect: getSelect(ID_ANCILLARY_NODE),
 
-  if (!status) {
-    throw new Error(ERR_MISSING_STATUS);
-  }
+    metadataPieFieldSelect: getSelect(ID_METADATA_PIE_FIELD),
+    metadataSizeFieldInput: getInput(ID_METADATA_SIZE_FIELD),
+    metadataSizeScaleSelect: getSelect(ID_METADATA_SIZE_SCALE),
+
+    paletteControlsContainer: getOptionalElement(ID_PALETTE_CONTROLS),
+    paletteLoadButton: getButton(ID_PALETTE_LOAD_BUTTON),
+    paletteLoadInput: getInput(ID_PALETTE_LOAD_INPUT),
+    paletteSaveButton: getButton(ID_PALETTE_SAVE_BUTTON),
+
+    displayOptionsSelect: getSelect(ID_DISPLAY_OPTIONS),
+    lodPlayButton: getButton(ID_LOD_PLAY_BUTTON),
+    lodPauseButton: getButton(ID_LOD_PAUSE_BUTTON),
+    maxNodesInput: getInput(ID_MAX_NODES_INPUT),
+
+    searchInput: getInput(ID_SEARCH_INPUT),
+    searchButton: getButton(ID_SEARCH_BUTTON),
+    searchResults: getOptionalElement(ID_SEARCH_RESULTS),
+
+    regionSelectToggle: getButton(ID_REGION_SELECT_TOGGLE),
+    regionSelectionPanel: getOptionalElement(ID_REGION_SELECTION_PANEL),
+  };
 
   const graphClient = createGraphClient({ baseUrl });
   const workbench = createGraphWorkbench({
@@ -155,42 +95,40 @@ export default function bootstrapClientShell(
 
   const shell = uiShell({
     workbench,
-    elements: {
-      form,
-      newickInput,
-      newickFileInput: newickFileInput ?? undefined,
-      sourceFormatSelect: sourceFormatSelect ?? undefined,
-      typingFileInput: typingFileInput ?? undefined,
-      datasetNameInput: datasetNameInput ?? undefined,
-      ancillaryInput: ancillaryInput ?? undefined,
-      ancillaryFileInput: ancillaryFileInput ?? undefined,
-      ancillaryJoinColumnInput: ancillaryJoinColumnInput ?? undefined,
-      ancillaryFormatSelect: ancillaryFormatSelect ?? undefined,
-      status,
-      ancillaryWheelContainer: ancillaryWheelContainer ?? undefined,
-      ancillarySelectedNodeWheelContainer:
-        ancillarySelectedNodeWheelContainer ?? undefined,
-      ancillaryModeSelect: ancillaryModeSelect ?? undefined,
-      ancillaryNodeSelect: ancillaryNodeSelect ?? undefined,
-      metadataPieFieldSelect: metadataPieFieldSelect ?? undefined,
-      metadataSizeFieldInput: metadataSizeFieldInput ?? undefined,
-      metadataSizeScaleSelect: metadataSizeScaleSelect ?? undefined,
-      paletteControlsContainer: paletteControlsContainer ?? undefined,
-      paletteLoadButton: paletteLoadButton ?? undefined,
-      paletteLoadInput: paletteLoadInput ?? undefined,
-      paletteSaveButton: paletteSaveButton ?? undefined,
-      displayOptionsSelect: displayOptionsSelect ?? undefined,
-      lodPlayButton: lodPlayButton ?? undefined,
-      lodPauseButton: lodPauseButton ?? undefined,
-      maxNodesInput: maxNodesInput ?? undefined,
-      searchInput: searchInput ?? undefined,
-      searchButton: searchButton ?? undefined,
-      searchResults: searchResults ?? undefined,
-      regionSelectToggle: regionSelectToggle ?? undefined,
-      regionSelectionPanel: regionSelectionPanel ?? undefined,
-    },
+    elements,
   });
 
   shell.mount();
+
   return shell;
+}
+
+function getButton(id: string): HTMLButtonElement | undefined {
+  return getOptionalElement<HTMLButtonElement>(id);
+}
+
+function getInput(id: string): HTMLInputElement | undefined {
+  return getOptionalElement<HTMLInputElement>(id);
+}
+
+function getSelect(id: string): HTMLSelectElement | undefined {
+  return getOptionalElement<HTMLSelectElement>(id);
+}
+
+function getOptionalElement<T extends HTMLElement = HTMLElement>(id: string): T | undefined {
+  return (document.getElementById(id) as T | null) ?? undefined;
+}
+
+function getTextArea(id: string): HTMLTextAreaElement | undefined {
+  return getOptionalElement<HTMLTextAreaElement>(id);
+}
+
+function requireElement<T extends HTMLElement = HTMLElement>(id: string, errorMessage: string): T {
+  const element = document.getElementById(id);
+
+  if (!element) {
+    throw new Error(errorMessage);
+  }
+
+  return element as T;
 }

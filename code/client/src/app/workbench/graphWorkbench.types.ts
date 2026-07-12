@@ -1,6 +1,4 @@
-import type {
-  GraphClient,
-} from "../../api/graphClient";
+import type { GraphClient } from "../../api/graphClient";
 import type {
   GraphMetadataField,
   GraphMetadataValue,
@@ -19,11 +17,12 @@ import type {
   GraphDisplayOptions,
   RenderNodeClickState,
   RenderContext,
-  RenderViewportState,
   RendererFactory,
   RendererKind,
 } from "../../render/types";
 import type { SigmaViewportBounds } from "../../render/adapters/sigma/graphViewerTypes";
+
+// Public workbench contracts.
 
 // The isolated subgraph plus aggregated metadata for a completed region (box)
 // selection. Node ids feed the canvas highlight; aggregated metadata feeds the
@@ -93,7 +92,6 @@ export interface GraphWorkbench {
   searchNodes: (query: {
     query: string;
     limit?: number;
-    includeMetadataKeys?: string[];
   }) => Promise<SearchDatasetResponse>;
 
   focusNode: (
@@ -121,6 +119,8 @@ export interface GraphWorkbench {
   dispose: () => void;
 }
 
+// Internal workbench state.
+
 export interface PreparedDatasetSession {
   datasetId: string;
   layoutVersion?: string;
@@ -147,27 +147,17 @@ export interface PreparedDatasetSession {
   };
 }
 
-export type RenderMode = "lod";
-
 export interface GraphWorkbenchState {
   currentSliceDataset: CanonicalDataset | null;
-  currentPositionedSliceGraph: PositionedGraph | null;
-  currentSliceGraph: PositionedGraph | null;
   currentGraph: PositionedGraph | null;
   metadataIndex: MetadataIndexData | null;
   metadataIndexSignature: string | null;
   activeFilters: MetadataFilterState;
   preparedSession: PreparedDatasetSession | null;
   pendingViewRefreshId: number | null;
-  lastRequestedViewKey: string | null;
-  sliceRequestSequence: number;
-  currentViewState: RenderViewportState | null;
-  deferredViewState: RenderViewportState | null;
   lodRefreshPaused: boolean;
   graphRenderedHandler: GraphRenderedHandler | null;
   nodeClickedHandler: GraphNodeClickedHandler | null;
-  suppressViewChangesUntil: number;
-  renderMode: RenderMode | null;
   // Node currently focused via search. Forwarded to the LoD sync so it is
   // highlighted (red) on every viewport re-fetch, including the slice pulled in
   // by focusing a node that was outside the current view.

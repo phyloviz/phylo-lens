@@ -1,49 +1,35 @@
-import {
-  EMPTY_METADATA_FILTER_STATE,
-} from "../../ancillary/filterEngine";
-import type { GraphWorkbenchState } from "./workbenchTypes";
+import { EMPTY_METADATA_FILTER_STATE } from "../../ancillary/filterEngine";
+import { ERR_NO_GRAPH_RENDERED } from "./graphWorkbench.errors";
+import type {
+  GraphWorkbenchState,
+  PreparedDatasetSession,
+} from "./graphWorkbench.types";
 
-export function createInitialGraphWorkbenchState(): GraphWorkbenchState {
+export function createInitialWorkbenchState(): GraphWorkbenchState {
   return {
     currentSliceDataset: null,
-    currentPositionedSliceGraph: null,
-    currentSliceGraph: null,
     currentGraph: null,
     metadataIndex: null,
     metadataIndexSignature: null,
     activeFilters: EMPTY_METADATA_FILTER_STATE,
     preparedSession: null,
     pendingViewRefreshId: null,
-    lastRequestedViewKey: null,
-    sliceRequestSequence: 0,
-    currentViewState: null,
-    deferredViewState: null,
     lodRefreshPaused: false,
     graphRenderedHandler: null,
     nodeClickedHandler: null,
-    suppressViewChangesUntil: 0,
-    renderMode: null,
     focusedNodeId: null,
   };
 }
 
-export function resetWorkbenchForNewDataset(
-  state: GraphWorkbenchState,
-): void {
+export function resetWorkbenchState(state: GraphWorkbenchState): void {
   state.currentSliceDataset = null;
-  state.currentPositionedSliceGraph = null;
-  state.currentSliceGraph = null;
   state.currentGraph = null;
   state.metadataIndex = null;
   state.metadataIndexSignature = null;
   state.activeFilters = EMPTY_METADATA_FILTER_STATE;
   state.preparedSession = null;
   state.pendingViewRefreshId = null;
-  state.lastRequestedViewKey = null;
-  state.currentViewState = null;
-  state.deferredViewState = null;
   state.lodRefreshPaused = false;
-  state.renderMode = null;
   state.focusedNodeId = null;
 }
 
@@ -54,4 +40,15 @@ export function clearPendingViewRefresh(state: GraphWorkbenchState): void {
 
   window.clearTimeout(state.pendingViewRefreshId);
   state.pendingViewRefreshId = null;
+}
+
+export function requirePreparedSession(
+  state: GraphWorkbenchState,
+  errorMessage = ERR_NO_GRAPH_RENDERED,
+): PreparedDatasetSession {
+  if (!state.preparedSession) {
+    throw new Error(errorMessage);
+  }
+
+  return state.preparedSession;
 }
