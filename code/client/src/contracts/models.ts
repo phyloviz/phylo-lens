@@ -6,15 +6,10 @@ export const METADATA_TYPE_NUMBER = "number";
 export const METADATA_TYPE_BOOLEAN = "boolean";
 export const METADATA_TYPE_NULL = "null";
 
-export type SourceFormat =
-  | typeof SOURCE_FORMAT_NEWICK
-  | typeof SOURCE_FORMAT_TYPING_DATA;
+export type SourceFormat = typeof SOURCE_FORMAT_NEWICK | typeof SOURCE_FORMAT_TYPING_DATA;
 
 export type MetadataType =
-  | typeof METADATA_TYPE_STRING
-  | typeof METADATA_TYPE_NUMBER
-  | typeof METADATA_TYPE_BOOLEAN
-  | typeof METADATA_TYPE_NULL;
+  typeof METADATA_TYPE_STRING | typeof METADATA_TYPE_NUMBER | typeof METADATA_TYPE_BOOLEAN | typeof METADATA_TYPE_NULL;
 
 export interface MetadataField {
   key: string;
@@ -50,14 +45,8 @@ export interface CanonicalDataset {
   nodes: CanonicalNode[];
   edges: CanonicalEdge[];
   metadata_schema: MetadataField[];
-  metadata_by_node_id: Record<
-    string,
-    Record<string, string | number | boolean | null>
-  >;
-  ancillary_rows_by_node_id?: Record<
-    string,
-    Array<Record<string, string | number | boolean | null>>
-  >;
+  metadata_by_node_id: Record<string, Record<string, string | number | boolean | null>>;
+  ancillary_rows_by_node_id?: Record<string, Array<Record<string, string | number | boolean | null>>>;
   source: DatasetSource;
 }
 

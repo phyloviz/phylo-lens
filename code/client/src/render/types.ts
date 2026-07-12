@@ -7,9 +7,7 @@ import type { SigmaViewportBounds } from "./adapters/sigma/graphViewerTypes";
 export const RENDERER_KIND_SIGMA = "sigma";
 export const RENDERER_KIND_MOCK = "mock";
 
-export type RendererKind =
-  | typeof RENDERER_KIND_SIGMA
-  | typeof RENDERER_KIND_MOCK;
+export type RendererKind = typeof RENDERER_KIND_SIGMA | typeof RENDERER_KIND_MOCK;
 
 export interface RenderContext {
   containerId: string;
@@ -41,13 +39,9 @@ export interface GraphRenderer {
   unmount: () => void;
   render: (graph: PositionedGraph) => void;
 
-  setViewChangeHandler?: (
-    handler: ((state: RenderViewportState) => void) | null,
-  ) => void;
+  setViewChangeHandler?: (handler: ((state: RenderViewportState) => void) | null) => void;
 
-  setNodeClickHandler?: (
-    handler: ((state: RenderNodeClickState) => void) | null,
-  ) => void;
+  setNodeClickHandler?: (handler: ((state: RenderNodeClickState) => void) | null) => void;
 
   // Center the camera on a node already present in the rendered graph. Returns
   // true when it centered, false when the node is not in the current slice.
@@ -85,9 +79,7 @@ export interface GraphRenderer {
 
   // Register a handler invoked with graph-space bounds when the user completes
   // a box-select drag.
-  setRegionSelectedHandler?: (
-    handler: ((bounds: SigmaViewportBounds) => void) | null,
-  ) => void;
+  setRegionSelectedHandler?: (handler: ((bounds: SigmaViewportBounds) => void) | null) => void;
 
   // Highlight a set of node ids on the canvas by dimming everything outside it.
   // Passing an empty set (or null) clears the highlight.

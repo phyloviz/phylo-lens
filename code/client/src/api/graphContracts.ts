@@ -2,12 +2,7 @@ import type { SourceFormat } from "../contracts/models";
 
 export type GraphPrepareJobStatus = "pending" | "ready" | "failed";
 
-export type GraphLayoutStatus =
-  | "pending"
-  | "refining"
-  | "ready"
-  | "degraded"
-  | "failed";
+export type GraphLayoutStatus = "pending" | "refining" | "ready" | "degraded" | "failed";
 
 export type GraphMetadataValue = string | number | boolean | null;
 

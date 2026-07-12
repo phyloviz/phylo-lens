@@ -3,11 +3,7 @@ export const LAYOUT_RADIAL = "radial";
 export const LAYOUT_DENDROGRAM = "dendrogram";
 export const LAYOUT_SERVER = "server";
 
-export type LayoutMode =
-  | typeof LAYOUT_FORCE
-  | typeof LAYOUT_RADIAL
-  | typeof LAYOUT_DENDROGRAM
-  | typeof LAYOUT_SERVER;
+export type LayoutMode = typeof LAYOUT_FORCE | typeof LAYOUT_RADIAL | typeof LAYOUT_DENDROGRAM | typeof LAYOUT_SERVER;
 
 export interface PositionedNode {
   id: string;

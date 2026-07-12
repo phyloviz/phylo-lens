@@ -1,14 +1,8 @@
-import type {
-  EdgeLabelDrawingFunction,
-  NodeLabelDrawingFunction,
-} from "sigma/rendering";
+import type { EdgeLabelDrawingFunction, NodeLabelDrawingFunction } from "sigma/rendering";
 import { isUnionNode } from "../../unionNodes";
 import { SIGMA_DEFAULT_LABEL_COLOR } from "./sigmaRenderingConstants";
 
-export function deriveNodeLabel(
-  nodeId: string,
-  attributes: Record<string, unknown> | undefined,
-): string {
+export function deriveNodeLabel(nodeId: string, attributes: Record<string, unknown> | undefined): string {
   if (isUnionNode(nodeId, attributes)) {
     return "";
   }
@@ -42,11 +36,7 @@ export function formatDistanceLabel(value: unknown): string {
   return Number.isInteger(value) ? String(value) : value.toFixed(3);
 }
 
-export const drawCenteredNodeLabel: NodeLabelDrawingFunction = (
-  context,
-  data,
-  settings,
-) => {
+export const drawCenteredNodeLabel: NodeLabelDrawingFunction = (context, data, settings) => {
   if (!data.label) {
     return;
   }
@@ -94,11 +84,7 @@ export const drawDistanceEdgeLabel: EdgeLabelDrawingFunction = (
   context.restore();
 };
 
-function fitLabelToNode(
-  context: CanvasRenderingContext2D,
-  label: string,
-  maxWidth: number,
-): string {
+function fitLabelToNode(context: CanvasRenderingContext2D, label: string, maxWidth: number): string {
   if (maxWidth <= 4) {
     return "";
   }

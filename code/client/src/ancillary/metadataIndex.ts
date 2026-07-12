@@ -1,7 +1,4 @@
-import {
-  METADATA_TYPE_NUMBER,
-  type CanonicalDataset,
-} from "../contracts/models";
+import { METADATA_TYPE_NUMBER, type CanonicalDataset } from "../contracts/models";
 import type { NodeMetadata, NumericStats } from "./metadataTypes";
 
 export const EMPTY_METADATA_RECORD: NodeMetadata = {};
@@ -14,9 +11,7 @@ export interface MetadataIndexData {
   numericStats: Map<string, NumericStats>;
 }
 
-export function buildMetadataIndex(
-  dataset: CanonicalDataset,
-): MetadataIndexData {
+export function buildMetadataIndex(dataset: CanonicalDataset): MetadataIndexData {
   const byNodeId = buildMetadataByNodeId(dataset);
   const categoricalInverted = new Map<string, Map<string, Set<string>>>();
   const numericStats = new Map<string, NumericStats>();
@@ -27,10 +22,7 @@ export function buildMetadataIndex(
       continue;
     }
 
-    categoricalInverted.set(
-      field.key,
-      buildCategoricalInvertedIndex(field.key, byNodeId),
-    );
+    categoricalInverted.set(field.key, buildCategoricalInvertedIndex(field.key, byNodeId));
   }
 
   for (const fieldKey of GENERATED_NUMERIC_METADATA_KEYS) {
@@ -46,10 +38,7 @@ export function buildMetadataIndex(
   };
 }
 
-export function getNodeMetadata(
-  index: MetadataIndexData,
-  nodeId: string,
-): NodeMetadata {
+export function getNodeMetadata(index: MetadataIndexData, nodeId: string): NodeMetadata {
   return index.byNodeId.get(nodeId) ?? EMPTY_METADATA_RECORD;
 }
 
@@ -81,15 +70,8 @@ export function filterNodeIdsByFieldValues(
   return matchingNodeIds;
 }
 
-function buildMetadataByNodeId(
-  dataset: CanonicalDataset,
-): Map<string, NodeMetadata> {
-  return new Map(
-    dataset.nodes.map((node) => [
-      node.id,
-      dataset.metadata_by_node_id[node.id] ?? EMPTY_METADATA_RECORD,
-    ]),
-  );
+function buildMetadataByNodeId(dataset: CanonicalDataset): Map<string, NodeMetadata> {
+  return new Map(dataset.nodes.map((node) => [node.id, dataset.metadata_by_node_id[node.id] ?? EMPTY_METADATA_RECORD]));
 }
 
 function buildCategoricalInvertedIndex(
@@ -127,10 +109,7 @@ function addNumericStats(
   }
 }
 
-function computeNumericStats(
-  fieldKey: string,
-  byNodeId: Map<string, NodeMetadata>,
-): NumericStats | null {
+function computeNumericStats(fieldKey: string, byNodeId: Map<string, NodeMetadata>): NumericStats | null {
   let min = Number.POSITIVE_INFINITY;
   let max = Number.NEGATIVE_INFINITY;
 

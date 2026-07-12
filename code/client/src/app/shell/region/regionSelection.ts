@@ -37,11 +37,7 @@ export default function (options: RegionSelectionOptions) {
       reset();
     }
 
-    options.setStatus(
-      enabled
-        ? "Select region: drag a box on the canvas to isolate an area"
-        : options.readyStatus,
-    );
+    options.setStatus(enabled ? "Select region: drag a box on the canvas to isolate an area" : options.readyStatus);
   }
 
   function reset(): void {
@@ -62,11 +58,7 @@ export default function (options: RegionSelectionOptions) {
         aggregatedMetadata: result.aggregatedMetadata,
         wheelStats: options.buildWheelStats(new Set(result.nodeIds)),
       });
-      options.setStatus(
-        `Region selected: ${result.nodeCount} ${
-          result.nodeCount === 1 ? "node" : "nodes"
-        }`,
-      );
+      options.setStatus(`Region selected: ${result.nodeCount} ${result.nodeCount === 1 ? "node" : "nodes"}`);
     } catch (error) {
       const message = error instanceof Error ? error.message : "unknown error";
       options.setFailureStatus(message);

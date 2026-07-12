@@ -1,11 +1,7 @@
 import type { GraphMetadataValue } from "../../../api/graphContracts";
-import {
-  type AncillaryWheelStats,
-  renderAncillaryWheel,
-} from "../../../components/ancillaryWheel";
+import { type AncillaryWheelStats, renderAncillaryWheel } from "../../../components/ancillaryWheel";
 
-export const REGION_PANEL_EMPTY_MESSAGE =
-  "Shift+drag (or enable Select region) on the canvas to isolate an area.";
+export const REGION_PANEL_EMPTY_MESSAGE = "Shift+drag (or enable Select region) on the canvas to isolate an area.";
 
 export interface RegionPanelData {
   nodeCount: number;
@@ -18,14 +14,9 @@ export interface RegionPanelData {
 // selected set's ancillary distribution, and a table of the server-aggregated
 // metadata (mean for numeric fields, mode otherwise). Passing null resets the
 // panel to its empty prompt.
-export function renderRegionPanel(
-  container: HTMLElement,
-  data: RegionPanelData | null,
-): void {
+export function renderRegionPanel(container: HTMLElement, data: RegionPanelData | null): void {
   if (!data) {
-    container.innerHTML = `<p class="ancillary-wheel-empty">${escapeHtml(
-      REGION_PANEL_EMPTY_MESSAGE,
-    )}</p>`;
+    container.innerHTML = `<p class="ancillary-wheel-empty">${escapeHtml(REGION_PANEL_EMPTY_MESSAGE)}</p>`;
     return;
   }
 
@@ -37,11 +28,7 @@ export function renderRegionPanel(
     : `${data.nodeCount} ${nodeLabel} selected`;
 
   const wheelHost = document.createElement("div");
-  renderAncillaryWheel(
-    wheelHost,
-    data.wheelStats,
-    "No ancillary pie data for the selected region.",
-  );
+  renderAncillaryWheel(wheelHost, data.wheelStats, "No ancillary pie data for the selected region.");
 
   container.innerHTML = "";
   container.appendChild(summary);
@@ -49,12 +36,8 @@ export function renderRegionPanel(
   container.appendChild(buildAggregateTable(data.aggregatedMetadata));
 }
 
-function buildAggregateTable(
-  aggregatedMetadata: Record<string, GraphMetadataValue>,
-): HTMLElement {
-  const entries = Object.entries(aggregatedMetadata).sort(([left], [right]) =>
-    left.localeCompare(right),
-  );
+function buildAggregateTable(aggregatedMetadata: Record<string, GraphMetadataValue>): HTMLElement {
+  const entries = Object.entries(aggregatedMetadata).sort(([left], [right]) => left.localeCompare(right));
 
   if (entries.length === 0) {
     const empty = document.createElement("p");

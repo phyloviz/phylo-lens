@@ -16,10 +16,7 @@ type SigmaNodeEventPayload = {
 
 type SigmaEventTarget = {
   on?: (event: string, handler: (payload: SigmaNodeEventPayload) => void) => void;
-  off?: (
-    event: string,
-    handler: (payload: SigmaNodeEventPayload) => void,
-  ) => void;
+  off?: (event: string, handler: (payload: SigmaNodeEventPayload) => void) => void;
 };
 
 type SigmaMouseCaptor = {
@@ -77,9 +74,7 @@ export default function (options: SigmaDragControllerOptions) {
 
   function bind(): void {
     const sigma = options.getSigma() as SigmaEventTarget | null;
-    const mouseCaptor = options.getSigma()?.getMouseCaptor?.() as
-      | SigmaMouseCaptor
-      | undefined;
+    const mouseCaptor = options.getSigma()?.getMouseCaptor?.() as SigmaMouseCaptor | undefined;
 
     sigma?.off?.("downNode", boundNodeDragStarted);
     sigma?.on?.("downNode", boundNodeDragStarted);
@@ -91,9 +86,7 @@ export default function (options: SigmaDragControllerOptions) {
 
   function unbind(): void {
     const sigma = options.getSigma() as SigmaEventTarget | null;
-    const mouseCaptor = options.getSigma()?.getMouseCaptor?.() as
-      | SigmaMouseCaptor
-      | undefined;
+    const mouseCaptor = options.getSigma()?.getMouseCaptor?.() as SigmaMouseCaptor | undefined;
 
     sigma?.off?.("downNode", boundNodeDragStarted);
     mouseCaptor?.off?.("mousemovebody", boundNodeDragged);
@@ -122,9 +115,7 @@ export default function (options: SigmaDragControllerOptions) {
     draggedNodeWasFixed = graph.getNodeAttribute(nodeId, "fixed") === true;
     graph.setNodeAttribute(nodeId, "fixed", true);
     options.suppressViewChangesFor(250);
-    previousCameraPanningEnabled = sigma.getSetting?.(
-      "enableCameraPanning",
-    ) as boolean | null;
+    previousCameraPanningEnabled = sigma.getSetting?.("enableCameraPanning") as boolean | null;
     sigma.setSetting?.("enableCameraPanning", false);
     payload.preventSigmaDefault?.();
     payload.event?.preventSigmaDefault?.();
@@ -172,11 +163,7 @@ export default function (options: SigmaDragControllerOptions) {
     }
 
     if (graph?.hasNode(draggedNodeId)) {
-      graph.setNodeAttribute(
-        draggedNodeId,
-        "fixed",
-        draggedNodeWasFixed === true,
-      );
+      graph.setNodeAttribute(draggedNodeId, "fixed", draggedNodeWasFixed === true);
     }
 
     reset();
@@ -299,11 +286,7 @@ export default function (options: SigmaDragControllerOptions) {
         x: motionNode.home.x + motionNode.targetOffset.x,
         y: motionNode.home.y + motionNode.targetOffset.y,
       };
-      const nextVelocity = computeSpringVelocity(
-        currentPosition,
-        targetPosition,
-        motionNode.velocity,
-      );
+      const nextVelocity = computeSpringVelocity(currentPosition, targetPosition, motionNode.velocity);
       const nextPosition = {
         x: currentPosition.x + nextVelocity.x,
         y: currentPosition.y + nextVelocity.y,
@@ -366,26 +349,14 @@ function computeRepulsion(distance: number): number {
   return REPULSION_STRENGTH_PX * closeness * closeness;
 }
 
-function computeSpringVelocity(
-  currentPosition: Point,
-  targetPosition: Point,
-  currentVelocity: Point,
-): Point {
+function computeSpringVelocity(currentPosition: Point, targetPosition: Point, currentVelocity: Point): Point {
   return {
-    x:
-      (currentVelocity.x + (targetPosition.x - currentPosition.x) * SPRING_STRENGTH) *
-      VELOCITY_DAMPING,
-    y:
-      (currentVelocity.y + (targetPosition.y - currentPosition.y) * SPRING_STRENGTH) *
-      VELOCITY_DAMPING,
+    x: (currentVelocity.x + (targetPosition.x - currentPosition.x) * SPRING_STRENGTH) * VELOCITY_DAMPING,
+    y: (currentVelocity.y + (targetPosition.y - currentPosition.y) * SPRING_STRENGTH) * VELOCITY_DAMPING,
   };
 }
 
-function directionAwayFromDrag(
-  nodeId: string,
-  nodePosition: Point,
-  dragPoint: Point,
-): Point {
+function directionAwayFromDrag(nodeId: string, nodePosition: Point, dragPoint: Point): Point {
   const delta = {
     x: nodePosition.x - dragPoint.x,
     y: nodePosition.y - dragPoint.y,

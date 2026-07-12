@@ -25,9 +25,7 @@ import type {
   GraphViewportResponse,
 } from "./graphContracts";
 
-export function isGraphPrepareResponse(
-  value: unknown,
-): value is GraphPrepareResponse {
+export function isGraphPrepareResponse(value: unknown): value is GraphPrepareResponse {
   return (
     isRecord(value) &&
     isString(value.dataset_id) &&
@@ -43,16 +41,11 @@ export function isGraphPrepareResponse(
 
 export function isGraphPrepareJob(value: unknown): value is GraphPrepareJob {
   return (
-    isRecord(value) &&
-    isString(value.job_id) &&
-    isGraphPrepareJobStatus(value.status) &&
-    isString(value.dataset_id)
+    isRecord(value) && isString(value.job_id) && isGraphPrepareJobStatus(value.status) && isString(value.dataset_id)
   );
 }
 
-export function isGraphPrepareStatus(
-  value: unknown,
-): value is GraphPrepareStatus {
+export function isGraphPrepareStatus(value: unknown): value is GraphPrepareStatus {
   return (
     isRecord(value) &&
     isString(value.job_id) &&
@@ -62,9 +55,7 @@ export function isGraphPrepareStatus(
   );
 }
 
-export function isGraphViewportResponse(
-  value: unknown,
-): value is GraphViewportResponse {
+export function isGraphViewportResponse(value: unknown): value is GraphViewportResponse {
   return (
     isRecord(value) &&
     isString(value.dataset_id) &&
@@ -80,9 +71,7 @@ export function isGraphViewportResponse(
   );
 }
 
-export function isGraphRegionResponse(
-  value: unknown,
-): value is GraphRegionResponse {
+export function isGraphRegionResponse(value: unknown): value is GraphRegionResponse {
   return (
     isRecord(value) &&
     isString(value.dataset_id) &&
@@ -97,9 +86,7 @@ export function isGraphRegionResponse(
   );
 }
 
-export function isGraphSearchResponse(
-  value: unknown,
-): value is GraphSearchResponse {
+export function isGraphSearchResponse(value: unknown): value is GraphSearchResponse {
   return (
     isRecord(value) &&
     isString(value.dataset_id) &&
@@ -109,20 +96,12 @@ export function isGraphSearchResponse(
   );
 }
 
-function isGraphPrepareJobStatus(
-  value: unknown,
-): value is GraphPrepareJobStatus {
+function isGraphPrepareJobStatus(value: unknown): value is GraphPrepareJobStatus {
   return value === "pending" || value === "ready" || value === "failed";
 }
 
 function isGraphLayoutStatus(value: unknown): value is GraphLayoutStatus {
-  return (
-    value === "pending" ||
-    value === "refining" ||
-    value === "ready" ||
-    value === "degraded" ||
-    value === "failed"
-  );
+  return value === "pending" || value === "refining" || value === "ready" || value === "degraded" || value === "failed";
 }
 
 function isGraphViewportNode(value: unknown): value is GraphViewportNode {
@@ -167,17 +146,10 @@ function isGraphMetadata(value: unknown): value is GraphMetadata {
 }
 
 function isGraphMetadataValue(value: unknown): value is GraphMetadataValue {
-  return (
-    value === null ||
-    isString(value) ||
-    isBoolean(value) ||
-    isFiniteNumber(value)
-  );
+  return value === null || isString(value) || isBoolean(value) || isFiniteNumber(value);
 }
 
-function isOptionalGraphMetadataSchema(
-  value: unknown,
-): value is GraphMetadataField[] | undefined {
+function isOptionalGraphMetadataSchema(value: unknown): value is GraphMetadataField[] | undefined {
   return value === undefined || isArrayOf(value, isGraphMetadataField);
 }
 

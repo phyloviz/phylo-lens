@@ -1,9 +1,6 @@
 import type { PositionedGraph } from "../../../contracts/positioned";
 import { DEFAULT_COLOR_PALETTE } from "../../../render/visualMappings";
-import {
-  PIE_OTHER_SLICE_COLOR,
-  PIE_OTHER_SLICE_LABEL,
-} from "../../../render/pieMapping";
+import { PIE_OTHER_SLICE_COLOR, PIE_OTHER_SLICE_LABEL } from "../../../render/pieMapping";
 import { buildCategorySummaries } from "../ancillary/categorySummaries";
 import { isHexColor } from "./categoryPalette";
 
@@ -50,10 +47,10 @@ export default function (container: HTMLElement | undefined) {
       const color =
         category.label === PIE_OTHER_SLICE_LABEL
           ? PIE_OTHER_SLICE_COLOR
-          : categoryColorOverrides[category.label] ??
+          : (categoryColorOverrides[category.label] ??
             category.color ??
             DEFAULT_COLOR_PALETTE[index % DEFAULT_COLOR_PALETTE.length] ??
-            "#0f766e";
+            "#0f766e");
       const label = document.createElement("label");
       label.className = "category-color-row";
       label.title = category.label;
@@ -94,9 +91,7 @@ export default function (container: HTMLElement | undefined) {
       }
     });
 
-    return Object.keys(colorsByCategory).length > 0
-      ? colorsByCategory
-      : undefined;
+    return Object.keys(colorsByCategory).length > 0 ? colorsByCategory : undefined;
   }
 
   function readEditableOrder(): string[] {
@@ -118,9 +113,5 @@ function appendEmptyMessage(container: HTMLElement, message: string): void {
 }
 
 function categoryColorInputs(container: HTMLElement): HTMLInputElement[] {
-  return [
-    ...container.querySelectorAll<HTMLInputElement>(
-      CATEGORY_COLOR_INPUT_SELECTOR,
-    ),
-  ];
+  return [...container.querySelectorAll<HTMLInputElement>(CATEGORY_COLOR_INPUT_SELECTOR)];
 }

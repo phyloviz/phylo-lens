@@ -1,10 +1,6 @@
 import { createNodeBorderProgram } from "@sigma/node-border";
 import { TriangleNodeProgram } from "../../nodePrograms/triangleNodeProgram";
-import {
-  SIGMA_MAX_CAMERA_RATIO,
-  SIGMA_MIN_CAMERA_RATIO,
-  SIGMA_ZOOMING_RATIO,
-} from "./sigmaCamera";
+import { SIGMA_MAX_CAMERA_RATIO, SIGMA_MIN_CAMERA_RATIO, SIGMA_ZOOMING_RATIO } from "./sigmaCamera";
 import {
   SIGMA_DEFAULT_LABEL_COLOR,
   SIGMA_DEFAULT_LABEL_DENSITY,
@@ -14,14 +10,8 @@ import {
   SIGMA_NODE_TYPE_BORDER,
   SIGMA_NODE_TYPE_TRIANGLE,
 } from "./sigmaRenderingConstants";
-import {
-  drawCenteredNodeLabel,
-  drawDistanceEdgeLabel,
-} from "./sigmaLabels";
-import type {
-  SigmaNodeProgramClasses,
-  SigmaRendererOptions,
-} from "./sigmaTypes";
+import { drawCenteredNodeLabel, drawDistanceEdgeLabel } from "./sigmaLabels";
+import type { SigmaNodeProgramClasses, SigmaRendererOptions } from "./sigmaTypes";
 
 export function buildSigmaSettings(
   rendererOptions: SigmaRendererOptions,
@@ -35,11 +25,9 @@ export function buildSigmaSettings(
     maxCameraRatio: SIGMA_MAX_CAMERA_RATIO,
     zoomingRatio: SIGMA_ZOOMING_RATIO,
     labelRenderedSizeThreshold:
-      rendererOptions.label?.renderedSizeThreshold ??
-      SIGMA_DEFAULT_LABEL_RENDERED_SIZE_THRESHOLD,
+      rendererOptions.label?.renderedSizeThreshold ?? SIGMA_DEFAULT_LABEL_RENDERED_SIZE_THRESHOLD,
     labelDensity: rendererOptions.label?.density ?? SIGMA_DEFAULT_LABEL_DENSITY,
-    labelGridCellSize:
-      rendererOptions.label?.gridCellSize ?? SIGMA_DEFAULT_LABEL_GRID_CELL_SIZE,
+    labelGridCellSize: rendererOptions.label?.gridCellSize ?? SIGMA_DEFAULT_LABEL_GRID_CELL_SIZE,
     labelColor: {
       color: rendererOptions.label?.color ?? SIGMA_DEFAULT_LABEL_COLOR,
     },

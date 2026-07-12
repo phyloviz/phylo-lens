@@ -26,21 +26,14 @@ export const ROUTE_GRAPH_REGION = "/api/graph/region";
 export const ROUTE_GRAPH_SEARCH = "/api/graph/search";
 
 // Error messages
-export const ERR_INVALID_GRAPH_PREPARE_RESPONSE =
-  "Invalid graph prepare response contract.";
-export const ERR_INVALID_GRAPH_PREPARE_JOB =
-  "Invalid graph prepare job contract.";
-export const ERR_INVALID_GRAPH_PREPARE_STATUS =
-  "Invalid graph prepare status contract.";
+export const ERR_INVALID_GRAPH_PREPARE_RESPONSE = "Invalid graph prepare response contract.";
+export const ERR_INVALID_GRAPH_PREPARE_JOB = "Invalid graph prepare job contract.";
+export const ERR_INVALID_GRAPH_PREPARE_STATUS = "Invalid graph prepare status contract.";
 export const ERR_GRAPH_PREPARE_FAILED = "Graph layout preparation failed.";
-export const ERR_GRAPH_PREPARE_TIMED_OUT =
-  "Graph layout preparation did not complete in time.";
-export const ERR_INVALID_GRAPH_VIEWPORT_RESPONSE =
-  "Invalid graph viewport response contract.";
-export const ERR_INVALID_GRAPH_REGION_RESPONSE =
-  "Invalid graph region response contract.";
-export const ERR_INVALID_GRAPH_SEARCH_RESPONSE =
-  "Invalid graph search response contract.";
+export const ERR_GRAPH_PREPARE_TIMED_OUT = "Graph layout preparation did not complete in time.";
+export const ERR_INVALID_GRAPH_VIEWPORT_RESPONSE = "Invalid graph viewport response contract.";
+export const ERR_INVALID_GRAPH_REGION_RESPONSE = "Invalid graph region response contract.";
+export const ERR_INVALID_GRAPH_SEARCH_RESPONSE = "Invalid graph search response contract.";
 
 // Default polling intervals and timeouts
 export const DEFAULT_PREPARE_POLL_INTERVAL_MS = 1000;
@@ -64,10 +57,8 @@ export function createGraphClient(options: GraphClientOptions) {
   const http = createHttpClient(options);
 
   return {
-    prepareGraph: (
-      request: NormalizeRequest,
-      prepareOptions?: PrepareGraphOptions,
-    ) => prepareGraph(http, request, prepareOptions),
+    prepareGraph: (request: NormalizeRequest, prepareOptions?: PrepareGraphOptions) =>
+      prepareGraph(http, request, prepareOptions),
 
     readViewport: (query: GraphViewportQuery) => readGraphViewport(http, query),
 
@@ -87,14 +78,8 @@ export async function prepareGraph(
   return pollPrepareGraph(http, job.job_id, options);
 }
 
-export async function submitPrepareGraph(
-  http: HttpClient,
-  request: NormalizeRequest,
-) {
-  const response = await http.post<NormalizeRequest, unknown>(
-    ROUTE_GRAPH_PREPARE,
-    request,
-  );
+export async function submitPrepareGraph(http: HttpClient, request: NormalizeRequest) {
+  const response = await http.post<NormalizeRequest, unknown>(ROUTE_GRAPH_PREPARE, request);
 
   if (!isGraphPrepareJob(response)) {
     throw new Error(ERR_INVALID_GRAPH_PREPARE_JOB);
@@ -103,14 +88,8 @@ export async function submitPrepareGraph(
   return response;
 }
 
-export async function readGraphViewport(
-  http: HttpClient,
-  query: GraphViewportQuery,
-): Promise<GraphViewportResponse> {
-  const response = await http.post<GraphViewportQuery, unknown>(
-    ROUTE_GRAPH_VIEWPORT,
-    query,
-  );
+export async function readGraphViewport(http: HttpClient, query: GraphViewportQuery): Promise<GraphViewportResponse> {
+  const response = await http.post<GraphViewportQuery, unknown>(ROUTE_GRAPH_VIEWPORT, query);
 
   if (!isGraphViewportResponse(response)) {
     throw new Error(ERR_INVALID_GRAPH_VIEWPORT_RESPONSE);
@@ -119,14 +98,8 @@ export async function readGraphViewport(
   return response;
 }
 
-export async function readGraphRegion(
-  http: HttpClient,
-  query: GraphRegionQuery,
-): Promise<GraphRegionResponse> {
-  const response = await http.post<GraphRegionQuery, unknown>(
-    ROUTE_GRAPH_REGION,
-    query,
-  );
+export async function readGraphRegion(http: HttpClient, query: GraphRegionQuery): Promise<GraphRegionResponse> {
+  const response = await http.post<GraphRegionQuery, unknown>(ROUTE_GRAPH_REGION, query);
 
   if (!isGraphRegionResponse(response)) {
     throw new Error(ERR_INVALID_GRAPH_REGION_RESPONSE);
@@ -135,14 +108,8 @@ export async function readGraphRegion(
   return response;
 }
 
-export async function searchGraph(
-  http: HttpClient,
-  query: GraphSearchQuery,
-): Promise<GraphSearchResponse> {
-  const response = await http.post<GraphSearchQuery, unknown>(
-    ROUTE_GRAPH_SEARCH,
-    query,
-  );
+export async function searchGraph(http: HttpClient, query: GraphSearchQuery): Promise<GraphSearchResponse> {
+  const response = await http.post<GraphSearchQuery, unknown>(ROUTE_GRAPH_SEARCH, query);
 
   if (!isGraphSearchResponse(response)) {
     throw new Error(ERR_INVALID_GRAPH_SEARCH_RESPONSE);
@@ -186,10 +153,7 @@ async function pollPrepareGraph(
   }
 }
 
-export async function getPrepareGraphStatus(
-  http: HttpClient,
-  jobId: string,
-): Promise<GraphPrepareStatus> {
+export async function getPrepareGraphStatus(http: HttpClient, jobId: string): Promise<GraphPrepareStatus> {
   const response = await http.get<unknown>(`${ROUTE_GRAPH_PREPARE}/${jobId}`);
 
   if (!isGraphPrepareStatus(response)) {

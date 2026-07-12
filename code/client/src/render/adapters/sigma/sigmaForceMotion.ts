@@ -1,13 +1,8 @@
 import type Graph from "graphology";
-import forceAtlas2, {
-  type ForceAtlas2Settings,
-} from "graphology-layout-forceatlas2";
+import forceAtlas2, { type ForceAtlas2Settings } from "graphology-layout-forceatlas2";
 import ForceAtlas2Supervisor from "graphology-layout-forceatlas2/worker";
 
-import {
-  LAYOUT_FORCE,
-  type PositionedGraph,
-} from "../../../contracts/positioned";
+import { LAYOUT_FORCE, type PositionedGraph } from "../../../contracts/positioned";
 
 export const DEFAULT_FORCE_MOTION_DURATION_MS = 4_000;
 export const DEFAULT_FORCE_MOTION_SETTINGS: ForceAtlas2Settings = {
@@ -48,12 +43,7 @@ export default function createSigmaForceMotion(
   function start(graph: Graph, positionedGraph: PositionedGraph): void {
     stop();
 
-    if (
-      options.enabled === false ||
-      !isForceMotionLayout(positionedGraph) ||
-      graph.order < 2 ||
-      graph.size < 1
-    ) {
+    if (options.enabled === false || !isForceMotionLayout(positionedGraph) || graph.order < 2 || graph.size < 1) {
       return;
     }
 

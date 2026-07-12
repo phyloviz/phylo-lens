@@ -11,11 +11,7 @@ import {
   sigmaDisplayZoom,
 } from "./graphViewerQuery";
 import { fitSigmaToViewportResponse } from "./graphViewerFit";
-import {
-  isExpandableRepresentative,
-  reconcileGraphologyViewport,
-  syncGraphologyViewport,
-} from "./graphViewerSync";
+import { isExpandableRepresentative, reconcileGraphologyViewport, syncGraphologyViewport } from "./graphViewerSync";
 import type { ViewportSyncSettings } from "./graphViewerSync";
 import type { SigmaViewportLike } from "./graphViewerTypes";
 
@@ -124,9 +120,7 @@ export class GraphViewer {
   private readonly smallTreeThreshold: number;
   private readonly preparedNodeCount: number | null;
   private readonly getPaused?: () => boolean;
-  private readonly onViewportLoaded?: (
-    response: GraphViewportResponse,
-  ) => void;
+  private readonly onViewportLoaded?: (response: GraphViewportResponse) => void;
   private readonly onError?: (error: unknown) => void;
   private readonly getRenderSettings?: () => ViewportSyncSettings;
   private readonly onGraphSynced?: () => void;
@@ -145,22 +139,12 @@ export class GraphViewer {
   // Snapshot captured at expand time so collapse can restore the cluster
   // proxy exactly: the representative node (id + attributes) and the edges
   // that were incident to it before expansion replaced it with members.
-  private readonly expandedClusterCache = new Map<
-    string,
-    ExpandedClusterSnapshot
-  >();
-  private readonly cameraUpdated = () =>
-    this.scheduleViewportRefreshForCamera();
-  private readonly nodeClicked = (payload: {
-    node?: string;
-    event?: { node?: string };
-  }) => {
+  private readonly expandedClusterCache = new Map<string, ExpandedClusterSnapshot>();
+  private readonly cameraUpdated = () => this.scheduleViewportRefreshForCamera();
+  private readonly nodeClicked = (payload: { node?: string; event?: { node?: string } }) => {
     void this.expandClusterFromClick(payload);
   };
-  private readonly nodeDoubleClicked = (payload: {
-    node?: string;
-    event?: { node?: string };
-  }) => {
+  private readonly nodeDoubleClicked = (payload: { node?: string; event?: { node?: string } }) => {
     this.collapseClusterFromDoubleClick(payload);
   };
 
@@ -173,8 +157,7 @@ export class GraphViewer {
     this.debounceMs = options.debounceMs ?? DEFAULT_GRAPH_VIEWER_DEBOUNCE_MS;
     this.maxNodes = options.maxNodes ?? DEFAULT_GRAPH_VIEWER_MAX_NODES;
     this.lodTierCount = Math.max(options.lodTierCount ?? 1, 1);
-    this.smallTreeThreshold =
-      options.smallTreeThreshold ?? GRAPH_VIEWER_SMALL_TREE_NODE_THRESHOLD;
+    this.smallTreeThreshold = options.smallTreeThreshold ?? GRAPH_VIEWER_SMALL_TREE_NODE_THRESHOLD;
     this.preparedNodeCount = options.nodeCount ?? null;
     this.getPaused = options.getPaused;
     this.onViewportLoaded = options.onViewportLoaded;
@@ -261,8 +244,7 @@ export class GraphViewer {
       return;
     }
     const nextLodLevel = this.currentLodLevel();
-    const lodChanged =
-      this.loadedInitialViewport && nextLodLevel !== this.lastRequestedLodLevel;
+    const lodChanged = this.loadedInitialViewport && nextLodLevel !== this.lastRequestedLodLevel;
     // At LOD 0 the query carries no bounds (a fixed global overview), so a
     // same-tier pan would refetch the identical slice; skip it. At finer tiers
     // the query is bounds-driven, so a pan shifts the visible region and must
@@ -272,27 +254,18 @@ export class GraphViewer {
     if (!lodChanged && nextLodLevel === 0) {
       return;
     }
-    this.scheduleViewportRefresh(
-      lodChanged ? GRAPH_VIEWER_LOD_CHANGE_DEBOUNCE_MS : this.debounceMs,
-    );
+    this.scheduleViewportRefresh(lodChanged ? GRAPH_VIEWER_LOD_CHANGE_DEBOUNCE_MS : this.debounceMs);
   }
 
   private isSmallTreeLoaded(): boolean {
-    return (
-      this.loadedInitialViewport &&
-      this.totalNodeCount !== null &&
-      this.totalNodeCount <= this.smallTreeThreshold
-    );
+    return this.loadedInitialViewport && this.totalNodeCount !== null && this.totalNodeCount <= this.smallTreeThreshold;
   }
 
   // Whether the tree is known (from the prepare response, before the first
   // viewport load) to fit whole in the client. Drives the finest-tier initial
   // load so a small tree opens as individual nodes, not the triangle overview.
   private isKnownSmallTree(): boolean {
-    return (
-      this.preparedNodeCount !== null &&
-      this.preparedNodeCount <= this.smallTreeThreshold
-    );
+    return this.preparedNodeCount !== null && this.preparedNodeCount <= this.smallTreeThreshold;
   }
 
   private scheduleViewportRefresh(delayMs = this.debounceMs): void {
@@ -359,10 +332,7 @@ export class GraphViewer {
     }
   }
 
-  private async expandClusterFromClick(payload: {
-    node?: string;
-    event?: { node?: string };
-  }): Promise<void> {
+  private async expandClusterFromClick(payload: { node?: string; event?: { node?: string } }): Promise<void> {
     const nodeId =
       typeof payload.node === "string"
         ? payload.node
@@ -373,18 +343,12 @@ export class GraphViewer {
       return;
     }
 
-    const attributes = this.graph.getNodeAttributes(nodeId) as Record<
-      string,
-      unknown
-    >;
+    const attributes = this.graph.getNodeAttributes(nodeId) as Record<string, unknown>;
     if (!isExpandableRepresentative(attributes)) {
       return;
     }
 
-    const clusterId =
-      typeof attributes.cluster_id === "string"
-        ? attributes.cluster_id
-        : nodeId;
+    const clusterId = typeof attributes.cluster_id === "string" ? attributes.cluster_id : nodeId;
     // Snapshot the proxy (representative node + its incident edges) before the
     // expansion overwrites it, so a later double-click can collapse it back
     // without re-querying the server.
@@ -404,9 +368,7 @@ export class GraphViewer {
       }
       this.layoutVersion = response.layout_version;
       syncGraphologyViewport(this.graph, response, this.getRenderSettings?.());
-      snapshot.memberIds = response.nodes
-        .filter((node) => !node.is_representative)
-        .map((node) => node.id);
+      snapshot.memberIds = response.nodes.filter((node) => !node.is_representative).map((node) => node.id);
       this.expandedClusterCache.set(clusterId, snapshot);
       this.expandedClusterIds.add(clusterId);
       this.onGraphSynced?.();
@@ -432,16 +394,14 @@ export class GraphViewer {
     representativeId: string,
     representativeAttributes: Record<string, unknown>,
   ): ExpandedClusterSnapshot {
-    const incidentEdges: CachedIncidentEdge[] = this.graph
-      .edges(representativeId)
-      .map((edgeId) => ({
-        id: edgeId,
-        source: this.graph.source(edgeId),
-        target: this.graph.target(edgeId),
-        attributes: {
-          ...(this.graph.getEdgeAttributes(edgeId) as Record<string, unknown>),
-        },
-      }));
+    const incidentEdges: CachedIncidentEdge[] = this.graph.edges(representativeId).map((edgeId) => ({
+      id: edgeId,
+      source: this.graph.source(edgeId),
+      target: this.graph.target(edgeId),
+      attributes: {
+        ...(this.graph.getEdgeAttributes(edgeId) as Record<string, unknown>),
+      },
+    }));
     return {
       representativeId,
       representativeAttributes: { ...representativeAttributes },
@@ -450,10 +410,7 @@ export class GraphViewer {
     };
   }
 
-  private collapseClusterFromDoubleClick(payload: {
-    node?: string;
-    event?: { node?: string };
-  }): void {
+  private collapseClusterFromDoubleClick(payload: { node?: string; event?: { node?: string } }): void {
     const nodeId =
       typeof payload.node === "string"
         ? payload.node
@@ -463,14 +420,8 @@ export class GraphViewer {
     if (!nodeId || !this.graph.hasNode(nodeId)) {
       return;
     }
-    const attributes = this.graph.getNodeAttributes(nodeId) as Record<
-      string,
-      unknown
-    >;
-    const clusterId =
-      typeof attributes.cluster_id === "string"
-        ? attributes.cluster_id
-        : nodeId;
+    const attributes = this.graph.getNodeAttributes(nodeId) as Record<string, unknown>;
+    const clusterId = typeof attributes.cluster_id === "string" ? attributes.cluster_id : nodeId;
     this.collapseCluster(clusterId);
   }
 
@@ -499,11 +450,7 @@ export class GraphViewer {
       ...snapshot.representativeAttributes,
     });
     for (const edge of snapshot.incidentEdges) {
-      if (
-        !this.graph.hasNode(edge.source) ||
-        !this.graph.hasNode(edge.target) ||
-        this.graph.hasEdge(edge.id)
-      ) {
+      if (!this.graph.hasNode(edge.source) || !this.graph.hasNode(edge.target) || this.graph.hasEdge(edge.id)) {
         continue;
       }
       this.graph.addEdgeWithKey(edge.id, edge.source, edge.target, {

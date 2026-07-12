@@ -56,12 +56,7 @@ export function buildValueColorMap(
 
   const colorByValue = new Map<string, string>();
   rankedValues.forEach((value, rank) => {
-    colorByValue.set(
-      value,
-      rank < activePalette.length
-        ? (activePalette[rank] as string)
-        : OTHERS_COLOR,
-    );
+    colorByValue.set(value, rank < activePalette.length ? (activePalette[rank] as string) : OTHERS_COLOR);
   });
 
   return (value) => {
@@ -75,10 +70,7 @@ export function buildValueColorMap(
 // Derive a deterministic color from a single categorical value, used only as a
 // fallback when the full value universe is unavailable (e.g. a lone node with
 // no graph context). Prefer buildValueColorMap wherever the value set is known.
-export function deriveColor(
-  rawValue: string | number | boolean | null | undefined,
-  palette: string[],
-): string {
+export function deriveColor(rawValue: string | number | boolean | null | undefined, palette: string[]): string {
   if (rawValue === undefined || rawValue === null || palette.length === 0) {
     return DEFAULT_FALLBACK_COLOR;
   }

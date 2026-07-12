@@ -10,14 +10,8 @@ export interface HttpClientOptions {
   fetchImpl?: typeof fetch;
 }
 
-export function createHttpClient({
-  baseUrl,
-  fetchImpl = safeFetch,
-}: HttpClientOptions) {
-  async function request<TResponse>(
-    path: string,
-    init?: RequestInit,
-  ): Promise<TResponse> {
+export function createHttpClient({ baseUrl, fetchImpl = safeFetch }: HttpClientOptions) {
+  async function request<TResponse>(path: string, init?: RequestInit): Promise<TResponse> {
     const response = await fetchImpl(`${baseUrl}${path}`, {
       ...init,
       headers: {
@@ -37,10 +31,7 @@ export function createHttpClient({
     return request<TResponse>(path);
   }
 
-  function post<TRequest, TResponse>(
-    path: string,
-    body: TRequest,
-  ): Promise<TResponse> {
+  function post<TRequest, TResponse>(path: string, body: TRequest): Promise<TResponse> {
     return request<TResponse>(path, {
       method: "POST",
       body: JSON.stringify(body),
@@ -58,9 +49,7 @@ export type HttpClient = ReturnType<typeof createHttpClient>;
 async function buildHttpErrorMessage(response: Response): Promise<string> {
   const detail = await readErrorDetail(response);
 
-  return detail
-    ? `${ERR_HTTP_PREFIX}: ${response.status} - ${detail}`
-    : `${ERR_HTTP_PREFIX}: ${response.status}`;
+  return detail ? `${ERR_HTTP_PREFIX}: ${response.status} - ${detail}` : `${ERR_HTTP_PREFIX}: ${response.status}`;
 }
 
 async function readErrorDetail(response: Response): Promise<string | null> {
@@ -88,10 +77,7 @@ function extractErrorDetail(payload: unknown): string | null {
 
   const errors = detail.errors;
 
-  return Array.isArray(errors) &&
-    errors.every((error) => typeof error === "string")
-    ? errors.join("; ")
-    : null;
+  return Array.isArray(errors) && errors.every((error) => typeof error === "string") ? errors.join("; ") : null;
 }
 
 const safeFetch: typeof fetch = (...args) => globalThis.fetch(...args);

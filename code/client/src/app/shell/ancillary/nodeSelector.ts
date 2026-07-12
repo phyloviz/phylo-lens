@@ -5,28 +5,17 @@ export const ANCILLARY_MODE_CURRENT = "current";
 export const ANCILLARY_MODE_SELECTED = "selected";
 
 export type AncillaryMode =
-  | typeof ANCILLARY_MODE_GLOBAL
-  | typeof ANCILLARY_MODE_CURRENT
-  | typeof ANCILLARY_MODE_SELECTED;
+  typeof ANCILLARY_MODE_GLOBAL | typeof ANCILLARY_MODE_CURRENT | typeof ANCILLARY_MODE_SELECTED;
 
-export function getAncillaryMode(
-  modeSelect: HTMLSelectElement | undefined,
-): AncillaryMode {
+export function getAncillaryMode(modeSelect: HTMLSelectElement | undefined): AncillaryMode {
   const mode = modeSelect?.value;
-  if (
-    mode === ANCILLARY_MODE_GLOBAL ||
-    mode === ANCILLARY_MODE_CURRENT ||
-    mode === ANCILLARY_MODE_SELECTED
-  ) {
+  if (mode === ANCILLARY_MODE_GLOBAL || mode === ANCILLARY_MODE_CURRENT || mode === ANCILLARY_MODE_SELECTED) {
     return mode;
   }
   return ANCILLARY_MODE_GLOBAL;
 }
 
-export function updateNodeSelector(
-  nodeSelect: HTMLSelectElement | undefined,
-  graph: PositionedGraph | null,
-): void {
+export function updateNodeSelector(nodeSelect: HTMLSelectElement | undefined, graph: PositionedGraph | null): void {
   if (!nodeSelect) {
     return;
   }
@@ -42,9 +31,7 @@ export function updateNodeSelector(
     return;
   }
 
-  const nodeIds = [...graph.nodes.map((node) => node.id)].sort((a, b) =>
-    a.localeCompare(b),
-  );
+  const nodeIds = [...graph.nodes.map((node) => node.id)].sort((a, b) => a.localeCompare(b));
   nodeIds.forEach((nodeId) => {
     const option = document.createElement("option");
     option.value = nodeId;

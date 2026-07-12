@@ -8,10 +8,7 @@ import {
   SIGMA_DEFAULT_CAMERA_ZOOM,
 } from "./sigmaCamera";
 
-export function applyStableCameraBounds(
-  sigma: Sigma | null,
-  coordinateBounds: GraphBounds | null,
-): void {
+export function applyStableCameraBounds(sigma: Sigma | null, coordinateBounds: GraphBounds | null): void {
   if (!sigma) {
     return;
   }
@@ -37,10 +34,7 @@ export function readCameraState(sigma: Sigma | null): SigmaCameraState | null {
   return camera.getState?.() ?? null;
 }
 
-export function restoreCameraState(
-  sigma: Sigma | null,
-  state: SigmaCameraState | null,
-): void {
+export function restoreCameraState(sigma: Sigma | null, state: SigmaCameraState | null): void {
   if (!sigma) {
     return;
   }
@@ -68,18 +62,9 @@ export function centerCameraOnGraphNode({
     return false;
   }
 
-  const attributes = graph.getNodeAttributes(nodeId) as Record<
-    string,
-    unknown
-  >;
-  const nodeX =
-    typeof attributes.x === "number" && Number.isFinite(attributes.x)
-      ? attributes.x
-      : null;
-  const nodeY =
-    typeof attributes.y === "number" && Number.isFinite(attributes.y)
-      ? attributes.y
-      : null;
+  const attributes = graph.getNodeAttributes(nodeId) as Record<string, unknown>;
+  const nodeX = typeof attributes.x === "number" && Number.isFinite(attributes.x) ? attributes.x : null;
+  const nodeY = typeof attributes.y === "number" && Number.isFinite(attributes.y) ? attributes.y : null;
   if (nodeX === null || nodeY === null) {
     return false;
   }
@@ -110,12 +95,7 @@ export function centerCameraOnCoordinates({
   y: number;
   beforeSetState?: () => void;
 }): boolean {
-  if (
-    !sigma ||
-    !coordinateBounds ||
-    !Number.isFinite(x) ||
-    !Number.isFinite(y)
-  ) {
+  if (!sigma || !coordinateBounds || !Number.isFinite(x) || !Number.isFinite(y)) {
     return false;
   }
 
@@ -137,8 +117,7 @@ export function centerCameraOnCoordinates({
     x: nextCenter.x,
     y: nextCenter.y,
     ratio:
-      typeof currentState.ratio === "number" &&
-      Number.isFinite(currentState.ratio)
+      typeof currentState.ratio === "number" && Number.isFinite(currentState.ratio)
         ? currentState.ratio
         : SIGMA_DEFAULT_CAMERA_ZOOM,
   });

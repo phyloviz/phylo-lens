@@ -1,10 +1,6 @@
 import type Graph from "graphology";
 import type { PositionedGraph } from "../../../contracts/positioned";
-import {
-  firstAttributeValue,
-  normalizeRoleValue,
-  toPositiveNumber,
-} from "./sigmaAttributeUtils";
+import { firstAttributeValue, normalizeRoleValue, toPositiveNumber } from "./sigmaAttributeUtils";
 import { formatDistanceLabel } from "./sigmaLabels";
 import {
   PHYLOVIZ_EDGE_DLV_COLOR,
@@ -38,10 +34,7 @@ export function addPositionedEdges(
       ...(edge.attributes ?? {}),
       color: deriveEdgeColor(edge.attributes, distanceRange),
       size: deriveEdgeSize(edge.attributes, rendererOptions),
-      label:
-        rendererOptions.display?.edgeDistanceLabels === true
-          ? formatDistanceLabel(edge.attributes?.distance)
-          : "",
+      label: rendererOptions.display?.edgeDistanceLabels === true ? formatDistanceLabel(edge.attributes?.distance) : "",
       forceLabel: rendererOptions.display?.edgeDistanceLabels === true,
     });
   });
@@ -76,9 +69,7 @@ function deriveEdgeColor(
   return PHYLOVIZ_EDGE_TIEBREAK_NONE_COLOR;
 }
 
-function deriveTiebreakEdgeColor(
-  attributes: Record<string, unknown> | undefined,
-): string | null {
+function deriveTiebreakEdgeColor(attributes: Record<string, unknown> | undefined): string | null {
   const rawRule = firstAttributeValue(attributes, [
     "tie_break_rule",
     "tiebreak_rule",
@@ -90,11 +81,7 @@ function deriveTiebreakEdgeColor(
   ]);
   const rule = normalizeRoleValue(rawRule);
 
-  if (
-    rule === "none" ||
-    rule === "no_tiebreak" ||
-    rule === "without_tiebreak"
-  ) {
+  if (rule === "none" || rule === "no_tiebreak" || rule === "without_tiebreak") {
     return PHYLOVIZ_EDGE_TIEBREAK_NONE_COLOR;
   }
   if (rule === "1" || rule === "rule_1" || rule === "slv") {
@@ -106,12 +93,7 @@ function deriveTiebreakEdgeColor(
   if (rule === "3" || rule === "rule_3") {
     return PHYLOVIZ_EDGE_TIEBREAK_RULE_3_COLOR;
   }
-  if (
-    rule === "4" ||
-    rule === "5" ||
-    rule === "rule_4" ||
-    rule === "rule_5"
-  ) {
+  if (rule === "4" || rule === "5" || rule === "rule_4" || rule === "rule_5") {
     return PHYLOVIZ_EDGE_TIEBREAK_RULE_4_OR_5_COLOR;
   }
   if (rule === "dlv") {
@@ -124,15 +106,10 @@ function deriveTiebreakEdgeColor(
   return null;
 }
 
-function distanceRangeForEdges(
-  edges: PositionedGraph["edges"],
-): { min: number; max: number } | null {
+function distanceRangeForEdges(edges: PositionedGraph["edges"]): { min: number; max: number } | null {
   const distances = edges
     .map((edge) => edge.attributes?.distance)
-    .filter(
-      (distance): distance is number =>
-        typeof distance === "number" && Number.isFinite(distance),
-    );
+    .filter((distance): distance is number => typeof distance === "number" && Number.isFinite(distance));
   if (distances.length === 0) {
     return null;
   }
@@ -143,17 +120,9 @@ function distanceRangeForEdges(
   };
 }
 
-function grayscaleForDistance(
-  distance: number,
-  range: { min: number; max: number },
-): string {
+function grayscaleForDistance(distance: number, range: { min: number; max: number }): string {
   const normalized =
-    range.max === range.min
-      ? 0
-      : Math.min(
-          1,
-          Math.max(0, (distance - range.min) / (range.max - range.min)),
-        );
+    range.max === range.min ? 0 : Math.min(1, Math.max(0, (distance - range.min) / (range.max - range.min)));
   // Keep the distance ordering, but avoid near-white links disappearing on
   // Sigma's white canvas.
   const channel = Math.round(35 + normalized * 115);

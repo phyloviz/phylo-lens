@@ -40,11 +40,7 @@ export type {
 
 export const DEFAULT_DATASET_NAME = "uploaded-dataset";
 export const DEFAULT_SEARCH_RESULT_LIMIT = 50;
-export {
-  ERR_GRAPH_VIEWPORT_SYNC_REQUIRED,
-  ERR_LOD_PLAYBACK_REQUIRES_LOD,
-  ERR_NO_GRAPH_RENDERED,
-};
+export { ERR_GRAPH_VIEWPORT_SYNC_REQUIRED, ERR_LOD_PLAYBACK_REQUIRES_LOD, ERR_NO_GRAPH_RENDERED };
 
 export function createGraphWorkbench(options: GraphWorkbenchOptions): GraphWorkbench {
   const state = createInitialWorkbenchState();

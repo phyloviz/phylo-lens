@@ -11,14 +11,8 @@ const GENERATED_UNION_NODE_ID = /^union_[0-9]+(?:_[0-9]+)*$/;
 export const UNION_NODE_COLOR = "#ffffff";
 export const UNION_NODE_SIZE = 0;
 
-export function isUnionNode(
-  nodeId: string,
-  attributes?: Record<string, unknown>,
-): boolean {
+export function isUnionNode(nodeId: string, attributes?: Record<string, unknown>): boolean {
   // An explicit structural flag is authoritative; the id-shape check is the
   // fallback for the generated-id convention the server actually produces.
-  return (
-    attributes?.is_union_node === true ||
-    GENERATED_UNION_NODE_ID.test(nodeId)
-  );
+  return attributes?.is_union_node === true || GENERATED_UNION_NODE_ID.test(nodeId);
 }

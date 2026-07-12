@@ -83,9 +83,7 @@ export default function (options: SigmaBoxSelectControllerOptions) {
   }
 
   function mouseCaptor(): SigmaMouseCaptor | undefined {
-    return options.getSigma()?.getMouseCaptor?.() as
-      | SigmaMouseCaptor
-      | undefined;
+    return options.getSigma()?.getMouseCaptor?.() as SigmaMouseCaptor | undefined;
   }
 
   function isActivationAllowed(payload: MouseCaptorPayload): boolean {
@@ -100,9 +98,7 @@ export default function (options: SigmaBoxSelectControllerOptions) {
     }
 
     startPoint = { x: payload.x, y: payload.y };
-    previousCameraPanningEnabled = sigma.getSetting?.(
-      "enableCameraPanning",
-    ) as boolean | null;
+    previousCameraPanningEnabled = sigma.getSetting?.("enableCameraPanning") as boolean | null;
     sigma.setSetting?.("enableCameraPanning", false);
 
     overlay = document.createElement("div");
@@ -132,8 +128,7 @@ export default function (options: SigmaBoxSelectControllerOptions) {
 
     const end = { x: payload.x, y: payload.y };
     const draggedFarEnough =
-      Math.abs(end.x - start.x) >= MIN_BOX_DRAG_PX ||
-      Math.abs(end.y - start.y) >= MIN_BOX_DRAG_PX;
+      Math.abs(end.x - start.x) >= MIN_BOX_DRAG_PX || Math.abs(end.y - start.y) >= MIN_BOX_DRAG_PX;
 
     teardownBox();
 
@@ -171,10 +166,7 @@ export default function (options: SigmaBoxSelectControllerOptions) {
   function teardownBox(): void {
     const sigma = options.getSigma();
     if (typeof previousCameraPanningEnabled === "boolean") {
-      sigma?.setSetting?.(
-        "enableCameraPanning",
-        previousCameraPanningEnabled,
-      );
+      sigma?.setSetting?.("enableCameraPanning", previousCameraPanningEnabled);
     }
     previousCameraPanningEnabled = null;
     startPoint = null;

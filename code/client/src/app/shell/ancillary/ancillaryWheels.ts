@@ -5,10 +5,7 @@ import {
 } from "../../../components/ancillaryWheel";
 import type { PositionedGraph } from "../../../contracts/positioned";
 import type { VisualMappingOptions } from "../../../render/visualMappings";
-import {
-  ANCILLARY_MODE_SELECTED,
-  getAncillaryMode,
-} from "./nodeSelector";
+import { ANCILLARY_MODE_SELECTED, getAncillaryMode } from "./nodeSelector";
 
 export interface AncillaryWheelsOptions {
   overviewContainer?: HTMLElement;
@@ -46,11 +43,7 @@ export default function (options: AncillaryWheelsOptions) {
       return;
     }
 
-    renderAncillaryWheel(
-      options.overviewContainer,
-      buildStats(),
-      emptyMessage(),
-    );
+    renderAncillaryWheel(options.overviewContainer, buildStats(), emptyMessage());
   }
 
   function renderSelectedNode(nodeId: string): void {
@@ -76,11 +69,7 @@ export default function (options: AncillaryWheelsOptions) {
       return;
     }
 
-    renderAncillaryWheel(
-      options.selectedNodeContainer,
-      null,
-      options.selectedNodeEmptyMessage,
-    );
+    renderAncillaryWheel(options.selectedNodeContainer, null, options.selectedNodeEmptyMessage);
   }
 
   function buildStats(includeNodeIds?: Set<string>) {
@@ -119,11 +108,7 @@ export default function (options: AncillaryWheelsOptions) {
 
     const selectedId = options.nodeSelect?.value;
     if (!selectedId) {
-      renderAncillaryWheel(
-        options.overviewContainer,
-        null,
-        "Choose a node to view its ancillary distribution.",
-      );
+      renderAncillaryWheel(options.overviewContainer, null, "Choose a node to view its ancillary distribution.");
       return;
     }
 
@@ -139,8 +124,6 @@ export default function (options: AncillaryWheelsOptions) {
       return options.selectPieFieldMessage;
     }
 
-    return subject
-      ? `${subject} has no ancillary pie data.`
-      : "No ancillary pie data detected.";
+    return subject ? `${subject} has no ancillary pie data.` : "No ancillary pie data detected.";
   }
 }

@@ -1,8 +1,5 @@
 import type { GraphWorkbench } from "../../workbench/graphWorkbench";
-import {
-  renderSearchResults,
-  type SearchResultItem,
-} from "./searchResultsView";
+import { renderSearchResults, type SearchResultItem } from "./searchResultsView";
 
 export interface SearchControllerOptions {
   workbench: GraphWorkbench;

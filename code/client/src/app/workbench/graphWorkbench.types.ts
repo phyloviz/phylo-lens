@@ -1,14 +1,6 @@
 import type { GraphClient } from "../../api/graphClient";
-import type {
-  GraphMetadataField,
-  GraphMetadataValue,
-} from "../../api/graphContracts";
-import type {
-  CanonicalDataset,
-  SearchDatasetResponse,
-  SourceFormat,
-  Viewport,
-} from "../../contracts/models";
+import type { GraphMetadataField, GraphMetadataValue } from "../../api/graphContracts";
+import type { CanonicalDataset, SearchDatasetResponse, SourceFormat, Viewport } from "../../contracts/models";
 import type { PositionedGraph } from "../../contracts/positioned";
 import type { MetadataIndexData } from "../../ancillary/metadataIndex";
 import type { MetadataFilterState } from "../../ancillary/metadataTypes";
@@ -71,11 +63,7 @@ export type GraphRenderedHandler = (graph: PositionedGraph) => void;
 export type GraphNodeClickedHandler = (state: RenderNodeClickState) => void;
 
 export interface GraphWorkbench {
-  renderNewick: (
-    newick: string,
-    datasetName?: string,
-    options?: RenderNewickOptions,
-  ) => Promise<PositionedGraph>;
+  renderNewick: (newick: string, datasetName?: string, options?: RenderNewickOptions) => Promise<PositionedGraph>;
 
   applyMetadataFilters: (filterState: MetadataFilterState) => PositionedGraph;
 
@@ -89,15 +77,9 @@ export interface GraphWorkbench {
 
   isLodRefreshPaused: () => boolean;
 
-  searchNodes: (query: {
-    query: string;
-    limit?: number;
-  }) => Promise<SearchDatasetResponse>;
+  searchNodes: (query: { query: string; limit?: number }) => Promise<SearchDatasetResponse>;
 
-  focusNode: (
-    nodeId: string,
-    coordinates?: { x: number | null; y: number | null },
-  ) => Promise<PositionedGraph>;
+  focusNode: (nodeId: string, coordinates?: { x: number | null; y: number | null }) => Promise<PositionedGraph>;
 
   setGraphRenderedHandler: (handler: GraphRenderedHandler | null) => void;
 

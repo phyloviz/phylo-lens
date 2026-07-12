@@ -12,10 +12,7 @@ interface GraphFiltersOptions {
   renderer: GraphRenderer;
 }
 
-export default function createGraphFilters({
-  state,
-  renderer,
-}: GraphFiltersOptions) {
+export default function createGraphFilters({ state, renderer }: GraphFiltersOptions) {
   return {
     applyMetadataFilters: applyMetadataFilters,
     clearMetadataFilters: clearMetadataFilters,
@@ -23,9 +20,7 @@ export default function createGraphFilters({
     updateDisplayOptions: updateDisplayOptions,
   };
 
-  function applyMetadataFilters(
-    filterState: MetadataFilterState,
-  ): PositionedGraph {
+  function applyMetadataFilters(filterState: MetadataFilterState): PositionedGraph {
     requirePreparedSession(state);
 
     // Filtering is applied inside the viewport sync via getRenderSettings; the
@@ -45,9 +40,7 @@ export default function createGraphFilters({
     return currentGraph(state);
   }
 
-  function updateVisualMapping(
-    visualMapping: VisualMappingOptions,
-  ): PositionedGraph {
+  function updateVisualMapping(visualMapping: VisualMappingOptions): PositionedGraph {
     const session = requirePreparedSession(state);
 
     // Persist the mapping so the viewport sync re-derives visuals on refresh.

@@ -12,24 +12,15 @@ export type SigmaCameraLike = {
   off?: (event: "updated", handler: () => void) => void;
   getState?: () => { x?: number; y?: number; ratio?: number };
   animatedReset?: (options?: { duration?: number }) => void;
-  animate?: (
-    state: { x: number; y: number; ratio: number },
-    options?: { duration?: number },
-  ) => void;
+  animate?: (state: { x: number; y: number; ratio: number }, options?: { duration?: number }) => void;
   ratio?: number;
 };
 
 export type SigmaNodeEvent = "clickNode" | "doubleClickNode";
 
 export type SigmaViewportLike = Sigma & {
-  on?: (
-    event: SigmaNodeEvent,
-    handler: (payload: { node?: string; event?: { node?: string } }) => void,
-  ) => void;
-  off?: (
-    event: SigmaNodeEvent,
-    handler: (payload: { node?: string; event?: { node?: string } }) => void,
-  ) => void;
+  on?: (event: SigmaNodeEvent, handler: (payload: { node?: string; event?: { node?: string } }) => void) => void;
+  off?: (event: SigmaNodeEvent, handler: (payload: { node?: string; event?: { node?: string } }) => void) => void;
   getCamera: () => SigmaCameraLike;
   getDimensions?: () => { width: number; height: number };
   getContainer?: () => HTMLElement;

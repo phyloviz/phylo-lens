@@ -66,20 +66,13 @@ export class TriangleNodeProgram extends NodeCircleProgram {
     };
   }
 
-  override processVisibleItem(
-    nodeIndex: number,
-    startIndex: number,
-    data: NodeDisplayData,
-  ): void {
+  override processVisibleItem(nodeIndex: number, startIndex: number, data: NodeDisplayData): void {
     super.processVisibleItem(nodeIndex, startIndex, data);
     this.array[startIndex + 5] = rotationOf(data);
   }
 }
 
-export const drawTriangleNodeHover: NodeHoverDrawingFunction = (
-  context,
-  data,
-) => {
+export const drawTriangleNodeHover: NodeHoverDrawingFunction = (context, data) => {
   const rotation = -rotationOf(data);
 
   context.save();
@@ -96,20 +89,11 @@ export const drawTriangleNodeHover: NodeHoverDrawingFunction = (
   context.restore();
 };
 
-function trianglePath(
-  context: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  radius: number,
-  rotation: number,
-): void {
+function trianglePath(context: CanvasRenderingContext2D, x: number, y: number, radius: number, rotation: number): void {
   context.beginPath();
   for (let index = 0; index < 3; index += 1) {
     const angle = rotation + (index * Math.PI * 2) / 3;
-    const point = [
-      x + Math.cos(angle) * radius * 2,
-      y + Math.sin(angle) * radius * 2,
-    ] as const;
+    const point = [x + Math.cos(angle) * radius * 2, y + Math.sin(angle) * radius * 2] as const;
     if (index === 0) context.moveTo(...point);
     else context.lineTo(...point);
   }
@@ -118,7 +102,5 @@ function trianglePath(
 
 function rotationOf(data: object): number {
   const rotation = (data as Record<string, unknown>).triangleRotation;
-  return typeof rotation === "number" && Number.isFinite(rotation)
-    ? rotation
-    : 0;
+  return typeof rotation === "number" && Number.isFinite(rotation) ? rotation : 0;
 }

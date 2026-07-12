@@ -1,9 +1,6 @@
 import type { GraphViewportResponse } from "../../../api/graphContracts";
 import { sigmaDimensions } from "./graphViewerQuery";
-import type {
-  SigmaViewportBounds,
-  SigmaViewportLike,
-} from "./graphViewerTypes";
+import type { SigmaViewportBounds, SigmaViewportLike } from "./graphViewerTypes";
 
 export const GRAPH_VIEWER_FIT_PADDING_RATIO = 1.15;
 export const GRAPH_VIEWER_INITIAL_FIT_DELAY_MS = 50;
@@ -25,10 +22,8 @@ export function fitSigmaToViewportResponse(
   const width = Math.max(Math.max(...xs) - Math.min(...xs), 1);
   const height = Math.max(Math.max(...ys) - Math.min(...ys), 1);
   const ratio =
-    Math.max(
-      width / Math.max(dimensions.width, 1),
-      height / Math.max(dimensions.height, 1),
-    ) * GRAPH_VIEWER_FIT_PADDING_RATIO;
+    Math.max(width / Math.max(dimensions.width, 1), height / Math.max(dimensions.height, 1)) *
+    GRAPH_VIEWER_FIT_PADDING_RATIO;
 
   const camera = sigma.getCamera();
 
@@ -47,10 +42,7 @@ export function fitSigmaToViewportResponse(
           {
             x: state.x ?? (Math.min(...xs) + Math.max(...xs)) / 2,
             y: state.y ?? (Math.min(...ys) + Math.max(...ys)) / 2,
-            ratio: Math.max(
-              state.ratio * GRAPH_VIEWER_FIT_PADDING_RATIO,
-              Number.EPSILON,
-            ),
+            ratio: Math.max(state.ratio * GRAPH_VIEWER_FIT_PADDING_RATIO, Number.EPSILON),
           },
           { duration: 100 },
         );
@@ -68,10 +60,7 @@ export function fitSigmaToViewportResponse(
   }, GRAPH_VIEWER_INITIAL_FIT_DELAY_MS);
 }
 
-export function fitSigmaToClusterResponse(
-  sigma: SigmaViewportLike,
-  response: GraphViewportResponse,
-): void {
+export function fitSigmaToClusterResponse(sigma: SigmaViewportLike, response: GraphViewportResponse): void {
   if (response.nodes.length === 0) {
     return;
   }
@@ -80,10 +69,8 @@ export function fitSigmaToClusterResponse(
   const width = Math.max(bounds.xmax - bounds.xmin, 1);
   const height = Math.max(bounds.ymax - bounds.ymin, 1);
   const ratio =
-    Math.max(
-      width / Math.max(dimensions.width, 1),
-      height / Math.max(dimensions.height, 1),
-    ) * GRAPH_VIEWER_CLUSTER_FIT_PADDING_RATIO;
+    Math.max(width / Math.max(dimensions.width, 1), height / Math.max(dimensions.height, 1)) *
+    GRAPH_VIEWER_CLUSTER_FIT_PADDING_RATIO;
   sigma.getCamera().animate?.(
     {
       x: (bounds.xmin + bounds.xmax) / 2,
@@ -94,9 +81,7 @@ export function fitSigmaToClusterResponse(
   );
 }
 
-function responseBounds(
-  response: GraphViewportResponse,
-): SigmaViewportBounds {
+function responseBounds(response: GraphViewportResponse): SigmaViewportBounds {
   const xs = response.nodes.map((node) => node.x);
   const ys = response.nodes.map((node) => node.y);
   return {

@@ -11,16 +11,9 @@ import {
 } from "./pieMapping";
 import type { PieMappingOptions } from "./pieMapping";
 import { buildValueColorMap, DEFAULT_COLOR_PALETTE } from "./colorHash";
-import {
-  isUnionNode,
-  UNION_NODE_COLOR,
-  UNION_NODE_SIZE,
-} from "./unionNodes";
+import { isUnionNode, UNION_NODE_COLOR, UNION_NODE_SIZE } from "./unionNodes";
 
-export {
-  UNION_NODE_COLOR,
-  UNION_NODE_SIZE,
-} from "./unionNodes";
+export { UNION_NODE_COLOR, UNION_NODE_SIZE } from "./unionNodes";
 export {
   buildValueColorMap,
   DEFAULT_COLOR_PALETTE,
@@ -50,9 +43,7 @@ export const DEFAULT_PIE_MAPPING: PieMappingOptions = {
   enabled: true,
 };
 
-export type SizeScale =
-  | typeof SIZE_SCALE_LINEAR
-  | typeof SIZE_SCALE_LOG;
+export type SizeScale = typeof SIZE_SCALE_LINEAR | typeof SIZE_SCALE_LOG;
 
 export interface SizeMappingOptions {
   field?: string;
@@ -88,23 +79,12 @@ export function applyVisualMappings(
   // value -> colour map. Distinct values get distinct colours; the most common
   // value takes palette[0].
   const colorForValue = buildValueColorMap(
-    graph.nodes.map(
-      (node) => getNodeMetadata(metadataIndex, node.id)[colorField],
-    ),
+    graph.nodes.map((node) => getNodeMetadata(metadataIndex, node.id)[colorField]),
     palette,
   );
 
   const mappedNodes = graph.nodes.map((node) =>
-    mapNodeVisuals(
-      node,
-      dataset,
-      metadataIndex,
-      colorField,
-      sizeField,
-      sizeScale,
-      colorForValue,
-      pieOptions,
-    ),
+    mapNodeVisuals(node, dataset, metadataIndex, colorField, sizeField, sizeScale, colorForValue, pieOptions),
   );
 
   return {
@@ -113,10 +93,7 @@ export function applyVisualMappings(
   };
 }
 
-export function resolveColorField(
-  metadataSchema: MetadataField[],
-  requestedColorField: string | undefined,
-): string {
+export function resolveColorField(metadataSchema: MetadataField[], requestedColorField: string | undefined): string {
   if (requestedColorField) {
     return requestedColorField;
   }
@@ -174,28 +151,14 @@ function mapNodeVisuals(
   // node with no value keeps its existing role colour rather than being painted
   // a palette slot it doesn't belong to (which could collide with a real value).
   const mappedValue = metadata[colorField];
-  const hasMappedValue =
-    mappedValue !== undefined && mappedValue !== null && mappedValue !== "";
+  const hasMappedValue = mappedValue !== undefined && mappedValue !== null && mappedValue !== "";
   const baseColor = hasMappedValue ? colorForValue(mappedValue) : node.color;
-  const baseSize = deriveSize(
-    metadata[sizeField],
-    metadataIndex.numericStats.get(sizeField),
-    sizeScale,
-  );
+  const baseSize = deriveSize(metadata[sizeField], metadataIndex.numericStats.get(sizeField), sizeScale);
   const isClusterProxy = node.attributes?.is_cluster_proxy === true;
-  const proxySize = deriveClusterProxySize(
-    node.attributes?.subtree_size,
-    node.attributes?.leaf_count,
-    sizeScale,
-  );
+  const proxySize = deriveClusterProxySize(node.attributes?.subtree_size, node.attributes?.leaf_count, sizeScale);
   const color = isClusterProxy ? CLUSTER_PROXY_COLOR : baseColor;
   const size = isClusterProxy ? Math.max(baseSize, proxySize) : baseSize;
-  const pieCategoryColors = buildPieCategoryColorAttributes(
-    metadata,
-    pieOptions,
-    [sizeField],
-    ancillaryRows,
-  );
+  const pieCategoryColors = buildPieCategoryColorAttributes(metadata, pieOptions, [sizeField], ancillaryRows);
 
   return {
     ...node,
@@ -207,12 +170,8 @@ function mapNodeVisuals(
       dataset_id: dataset.dataset_id,
       is_cluster_proxy: isClusterProxy,
       ...buildPieAttributes(metadata, pieOptions, [sizeField], ancillaryRows),
-      ...(Object.keys(pieCategoryColors).length > 0
-        ? { [PIE_CATEGORY_COLORS_ATTRIBUTE]: pieCategoryColors }
-        : {}),
-      ...(pieOptions.palette && pieOptions.palette.length > 0
-        ? { [PIE_PALETTE_ATTRIBUTE]: pieOptions.palette }
-        : {}),
+      ...(Object.keys(pieCategoryColors).length > 0 ? { [PIE_CATEGORY_COLORS_ATTRIBUTE]: pieCategoryColors } : {}),
+      ...(pieOptions.palette && pieOptions.palette.length > 0 ? { [PIE_PALETTE_ATTRIBUTE]: pieOptions.palette } : {}),
     },
   };
 }
@@ -227,22 +186,10 @@ export function deriveSize(
     return DEFAULT_NODE_SIZE;
   }
 
-  return scaleNumberToRange(
-    rawValue,
-    stats.min,
-    stats.max,
-    MIN_NODE_SIZE,
-    MAX_NODE_SIZE,
-    scale,
-    DEFAULT_NODE_SIZE,
-  );
+  return scaleNumberToRange(rawValue, stats.min, stats.max, MIN_NODE_SIZE, MAX_NODE_SIZE, scale, DEFAULT_NODE_SIZE);
 }
 
-function deriveClusterProxySize(
-  subtreeSize: unknown,
-  leafCount: unknown,
-  scale: SizeScale,
-): number {
+function deriveClusterProxySize(subtreeSize: unknown, leafCount: unknown, scale: SizeScale): number {
   const sizeValue =
     typeof leafCount === "number" && leafCount > 0
       ? leafCount
@@ -277,10 +224,7 @@ function scaleNumberToRange(
     return fallback;
   }
 
-  const normalized =
-    scale === SIZE_SCALE_LOG
-      ? normalizeLogValue(value, min, max)
-      : (value - min) / (max - min);
+  const normalized = scale === SIZE_SCALE_LOG ? normalizeLogValue(value, min, max) : (value - min) / (max - min);
   const clamped = Math.min(1, Math.max(0, normalized));
   return outputMin + clamped * (outputMax - outputMin);
 }

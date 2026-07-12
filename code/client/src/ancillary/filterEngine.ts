@@ -1,11 +1,6 @@
 import { filterNodeIdsByFieldValues, getNodeMetadata } from "./metadataIndex";
 import type { MetadataIndexData } from "./metadataIndex";
-import type {
-  CategoricalFieldFilter,
-  MetadataFilterState,
-  NodeMetadata,
-  NumericFieldFilter,
-} from "./metadataTypes";
+import type { CategoricalFieldFilter, MetadataFilterState, NodeMetadata, NumericFieldFilter } from "./metadataTypes";
 import type { PositionedGraph } from "../contracts/positioned";
 
 export type GraphFilter = (
@@ -24,18 +19,13 @@ export function matchesFilterState(
   filterState: MetadataFilterState,
 ): boolean {
   return (
-    matchesCategoricalFilters(metadata, filterState.categorical) &&
-    matchesNumericFilters(metadata, filterState.numeric)
+    matchesCategoricalFilters(metadata, filterState.categorical) && matchesNumericFilters(metadata, filterState.numeric)
   );
 }
 
 // Local metadata filtering implementation.
 // This function can later be replaced by a server-side GraphFilter.
-export const filterGraphByMetadata: GraphFilter = (
-  graph,
-  metadataIndex,
-  filterState,
-) => {
+export const filterGraphByMetadata: GraphFilter = (graph, metadataIndex, filterState) => {
   if (!hasActiveFilters(filterState)) {
     return graph;
   }
@@ -45,10 +35,7 @@ export const filterGraphByMetadata: GraphFilter = (
   return {
     ...graph,
     nodes: graph.nodes.filter((node) => selectedNodeIds.has(node.id)),
-    edges: graph.edges.filter(
-      (edge) =>
-        selectedNodeIds.has(edge.source) && selectedNodeIds.has(edge.target),
-    ),
+    edges: graph.edges.filter((edge) => selectedNodeIds.has(edge.source) && selectedNodeIds.has(edge.target)),
   };
 };
 
@@ -64,11 +51,7 @@ function getMatchingNodeIds(
       continue;
     }
 
-    const matchingNodeIds = filterNodeIdsByFieldValues(
-      metadataIndex,
-      filter.fieldKey,
-      filter.acceptedValues,
-    );
+    const matchingNodeIds = filterNodeIdsByFieldValues(metadataIndex, filter.fieldKey, filter.acceptedValues);
 
     selectedNodeIds = intersectSets(selectedNodeIds, matchingNodeIds);
   }
@@ -103,10 +86,7 @@ function matchesCategoricalFilters(
   return true;
 }
 
-function matchesNumericFilters(
-  metadata: NodeMetadata | null | undefined,
-  filters: NumericFieldFilter[],
-): boolean {
+function matchesNumericFilters(metadata: NodeMetadata | null | undefined, filters: NumericFieldFilter[]): boolean {
   for (const filter of filters) {
     if (filter.min == null && filter.max == null) {
       continue;
@@ -132,11 +112,7 @@ function intersectSets(left: Set<string>, right: Set<string>): Set<string> {
 
 export function hasActiveFilters(filterState: MetadataFilterState): boolean {
   return (
-    filterState.categorical.some(
-      (filter) => filter.acceptedValues.length > 0,
-    ) ||
-    filterState.numeric.some(
-      (filter) => filter.min != null || filter.max != null,
-    )
+    filterState.categorical.some((filter) => filter.acceptedValues.length > 0) ||
+    filterState.numeric.some((filter) => filter.min != null || filter.max != null)
   );
 }

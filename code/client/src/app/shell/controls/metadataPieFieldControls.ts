@@ -60,9 +60,7 @@ export default function (select: HTMLSelectElement | undefined) {
     }
 
     clickedOption.selected = !clickedOption.selected;
-    const automaticOption = [...select.options].find(
-      (option) => option.value === "",
-    );
+    const automaticOption = [...select.options].find((option) => option.value === "");
     if (automaticOption) {
       automaticOption.selected = false;
     }

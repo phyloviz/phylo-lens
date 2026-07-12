@@ -9,11 +9,7 @@ export const STATUS_DEGRADED_LAYOUT_WARNING =
   "⚠ Degraded layout (force layout unavailable — positions ignore tree topology)";
 
 export function buildRenderedStatus(graph: PositionedGraph): string {
-  const parts = [
-    `${graph.nodes.length} nodes`,
-    `${graph.edges.length} edges`,
-    lodTierLabel(graph),
-  ];
+  const parts = [`${graph.nodes.length} nodes`, `${graph.edges.length} edges`, lodTierLabel(graph)];
 
   if (typeof graph.viewMeta.sliceNodeCount === "number") {
     parts.push(`slice ${graph.viewMeta.sliceNodeCount} nodes`);
@@ -24,9 +20,7 @@ export function buildRenderedStatus(graph: PositionedGraph): string {
   }
 
   const status = `${STATUS_RENDERED_PREFIX}: ${parts.join(", ")}`;
-  return graph.viewMeta.layoutStatus === "degraded"
-    ? `${status} — ${STATUS_DEGRADED_LAYOUT_WARNING}`
-    : status;
+  return graph.viewMeta.layoutStatus === "degraded" ? `${status} — ${STATUS_DEGRADED_LAYOUT_WARNING}` : status;
 }
 
 // Human-readable current LoD tier. When the tier count is known it reads

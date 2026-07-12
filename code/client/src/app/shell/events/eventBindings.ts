@@ -6,11 +6,7 @@ export default function () {
     clear: clear,
   };
 
-  function on(
-    target: EventTarget | null | undefined,
-    type: string,
-    listener: EventListener,
-  ): void {
+  function on(target: EventTarget | null | undefined, type: string, listener: EventListener): void {
     if (!target) {
       return;
     }

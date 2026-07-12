@@ -55,24 +55,17 @@ export function sigmaCameraToViewportState(
   bounds: GraphBounds,
   camera: SigmaCameraState,
 ): RenderViewportState["viewport"] {
-  return sigmaNormalizedCameraToViewportState(
-    bounds,
-    normalizeSigmaCameraState(camera),
-  );
+  return sigmaNormalizedCameraToViewportState(bounds, normalizeSigmaCameraState(camera));
 }
 
-export function sigmaCameraToSemanticViewState(
-  bounds: GraphBounds,
-  camera: SigmaCameraState,
-): SigmaSemanticViewState {
+export function sigmaCameraToSemanticViewState(bounds: GraphBounds, camera: SigmaCameraState): SigmaSemanticViewState {
   const normalizedCamera = normalizeSigmaCameraState(camera);
 
   return {
     camera: normalizedCamera,
     viewport: sigmaNormalizedCameraToViewportState(bounds, normalizedCamera),
     lodZoom: sigmaRatioToLodZoom(normalizedCamera.ratio),
-    edgeDistanceLabelsVisible:
-      normalizedCamera.ratio <= SIGMA_EDGE_LABEL_MAX_CAMERA_RATIO,
+    edgeDistanceLabelsVisible: normalizedCamera.ratio <= SIGMA_EDGE_LABEL_MAX_CAMERA_RATIO,
   };
 }
 
@@ -104,9 +97,7 @@ export function graphCoordinatesToCameraCenter(
   };
 }
 
-export function normalizeGraphBounds(
-  bounds: PositionedGraphBounds | undefined,
-): GraphBounds | null {
+export function normalizeGraphBounds(bounds: PositionedGraphBounds | undefined): GraphBounds | null {
   if (!bounds) {
     return null;
   }
@@ -123,9 +114,7 @@ export function normalizeGraphBounds(
   return bounds;
 }
 
-export function deriveGraphBounds(
-  nodes: readonly { x: number; y: number }[],
-): GraphBounds | null {
+export function deriveGraphBounds(nodes: readonly { x: number; y: number }[]): GraphBounds | null {
   if (nodes.length === 0) {
     return null;
   }

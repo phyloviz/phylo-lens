@@ -15,8 +15,7 @@ export function buildVisualMappingForControls(
 ): VisualMappingOptions {
   const selectedFields = fieldKeys.map((field) => field.trim()).filter(Boolean);
   const mapping: VisualMappingOptions = { ...baseVisualMapping };
-  const hasSizeControls =
-    sizeFieldKey !== undefined || sizeScaleValue !== undefined;
+  const hasSizeControls = sizeFieldKey !== undefined || sizeScaleValue !== undefined;
 
   if (hasSizeControls || baseVisualMapping.size || baseVisualMapping.sizeField) {
     const selectedSizeField =
@@ -55,10 +54,7 @@ export function buildVisualMappingForControls(
   };
 }
 
-function normalizeSizeScale(
-  value: string | undefined,
-  fallback: SizeScale | undefined,
-): SizeScale {
+function normalizeSizeScale(value: string | undefined, fallback: SizeScale | undefined): SizeScale {
   if (value === SIZE_SCALE_LOG) {
     return SIZE_SCALE_LOG;
   }

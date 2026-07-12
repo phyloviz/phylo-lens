@@ -17,23 +17,13 @@ export function downloadTextFile(filename: string, content: string): void {
   URL.revokeObjectURL(url);
 }
 
-export function resolveAncillaryFormat(
-  selectedFormat: string | undefined,
-  filename: string,
-): AncillaryTableFormat {
-  if (
-    selectedFormat === "auto" ||
-    selectedFormat === "csv" ||
-    selectedFormat === "tsv"
-  ) {
+export function resolveAncillaryFormat(selectedFormat: string | undefined, filename: string): AncillaryTableFormat {
+  if (selectedFormat === "auto" || selectedFormat === "csv" || selectedFormat === "tsv") {
     return selectedFormat;
   }
 
   const normalizedFilename = filename.toLowerCase();
-  if (
-    normalizedFilename.endsWith(".tsv") ||
-    normalizedFilename.endsWith(".txt")
-  ) {
+  if (normalizedFilename.endsWith(".tsv") || normalizedFilename.endsWith(".txt")) {
     return "tsv";
   }
   if (normalizedFilename.endsWith(".csv")) {

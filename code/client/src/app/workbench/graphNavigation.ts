@@ -4,10 +4,7 @@ import type { PositionedGraph } from "../../contracts/positioned";
 import type { SigmaViewportBounds } from "../../render/adapters/sigma/graphViewerTypes";
 import type { GraphRenderer } from "../../render/types";
 import { requirePreparedSession } from "./graphWorkbench.state";
-import type {
-  GraphWorkbenchState,
-  RegionSelectionResult,
-} from "./graphWorkbench.types";
+import type { GraphWorkbenchState, RegionSelectionResult } from "./graphWorkbench.types";
 import { createEmptyGraph } from "./viewportGraph";
 
 interface WorkbenchNavigationOptions {
@@ -16,20 +13,14 @@ interface WorkbenchNavigationOptions {
   graphClient: GraphClient;
 }
 
-export default function createGraphNavigation({
-  state,
-  renderer,
-  graphClient,
-}: WorkbenchNavigationOptions) {
+export default function createGraphNavigation({ state, renderer, graphClient }: WorkbenchNavigationOptions) {
   return {
     selectRegion: selectRegion,
     searchNodes: searchNodes,
     focusNode: focusNode,
   };
 
-  async function selectRegion(
-    bounds: SigmaViewportBounds,
-  ): Promise<RegionSelectionResult> {
+  async function selectRegion(bounds: SigmaViewportBounds): Promise<RegionSelectionResult> {
     const session = requirePreparedSession(state);
 
     const response = await graphClient.readRegion({
@@ -53,10 +44,7 @@ export default function createGraphNavigation({
     };
   }
 
-  async function searchNodes(query: {
-    query: string;
-    limit?: number;
-  }): Promise<SearchDatasetResponse> {
+  async function searchNodes(query: { query: string; limit?: number }): Promise<SearchDatasetResponse> {
     const session = requirePreparedSession(state);
 
     const response = await graphClient.searchGraph({

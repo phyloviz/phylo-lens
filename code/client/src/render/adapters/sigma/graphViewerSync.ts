@@ -8,10 +8,7 @@ import type {
 } from "../../../api/graphContracts";
 import type { MetadataField } from "../../../contracts/models";
 import type { GraphDisplayOptions } from "../../types";
-import {
-  hasActiveFilters,
-  matchesFilterState,
-} from "../../../ancillary/filterEngine";
+import { hasActiveFilters, matchesFilterState } from "../../../ancillary/filterEngine";
 import type { MetadataFilterState } from "../../../ancillary/metadataTypes";
 import {
   buildValueColorMap,
@@ -90,9 +87,7 @@ export function syncGraphologyViewport(
   const displayOptions = settings?.displayOptions;
   const selectedNodeId = settings?.selectedNodeId ?? null;
   const liveNodeIds = new Set(nodes.map((node) => node.id));
-  nodes.forEach((node) =>
-    upsertGraphNode(graph, node, visuals, displayOptions, selectedNodeId),
-  );
+  nodes.forEach((node) => upsertGraphNode(graph, node, visuals, displayOptions, selectedNodeId));
   response.edges.forEach((edge) => {
     if (!liveNodeIds.has(edge.source) || !liveNodeIds.has(edge.target)) {
       return;
@@ -122,8 +117,7 @@ export function reconcileGraphologyViewport(
   // Snapshot and detach the per-drop listeners so the batch does not trigger a
   // full Sigma re-index for every removed node/edge.
   const suspendedListeners = SIGMA_DROP_EVENTS.map(
-    (event) =>
-      [event, graph.rawListeners(event) as ((...args: unknown[]) => void)[]] as const,
+    (event) => [event, graph.rawListeners(event) as ((...args: unknown[]) => void)[]] as const,
   );
   suspendedListeners.forEach(([event]) => graph.removeAllListeners(event));
 
@@ -150,17 +144,12 @@ export function reconcileGraphologyViewport(
 }
 
 // Restrict a viewport response to nodes passing the active metadata filters.
-function filteredViewportNodes(
-  response: GraphViewportResponse,
-  settings?: ViewportSyncSettings,
-): GraphViewportNode[] {
+function filteredViewportNodes(response: GraphViewportResponse, settings?: ViewportSyncSettings): GraphViewportNode[] {
   const filterState = settings?.filterState;
   if (!filterState || !hasActiveFilters(filterState)) {
     return response.nodes;
   }
-  return response.nodes.filter((node) =>
-    matchesFilterState(node.metadata, filterState),
-  );
+  return response.nodes.filter((node) => matchesFilterState(node.metadata, filterState));
 }
 
 // Resolve color/size parameters once per viewport when a mapping is active.
@@ -173,14 +162,8 @@ function resolveViewportVisuals(
     return null;
   }
 
-  const colorField = resolveColorField(
-    settings?.metadataSchema ?? [],
-    mapping.colorField,
-  );
-  const sizeField =
-    mapping.size?.field ??
-    mapping.sizeField ??
-    resolveDefaultSizeField(viewportHasProfileCount(nodes));
+  const colorField = resolveColorField(settings?.metadataSchema ?? [], mapping.colorField);
+  const sizeField = mapping.size?.field ?? mapping.sizeField ?? resolveDefaultSizeField(viewportHasProfileCount(nodes));
   const scale = mapping.size?.scale ?? SIZE_SCALE_LINEAR;
   const palette = mapping.palette ?? DEFAULT_COLOR_PALETTE;
   const numericStats = computeSizeFieldStats(nodes, sizeField);
@@ -191,8 +174,7 @@ function resolveViewportVisuals(
     palette,
   );
   // Pie is opt-in under LoD: only when an explicit, enabled pie mapping is set.
-  const pie =
-    mapping.pie && mapping.pie.enabled !== false ? mapping.pie : undefined;
+  const pie = mapping.pie && mapping.pie.enabled !== false ? mapping.pie : undefined;
 
   return {
     colorField,
@@ -208,9 +190,7 @@ function resolveViewportVisuals(
 // True when any viewport node carries a numeric profile_count, so the default
 // size mapping can size nodes by isolate count rather than branch distance.
 function viewportHasProfileCount(nodes: GraphViewportNode[]): boolean {
-  return nodes.some(
-    (node) => typeof node.metadata?.[DEFAULT_PROFILE_COUNT_FIELD] === "number",
-  );
+  return nodes.some((node) => typeof node.metadata?.[DEFAULT_PROFILE_COUNT_FIELD] === "number");
 }
 
 // Compute min/max for the active size field across the current viewport nodes.
@@ -244,9 +224,7 @@ export function nodeSizeForMemberCount(memberCount: number): number {
   return DEFAULT_GRAPH_VIEWER_NODE_SIZE + boost;
 }
 
-export function isExpandableRepresentative(
-  attributes: Record<string, unknown>,
-): boolean {
+export function isExpandableRepresentative(attributes: Record<string, unknown>): boolean {
   return (
     attributes.type === SIGMA_NODE_TYPE_TRIANGLE ||
     attributes.is_cluster_proxy === true ||
@@ -261,12 +239,7 @@ function upsertGraphNode(
   displayOptions?: GraphDisplayOptions,
   selectedNodeId?: string | null,
 ): void {
-  const attributes = graphNodeAttributes(
-    node,
-    visuals,
-    displayOptions,
-    selectedNodeId,
-  );
+  const attributes = graphNodeAttributes(node, visuals, displayOptions, selectedNodeId);
   if (!graph.hasNode(node.id)) {
     graph.addNode(node.id, attributes);
     return;
@@ -289,11 +262,7 @@ function upsertGraphNode(
   }
 }
 
-function upsertGraphEdge(
-  graph: Graph,
-  edge: GraphViewportEdge,
-  displayOptions?: GraphDisplayOptions,
-): void {
+function upsertGraphEdge(graph: Graph, edge: GraphViewportEdge, displayOptions?: GraphDisplayOptions): void {
   if (!graph.hasNode(edge.source) || !graph.hasNode(edge.target)) {
     return;
   }
@@ -344,11 +313,8 @@ function graphNodeAttributes(
   // fall back to their PHYLOViZ role color. This keeps "no data" nodes on their
   // role colour instead of a palette slot they don't belong to.
   const mappedValue = visuals ? metadata?.[visuals.colorField] : undefined;
-  const hasMappedValue =
-    mappedValue !== undefined && mappedValue !== null && mappedValue !== "";
-  const roleColor = isRepresentative
-    ? GRAPH_VIEWER_REPRESENTATIVE_COLOR
-    : deriveViewportNodeColor(node);
+  const hasMappedValue = mappedValue !== undefined && mappedValue !== null && mappedValue !== "";
+  const roleColor = isRepresentative ? GRAPH_VIEWER_REPRESENTATIVE_COLOR : deriveViewportNodeColor(node);
   const color = isSelected
     ? PHYLOVIZ_NODE_SELECTED_COLOR
     : visuals && hasMappedValue
@@ -371,11 +337,7 @@ function graphNodeAttributes(
     cluster_id: node.cluster_id,
     member_count: node.member_count,
     is_cluster_proxy: isRepresentative || undefined,
-    type: isSelected
-      ? SIGMA_NODE_TYPE_BORDER
-      : isRepresentative
-        ? SIGMA_NODE_TYPE_TRIANGLE
-        : undefined,
+    type: isSelected ? SIGMA_NODE_TYPE_BORDER : isRepresentative ? SIGMA_NODE_TYPE_TRIANGLE : undefined,
     borderColor: isSelected ? PHYLOVIZ_NODE_SELECTED_BORDER_COLOR : undefined,
     layout_status: node.layout_status,
     ...(metadata ? { metadata } : {}),
@@ -398,31 +360,18 @@ function pieNodeAttributes(
 
   const excludedFields = [visuals.sizeField];
   const pieAttributes = buildPieAttributes(metadata, pie, excludedFields, []);
-  const pieCategoryColors = buildPieCategoryColorAttributes(
-    metadata,
-    pie,
-    excludedFields,
-    [],
-  );
+  const pieCategoryColors = buildPieCategoryColorAttributes(metadata, pie, excludedFields, []);
 
   return {
     ...pieAttributes,
-    ...(Object.keys(pieCategoryColors).length > 0
-      ? { [PIE_CATEGORY_COLORS_ATTRIBUTE]: pieCategoryColors }
-      : {}),
-    ...(pie.palette && pie.palette.length > 0
-      ? { [PIE_PALETTE_ATTRIBUTE]: pie.palette }
-      : {}),
+    ...(Object.keys(pieCategoryColors).length > 0 ? { [PIE_CATEGORY_COLORS_ATTRIBUTE]: pieCategoryColors } : {}),
+    ...(pie.palette && pie.palette.length > 0 ? { [PIE_PALETTE_ATTRIBUTE]: pie.palette } : {}),
   };
 }
 
-function graphEdgeAttributes(
-  edge: GraphViewportEdge,
-  displayOptions?: GraphDisplayOptions,
-): Record<string, unknown> {
+function graphEdgeAttributes(edge: GraphViewportEdge, displayOptions?: GraphDisplayOptions): Record<string, unknown> {
   const isMeta = edge.is_meta === true;
-  const hasDistance =
-    typeof edge.distance === "number" && Number.isFinite(edge.distance);
+  const hasDistance = typeof edge.distance === "number" && Number.isFinite(edge.distance);
   const showEdgeLabel = displayOptions?.edgeDistanceLabels === true;
   return {
     color: GRAPH_VIEWER_EDGE_COLOR,

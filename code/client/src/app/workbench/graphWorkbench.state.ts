@@ -1,9 +1,6 @@
 import { EMPTY_METADATA_FILTER_STATE } from "../../ancillary/filterEngine";
 import { ERR_NO_GRAPH_RENDERED } from "./graphWorkbench.errors";
-import type {
-  GraphWorkbenchState,
-  PreparedDatasetSession,
-} from "./graphWorkbench.types";
+import type { GraphWorkbenchState, PreparedDatasetSession } from "./graphWorkbench.types";
 
 export function createInitialWorkbenchState(): GraphWorkbenchState {
   return {

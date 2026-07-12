@@ -1,9 +1,5 @@
 import type { GraphViewportResponse } from "../../api/graphContracts";
-import {
-  type CanonicalDataset,
-  SOURCE_FORMAT_NEWICK,
-  type Viewport,
-} from "../../contracts/models";
+import { type CanonicalDataset, SOURCE_FORMAT_NEWICK, type Viewport } from "../../contracts/models";
 import type { PositionedGraph } from "../../contracts/positioned";
 import { buildMetadataIndex } from "../../ancillary/metadataIndex";
 import type { GraphWorkbenchState } from "./graphWorkbench.types";
@@ -31,10 +27,7 @@ export function createEmptyGraph(): PositionedGraph {
   };
 }
 
-export function updateStateFromGraphViewport(
-  state: GraphWorkbenchState,
-  response: GraphViewportResponse,
-): void {
+export function updateStateFromGraphViewport(state: GraphWorkbenchState, response: GraphViewportResponse): void {
   const graph: PositionedGraph = {
     nodes: response.nodes.map((node) => {
       const metadata = node.metadata ?? undefined;
@@ -57,9 +50,7 @@ export function updateStateFromGraphViewport(
       source: edge.source,
       target: edge.target,
       attributes:
-        typeof edge.distance === "number" && Number.isFinite(edge.distance)
-          ? { distance: edge.distance }
-          : undefined,
+        typeof edge.distance === "number" && Number.isFinite(edge.distance) ? { distance: edge.distance } : undefined,
     })),
     viewMeta: {
       layout: "server",
@@ -100,10 +91,7 @@ function viewportMetadataSignature(response: GraphViewportResponse): string {
   ].join("|");
 }
 
-function buildViewportDataset(
-  state: GraphWorkbenchState,
-  response: GraphViewportResponse,
-): CanonicalDataset {
+function buildViewportDataset(state: GraphWorkbenchState, response: GraphViewportResponse): CanonicalDataset {
   const metadataByNodeId: CanonicalDataset["metadata_by_node_id"] = {};
   response.nodes.forEach((node) => {
     if (node.metadata) {

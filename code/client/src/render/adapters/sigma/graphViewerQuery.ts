@@ -1,9 +1,5 @@
 import type { GraphViewportQuery } from "../../../api/graphContracts";
-import type {
-  SigmaCameraLike,
-  SigmaViewportBounds,
-  SigmaViewportLike,
-} from "./graphViewerTypes";
+import type { SigmaCameraLike, SigmaViewportBounds, SigmaViewportLike } from "./graphViewerTypes";
 
 // Settle delay before a server viewport query fires after panning within the
 // same LOD level. This governs same-level pan responsiveness against extra
@@ -67,21 +63,14 @@ export function buildGraphViewportQuery({
     ? Math.max(lodTierCount - 1, 0)
     : forceGlobal
       ? 0
-      : semanticLodLevelForCameraRatioWithHysteresis(
-          ratio,
-          lodTierCount,
-          currentLodLevel,
-        );
+      : semanticLodLevelForCameraRatioWithHysteresis(ratio, lodTierCount, currentLodLevel);
   // A finest-tier small-tree load reads the whole tree unbounded (it fits in
   // the client), and tier 0 is always the fixed global overview; both carry no
   // bounds. Finer tiers are viewport-bounded so panning reveals new regions.
   const bounds =
     forceFinestTier || lodLevel === 0
       ? null
-      : expandViewportBounds(
-          viewportBounds,
-          GRAPH_VIEWER_VIEWPORT_PADDING_RATIO,
-        );
+      : expandViewportBounds(viewportBounds, GRAPH_VIEWER_VIEWPORT_PADDING_RATIO);
 
   const query: GraphViewportQuery = {
     dataset_id: datasetId,
@@ -99,9 +88,7 @@ export function buildGraphViewportQuery({
   return query;
 }
 
-export function sigmaViewportBounds(
-  sigma: SigmaViewportLike,
-): SigmaViewportBounds {
+export function sigmaViewportBounds(sigma: SigmaViewportLike): SigmaViewportBounds {
   const dimensions = sigmaDimensions(sigma);
   const corners = [
     sigma.viewportToGraph({ x: 0, y: 0 }),
@@ -124,10 +111,7 @@ export function sigmaViewportBounds(
 // Tier 0 is the overview (ratio >= 0.8); each finer tier's boundary is the
 // previous one scaled by GRAPH_VIEWER_LOD_RATIO_STEP, so zooming in walks
 // down the tiers geometrically. Clamps to the finest available tier.
-export function semanticLodLevelForCameraRatio(
-  ratio: number,
-  lodTierCount = 1,
-): number {
+export function semanticLodLevelForCameraRatio(ratio: number, lodTierCount = 1): number {
   if (!Number.isFinite(ratio) || ratio <= 0 || lodTierCount <= 1) {
     return 0;
   }
@@ -135,8 +119,7 @@ export function semanticLodLevelForCameraRatio(
     return 0;
   }
   let tier = 1;
-  let boundary =
-    GRAPH_VIEWER_DETAIL_RATIO_THRESHOLD * GRAPH_VIEWER_LOD_RATIO_STEP;
+  let boundary = GRAPH_VIEWER_DETAIL_RATIO_THRESHOLD * GRAPH_VIEWER_LOD_RATIO_STEP;
   while (tier < lodTierCount - 1 && ratio < boundary) {
     tier += 1;
     boundary *= GRAPH_VIEWER_LOD_RATIO_STEP;
@@ -153,30 +136,19 @@ export function semanticLodLevelForCameraRatioWithHysteresis(
   currentLodLevel: number | null = null,
 ): number {
   const naiveTier = semanticLodLevelForCameraRatio(ratio, lodTierCount);
-  if (
-    currentLodLevel === null ||
-    !Number.isFinite(ratio) ||
-    ratio <= 0 ||
-    naiveTier === currentLodLevel
-  ) {
+  if (currentLodLevel === null || !Number.isFinite(ratio) || ratio <= 0 || naiveTier === currentLodLevel) {
     return naiveTier;
   }
   // Boundary that separates the current tier from the naive one: the lower of
   // the two tier indices identifies which geometric boundary is being crossed.
   const boundaryTier = Math.min(currentLodLevel, naiveTier);
-  const boundary =
-    GRAPH_VIEWER_DETAIL_RATIO_THRESHOLD *
-    Math.pow(GRAPH_VIEWER_LOD_RATIO_STEP, boundaryTier);
+  const boundary = GRAPH_VIEWER_DETAIL_RATIO_THRESHOLD * Math.pow(GRAPH_VIEWER_LOD_RATIO_STEP, boundaryTier);
   const inDeadBand =
-    ratio > boundary - GRAPH_VIEWER_LOD_RATIO_HYSTERESIS &&
-    ratio < boundary + GRAPH_VIEWER_LOD_RATIO_HYSTERESIS;
+    ratio > boundary - GRAPH_VIEWER_LOD_RATIO_HYSTERESIS && ratio < boundary + GRAPH_VIEWER_LOD_RATIO_HYSTERESIS;
   return inDeadBand ? currentLodLevel : naiveTier;
 }
 
-export function expandViewportBounds(
-  bounds: SigmaViewportBounds,
-  paddingRatio: number,
-): SigmaViewportBounds {
+export function expandViewportBounds(bounds: SigmaViewportBounds, paddingRatio: number): SigmaViewportBounds {
   const width = bounds.xmax - bounds.xmin;
   const height = bounds.ymax - bounds.ymin;
   const xPadding = width * paddingRatio;
@@ -191,9 +163,7 @@ export function expandViewportBounds(
 
 export function sigmaCameraRatio(camera: SigmaCameraLike): number {
   const state = camera.getState?.() ?? camera;
-  return typeof state.ratio === "number" && Number.isFinite(state.ratio)
-    ? state.ratio
-    : 1;
+  return typeof state.ratio === "number" && Number.isFinite(state.ratio) ? state.ratio : 1;
 }
 
 export function sigmaDisplayZoom(camera: SigmaCameraLike): number {

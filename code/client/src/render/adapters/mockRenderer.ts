@@ -62,15 +62,11 @@ export default function () {
     lastGraph = graph;
   }
 
-  function setViewChangeHandler(
-    handler: ((state: RenderViewportState) => void) | null,
-  ): void {
+  function setViewChangeHandler(handler: ((state: RenderViewportState) => void) | null): void {
     viewChangeHandler = handler;
   }
 
-  function setNodeClickHandler(
-    handler: ((state: RenderNodeClickState) => void) | null,
-  ): void {
+  function setNodeClickHandler(handler: ((state: RenderNodeClickState) => void) | null): void {
     nodeClickHandler = handler;
   }
 

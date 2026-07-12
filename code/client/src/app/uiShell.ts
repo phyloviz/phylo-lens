@@ -229,9 +229,7 @@ export default function (options: UiShellOptions): UiShell {
     const handleAncillaryModeChange = () => {
       updateNodeSelector(
         ancillaryNodeSelect,
-        getAncillaryMode(ancillaryModeSelect) === ANCILLARY_MODE_SELECTED
-          ? lastRenderedGraph
-          : null,
+        getAncillaryMode(ancillaryModeSelect) === ANCILLARY_MODE_SELECTED ? lastRenderedGraph : null,
       );
       updateNodeSelectionVisibility();
       wheels.renderOverview();
@@ -310,10 +308,7 @@ export default function (options: UiShellOptions): UiShell {
     const ancillaryRaw = ancillaryInput?.value.trim() ?? "";
 
     if (!content) {
-      const label =
-        sourceFormat === SOURCE_FORMAT_TYPING_DATA
-          ? "empty typing data input"
-          : "empty Newick input";
+      const label = sourceFormat === SOURCE_FORMAT_TYPING_DATA ? "empty typing data input" : "empty Newick input";
       setFailureStatus(label);
       return;
     }
@@ -369,9 +364,7 @@ export default function (options: UiShellOptions): UiShell {
     lastRenderedGraph = graph;
     updateNodeSelector(
       ancillaryNodeSelect,
-      getAncillaryMode(ancillaryModeSelect) === ANCILLARY_MODE_SELECTED
-        ? graph
-        : null,
+      getAncillaryMode(ancillaryModeSelect) === ANCILLARY_MODE_SELECTED ? graph : null,
     );
     pieFieldControls.updateOptions(graph);
     palette.renderControls();
@@ -413,10 +406,7 @@ export default function (options: UiShellOptions): UiShell {
   }
 
   function updateNodeSelectionVisibility(): void {
-    updateNodeSelectionVisibilityControl(
-      ancillaryNodeSelect,
-      ancillaryModeSelect,
-    );
+    updateNodeSelectionVisibilityControl(ancillaryNodeSelect, ancillaryModeSelect);
   }
 
   function updateLodPlaybackControls(lodAvailable: boolean): void {
@@ -437,9 +427,7 @@ export default function (options: UiShellOptions): UiShell {
   }
 
   function getSourceFormat(): SourceFormat {
-    return sourceFormatSelect?.value === SOURCE_FORMAT_TYPING_DATA
-      ? SOURCE_FORMAT_TYPING_DATA
-      : SOURCE_FORMAT_NEWICK;
+    return sourceFormatSelect?.value === SOURCE_FORMAT_TYPING_DATA ? SOURCE_FORMAT_TYPING_DATA : SOURCE_FORMAT_NEWICK;
   }
 
   // Read the raw dataset content for the active source format: a typing-data
@@ -459,9 +447,7 @@ export default function (options: UiShellOptions): UiShell {
     return newickInput.value;
   }
 
-  async function getAncillaryDataInput(): Promise<
-    RenderNewickOptions["ancillaryData"] | undefined
-  > {
+  async function getAncillaryDataInput(): Promise<RenderNewickOptions["ancillaryData"] | undefined> {
     const file = ancillaryFileInput?.files?.[0];
     if (!file) {
       return undefined;

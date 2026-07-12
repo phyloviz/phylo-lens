@@ -81,9 +81,7 @@ export function buildAncillaryWheelStats(
     });
   });
 
-  const keys = [...totalsByKey.keys()].sort((left, right) =>
-    left.localeCompare(right),
-  );
+  const keys = [...totalsByKey.keys()].sort((left, right) => left.localeCompare(right));
   if (keys.length === 0) {
     return null;
   }
@@ -94,15 +92,8 @@ export function buildAncillaryWheelStats(
   }
 
   const graphSliceKeys = detectPieSliceKeys(graph.nodes);
-  const colors = resolvePieSliceColors(
-    graph.nodes,
-    graphSliceKeys,
-    options.palette,
-    options.categoryColors,
-  );
-  const displayedKeys = new Set(
-    graphSliceKeys.filter((key) => key !== PIE_OTHER_SLICE_KEY),
-  );
+  const colors = resolvePieSliceColors(graph.nodes, graphSliceKeys, options.palette, options.categoryColors);
+  const displayedKeys = new Set(graphSliceKeys.filter((key) => key !== PIE_OTHER_SLICE_KEY));
   const hasOtherSlice = graphSliceKeys.includes(PIE_OTHER_SLICE_KEY);
   const slices: AncillaryWheelSliceStat[] = keys.map((key) => {
     const value = totalsByKey.get(key) ?? 0;
@@ -114,9 +105,7 @@ export function buildAncillaryWheelStats(
       percentage,
       color:
         colors[key] ??
-        (hasOtherSlice && !displayedKeys.has(key)
-          ? colors[PIE_OTHER_SLICE_KEY]
-          : undefined) ??
+        (hasOtherSlice && !displayedKeys.has(key) ? colors[PIE_OTHER_SLICE_KEY] : undefined) ??
         "#0f766e",
     };
   });
@@ -158,21 +147,14 @@ export function buildMetadataFieldWheelStats(
     return null;
   }
 
-  const colorForValue = buildFieldValueColorResolver(
-    graph,
-    trimmedFieldKey,
-    options,
-  );
+  const colorForValue = buildFieldValueColorResolver(graph, trimmedFieldKey, options);
   return {
     total,
     nodeCount: includedNodeCount,
     slices: slices.map((slice) => ({
       ...slice,
       percentage: (slice.value / total) * 100,
-      color:
-        slice.label === PIE_OTHER_SLICE_LABEL
-          ? PIE_OTHER_SLICE_COLOR
-          : colorForValue(slice.label),
+      color: slice.label === PIE_OTHER_SLICE_LABEL ? PIE_OTHER_SLICE_COLOR : colorForValue(slice.label),
     })),
   };
 }
@@ -191,10 +173,7 @@ function accumulateFieldCounts(
   const categoryCounts = categoryCountsForField(metadata, fieldKey);
   if (categoryCounts.length > 0) {
     categoryCounts.forEach((entry) => {
-      countsByValue.set(
-        entry.category,
-        (countsByValue.get(entry.category) ?? 0) + entry.count,
-      );
+      countsByValue.set(entry.category, (countsByValue.get(entry.category) ?? 0) + entry.count);
     });
     return;
   }
@@ -221,13 +200,8 @@ function buildFieldValueColorResolver(
   // snapshot, so palette edits recolour the wheel immediately (matching the
   // tree, which the shell repaints through the same override).
   const runtimePalette =
-    options.palette && options.palette.length > 0
-      ? options.palette
-      : resolvePiePaletteFromNodes(graph.nodes);
-  const palette =
-    runtimePalette && runtimePalette.length > 0
-      ? runtimePalette
-      : DEFAULT_COLOR_PALETTE;
+    options.palette && options.palette.length > 0 ? options.palette : resolvePiePaletteFromNodes(graph.nodes);
+  const palette = runtimePalette && runtimePalette.length > 0 ? runtimePalette : DEFAULT_COLOR_PALETTE;
   // Category overrides come from two places, both keyed by the pie attribute
   // key: what's baked on the graph and the live shell edits (keyed by label,
   // so we re-key them per field here). Live edits take precedence.
@@ -245,18 +219,13 @@ function buildFieldValueColorResolver(
   const values = collectFieldValues(graph, fieldKey);
   const colorForValue = buildValueColorMap(values, palette);
 
-  return (value: string) =>
-    categoryColors[pieCategoricalAttributeKey(fieldKey, value)] ??
-    colorForValue(value);
+  return (value: string) => categoryColors[pieCategoricalAttributeKey(fieldKey, value)] ?? colorForValue(value);
 }
 
 // Collect one entry per occurrence of fieldKey across all nodes, so the ranked
 // colour map reflects true frequency. Uses the same accumulation as the wheel's
 // value counting to stay consistent with what the legend shows.
-function collectFieldValues(
-  graph: PositionedGraph,
-  fieldKey: string,
-): string[] {
+function collectFieldValues(graph: PositionedGraph, fieldKey: string): string[] {
   const countsByValue = new Map<string, number>();
   graph.nodes.forEach((node) => {
     accumulateFieldCounts(node.attributes, fieldKey, countsByValue);
@@ -277,9 +246,7 @@ export function collectMetadataFieldKeys(graph: PositionedGraph): string[] {
 }
 
 // Return metadata fields with approximate cardinality in the current graph.
-export function collectMetadataFieldSummaries(
-  graph: PositionedGraph,
-): MetadataFieldSummary[] {
+export function collectMetadataFieldSummaries(graph: PositionedGraph): MetadataFieldSummary[] {
   const valuesByKey = new Map<string, Set<string>>();
 
   graph.nodes.forEach((node) => {
@@ -350,9 +317,7 @@ export function renderAncillaryWheel(
         </div>
       </div>
       <div class="wheel-meta">
-        <p>Ancillary distribution across ${stats.nodeCount} ${
-          stats.nodeCount === 1 ? "node" : "nodes"
-        }</p>
+        <p>Ancillary distribution across ${stats.nodeCount} ${stats.nodeCount === 1 ? "node" : "nodes"}</p>
         <ul>${legend}</ul>
       </div>
     </div>
@@ -363,8 +328,7 @@ function buildDistributionSlices(
   countsByValue: Map<string, number>,
 ): Array<Omit<AncillaryWheelSliceStat, "percentage" | "color">> {
   const sorted = [...countsByValue.entries()].sort(
-    ([leftLabel, leftCount], [rightLabel, rightCount]) =>
-      rightCount - leftCount || leftLabel.localeCompare(rightLabel),
+    ([leftLabel, leftCount], [rightLabel, rightCount]) => rightCount - leftCount || leftLabel.localeCompare(rightLabel),
   );
 
   const topSlices = sorted.slice(0, MAX_METADATA_DISTRIBUTION_SLICES);

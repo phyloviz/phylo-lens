@@ -1,13 +1,7 @@
 import type Graph from "graphology";
 import type { PositionedNode } from "../../../contracts/positioned";
-import {
-  PIE_ATTRIBUTE_PREFIX,
-  PIE_OTHER_SLICE_KEY,
-} from "../../pieMapping";
-import {
-  isTruthyAttribute,
-  toPositiveNumber,
-} from "./sigmaAttributeUtils";
+import { PIE_ATTRIBUTE_PREFIX, PIE_OTHER_SLICE_KEY } from "../../pieMapping";
+import { isTruthyAttribute, toPositiveNumber } from "./sigmaAttributeUtils";
 import { deriveNodeLabel } from "./sigmaLabels";
 import {
   PHYLOVIZ_NODE_SELECTED_BORDER_COLOR,
@@ -18,11 +12,7 @@ import {
   SIGMA_NODE_TYPE_PIECHART,
   SIGMA_NODE_TYPE_TRIANGLE,
 } from "./sigmaRenderingConstants";
-import {
-  isUnionNode,
-  UNION_NODE_COLOR,
-  UNION_NODE_SIZE,
-} from "../../unionNodes";
+import { isUnionNode, UNION_NODE_COLOR, UNION_NODE_SIZE } from "../../unionNodes";
 import type { SigmaRendererOptions } from "./sigmaTypes";
 import { derivePhylovizNodeColor } from "./sigmaStyle";
 
@@ -36,9 +26,7 @@ export function addPositionedNode(
 ): void {
   const unionNode = isUnionNode(node.id, node.attributes);
   const pieAttributes: Record<string, number> = {};
-  const displayedPieKeys = new Set(
-    pieSliceKeys.filter((key) => key !== PIE_OTHER_SLICE_KEY),
-  );
+  const displayedPieKeys = new Set(pieSliceKeys.filter((key) => key !== PIE_OTHER_SLICE_KEY));
   pieSliceKeys.forEach((key) => {
     pieAttributes[key] = unionNode
       ? 0
@@ -49,35 +37,28 @@ export function addPositionedNode(
   const hasPieData = Object.values(pieAttributes).some((value) => value > 0);
   const isClusterProxy = node.attributes?.is_cluster_proxy === true;
   const isSelectedNode = !unionNode && node.id === selectedNodeId;
-  const nodeType =
-    isSelectedNode
-      ? SIGMA_NODE_TYPE_BORDER
-        : !unionNode && hasPieData && pieSliceKeys.length > 0
-        ? SIGMA_NODE_TYPE_PIECHART
-        : isClusterProxy
-          ? SIGMA_NODE_TYPE_TRIANGLE
-          : SIGMA_NODE_TYPE_DEFAULT;
-  const nodeSize = unionNode
-    ? UNION_NODE_SIZE
-    : (node.size ?? SIGMA_DEFAULT_NODE_SIZE);
+  const nodeType = isSelectedNode
+    ? SIGMA_NODE_TYPE_BORDER
+    : !unionNode && hasPieData && pieSliceKeys.length > 0
+      ? SIGMA_NODE_TYPE_PIECHART
+      : isClusterProxy
+        ? SIGMA_NODE_TYPE_TRIANGLE
+        : SIGMA_NODE_TYPE_DEFAULT;
+  const nodeSize = unionNode ? UNION_NODE_SIZE : (node.size ?? SIGMA_DEFAULT_NODE_SIZE);
 
   graph.addNode(node.id, {
     x: node.x,
     y: node.y,
     size: isSelectedNode ? Math.max(nodeSize * 1.55, nodeSize + 6) : nodeSize,
     label:
-      !isSelectedNode &&
-      (rendererOptions.label?.enabled === false ||
-        rendererOptions.display?.nodeLabels === false)
+      !isSelectedNode && (rendererOptions.label?.enabled === false || rendererOptions.display?.nodeLabels === false)
         ? ""
         : deriveNodeLabel(node.id, node.attributes),
     ...(node.attributes ?? {}),
     ...pieAttributes,
     type: nodeType,
     color: deriveNodeColor(node, selectedNodeId),
-    borderColor: isSelectedNode
-      ? PHYLOVIZ_NODE_SELECTED_BORDER_COLOR
-      : undefined,
+    borderColor: isSelectedNode ? PHYLOVIZ_NODE_SELECTED_BORDER_COLOR : undefined,
     triangleRotation,
     forceLabel: isSelectedNode || undefined,
   });
@@ -89,17 +70,12 @@ export function addPositionedNode(
 // nodes cannot be re-added through addPositionedNode. Ensures every displayed
 // slice key (plus the aggregated Others bucket) is present on each pie node so
 // the @sigma/node-piechart program can read them.
-export function applyPieChartNodeTypes(
-  graph: Graph,
-  sliceKeys: readonly string[],
-): void {
+export function applyPieChartNodeTypes(graph: Graph, sliceKeys: readonly string[]): void {
   if (sliceKeys.length === 0) {
     return;
   }
 
-  const displayedPieKeys = new Set(
-    sliceKeys.filter((key) => key !== PIE_OTHER_SLICE_KEY),
-  );
+  const displayedPieKeys = new Set(sliceKeys.filter((key) => key !== PIE_OTHER_SLICE_KEY));
   graph.forEachNode((nodeId, rawAttributes) => {
     const attributes = rawAttributes as Record<string, unknown>;
     const unionNode = isUnionNode(nodeId, attributes);
@@ -122,20 +98,13 @@ export function applyPieChartNodeTypes(
   });
 }
 
-function deriveOtherPieValue(
-  attributes: Record<string, unknown> | undefined,
-  displayedPieKeys: Set<string>,
-): number {
+function deriveOtherPieValue(attributes: Record<string, unknown> | undefined, displayedPieKeys: Set<string>): number {
   if (!attributes) {
     return 0;
   }
 
   return Object.entries(attributes).reduce((sum, [key, value]) => {
-    if (
-      key === PIE_OTHER_SLICE_KEY ||
-      !key.startsWith(PIE_ATTRIBUTE_PREFIX) ||
-      displayedPieKeys.has(key)
-    ) {
+    if (key === PIE_OTHER_SLICE_KEY || !key.startsWith(PIE_ATTRIBUTE_PREFIX) || displayedPieKeys.has(key)) {
       return sum;
     }
 
@@ -143,20 +112,12 @@ function deriveOtherPieValue(
   }, 0);
 }
 
-function deriveNodeColor(
-  node: PositionedNode,
-  selectedNodeId?: string | null,
-): string {
-  if (
-    isUnionNode(node.id, node.attributes)
-  ) {
+function deriveNodeColor(node: PositionedNode, selectedNodeId?: string | null): string {
+  if (isUnionNode(node.id, node.attributes)) {
     return UNION_NODE_COLOR;
   }
 
-  if (
-    node.id === selectedNodeId ||
-    isTruthyAttribute(node.attributes, ["selected", "is_selected"])
-  ) {
+  if (node.id === selectedNodeId || isTruthyAttribute(node.attributes, ["selected", "is_selected"])) {
     return PHYLOVIZ_NODE_SELECTED_COLOR;
   }
 

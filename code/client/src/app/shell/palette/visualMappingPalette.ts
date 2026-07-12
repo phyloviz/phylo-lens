@@ -3,10 +3,7 @@ import type { PositionedGraph } from "../../../contracts/positioned";
 import type { VisualMappingOptions } from "../../../render/visualMappings";
 import { buildVisualMappingForControls } from "../controls/visualMappingControls";
 import { downloadTextFile, readTextFile } from "../inputs/fileInputs";
-import {
-  parseCategoryColorPalette,
-  serializeCategoryColorPalette,
-} from "./categoryPalette";
+import { parseCategoryColorPalette, serializeCategoryColorPalette } from "./categoryPalette";
 import categoryColorControls from "./categoryColorControls";
 
 export interface VisualMappingPaletteOptions {
@@ -98,10 +95,7 @@ export default function (options: VisualMappingPaletteOptions) {
 
     try {
       const categories = controls.readEditableOrder();
-      const loadedColors = parseCategoryColorPalette(
-        await readTextFile(file),
-        categories,
-      );
+      const loadedColors = parseCategoryColorPalette(await readTextFile(file), categories);
       categoryColorOverrides = {
         ...categoryColorOverrides,
         ...loadedColors,
@@ -127,10 +121,7 @@ export default function (options: VisualMappingPaletteOptions) {
       return;
     }
 
-    downloadTextFile(
-      options.saveFilename,
-      serializeCategoryColorPalette(colors, categories),
-    );
+    downloadTextFile(options.saveFilename, serializeCategoryColorPalette(colors, categories));
     options.setStatus(`Saved ${categories.length} category colors`);
   }
 

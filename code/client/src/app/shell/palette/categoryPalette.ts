@@ -1,7 +1,4 @@
-export function parseCategoryColorPalette(
-  rawInput: string,
-  categoryOrder: string[],
-): Record<string, string> {
+export function parseCategoryColorPalette(rawInput: string, categoryOrder: string[]): Record<string, string> {
   const trimmedInput = rawInput.trim();
   if (!trimmedInput) {
     return {};
@@ -41,9 +38,7 @@ export function isHexColor(color: string): boolean {
   return /^#[0-9a-fA-F]{6}$/.test(color);
 }
 
-function parseNamedCategoryColorPalette(
-  rawInput: string,
-): Record<string, string> {
+function parseNamedCategoryColorPalette(rawInput: string): Record<string, string> {
   const parsed: unknown = JSON.parse(rawInput);
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
     return {};
@@ -51,9 +46,7 @@ function parseNamedCategoryColorPalette(
 
   const record = parsed as Record<string, unknown>;
   const source =
-    record.colors &&
-    typeof record.colors === "object" &&
-    !Array.isArray(record.colors)
+    record.colors && typeof record.colors === "object" && !Array.isArray(record.colors)
       ? (record.colors as Record<string, unknown>)
       : record;
   const colorsByCategory: Record<string, string> = {};
@@ -68,16 +61,11 @@ function parseNamedCategoryColorPalette(
 
 function rgbLineToHex(line: string): string | null {
   const parts = line.split(",").map((part) => Number(part.trim()));
-  if (
-    parts.length !== 3 ||
-    parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)
-  ) {
+  if (parts.length !== 3 || parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) {
     return null;
   }
 
-  return `#${parts
-    .map((part) => part.toString(16).padStart(2, "0"))
-    .join("")}`;
+  return `#${parts.map((part) => part.toString(16).padStart(2, "0")).join("")}`;
 }
 
 function hexToRgbLine(color: string | undefined): string | null {

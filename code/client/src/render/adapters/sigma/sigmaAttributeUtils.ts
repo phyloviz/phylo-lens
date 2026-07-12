@@ -1,7 +1,4 @@
-export function areStringArraysEqual(
-  left: readonly string[],
-  right: readonly string[],
-): boolean {
+export function areStringArraysEqual(left: readonly string[], right: readonly string[]): boolean {
   if (left.length !== right.length) {
     return false;
   }
@@ -22,10 +19,7 @@ export function toPositiveNumber(value: unknown): number {
   return value;
 }
 
-export function firstAttributeValue(
-  attributes: Record<string, unknown> | undefined,
-  keys: readonly string[],
-): unknown {
+export function firstAttributeValue(attributes: Record<string, unknown> | undefined, keys: readonly string[]): unknown {
   if (!attributes) {
     return undefined;
   }
@@ -48,10 +42,7 @@ export function firstAttributeValue(
   return undefined;
 }
 
-export function isTruthyAttribute(
-  attributes: Record<string, unknown> | undefined,
-  keys: readonly string[],
-): boolean {
+export function isTruthyAttribute(attributes: Record<string, unknown> | undefined, keys: readonly string[]): boolean {
   const value = firstAttributeValue(attributes, keys);
   return value === true || value === 1 || normalizeRoleValue(value) === "true";
 }
@@ -64,12 +55,11 @@ export function normalizeRoleValue(value: unknown): string {
     return "";
   }
 
-  const normalized = value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_");
-  if (
-    normalized === "sub_group_founder" ||
-    normalized === "sub_founder" ||
-    normalized === "subgroup"
-  ) {
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_");
+  if (normalized === "sub_group_founder" || normalized === "sub_founder" || normalized === "subgroup") {
     return "subgroup_founder";
   }
   if (normalized === "group_founder" || normalized === "founder") {
