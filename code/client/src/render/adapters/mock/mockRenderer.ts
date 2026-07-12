@@ -17,6 +17,7 @@ export default function () {
   let lastCenteredNodeId: string | null = null;
   let lastCenteredCoordinates: { x: number; y: number } | null = null;
   let lastFocusedNodeId: string | null = null;
+  let lastExpandedClusterId: string | null = null;
   let viewChangeHandler: ((state: RenderViewportState) => void) | null = null;
   let nodeClickHandler: ((state: RenderNodeClickState) => void) | null = null;
 
@@ -29,12 +30,14 @@ export default function () {
     centerOnNode: centerOnNode,
     centerOnCoordinates: centerOnCoordinates,
     focusNode: focusNode,
+    expandCluster: expandCluster,
     unmount: unmount,
     getRenderedGraph: getRenderedGraph,
     getMountedContainerId: getMountedContainerId,
     getLastCenteredNodeId: getLastCenteredNodeId,
     getLastCenteredCoordinates: getLastCenteredCoordinates,
     getLastFocusedNodeId: getLastFocusedNodeId,
+    getLastExpandedClusterId: getLastExpandedClusterId,
     emitViewChange: emitViewChange,
     emitNodeClick: emitNodeClick,
   } satisfies GraphRenderer & {
@@ -44,6 +47,7 @@ export default function () {
     getLastCenteredNodeId: typeof getLastCenteredNodeId;
     getLastCenteredCoordinates: typeof getLastCenteredCoordinates;
     getLastFocusedNodeId: typeof getLastFocusedNodeId;
+    getLastExpandedClusterId: typeof getLastExpandedClusterId;
     emitViewChange: typeof emitViewChange;
     emitNodeClick: typeof emitNodeClick;
   };
@@ -55,6 +59,7 @@ export default function () {
     lastCenteredNodeId = null;
     lastCenteredCoordinates = null;
     lastFocusedNodeId = null;
+    lastExpandedClusterId = null;
   }
 
   // Store rendered graph snapshot for assertions and debug checks.
@@ -84,12 +89,17 @@ export default function () {
     lastFocusedNodeId = nodeId;
   }
 
+  function expandCluster(clusterId: string): void {
+    lastExpandedClusterId = clusterId;
+  }
+
   // Reset internal references on renderer teardown.
   function unmount(): void {
     containerId = MOCK_RENDERER_EMPTY_CONTAINER;
     lastGraph = null;
     lastCenteredNodeId = null;
     lastFocusedNodeId = null;
+    lastExpandedClusterId = null;
     viewChangeHandler = null;
     nodeClickHandler = null;
   }
@@ -113,6 +123,10 @@ export default function () {
 
   function getLastFocusedNodeId(): string | null {
     return lastFocusedNodeId;
+  }
+
+  function getLastExpandedClusterId(): string | null {
+    return lastExpandedClusterId;
   }
 
   function emitViewChange(state: RenderViewportState): void {

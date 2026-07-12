@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { GraphClient } from "../src/api/graphClient";
+import type { GraphViewportResponse } from "../src/api/graphContracts";
 
 let lastSigmaOptions: Record<string, unknown> | null = null;
 let lastGraph:
@@ -28,6 +30,7 @@ let lastCamera:
       off: (event: string, handler: () => void) => void;
     }
   | null = null;
+let lastStageClickHandler: (() => void) | null = null;
 let shouldThrowOnPieProgram = false;
 let pieProgramInputs: Array<{
   slices: Array<{ color: { value: string }; value: { attribute: string } }>;
@@ -38,6 +41,8 @@ let sigmaConstructions = 0;
 let lastForceMotionSettings: Record<string, number> | null = null;
 let animationFrameCallback: FrameRequestCallback | null = null;
 let animationFrameId = 0;
+let graphToViewportPoint = (point: { x: number; y: number }) => point;
+let viewportToFramedGraphPoint = (point: { x: number; y: number }) => point;
 
 vi.mock("graphology-layout-forceatlas2/worker", () => ({
   default: class FakeForceSupervisor {
@@ -104,6 +109,20 @@ vi.mock("sigma", () => {
       sigmaConstructions += 1;
     }
 
+    on(event: string, handler: () => void) {
+      if (event === "clickStage") {
+        lastStageClickHandler = handler;
+      }
+      return this;
+    }
+
+    off(event: string, handler: () => void) {
+      if (event === "clickStage" && lastStageClickHandler === handler) {
+        lastStageClickHandler = null;
+      }
+      return this;
+    }
+
     getCamera() {
       return this.camera;
     }
@@ -128,7 +147,11 @@ vi.mock("sigma", () => {
     }
 
     graphToViewport(point: { x: number; y: number }) {
-      return point;
+      return graphToViewportPoint(point);
+    }
+
+    viewportToFramedGraph(point: { x: number; y: number }) {
+      return viewportToFramedGraphPoint(point);
     }
 
     viewportToGraph(point: { x: number; y: number }) {
@@ -162,10 +185,14 @@ import {
   MAX_PIE_SLICE_KEYS,
   PIE_ATTRIBUTE_PREFIX,
   PIE_OTHER_SLICE_KEY,
-} from "../src/render/pieMapping";
+} from "../src/render/mapping/pieMapping";
 import Graph from "graphology";
-import { applyPieChartNodeTypes } from "../src/render/adapters/sigma/sigmaNodeRendering";
-import { SIGMA_NODE_TYPE_PIECHART } from "../src/render/adapters/sigma/sigmaRenderingConstants";
+import { applyPieChartNodeTypes } from "../src/render/adapters/sigma/attributes/sigmaNodeAttributes";
+import {
+  PHYLOVIZ_NODE_SELECTED_COLOR,
+  SIGMA_NODE_TYPE_PIECHART,
+} from "../src/render/adapters/sigma/sigmaRendering.constants";
+import { syncGraphologyViewport } from "../src/render/adapters/sigma/viewport/graphViewportSync";
 
 const CONTAINER_ID = "graph-root";
 
@@ -177,8 +204,11 @@ describe("sigmaRenderer", () => {
     forceMotionKills = 0;
     sigmaConstructions = 0;
     lastForceMotionSettings = null;
+    lastStageClickHandler = null;
     animationFrameCallback = null;
     animationFrameId = 0;
+    graphToViewportPoint = (point) => point;
+    viewportToFramedGraphPoint = (point) => point;
     vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
       animationFrameCallback = callback;
       animationFrameId += 1;
@@ -649,15 +679,79 @@ describe("sigmaRenderer", () => {
 
     renderer.focusNode("target");
 
-    expect(lastGraph?.getNodeAttribute("target", "type")).toBe("border");
-    expect(lastGraph?.getNodeAttribute("target", "color")).toBe("#dc2626");
-    expect(lastGraph?.getNodeAttribute("target", "borderColor")).toBe(
-      "#ffffff",
-    );
-    expect(lastGraph?.getNodeAttribute("target", "forceLabel")).toBe(true);
-    expect(lastGraph?.getNodeAttribute("target", "label")).toBe("target");
-    expect(lastGraph?.getNodeAttribute("target", "size")).toBeGreaterThan(6);
+    const nodeReducer = lastSigmaOptions?.nodeReducer as
+      | ((id: string, data: Record<string, unknown>) => Record<string, unknown>)
+      | undefined;
+    const renderedTarget = nodeReducer?.("target", {
+      type: lastGraph?.getNodeAttribute("target", "type"),
+      color: lastGraph?.getNodeAttribute("target", "color"),
+      borderColor: lastGraph?.getNodeAttribute("target", "borderColor"),
+      label: lastGraph?.getNodeAttribute("target", "label"),
+      size: lastGraph?.getNodeAttribute("target", "size"),
+    });
+
+    expect(lastGraph?.getNodeAttribute("target", "type")).toBe("circle");
+    expect(lastGraph?.getNodeAttribute("target", "color")).toBe("#93c5fd");
+    expect(renderedTarget).toMatchObject({
+      type: "border",
+      color: "#dc2626",
+      borderColor: "#ffffff",
+      forceLabel: true,
+      label: "target",
+    });
+    expect(renderedTarget?.size).toBeGreaterThan(6);
     expect(lastGraph?.getNodeAttribute("nearby", "type")).toBe("circle");
+
+    renderer.unmount();
+  });
+
+  it("centers raw search coordinates through Sigma's graph conversion", () => {
+    document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
+    graphToViewportPoint = (point) => ({
+      x: point.x * 4 + 100,
+      y: point.y * 4 + 50,
+    });
+    viewportToFramedGraphPoint = (point) => ({
+      x: (point.x - 100) / 40,
+      y: (point.y - 50) / 40,
+    });
+
+    const renderer = new SigmaRenderer();
+    renderer.mount({ containerId: CONTAINER_ID });
+
+    expect(renderer.centerOnCoordinates(25, -5)).toBe(true);
+    expect(lastCamera?.state).toMatchObject({
+      x: 2.5,
+      y: -0.5,
+      ratio: 1,
+    });
+
+    renderer.unmount();
+  });
+
+  it("clears focused node selection when the canvas background is clicked", () => {
+    document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
+
+    const renderer = new SigmaRenderer();
+    const nodeClickHandler = vi.fn();
+    renderer.mount({ containerId: CONTAINER_ID });
+    renderer.setNodeClickHandler(nodeClickHandler);
+    renderer.render({
+      nodes: [
+        { id: "target", x: 0, y: 0, size: 6 },
+        { id: "nearby", x: 2, y: 1, size: 6 },
+      ],
+      edges: [],
+      viewMeta: { layout: "force", lodLevel: 0 },
+    });
+
+    renderer.focusNode("target");
+    expect(lastSigmaOptions?.nodeReducer).toEqual(expect.any(Function));
+
+    lastStageClickHandler?.();
+
+    expect(lastSigmaOptions?.nodeReducer).toBeNull();
+    expect(nodeClickHandler).toHaveBeenCalledWith({ nodeId: null });
 
     renderer.unmount();
   });
@@ -992,6 +1086,77 @@ describe("sigmaRenderer", () => {
     ).toContain(PIE_OTHER_SLICE_KEY);
     expect(lastGraph?.getNodeAttribute("node_0", "type")).toBe("piechart");
     expect(lastGraph?.getNodeAttribute("node_0", PIE_OTHER_SLICE_KEY)).toBe(1);
+
+    renderer.unmount();
+  });
+
+  it("toggles and restores node selection styling in-place in viewport sync mode", () => {
+    document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
+
+    const renderer = new SigmaRenderer();
+    renderer.mount({ containerId: CONTAINER_ID });
+    const mockResponse: GraphViewportResponse = {
+      dataset_id: "test",
+      layout_version: "1",
+      lod_level: 0,
+      zoom: 1,
+      layout_status: "ready",
+      total_node_count: 2,
+      truncated: false,
+      nodes: [
+        { id: "node_1", cluster_id: "node_1", x: 10, y: 20, layout_status: "ready", member_count: 1 },
+        { id: "node_2", cluster_id: "node_2", x: 30, y: 40, layout_status: "ready", member_count: 1 },
+      ],
+      edges: [],
+      metadata_schema: [],
+    };
+    const client: Pick<GraphClient, "readViewport"> = {
+      readViewport: async () => mockResponse,
+    };
+
+    // Start viewport sync.
+    renderer.startGraphViewportSync({
+      client,
+      datasetId: "test",
+      layoutVersion: "1",
+    });
+
+    // We can run reconcile/sync manually on renderer's graph.
+    const graph = (renderer as unknown as { graph: Graph }).graph;
+    syncGraphologyViewport(graph, mockResponse);
+
+    // Nodes keep their base graphology attributes; selection is a render reducer.
+    expect(graph.getNodeAttribute("node_1", "unselectedStyle")).toBeUndefined();
+    expect(graph.getNodeAttribute("node_1", "type")).toBeUndefined();
+    expect(graph.getNodeAttribute("node_1", "color")).toBe("#93c5fd");
+
+    renderer.focusNode("node_1");
+    const selectedNodeReducer = lastSigmaOptions?.nodeReducer as
+      | ((id: string, data: Record<string, unknown>) => Record<string, unknown>)
+      | undefined;
+    expect(selectedNodeReducer?.("node_1", graph.getNodeAttributes("node_1"))).toMatchObject({
+      type: "border",
+      color: PHYLOVIZ_NODE_SELECTED_COLOR,
+      borderColor: "#ffffff",
+      forceLabel: true,
+    });
+    expect(graph.getNodeAttribute("node_1", "type")).toBeUndefined();
+    expect(graph.getNodeAttribute("node_1", "color")).toBe("#93c5fd");
+
+    renderer.focusNode("node_2");
+    const nextNodeReducer = lastSigmaOptions?.nodeReducer as
+      | ((id: string, data: Record<string, unknown>) => Record<string, unknown>)
+      | undefined;
+    expect(nextNodeReducer?.("node_2", graph.getNodeAttributes("node_2"))).toMatchObject({
+      type: "border",
+      color: PHYLOVIZ_NODE_SELECTED_COLOR,
+    });
+    expect(graph.getNodeAttribute("node_1", "type")).toBeUndefined();
+    expect(graph.getNodeAttribute("node_2", "type")).toBeUndefined();
+
+    renderer.focusNode(null);
+    expect(lastSigmaOptions?.nodeReducer).toBeNull();
+    expect(graph.getNodeAttribute("node_2", "type")).toBeUndefined();
 
     renderer.unmount();
   });

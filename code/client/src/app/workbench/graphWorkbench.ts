@@ -2,7 +2,7 @@ import type { GraphClient } from "../../api/graphClient";
 import type { NormalizeRequest } from "../../api/graphContracts";
 import { SOURCE_FORMAT_NEWICK } from "../../contracts/models";
 import { type PositionedGraph } from "../../contracts/positioned";
-import type { GraphRenderer } from "../../render/types";
+import type { GraphRenderer } from "../../render/renderer.types";
 import { DEFAULT_VIEWPORT, DEFAULT_VIEW_SLICE_MAX_NODES, createEmptyGraph } from "./viewportGraph";
 import graphFilters from "./graphFilters";
 import {
@@ -58,6 +58,7 @@ export function createGraphWorkbench(options: GraphWorkbenchOptions): GraphWorkb
   });
 
   renderer.setNodeClickHandler?.((clickState) => {
+    state.focusedNodeId = clickState.nodeId;
     state.nodeClickedHandler?.(clickState);
   });
 
@@ -67,7 +68,7 @@ export function createGraphWorkbench(options: GraphWorkbenchOptions): GraphWorkb
     state.lodRefreshPaused = paused;
     clearPendingViewRefresh(state);
     // On resume, reconcile the frozen view to wherever the camera drifted while
-    // paused. refreshNow() bypasses the pause guard in GraphViewer.
+    // paused. refreshNow() bypasses the pause guard in GraphViewportController.
     if (!paused) {
       renderer.refreshGraphViewportSync?.();
     }
@@ -207,7 +208,6 @@ async function renderNewick({
       filterState: state.activeFilters,
       metadataSchema: state.preparedSession?.metadataSchema,
       displayOptions: state.preparedSession?.displayOptions,
-      selectedNodeId: state.focusedNodeId,
     }),
   });
 

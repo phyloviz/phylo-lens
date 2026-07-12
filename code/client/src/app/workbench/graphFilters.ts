@@ -1,8 +1,8 @@
 import { EMPTY_METADATA_FILTER_STATE } from "../../ancillary/filterEngine";
 import type { MetadataFilterState } from "../../ancillary/metadataTypes";
 import type { PositionedGraph } from "../../contracts/positioned";
-import type { VisualMappingOptions } from "../../render/visualMappings";
-import type { GraphDisplayOptions, GraphRenderer } from "../../render/types";
+import type { VisualMappingOptions } from "../../render/mapping/visualMapping";
+import type { GraphDisplayOptions, GraphRenderer } from "../../render/renderer.types";
 import { requirePreparedSession } from "./graphWorkbench.state";
 import type { GraphWorkbenchState } from "./graphWorkbench.types";
 import { createEmptyGraph } from "./viewportGraph";

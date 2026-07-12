@@ -10,7 +10,7 @@ export interface SigmaViewportBounds {
 export type SigmaCameraLike = {
   on?: (event: "updated", handler: () => void) => void;
   off?: (event: "updated", handler: () => void) => void;
-  getState?: () => { x?: number; y?: number; ratio?: number };
+  getState?: () => { x?: number; y?: number; ratio?: number; angle?: number };
   animatedReset?: (options?: { duration?: number }) => void;
   animate?: (state: { x: number; y: number; ratio: number }, options?: { duration?: number }) => void;
   ratio?: number;

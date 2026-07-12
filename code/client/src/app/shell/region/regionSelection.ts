@@ -1,5 +1,5 @@
 import type { AncillaryWheelStats } from "../../../components/ancillaryWheel";
-import type { SigmaViewportBounds } from "../../../render/adapters/sigma/graphViewerTypes";
+import type { SigmaViewportBounds } from "../../../render/adapters/sigma/viewport/graphViewport.types";
 import type { GraphWorkbench } from "../../workbench/graphWorkbench";
 import { renderRegionPanel } from "./regionPanelView";
 

@@ -9,7 +9,7 @@ import type { PositionedGraph } from "../src/contracts/positioned";
 import {
   buildValueColorMap,
   DEFAULT_COLOR_PALETTE,
-} from "../src/render/colorHash";
+} from "../src/render/mapping/colorMapping";
 import {
   buildPieAttributes,
   detectPieSliceKeys,
@@ -17,7 +17,7 @@ import {
   PIE_OTHER_SLICE_COLOR,
   pieCategoricalAttributeKey,
   resolvePieSliceColors,
-} from "../src/render/pieMapping";
+} from "../src/render/mapping/pieMapping";
 
 const GRAPH: PositionedGraph = {
   nodes: [

@@ -1,4 +1,4 @@
-import type { GraphDisplayOptions } from "../../../render/types";
+import type { GraphDisplayOptions } from "../../../render/renderer.types";
 
 export const DISPLAY_OPTION_NODE_LABELS = "node-labels";
 export const DISPLAY_OPTION_EDGE_DISTANCE_LABELS = "edge-distance-labels";

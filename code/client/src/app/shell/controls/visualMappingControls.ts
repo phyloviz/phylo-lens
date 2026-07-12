@@ -4,7 +4,7 @@ import {
   SIZE_SCALE_LOG,
   type SizeScale,
   type VisualMappingOptions,
-} from "../../../render/visualMappings";
+} from "../../../render/mapping/visualMapping";
 
 export function buildVisualMappingForControls(
   baseVisualMapping: VisualMappingOptions,

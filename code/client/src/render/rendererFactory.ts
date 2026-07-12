@@ -6,7 +6,7 @@ import {
   RENDERER_KIND_SIGMA,
   type RendererFactory,
   type RendererKind,
-} from "./types";
+} from "./renderer.types";
 
 export const ERR_UNSUPPORTED_RENDERER = "Unsupported renderer kind: {kind}";
 

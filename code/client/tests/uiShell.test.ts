@@ -12,7 +12,7 @@ function makeFakeWorkbench(
   },
 ) {
   let graphRenderedHandler: ((graph: PositionedGraph) => void) | null = null;
-  let nodeClickedHandler: ((state: { nodeId: string }) => void) | null = null;
+  let nodeClickedHandler: ((state: { nodeId: string | null }) => void) | null = null;
   let regionSelectedHandler:
     | ((bounds: {
         xmin: number;
@@ -48,6 +48,7 @@ function makeFakeWorkbench(
           score: 8,
           matched_text: "a Portugal",
           metadata: { country: "Portugal" },
+          cluster_id: "cluster-a",
           x: 12,
           y: 34,
         },
@@ -1222,6 +1223,7 @@ describe("uiShell", () => {
     expect(fakeWorkbench.focusNode).toHaveBeenCalledWith("a", {
       x: 12,
       y: 34,
+      clusterId: "cluster-a",
     });
     // Focusing a search result populates the selected-node panel, not the
     // overview wheel or its mode selector.

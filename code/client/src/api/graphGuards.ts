@@ -136,6 +136,7 @@ function isGraphSearchMatch(value: unknown): value is GraphSearchMatch {
     isString(value.node_id) &&
     isFiniteNumber(value.score) &&
     isString(value.matched_text) &&
+    (value.cluster_id == null || isString(value.cluster_id)) &&
     isOptionalFiniteNumber(value.x) &&
     isOptionalFiniteNumber(value.y)
   );

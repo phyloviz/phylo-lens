@@ -140,6 +140,7 @@ class PreparedLayoutStore:
         max_nodes: int,
         lod_level: int | None = None,
         cluster_id: str | None = None,
+        focus_node_id: str | None = None,
     ) -> ViewportReadResult:
         return viewport_reader.read_viewport(
             self._database_path,
@@ -153,6 +154,7 @@ class PreparedLayoutStore:
             max_nodes=max_nodes,
             lod_level=lod_level,
             cluster_id=cluster_id,
+            focus_node_id=focus_node_id,
         )
 
     def read_region(

@@ -38,6 +38,7 @@ class GraphViewportQuery(BaseModel):
     dataset_id: str = Field(min_length=1)
     layout_version: str | None = None
     cluster_id: str | None = None
+    focus_node_id: str | None = None
     xmin: float | None = None
     xmax: float | None = None
     ymin: float | None = None
@@ -160,6 +161,7 @@ class GraphSearchMatch(BaseModel):
     node_id: str
     score: int
     matched_text: str
+    cluster_id: str | None = None
     x: float | None = None
     y: float | None = None
 

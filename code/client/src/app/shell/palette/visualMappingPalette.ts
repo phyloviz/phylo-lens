@@ -1,6 +1,6 @@
 import type { GraphWorkbench } from "../../workbench/graphWorkbench";
 import type { PositionedGraph } from "../../../contracts/positioned";
-import type { VisualMappingOptions } from "../../../render/visualMappings";
+import type { VisualMappingOptions } from "../../../render/mapping/visualMapping";
 import { buildVisualMappingForControls } from "../controls/visualMappingControls";
 import { downloadTextFile, readTextFile } from "../inputs/fileInputs";
 import { parseCategoryColorPalette, serializeCategoryColorPalette } from "./categoryPalette";

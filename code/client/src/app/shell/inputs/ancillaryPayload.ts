@@ -1,5 +1,5 @@
 import type { MetadataField } from "../../../contracts/models";
-import type { VisualMappingOptions } from "../../../render/visualMappings";
+import type { VisualMappingOptions } from "../../../render/mapping/visualMapping";
 
 export const ERR_INVALID_ANCILLARY_JSON =
   "Ancillary JSON must be a valid object with metadata_schema and/or metadata_by_node_id.";

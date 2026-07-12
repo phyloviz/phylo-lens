@@ -2,7 +2,6 @@ import type Graph from "graphology";
 import type Sigma from "sigma";
 import {
   defaultCameraState,
-  graphCoordinatesToCameraCenter,
   type GraphBounds,
   type SigmaCameraState,
   SIGMA_DEFAULT_CAMERA_ZOOM,
@@ -48,17 +47,15 @@ export function restoreCameraState(sigma: Sigma | null, state: SigmaCameraState 
 export function centerCameraOnGraphNode({
   graph,
   sigma,
-  coordinateBounds,
   nodeId,
   beforeSetState,
 }: {
   graph: Graph | null;
   sigma: Sigma | null;
-  coordinateBounds: GraphBounds | null;
   nodeId: string;
   beforeSetState?: () => void;
 }): boolean {
-  if (!sigma || !coordinateBounds || !graph?.hasNode(nodeId)) {
+  if (!sigma || !graph?.hasNode(nodeId)) {
     return false;
   }
 
@@ -71,7 +68,6 @@ export function centerCameraOnGraphNode({
 
   return centerCameraOnCoordinates({
     sigma,
-    coordinateBounds,
     x: nodeX,
     y: nodeY,
     beforeSetState,
@@ -84,18 +80,16 @@ export function centerCameraOnGraphNode({
 // then let a viewport re-fetch pull its slice in.
 export function centerCameraOnCoordinates({
   sigma,
-  coordinateBounds,
   x,
   y,
   beforeSetState,
 }: {
   sigma: Sigma | null;
-  coordinateBounds: GraphBounds | null;
   x: number;
   y: number;
   beforeSetState?: () => void;
 }): boolean {
-  if (!sigma || !coordinateBounds || !Number.isFinite(x) || !Number.isFinite(y)) {
+  if (!sigma || !Number.isFinite(x) || !Number.isFinite(y)) {
     return false;
   }
 
@@ -107,10 +101,8 @@ export function centerCameraOnCoordinates({
     setState: (state: SigmaCameraState) => void;
   };
   const currentState = camera.getState?.() ?? camera;
-  const nextCenter = graphCoordinatesToCameraCenter(coordinateBounds, {
-    x,
-    y,
-  });
+  const viewportPoint = sigma.graphToViewport({ x, y });
+  const nextCenter = sigma.viewportToFramedGraph(viewportPoint);
 
   beforeSetState?.();
   camera.setState({

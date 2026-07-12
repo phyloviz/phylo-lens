@@ -1,6 +1,6 @@
 import type { PositionedGraph } from "../contracts/positioned";
 import { readNodeMetadata } from "../ancillary/metadataAccess";
-import { buildValueColorMap, DEFAULT_COLOR_PALETTE } from "../render/colorHash";
+import { buildValueColorMap, DEFAULT_COLOR_PALETTE } from "../render/mapping/colorMapping";
 import {
   categoryCountsForField,
   categoricalPieValues,
@@ -14,7 +14,7 @@ import {
   pieCategoricalAttributeKey,
   resolvePiePaletteFromNodes,
   resolvePieSliceColors,
-} from "../render/pieMapping";
+} from "../render/mapping/pieMapping";
 
 export interface AncillaryWheelSliceStat {
   key: string;

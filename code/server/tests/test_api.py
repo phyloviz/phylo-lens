@@ -149,6 +149,7 @@ def test_graph_search_finds_nodes_across_whole_tree(client) -> None:
     assert "d" in {match["node_id"] for match in body["matches"]}
     exact = next(match for match in body["matches"] if match["node_id"] == "d")
     assert exact["score"] == 100
+    assert exact["cluster_id"]
 
 
 def test_graph_search_missing_dataset_returns_not_found(client) -> None:

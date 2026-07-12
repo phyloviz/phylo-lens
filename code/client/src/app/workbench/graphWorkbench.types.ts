@@ -4,15 +4,15 @@ import type { CanonicalDataset, SearchDatasetResponse, SourceFormat, Viewport } 
 import type { PositionedGraph } from "../../contracts/positioned";
 import type { MetadataIndexData } from "../../ancillary/metadataIndex";
 import type { MetadataFilterState } from "../../ancillary/metadataTypes";
-import type { VisualMappingOptions } from "../../render/visualMappings";
+import type { VisualMappingOptions } from "../../render/mapping/visualMapping";
 import type {
   GraphDisplayOptions,
   RenderNodeClickState,
   RenderContext,
   RendererFactory,
   RendererKind,
-} from "../../render/types";
-import type { SigmaViewportBounds } from "../../render/adapters/sigma/graphViewerTypes";
+} from "../../render/renderer.types";
+import type { SigmaViewportBounds } from "../../render/adapters/sigma/viewport/graphViewport.types";
 
 // Public workbench contracts.
 
@@ -79,7 +79,10 @@ export interface GraphWorkbench {
 
   searchNodes: (query: { query: string; limit?: number }) => Promise<SearchDatasetResponse>;
 
-  focusNode: (nodeId: string, coordinates?: { x: number | null; y: number | null }) => Promise<PositionedGraph>;
+  focusNode: (
+    nodeId: string,
+    coordinates?: { x: number | null; y: number | null; clusterId?: string | null },
+  ) => Promise<PositionedGraph>;
 
   setGraphRenderedHandler: (handler: GraphRenderedHandler | null) => void;
 

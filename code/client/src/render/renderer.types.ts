@@ -24,7 +24,7 @@ export interface RenderViewportState {
 }
 
 export interface RenderNodeClickState {
-  nodeId: string;
+  nodeId: string | null;
   attributes?: Record<string, unknown>;
 }
 
@@ -54,6 +54,8 @@ export interface GraphRenderer {
 
   focusNode?: (nodeId: string | null) => void;
 
+  expandCluster?: (clusterId: string, options?: { fitToResponse?: boolean; focusNodeId?: string | null }) => void;
+
   updateDisplayOptions?: (options: GraphDisplayOptions) => void;
 
   startGraphViewportSync?: (options: {
@@ -72,7 +74,7 @@ export interface GraphRenderer {
 
   stopGraphViewportSync?: () => void;
 
-  refreshGraphViewportSync?: () => void;
+  refreshGraphViewportSync?: (options?: { lodLevel?: number | "finest"; fitToResponse?: boolean }) => void;
 
   // Enable/disable region (box) selection mode. While enabled a plain drag on
   // the canvas draws a selection box; Shift+drag works regardless of the toggle.

@@ -1,6 +1,8 @@
 import type { GraphWorkbench } from "../../workbench/graphWorkbench";
 import { renderSearchResults, type SearchResultItem } from "./searchResultsView";
 
+const SEARCH_LIMIT = 25;
+
 export interface SearchControllerOptions {
   workbench: GraphWorkbench;
   input?: HTMLInputElement;
@@ -26,7 +28,7 @@ export default function (options: SearchControllerOptions) {
     try {
       const response = await options.workbench.searchNodes({
         query,
-        limit: 25,
+        limit: SEARCH_LIMIT,
       });
       renderMatches(response.matches);
       options.setStatus(`Search found ${response.total_count} matches`);
@@ -51,6 +53,7 @@ export default function (options: SearchControllerOptions) {
       await options.workbench.focusNode(nodeId, {
         x: match.x ?? null,
         y: match.y ?? null,
+        clusterId: match.cluster_id ?? null,
       });
       options.onNodeFocused(nodeId);
       options.setStatus(`Focused ${nodeId}`);

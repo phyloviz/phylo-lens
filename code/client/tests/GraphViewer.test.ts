@@ -12,31 +12,32 @@ import {
   GRAPH_VIEWER_NODE_COLOR,
   GRAPH_VIEWER_REPRESENTATIVE_COLOR,
   GRAPH_VIEWER_SMALL_TREE_NODE_THRESHOLD,
-  GraphViewer,
+  GraphViewportController as GraphViewer,
   deriveViewportNodeColor,
+  fitSigmaToViewportResponse,
   nodeSizeForMemberCount,
   reconcileGraphologyViewport,
   semanticLodLevelForCameraRatio,
   semanticLodLevelForCameraRatioWithHysteresis,
   syncGraphologyViewport,
-} from "../src/render/adapters/sigma/GraphViewer";
-import type { ViewportSyncSettings } from "../src/render/adapters/sigma/GraphViewer";
+} from "../src/render/adapters/sigma/viewport/graphViewportController";
+import type { ViewportSyncSettings } from "../src/render/adapters/sigma/viewport/graphViewportController";
 import {
   PHYLOVIZ_NODE_COMMON_COLOR,
   PHYLOVIZ_NODE_GROUP_FOUNDER_COLOR,
   PHYLOVIZ_NODE_SELECTED_COLOR,
   PHYLOVIZ_NODE_SUBGROUP_FOUNDER_COLOR,
-} from "../src/render/adapters/sigma/sigmaRenderingConstants";
+} from "../src/render/adapters/sigma/sigmaRendering.constants";
 import {
   buildValueColorMap,
   DEFAULT_COLOR_PALETTE,
   deriveSize,
-} from "../src/render/visualMappings";
+} from "../src/render/mapping/visualMapping";
 import {
   PIE_ATTRIBUTE_PREFIX,
   PIE_CATEGORY_COLORS_ATTRIBUTE,
   PIE_PALETTE_ATTRIBUTE,
-} from "../src/render/pieMapping";
+} from "../src/render/mapping/pieMapping";
 
 function fakeSigma(ratio = 0.5) {
   let currentRatio = ratio;
@@ -67,6 +68,14 @@ function fakeSigma(ratio = 0.5) {
     sigma: {
       getCamera: () => camera,
       getDimensions: () => ({ width: 200, height: 100 }),
+      graphToViewport: (point: { x: number; y: number }) => ({
+        x: point.x,
+        y: point.y,
+      }),
+      viewportToFramedGraph: ({ x, y }: { x: number; y: number }) => ({
+        x,
+        y,
+      }),
       viewportToGraph: ({ x, y }: { x: number; y: number }) => ({
         x: x - 100,
         y: y - 50,
@@ -644,6 +653,7 @@ describe("GraphViewer", () => {
       sigma: sigma as never,
       debounceMs: 250,
       lodTierCount: 2,
+      nodeCount: 2,
     });
 
     viewer.mount();
@@ -657,6 +667,42 @@ describe("GraphViewer", () => {
     await vi.advanceTimersByTimeAsync(GRAPH_VIEWER_LOD_CHANGE_DEBOUNCE_MS);
 
     expect(client.readViewport).toHaveBeenCalledTimes(1);
+
+    viewer.unmount();
+  });
+
+  it("does not freeze a large tree just because the overview has few representatives", async () => {
+    const graph = new Graph();
+    const { sigma, setRatio, emitCameraUpdated } = fakeSigma(1.2);
+    const client: GraphClient = {
+      readViewport: vi.fn(async () => ({
+        ...VIEWPORT_RESPONSE,
+        lod_level: 0,
+        total_node_count: 400,
+      })),
+    };
+    const viewer = new GraphViewer({
+      datasetId: "tree",
+      client,
+      graph,
+      sigma: sigma as never,
+      debounceMs: 250,
+      lodTierCount: 4,
+      nodeCount: 12_000,
+    });
+
+    viewer.mount();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(client.readViewport).toHaveBeenCalledTimes(1);
+
+    setRatio(0.7);
+    emitCameraUpdated();
+    await vi.advanceTimersByTimeAsync(GRAPH_VIEWER_LOD_CHANGE_DEBOUNCE_MS);
+
+    expect(client.readViewport).toHaveBeenCalledTimes(2);
+    const zoomQuery = (client.readViewport as ReturnType<typeof vi.fn>).mock
+      .calls[1][0];
+    expect(zoomQuery.lod_level).toBe(1);
 
     viewer.unmount();
   });
@@ -683,8 +729,8 @@ describe("GraphViewer", () => {
       sigma: sigma as never,
       debounceMs: 250,
       lodTierCount: 3,
-      // Prepared count unknown up front; the small-tree state is instead
-      // established from the loaded total_node_count on the first response.
+      // Well below the default small-tree threshold.
+      nodeCount: 2,
     });
 
     viewer.mount();
@@ -705,6 +751,61 @@ describe("GraphViewer", () => {
     expect(refreshQuery.xmax).toBeUndefined();
     expect(refreshQuery.ymin).toBeUndefined();
     expect(refreshQuery.ymax).toBeUndefined();
+
+    viewer.unmount();
+  });
+
+  it("can force a bounded finest-tier refresh for search focus while zoomed out", async () => {
+    const graph = new Graph();
+    const { sigma, camera, emitCameraUpdated } = fakeSigma(1.2);
+    const client: GraphClient = {
+      readViewport: vi.fn(async () => ({
+        ...VIEWPORT_RESPONSE,
+        lod_level: 0,
+        total_node_count: GRAPH_VIEWER_SMALL_TREE_NODE_THRESHOLD + 1,
+      })),
+    };
+    const viewer = new GraphViewer({
+      datasetId: "tree",
+      client,
+      graph,
+      sigma: sigma as never,
+      debounceMs: 250,
+      lodTierCount: 4,
+      nodeCount: 12_000,
+    });
+
+    viewer.mount();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(client.readViewport).toHaveBeenCalledTimes(1);
+    expect(client.readViewport).toHaveBeenLastCalledWith(expect.objectContaining({ lod_level: 0 }));
+
+    viewer.refreshNow({ lodLevel: "finest", fitToResponse: true });
+    await vi.runOnlyPendingTimersAsync();
+
+    expect(client.readViewport).toHaveBeenCalledTimes(2);
+    expect(client.readViewport).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        lod_level: 3,
+        xmin: expect.any(Number),
+        xmax: expect.any(Number),
+        ymin: expect.any(Number),
+        ymax: expect.any(Number),
+      }),
+    );
+    expect(camera.animate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        x: 10,
+        y: 0,
+        ratio: expect.any(Number),
+      }),
+      expect.any(Object),
+    );
+
+    emitCameraUpdated();
+    await vi.runOnlyPendingTimersAsync();
+
+    expect(client.readViewport).toHaveBeenCalledTimes(2);
 
     viewer.unmount();
   });
@@ -872,6 +973,129 @@ describe("GraphViewer", () => {
     );
   });
 
+  it("fits viewport responses using Sigma framed coordinates instead of raw graph coordinates", () => {
+    const camera = {
+      getState: () => ({ x: 0, y: 0, ratio: 2 }),
+      animate: vi.fn(),
+    };
+    const sigma = {
+      getCamera: () => camera,
+      getDimensions: () => ({ width: 200, height: 100 }),
+      graphToViewport: (point: { x: number; y: number }) => ({
+        x: point.x * 10 + 7,
+        y: point.y * 10 + 11,
+      }),
+      viewportToFramedGraph: (point: { x: number; y: number }) => ({
+        x: (point.x - 7) / 100,
+        y: (point.y - 11) / 100,
+      }),
+      viewportToGraph: (point: { x: number; y: number }) => point,
+      refresh: vi.fn(),
+      scheduleRender: vi.fn(),
+    };
+
+    fitSigmaToViewportResponse(sigma as never, {
+      ...VIEWPORT_RESPONSE,
+      nodes: [
+        {
+          id: "left",
+          cluster_id: "cluster_b",
+          x: 10,
+          y: 0,
+          layout_status: "ready",
+          member_count: 1,
+          is_representative: false,
+        },
+        {
+          id: "right",
+          cluster_id: "cluster_b",
+          x: 20,
+          y: 10,
+          layout_status: "ready",
+          member_count: 1,
+          is_representative: false,
+        },
+      ],
+    }, { resetFirst: false });
+
+    expect(camera.animate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        x: 1.5,
+        y: 0.5,
+        ratio: expect.any(Number),
+      }),
+      { duration: 300 },
+    );
+  });
+
+  it("zooms out before fitting a response from a very deep camera zoom", async () => {
+    const camera = {
+      getState: () => ({ x: -20, y: 12, ratio: 0.01 }),
+      animate: vi.fn(),
+    };
+    const sigma = {
+      getCamera: () => camera,
+      getDimensions: () => ({ width: 200, height: 100 }),
+      graphToViewport: (point: { x: number; y: number }) => ({
+        x: point.x * 10,
+        y: point.y * 10,
+      }),
+      viewportToFramedGraph: (point: { x: number; y: number }) => ({
+        x: point.x / 100,
+        y: point.y / 100,
+      }),
+      viewportToGraph: (point: { x: number; y: number }) => point,
+      refresh: vi.fn(),
+      scheduleRender: vi.fn(),
+    };
+
+    fitSigmaToViewportResponse(sigma as never, {
+      ...VIEWPORT_RESPONSE,
+      nodes: [
+        {
+          id: "left",
+          cluster_id: "cluster_b",
+          x: 10,
+          y: 0,
+          layout_status: "ready",
+          member_count: 1,
+          is_representative: false,
+        },
+        {
+          id: "right",
+          cluster_id: "cluster_b",
+          x: 20,
+          y: 10,
+          layout_status: "ready",
+          member_count: 1,
+          is_representative: false,
+        },
+      ],
+    }, { resetFirst: false });
+
+    expect(camera.animate).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        x: -20,
+        y: 12,
+        ratio: expect.any(Number),
+      }),
+      { duration: 140 },
+    );
+
+    await vi.advanceTimersByTimeAsync(140);
+
+    expect(camera.animate).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        x: 1.5,
+        y: 0.5,
+        ratio: expect.any(Number),
+      }),
+      { duration: 160 },
+    );
+  });
+
   it("loads cluster members without moving the camera when clicking a representative", async () => {
     const graph = new Graph();
     const { sigma, camera, emitNodeClick } = fakeSigma(0.5);
@@ -944,6 +1168,81 @@ describe("GraphViewer", () => {
     // Expanding a cluster adds members in place; the camera must stay put so
     // the surrounding graph remains visible and the user can keep expanding.
     expect(camera.animate).not.toHaveBeenCalled();
+
+    viewer.unmount();
+  });
+
+  it("loads and fits cluster members when search expands a matched cluster", async () => {
+    const graph = new Graph();
+    const { sigma, camera } = fakeSigma(0.5);
+    const clusterResponse = {
+      ...VIEWPORT_RESPONSE,
+      lod_level: null,
+      nodes: [
+        {
+          id: "b1",
+          cluster_id: "cluster_b",
+          x: 10,
+          y: 0,
+          layout_status: "ready" as const,
+          member_count: 1,
+          is_representative: false,
+        },
+        {
+          id: "b2",
+          cluster_id: "cluster_b",
+          x: 20,
+          y: 10,
+          layout_status: "ready" as const,
+          member_count: 1,
+          is_representative: false,
+        },
+      ],
+      edges: [
+        {
+          id: "edge_b1_b2",
+          source: "b1",
+          target: "b2",
+          distance: 1,
+        },
+      ],
+    };
+    const client: GraphClient = {
+      readViewport: vi
+        .fn()
+        .mockResolvedValueOnce({ ...VIEWPORT_RESPONSE, lod_level: 0 })
+        .mockResolvedValueOnce(clusterResponse),
+    };
+    const viewer = new GraphViewer({
+      datasetId: "tree",
+      client,
+      graph,
+      sigma: sigma as never,
+      debounceMs: 0,
+    });
+
+    viewer.mount();
+    await vi.advanceTimersByTimeAsync(0);
+    viewer.expandCluster("cluster_b", { fitToResponse: true, focusNodeId: "b2" });
+    await vi.runOnlyPendingTimersAsync();
+
+    expect(client.readViewport).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        cluster_id: "cluster_b",
+        focus_node_id: "b2",
+        lod_level: null,
+      }),
+    );
+    expect(graph.hasNode("b1")).toBe(true);
+    expect(graph.hasEdge("edge_b1_b2")).toBe(true);
+    expect(camera.animate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        x: 15,
+        y: 5,
+        ratio: expect.any(Number),
+      }),
+      expect.any(Object),
+    );
 
     viewer.unmount();
   });

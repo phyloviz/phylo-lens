@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
-import mockRenderer from "../src/render/adapters/mockRenderer";
-import { RENDERER_KIND_MOCK } from "../src/render/types";
+import mockRenderer from "../src/render/adapters/mock/mockRenderer";
+import { RENDERER_KIND_MOCK } from "../src/render/renderer.types";
 import type { PositionedGraph } from "../src/contracts/positioned";
 
 describe("mockRenderer", () => {

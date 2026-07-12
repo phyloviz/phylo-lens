@@ -592,6 +592,31 @@ def test_viewport_cluster_members_carry_public_node_metadata(tmp_path) -> None:
     assert schema_keys == {"region", "score", "flag"}
 
 
+def test_viewport_cluster_members_prioritize_focused_node_when_limited(tmp_path) -> None:
+    store = PreparedLayoutStore(tmp_path)
+    worker = PreparedLayoutWorker(store)
+    result = worker.prepare_dataset(_dataset_with_metadata())
+    abc_cluster = next(
+        cluster
+        for cluster in result.artifacts.clusters
+        if cluster.member_node_ids == ("a", "b", "c")
+    )
+
+    read = store.read_viewport(
+        dataset_id=DATASET_ID,
+        layout_version=result.artifacts.layout_version,
+        xmin=None,
+        xmax=None,
+        ymin=None,
+        ymax=None,
+        max_nodes=1,
+        cluster_id=abc_cluster.cluster_id,
+        focus_node_id="c",
+    )
+
+    assert [node.node_id for node in read.nodes if not node.is_representative] == ["c"]
+
+
 def test_search_nodes_matches_node_id_and_metadata_across_whole_tree(
     tmp_path,
 ) -> None:

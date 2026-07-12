@@ -5,7 +5,7 @@ import {
   categoricalPieValues,
   MAX_PIE_SLICE_KEYS,
   PIE_OTHER_SLICE_LABEL,
-} from "../../../render/pieMapping";
+} from "../../../render/mapping/pieMapping";
 
 const HIGH_CARDINALITY_PIE_FIELD_THRESHOLD = 24;
 

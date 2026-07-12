@@ -195,6 +195,7 @@ def read_graph_viewport(
             max_nodes=query.max_nodes,
             lod_level=effective_lod_level(query),
             cluster_id=query.cluster_id,
+            focus_node_id=query.focus_node_id,
         )
         read_ms = (perf_counter() - read_started) * 1000.0
 

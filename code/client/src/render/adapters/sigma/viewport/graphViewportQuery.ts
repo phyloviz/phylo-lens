@@ -37,6 +37,7 @@ export function buildGraphViewportQuery({
   maxNodes,
   forceGlobal = false,
   forceFinestTier = false,
+  forcedLodLevel,
   lodTierCount = 1,
   currentLodLevel = null,
 }: {
@@ -50,6 +51,10 @@ export function buildGraphViewportQuery({
   // that fits whole in the client, so it opens as ordinary nodes rather than
   // the triangle overview. Takes precedence over forceGlobal.
   forceFinestTier?: boolean;
+  // Force a specific bounded LoD tier. Used by search focus to fetch a finest
+  // detail slice around a known coordinate even when the camera is currently
+  // zoomed out enough that semantic zoom would choose the global overview.
+  forcedLodLevel?: number;
   // Number of precomputed LoD tiers reported by the prepare response. With a
   // value of 1 the mapping always resolves to tier 0 (current behavior).
   lodTierCount?: number;
@@ -61,6 +66,8 @@ export function buildGraphViewportQuery({
   const viewportBounds = sigmaViewportBounds(sigma);
   const lodLevel = forceFinestTier
     ? Math.max(lodTierCount - 1, 0)
+    : typeof forcedLodLevel === "number" && Number.isFinite(forcedLodLevel)
+      ? Math.min(Math.max(Math.round(forcedLodLevel), 0), Math.max(lodTierCount - 1, 0))
     : forceGlobal
       ? 0
       : semanticLodLevelForCameraRatioWithHysteresis(ratio, lodTierCount, currentLodLevel);

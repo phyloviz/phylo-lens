@@ -17,7 +17,7 @@ import {
   MIN_NODE_SIZE,
   UNION_NODE_COLOR,
   UNION_NODE_SIZE,
-} from "../src/render/visualMappings";
+} from "../src/render/mapping/visualMapping";
 import {
   buildPiePalette,
   detectPieSliceKeys,
@@ -28,7 +28,7 @@ import {
   PIE_PALETTE_ATTRIBUTE,
   combinationPieFieldKey,
   pieCategoricalAttributeKey,
-} from "../src/render/pieMapping";
+} from "../src/render/mapping/pieMapping";
 
 const DATASET: CanonicalDataset = {
   dataset_id: "visual-dataset",

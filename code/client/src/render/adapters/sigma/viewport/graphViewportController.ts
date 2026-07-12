@@ -10,7 +10,7 @@ import {
   GRAPH_VIEWER_SMALL_TREE_NODE_THRESHOLD,
   sigmaDisplayZoom,
 } from "./graphViewportQuery";
-import { fitSigmaToViewportResponse } from "./graphViewportFit";
+import { fitSigmaToViewportResponse, GRAPH_VIEWER_INITIAL_FIT_DURATION_MS } from "./graphViewportFit";
 import { isExpandableRepresentative, reconcileGraphologyViewport, syncGraphologyViewport } from "./graphViewportSync";
 import type { ViewportSyncSettings } from "./graphViewportSync";
 import type { SigmaViewportLike } from "./graphViewport.types";
@@ -90,6 +90,11 @@ export interface GraphViewportControllerOptions {
   onGraphSynced?: (response?: GraphViewportResponse) => void;
 }
 
+export interface GraphViewportRefreshOptions {
+  lodLevel?: number | "finest";
+  fitToResponse?: boolean;
+}
+
 // One incident edge of a cluster representative, captured before expansion so
 // collapse can restore it verbatim.
 interface CachedIncidentEdge {
@@ -130,8 +135,13 @@ export class GraphViewportController {
   private mounted = false;
   private loadedInitialViewport = false;
   private lastRequestedLodLevel: number | null | undefined;
-  // Total node count of the loaded tree (from the initial viewport response).
-  // Once known, drives the small-tree bypass. null until the first load.
+  private nextForcedLodLevel: number | undefined;
+  private fitNextResponse = false;
+  private suppressCameraRefreshUntil = 0;
+  // Total node count reported by the current viewport response. At coarse LoD
+  // levels this can be the number of representatives in that tier, not the raw
+  // tree node count, so it is only a small-tree signal once the finest tier is
+  // loaded or no prepared node count is available.
   private totalNodeCount: number | null = null;
   // Clusters currently expanded into their members via a click. Tracked so a
   // double-click can collapse them back without a server round-trip.
@@ -221,7 +231,13 @@ export class GraphViewportController {
     this.requestSequence += 1;
   }
 
-  refreshNow(): void {
+  refreshNow(options: GraphViewportRefreshOptions = {}): void {
+    if (options.lodLevel === "finest") {
+      this.nextForcedLodLevel = Math.max(this.lodTierCount - 1, 0);
+    } else if (typeof options.lodLevel === "number" && Number.isFinite(options.lodLevel)) {
+      this.nextForcedLodLevel = Math.min(Math.max(Math.round(options.lodLevel), 0), Math.max(this.lodTierCount - 1, 0));
+    }
+    this.fitNextResponse = options.fitToResponse === true;
     this.scheduleViewportRefresh(0);
   }
 
@@ -230,11 +246,21 @@ export class GraphViewportController {
     this.scheduleViewportRefresh(0);
   }
 
+  expandCluster(clusterId: string, options: { fitToResponse?: boolean; focusNodeId?: string | null } = {}): void {
+    if (!clusterId) {
+      return;
+    }
+    void this.loadCluster(clusterId, options);
+  }
+
   private scheduleViewportRefreshForCamera(): void {
     // Frozen while LOD playback is paused: camera movement pans over the
     // existing geometry without fetching a new slice. refreshNow() (invoked on
     // resume) bypasses this guard to reconcile to the current view.
     if (this.getPaused?.()) {
+      return;
+    }
+    if (Date.now() < this.suppressCameraRefreshUntil) {
       return;
     }
     // A small tree is loaded whole at the finest tier on first paint, so there
@@ -258,7 +284,14 @@ export class GraphViewportController {
   }
 
   private isSmallTreeLoaded(): boolean {
-    return this.loadedInitialViewport && this.totalNodeCount !== null && this.totalNodeCount <= this.smallTreeThreshold;
+    if (!this.loadedInitialViewport) {
+      return false;
+    }
+    if (this.preparedNodeCount !== null) {
+      return this.preparedNodeCount <= this.smallTreeThreshold;
+    }
+    const loadedFinestTier = this.lodTierCount <= 1 || (this.lastRequestedLodLevel ?? 0) >= this.lodTierCount - 1;
+    return loadedFinestTier && this.totalNodeCount !== null && this.totalNodeCount <= this.smallTreeThreshold;
   }
 
   // Whether the tree is known (from the prepare response, before the first
@@ -291,6 +324,10 @@ export class GraphViewportController {
     // the first load (from the prepare node count); isSmallTreeLoaded covers
     // every subsequent load (from the loaded total_node_count).
     const finestTier = this.isKnownSmallTree() || this.isSmallTreeLoaded();
+    const forcedLodLevel = this.nextForcedLodLevel;
+    const fitResponse = this.fitNextResponse;
+    this.nextForcedLodLevel = undefined;
+    this.fitNextResponse = false;
     const query = buildGraphViewportQuery({
       datasetId: this.datasetId,
       layoutVersion: this.layoutVersion,
@@ -298,6 +335,7 @@ export class GraphViewportController {
       maxNodes: this.maxNodes,
       forceGlobal: !this.loadedInitialViewport && !finestTier,
       forceFinestTier: finestTier,
+      forcedLodLevel,
       lodTierCount: this.lodTierCount,
       currentLodLevel: this.lastRequestedLodLevel ?? null,
     });
@@ -314,10 +352,14 @@ export class GraphViewportController {
       syncGraphologyViewport(this.graph, response, settings);
       reconcileGraphologyViewport(this.graph, response, settings);
       this.onGraphSynced?.(response);
+      if (fitResponse) {
+        this.suppressCameraRefreshUntil = Date.now() + GRAPH_VIEWER_INITIAL_FIT_DURATION_MS + this.debounceMs;
+        this.initialFitTimer = fitSigmaToViewportResponse(this.sigma, response, { resetFirst: false });
+      }
       // Fit the camera to the initial load whether it was the global overview
       // (tier 0) or a small tree's whole finest-tier render, so both frame the
       // full graph on first paint.
-      if (!this.loadedInitialViewport && (query.lod_level === 0 || finestTier)) {
+      if (!fitResponse && !this.loadedInitialViewport && (query.lod_level === 0 || finestTier)) {
         this.initialFitTimer = fitSigmaToViewportResponse(this.sigma, response);
       }
       this.loadedInitialViewport = true;
@@ -355,14 +397,7 @@ export class GraphViewportController {
     const snapshot = this.captureClusterSnapshot(nodeId, attributes);
     const sequence = ++this.requestSequence;
     try {
-      const response = await this.client.readViewport({
-        dataset_id: this.datasetId,
-        layout_version: this.layoutVersion ?? null,
-        cluster_id: clusterId,
-        zoom: sigmaDisplayZoom(this.sigma.getCamera()),
-        lod_level: null,
-        max_nodes: this.maxNodes,
-      });
+      const response = await this.readCluster(clusterId);
       if (!this.mounted || sequence !== this.requestSequence) {
         return;
       }
@@ -385,6 +420,46 @@ export class GraphViewportController {
       }
       this.onError?.(error);
     }
+  }
+
+  private async loadCluster(
+    clusterId: string,
+    options: { fitToResponse?: boolean; focusNodeId?: string | null },
+  ): Promise<void> {
+    const sequence = ++this.requestSequence;
+    try {
+      const response = await this.readCluster(clusterId, options.focusNodeId);
+      if (!this.mounted || sequence !== this.requestSequence) {
+        return;
+      }
+      this.layoutVersion = response.layout_version;
+      syncGraphologyViewport(this.graph, response, this.getRenderSettings?.());
+      this.onGraphSynced?.(response);
+      if (options.fitToResponse) {
+        this.suppressCameraRefreshUntil = Date.now() + GRAPH_VIEWER_INITIAL_FIT_DURATION_MS + this.debounceMs;
+        this.initialFitTimer = fitSigmaToViewportResponse(this.sigma, response, { resetFirst: false });
+      }
+      this.sigma.refresh?.();
+      this.sigma.scheduleRender?.();
+      this.onViewportLoaded?.(response);
+    } catch (error) {
+      if (!this.mounted || sequence !== this.requestSequence) {
+        return;
+      }
+      this.onError?.(error);
+    }
+  }
+
+  private readCluster(clusterId: string, focusNodeId?: string | null): Promise<GraphViewportResponse> {
+    return this.client.readViewport({
+      dataset_id: this.datasetId,
+      layout_version: this.layoutVersion ?? null,
+      cluster_id: clusterId,
+      focus_node_id: focusNodeId ?? null,
+      zoom: sigmaDisplayZoom(this.sigma.getCamera()),
+      lod_level: null,
+      max_nodes: this.maxNodes,
+    });
   }
 
   // Capture the representative node and its incident edges so collapse can

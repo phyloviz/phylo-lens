@@ -1,8 +1,8 @@
 import type { GraphClient } from "../../api/graphClient";
 import type { SearchDatasetResponse } from "../../contracts/models";
 import type { PositionedGraph } from "../../contracts/positioned";
-import type { SigmaViewportBounds } from "../../render/adapters/sigma/graphViewerTypes";
-import type { GraphRenderer } from "../../render/types";
+import type { SigmaViewportBounds } from "../../render/adapters/sigma/viewport/graphViewport.types";
+import type { GraphRenderer } from "../../render/renderer.types";
 import { requirePreparedSession } from "./graphWorkbench.state";
 import type { GraphWorkbenchState, RegionSelectionResult } from "./graphWorkbench.types";
 import { createEmptyGraph } from "./viewportGraph";
@@ -62,6 +62,7 @@ export default function createGraphNavigation({ state, renderer, graphClient }: 
         score: match.score,
         matched_text: match.matched_text,
         metadata: {},
+        cluster_id: match.cluster_id ?? null,
         x: match.x ?? null,
         y: match.y ?? null,
       })),
@@ -71,9 +72,13 @@ export default function createGraphNavigation({ state, renderer, graphClient }: 
 
   async function focusNode(
     nodeId: string,
-    coordinates?: { x: number | null; y: number | null },
+    coordinates?: { x: number | null; y: number | null; clusterId?: string | null },
   ): Promise<PositionedGraph> {
     requirePreparedSession(state);
+
+    if (state.focusedNodeId === nodeId) {
+      return state.currentGraph ?? createEmptyGraph();
+    }
 
     state.focusedNodeId = nodeId;
     renderer.focusNode?.(nodeId);
@@ -86,7 +91,11 @@ export default function createGraphNavigation({ state, renderer, graphClient }: 
       coordinates.y !== null &&
       renderer.centerOnCoordinates?.(coordinates.x, coordinates.y) === true
     ) {
-      renderer.refreshGraphViewportSync?.();
+      if (coordinates.clusterId) {
+        renderer.expandCluster?.(coordinates.clusterId, { fitToResponse: true, focusNodeId: nodeId });
+      } else {
+        renderer.refreshGraphViewportSync?.({ lodLevel: "finest", fitToResponse: true });
+      }
     }
 
     return state.currentGraph ?? createEmptyGraph();

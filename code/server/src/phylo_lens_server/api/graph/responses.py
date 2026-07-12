@@ -171,6 +171,7 @@ def graph_search_response_from_result(
                 node_id=match.node_id,
                 score=match.score,
                 matched_text=match.matched_text,
+                cluster_id=match.cluster_id,
                 x=match.x,
                 y=match.y,
             )

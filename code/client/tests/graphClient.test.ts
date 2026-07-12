@@ -61,7 +61,7 @@ const SEARCH_FIXTURE = {
   query: "port",
   total_count: 2,
   matches: [
-    { node_id: "portugal_1", score: 60, matched_text: "portugal_1" },
+    { node_id: "portugal_1", score: 60, matched_text: "portugal_1", cluster_id: "cluster_portugal" },
     { node_id: "isolate_x", score: 20, matched_text: "isolate_x Portugal" },
   ],
 } satisfies unknown;

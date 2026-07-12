@@ -9,9 +9,6 @@ import {
 import { deriveSize } from "../../../mapping/visualMapping";
 import {
   PHYLOVIZ_NODE_COMMON_COLOR,
-  PHYLOVIZ_NODE_SELECTED_BORDER_COLOR,
-  PHYLOVIZ_NODE_SELECTED_COLOR,
-  SIGMA_NODE_TYPE_BORDER,
   SIGMA_NODE_TYPE_TRIANGLE,
 } from "../sigmaRendering.constants";
 import { derivePhylovizNodeColor } from "../attributes/sigmaStyle";
@@ -27,7 +24,6 @@ export function buildGraphViewportNodeAttributes(
   node: GraphViewportNode,
   visuals: ResolvedViewportVisuals | null,
   displayOptions?: GraphDisplayOptions,
-  selectedNodeId?: string | null,
 ): Record<string, unknown> {
   // A proxy only renders as an (expandable) triangle when it actually stands in
   // for more than one node. The server materializes a single-member cluster per
@@ -36,10 +32,6 @@ export function buildGraphViewportNodeAttributes(
   // as triangles produced the "cluster with just one node under it" artifact on
   // larger trees. Gating on member_count > 1 renders them as plain leaves.
   const isRepresentative = node.member_count > 1;
-  // A focused (searched) leaf wins over every other role/mapping color: it is
-  // painted red, enlarged, and given a border so it stands out once its slice
-  // loads. Representatives keep their triangle treatment even when focused.
-  const isSelected = !isRepresentative && node.id === (selectedNodeId ?? null);
   const metadata = node.metadata ?? undefined;
   // Color precedence: an active metadata visual mapping is an explicit user
   // choice and wins WHEN the node actually has a value for the colour field;
@@ -50,16 +42,11 @@ export function buildGraphViewportNodeAttributes(
   const mappedValue = visuals ? metadata?.[visuals.colorField] : undefined;
   const hasMappedValue = mappedValue !== undefined && mappedValue !== null && mappedValue !== "";
   const roleColor = isRepresentative ? GRAPH_VIEWER_REPRESENTATIVE_COLOR : deriveViewportNodeColor(node);
-  const color = isSelected
-    ? PHYLOVIZ_NODE_SELECTED_COLOR
-    : visuals && hasMappedValue
-      ? visuals.colorForValue(mappedValue)
-      : roleColor;
-  const baseSize =
+  const color = visuals && hasMappedValue ? visuals.colorForValue(mappedValue) : roleColor;
+  const size =
     visuals && visuals.numericStats
       ? deriveSize(metadata?.[visuals.sizeField], visuals.numericStats, visuals.scale)
       : nodeSizeForMemberCount(node.member_count);
-  const size = isSelected ? Math.max(baseSize * 1.55, baseSize + 6) : baseSize;
   // Node labels are on by default; a representative (triangle) never carries a
   // label, and toggling the node-labels display option off blanks leaf labels.
   const showNodeLabel = displayOptions?.nodeLabels !== false;
@@ -72,8 +59,8 @@ export function buildGraphViewportNodeAttributes(
     cluster_id: node.cluster_id,
     member_count: node.member_count,
     is_cluster_proxy: isRepresentative || undefined,
-    type: isSelected ? SIGMA_NODE_TYPE_BORDER : isRepresentative ? SIGMA_NODE_TYPE_TRIANGLE : undefined,
-    borderColor: isSelected ? PHYLOVIZ_NODE_SELECTED_BORDER_COLOR : undefined,
+    type: isRepresentative ? SIGMA_NODE_TYPE_TRIANGLE : undefined,
+    borderColor: undefined,
     layout_status: node.layout_status,
     ...(metadata ? { metadata } : {}),
     ...pieNodeAttributes(metadata, visuals),

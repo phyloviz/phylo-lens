@@ -7,11 +7,19 @@ export * from "./api/graphGuards";
 export * from "./ancillary/metadataIndex";
 export * from "./ancillary/filterEngine";
 
-export * from "./render/types";
+export * from "./render/renderer.types";
 export * from "./render/rendererFactory";
 export { default as rendererFactory } from "./render/rendererFactory";
-export * from "./render/visualMappings";
-export * from "./render/adapters/sigma/GraphViewer";
+export * from "./render/mapping/visualMapping";
+export {
+  GraphViewportController,
+  GraphViewportController as GraphViewer,
+  type GraphViewportClientDependency,
+  type GraphViewportClientDependency as GraphViewerClientDependency,
+  type GraphViewportControllerOptions,
+  type GraphViewportControllerOptions as GraphViewerOptions,
+} from "./render/adapters/sigma/viewport/graphViewportController";
+export * from "./render/adapters/sigma/viewport/graphViewportController";
 export * from "./components/ancillaryWheel";
 
 export * from "./app/workbench/graphWorkbench";

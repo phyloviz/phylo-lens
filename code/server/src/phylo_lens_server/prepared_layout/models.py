@@ -131,6 +131,7 @@ class SearchMatch:
     node_id: str
     score: int
     matched_text: str
+    cluster_id: str | None = None
     metadata: dict[str, str | float | bool | None] | None = None
     # Global layout coordinates for the matched node, resolved from
     # node_positions. Let the client fetch a bounded region around a search hit

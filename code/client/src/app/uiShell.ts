@@ -220,6 +220,10 @@ export default function (options: UiShellOptions): UiShell {
       handleGraphRendered(graph);
     });
     workbench.setNodeClickedHandler(({ nodeId }) => {
+      if (nodeId === null) {
+        wheels.resetSelectedNode();
+        return;
+      }
       wheels.renderSelectedNode(nodeId);
     });
     wheels.renderOverview();

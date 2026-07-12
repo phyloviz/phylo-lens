@@ -45,11 +45,6 @@ export interface ViewportSyncSettings {
   // edge thickness). Applied per-node/edge during sync so the LoD path honors
   // the same display options as the static render path.
   displayOptions?: GraphDisplayOptions;
-  // Node currently focused via search. Colored/enlarged red on every sync so the
-  // highlight is durable across re-fetches and appears as soon as the node's
-  // slice loads (the static render path highlights via selectedNodeId; this is
-  // the LoD equivalent).
-  selectedNodeId?: string | null;
 }
 
 export function syncGraphologyViewport(
@@ -60,9 +55,8 @@ export function syncGraphologyViewport(
   const nodes = filteredViewportNodes(response, settings);
   const visuals = resolveViewportVisuals(nodes, settings);
   const displayOptions = settings?.displayOptions;
-  const selectedNodeId = settings?.selectedNodeId ?? null;
   const liveNodeIds = new Set(nodes.map((node) => node.id));
-  nodes.forEach((node) => upsertGraphNode(graph, node, visuals, displayOptions, selectedNodeId));
+  nodes.forEach((node) => upsertGraphNode(graph, node, visuals, displayOptions));
   response.edges.forEach((edge) => {
     if (!liveNodeIds.has(edge.source) || !liveNodeIds.has(edge.target)) {
       return;
@@ -195,9 +189,8 @@ function upsertGraphNode(
   node: GraphViewportNode,
   visuals: ResolvedViewportVisuals | null,
   displayOptions?: GraphDisplayOptions,
-  selectedNodeId?: string | null,
 ): void {
-  const attributes = buildGraphViewportNodeAttributes(node, visuals, displayOptions, selectedNodeId);
+  const attributes = buildGraphViewportNodeAttributes(node, visuals, displayOptions);
   if (!graph.hasNode(node.id)) {
     graph.addNode(node.id, attributes);
     return;

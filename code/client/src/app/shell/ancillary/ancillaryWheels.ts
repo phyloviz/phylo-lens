@@ -4,7 +4,7 @@ import {
   renderAncillaryWheel,
 } from "../../../components/ancillaryWheel";
 import type { PositionedGraph } from "../../../contracts/positioned";
-import type { VisualMappingOptions } from "../../../render/visualMappings";
+import type { VisualMappingOptions } from "../../../render/mapping/visualMapping";
 import { ANCILLARY_MODE_SELECTED, getAncillaryMode } from "./nodeSelector";
 
 export interface AncillaryWheelsOptions {

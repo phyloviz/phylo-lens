@@ -145,7 +145,7 @@ ancillary wheel from a `readRegion` result).
 
 ### `render`
 
-Renderer adapter layer, behind the `GraphRenderer` interface (`render/types.ts`).
+Renderer adapter layer, behind the `GraphRenderer` interface (`render/renderer.types.ts`).
 The production adapter is Sigma (`render/adapters/sigma/`):
 
 - `sigmaRenderer.ts`: adapter lifecycle, Sigma instance ownership,
@@ -183,7 +183,7 @@ flowchart TD
   subgraph Client
     WB["app/workbench/graphWorkbench.ts"]
     APIC["api/graphClient.ts"]
-    RPORT["render/types.ts (GraphRenderer)"]
+    RPORT["render/renderer.types.ts (GraphRenderer)"]
     SR["render/adapters/sigma/sigmaRenderer.ts"]
     GVW["GraphViewer.ts"]
     QRY["graphViewerQuery.ts"]

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import rendererFactory from "../src/render/rendererFactory";
-import { RENDERER_KIND_MOCK, RENDERER_KIND_SIGMA } from "../src/render/types";
+import { RENDERER_KIND_MOCK, RENDERER_KIND_SIGMA } from "../src/render/renderer.types";
 
 describe("rendererFactory", () => {
   it("creates the sigma renderer adapter", () => {

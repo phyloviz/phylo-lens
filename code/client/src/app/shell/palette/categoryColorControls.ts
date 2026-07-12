@@ -1,6 +1,6 @@
 import type { PositionedGraph } from "../../../contracts/positioned";
-import { DEFAULT_COLOR_PALETTE } from "../../../render/visualMappings";
-import { PIE_OTHER_SLICE_COLOR, PIE_OTHER_SLICE_LABEL } from "../../../render/pieMapping";
+import { DEFAULT_COLOR_PALETTE } from "../../../render/mapping/visualMapping";
+import { PIE_OTHER_SLICE_COLOR, PIE_OTHER_SLICE_LABEL } from "../../../render/mapping/pieMapping";
 import { buildCategorySummaries } from "../ancillary/categorySummaries";
 import { isHexColor } from "./categoryPalette";
 

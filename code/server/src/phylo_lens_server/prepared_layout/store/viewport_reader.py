@@ -71,6 +71,7 @@ def read_viewport(
     max_nodes: int,
     lod_level: int | None = None,
     cluster_id: str | None = None,
+    focus_node_id: str | None = None,
 ) -> ViewportReadResult:
     nodes: tuple[ViewportNode, ...] = ()
     edges: tuple[ViewportEdge, ...] = ()
@@ -82,6 +83,7 @@ def read_viewport(
                 layout_version=layout_version,
                 cluster_id=cluster_id,
                 max_nodes=max_nodes,
+                focus_node_id=focus_node_id,
             )
             member_ids = {node.node_id for node in nodes}
             edges = tuple(
@@ -457,6 +459,7 @@ def _read_cluster_member_nodes(
     layout_version: str,
     cluster_id: str,
     max_nodes: int,
+    focus_node_id: str | None = None,
 ) -> tuple[tuple[ViewportNode, ...], int]:
     total_row = connection.execute(
         """
@@ -476,10 +479,10 @@ def _read_cluster_member_nodes(
         where np.dataset_id = ?
           and np.layout_version = ?
           and np.cluster_id = ?
-        order by np.node_id
+        order by case when np.node_id = ? then 0 else 1 end, np.node_id
         limit ?
         """,
-        (dataset_id, layout_version, cluster_id, max_nodes),
+        (dataset_id, layout_version, cluster_id, focus_node_id, max_nodes),
     ).fetchall()
     return (
         tuple(

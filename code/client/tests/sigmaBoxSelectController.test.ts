@@ -3,8 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 import {
   BOX_SELECT_OVERLAY_CLASS,
   default as sigmaBoxSelectController,
-} from "../src/render/adapters/sigma/sigmaBoxSelectController";
-import type { SigmaViewportBounds } from "../src/render/adapters/sigma/graphViewerTypes";
+} from "../src/render/adapters/sigma/interaction/sigmaBoxSelectController";
+import type { SigmaViewportBounds } from "../src/render/adapters/sigma/viewport/graphViewport.types";
 
 type Handler = (payload: unknown) => void;
 

@@ -21,24 +21,18 @@ import {
   normalizeGraphBounds,
   type SigmaSemanticViewState,
   sigmaCameraToSemanticViewState,
-} from "./sigmaCamera";
+} from "./camera/sigmaCamera";
 import sigmaBoxSelectController from "./interaction/sigmaBoxSelectController";
 import sigmaDragController from "./interaction/sigmaDragController";
 import applySigmaHighlighting from "./interaction/sigmaHighlighting";
 import createSigmaForceMotion from "./motion/sigmaForceMotion";
 import type { SigmaViewportBounds } from "./viewport/graphViewport.types";
-import {
-  addPositionedEdges,
-  addPositionedNode,
-  applyPieChartNodeTypes,
-  areStringArraysEqual,
-  buildPieProgramSignature,
-  buildSigmaSettings,
-  type PieNodeView,
-  piechartProgramClasses,
-  type SigmaPiechartOptions,
-  type SigmaRendererOptions,
-} from "./programs/sigmaNodePrograms";
+import { areStringArraysEqual } from "./attributes/sigmaAttributeUtils";
+import { addPositionedEdges } from "./attributes/sigmaEdgeAttributes";
+import { addPositionedNode, applyPieChartNodeTypes } from "./attributes/sigmaNodeAttributes";
+import { buildPieProgramSignature, piechartProgramClasses, type PieNodeView } from "./programs/sigmaPiePrograms";
+import { buildSigmaSettings } from "./sigmaRenderer.settings";
+import type { SigmaPiechartOptions, SigmaRendererOptions } from "./sigmaRenderer.types";
 import {
   applyStableCameraBounds,
   centerCameraOnCoordinates,
@@ -55,7 +49,7 @@ export {
   sigmaCameraToViewportState,
   sigmaCameraToSemanticViewState,
   sigmaRatioToLodZoom,
-} from "./sigmaCamera";
+} from "./camera/sigmaCamera";
 export type { SigmaPiechartOptions, SigmaRendererOptions };
 
 export const ERR_CONTAINER_NOT_FOUND = "Sigma container not found: {containerId}";
@@ -96,6 +90,9 @@ export class SigmaRenderer implements GraphRenderer {
   };
   private readonly boundNodeClicked = (payload: { node?: string; event?: { node?: string } }) => {
     this.emitNodeClick(payload);
+  };
+  private readonly boundStageClicked = () => {
+    this.clearNodeSelection();
   };
 
   constructor(options: SigmaRendererOptions = {}) {
@@ -155,7 +152,6 @@ export class SigmaRenderer implements GraphRenderer {
         positionedNode,
         this.pieSliceKeys,
         this.rendererOptions,
-        this.selectedNodeId,
       );
     });
     addPositionedEdges(this.graph, graph, this.rendererOptions);
@@ -178,7 +174,6 @@ export class SigmaRenderer implements GraphRenderer {
       !centerCameraOnGraphNode({
         graph: this.graph,
         sigma: this.sigma,
-        coordinateBounds: this.coordinateBounds,
         nodeId,
         // Swallow only the single programmatic camera move; user panning stays
         // responsive immediately afterward (no time window).
@@ -191,7 +186,8 @@ export class SigmaRenderer implements GraphRenderer {
     }
 
     this.selectedNodeId = nodeId;
-    this.renderSelectedNodeState();
+    this.applyHighlighting();
+    this.sigma?.scheduleRender?.();
     return true;
   }
 
@@ -202,7 +198,6 @@ export class SigmaRenderer implements GraphRenderer {
   centerOnCoordinates(x: number, y: number): boolean {
     return centerCameraOnCoordinates({
       sigma: this.sigma,
-      coordinateBounds: this.coordinateBounds,
       x,
       y,
       beforeSetState: () => {
@@ -213,7 +208,12 @@ export class SigmaRenderer implements GraphRenderer {
 
   focusNode(nodeId: string | null): void {
     this.selectedNodeId = nodeId;
-    this.renderSelectedNodeState();
+    this.applyHighlighting();
+    this.sigma?.scheduleRender?.();
+  }
+
+  expandCluster(clusterId: string, options: { fitToResponse?: boolean; focusNodeId?: string | null } = {}): void {
+    this.graphViewer?.expandCluster(clusterId, options);
   }
 
   updateDisplayOptions(displayOptions: GraphDisplayOptions): void {
@@ -296,8 +296,8 @@ export class SigmaRenderer implements GraphRenderer {
     this.graphViewer = null;
   }
 
-  refreshGraphViewportSync(): void {
-    this.graphViewer?.refreshNow();
+  refreshGraphViewportSync(options: { lodLevel?: number | "finest"; fitToResponse?: boolean } = {}): void {
+    this.graphViewer?.refreshNow(options);
   }
 
   setRegionSelectModeEnabled(enabled: boolean): void {
@@ -324,6 +324,7 @@ export class SigmaRenderer implements GraphRenderer {
       graph: this.graph,
       sigma: this.sigma,
       highlightedNodeIds: this.highlightedNodeIds,
+      selectedNodeId: this.selectedNodeId,
     });
   }
 
@@ -461,6 +462,7 @@ export class SigmaRenderer implements GraphRenderer {
   private bindSigmaHandlers(): void {
     this.bindCameraHandler();
     this.bindNodeClickHandler();
+    this.bindStageClickHandler();
     this.dragController.bind();
     this.boxSelectController.bind();
     this.applyHighlighting();
@@ -469,6 +471,7 @@ export class SigmaRenderer implements GraphRenderer {
   private unbindSigmaHandlers(): void {
     this.boxSelectController.unbind();
     this.dragController.unbind();
+    this.unbindStageClickHandler();
     this.unbindNodeClickHandler();
     this.unbindCameraHandler();
   }
@@ -493,6 +496,15 @@ export class SigmaRenderer implements GraphRenderer {
     sigma?.on?.("clickNode", this.boundNodeClicked);
   }
 
+  private bindStageClickHandler(): void {
+    const sigma = this.sigma as {
+      on?: (event: string, handler: () => void) => void;
+      off?: (event: string, handler: () => void) => void;
+    } | null;
+    sigma?.off?.("clickStage", this.boundStageClicked);
+    sigma?.on?.("clickStage", this.boundStageClicked);
+  }
+
   private unbindCameraHandler(): void {
     const camera = this.sigma?.getCamera() as
       | {
@@ -507,6 +519,13 @@ export class SigmaRenderer implements GraphRenderer {
       off?: (event: string, handler: (payload: { node?: string; event?: { node?: string } }) => void) => void;
     } | null;
     sigma?.off?.("clickNode", this.boundNodeClicked);
+  }
+
+  private unbindStageClickHandler(): void {
+    const sigma = this.sigma as {
+      off?: (event: string, handler: () => void) => void;
+    } | null;
+    sigma?.off?.("clickStage", this.boundStageClicked);
   }
 
   private handleCameraUpdated(): void {
@@ -582,19 +601,23 @@ export class SigmaRenderer implements GraphRenderer {
     }
 
     this.selectedNodeId = nodeId;
-    this.renderSelectedNodeState();
+    this.applyHighlighting();
+    this.sigma?.scheduleRender?.();
     this.nodeClickHandler({
       nodeId,
       attributes: this.graph.getNodeAttributes(nodeId) as Record<string, unknown>,
     });
   }
 
-  private renderSelectedNodeState(): void {
-    if (!this.lastRenderedGraph) {
+  private clearNodeSelection(): void {
+    if (Date.now() < this.suppressNodeClicksUntil) {
       return;
     }
 
-    this.render(this.lastRenderedGraph);
+    this.selectedNodeId = null;
+    this.applyHighlighting();
+    this.sigma?.scheduleRender?.();
+    this.nodeClickHandler?.({ nodeId: null });
   }
 
   private updateClusterTriangleRotations(): void {

@@ -4,10 +4,8 @@ import { PIE_ATTRIBUTE_PREFIX, PIE_OTHER_SLICE_KEY } from "../../../mapping/pieM
 import { isTruthyAttribute, toPositiveNumber } from "./sigmaAttributeUtils";
 import { deriveNodeLabel } from "./sigmaLabels";
 import {
-  PHYLOVIZ_NODE_SELECTED_BORDER_COLOR,
   PHYLOVIZ_NODE_SELECTED_COLOR,
   SIGMA_DEFAULT_NODE_SIZE,
-  SIGMA_NODE_TYPE_BORDER,
   SIGMA_NODE_TYPE_DEFAULT,
   SIGMA_NODE_TYPE_PIECHART,
   SIGMA_NODE_TYPE_TRIANGLE,
@@ -21,7 +19,6 @@ export function addPositionedNode(
   node: PositionedNode,
   pieSliceKeys: readonly string[],
   rendererOptions: SigmaRendererOptions,
-  selectedNodeId?: string | null,
   triangleRotation = 0,
 ): void {
   const unionNode = isUnionNode(node.id, node.attributes);
@@ -36,10 +33,8 @@ export function addPositionedNode(
   });
   const hasPieData = Object.values(pieAttributes).some((value) => value > 0);
   const isClusterProxy = node.attributes?.is_cluster_proxy === true;
-  const isSelectedNode = !unionNode && node.id === selectedNodeId;
-  const nodeType = isSelectedNode
-    ? SIGMA_NODE_TYPE_BORDER
-    : !unionNode && hasPieData && pieSliceKeys.length > 0
+  const nodeType =
+    !unionNode && hasPieData && pieSliceKeys.length > 0
       ? SIGMA_NODE_TYPE_PIECHART
       : isClusterProxy
         ? SIGMA_NODE_TYPE_TRIANGLE
@@ -49,18 +44,17 @@ export function addPositionedNode(
   graph.addNode(node.id, {
     x: node.x,
     y: node.y,
-    size: isSelectedNode ? Math.max(nodeSize * 1.55, nodeSize + 6) : nodeSize,
+    size: nodeSize,
     label:
-      !isSelectedNode && (rendererOptions.label?.enabled === false || rendererOptions.display?.nodeLabels === false)
+      rendererOptions.label?.enabled === false || rendererOptions.display?.nodeLabels === false
         ? ""
         : deriveNodeLabel(node.id, node.attributes),
     ...(node.attributes ?? {}),
     ...pieAttributes,
     type: nodeType,
-    color: deriveNodeColor(node, selectedNodeId),
-    borderColor: isSelectedNode ? PHYLOVIZ_NODE_SELECTED_BORDER_COLOR : undefined,
+    color: deriveNodeColor(node),
+    borderColor: undefined,
     triangleRotation,
-    forceLabel: isSelectedNode || undefined,
   });
 }
 
@@ -112,12 +106,12 @@ function deriveOtherPieValue(attributes: Record<string, unknown> | undefined, di
   }, 0);
 }
 
-function deriveNodeColor(node: PositionedNode, selectedNodeId?: string | null): string {
+function deriveNodeColor(node: PositionedNode): string {
   if (isUnionNode(node.id, node.attributes)) {
     return UNION_NODE_COLOR;
   }
 
-  if (node.id === selectedNodeId || isTruthyAttribute(node.attributes, ["selected", "is_selected"])) {
+  if (isTruthyAttribute(node.attributes, ["selected", "is_selected"])) {
     return PHYLOVIZ_NODE_SELECTED_COLOR;
   }
 

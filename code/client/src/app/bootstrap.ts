@@ -1,6 +1,6 @@
 import { createGraphClient } from "../api/graphClient";
 import rendererFactory from "../render/rendererFactory";
-import { RENDERER_KIND_SIGMA } from "../render/types";
+import { RENDERER_KIND_SIGMA } from "../render/renderer.types";
 import { createGraphWorkbench } from "./workbench/graphWorkbench";
 import uiShell, { type UiShell } from "./uiShell";
 

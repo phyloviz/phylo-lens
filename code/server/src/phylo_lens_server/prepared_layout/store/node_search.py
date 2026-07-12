@@ -55,7 +55,7 @@ def search_nodes(
         ordered = sorted(best.values(), key=lambda match: (-match.score, match.node_id))
         total_count = len(ordered)
         limited = list(ordered[:limit]) if limit >= 0 else list(ordered)
-        coordinates = _node_coordinates(
+        locations = _node_locations(
             connection,
             dataset_id=dataset_id,
             layout_version=layout_version,
@@ -64,8 +64,9 @@ def search_nodes(
     matches = tuple(
         replace(
             match,
-            x=coordinates.get(match.node_id, (None, None))[0],
-            y=coordinates.get(match.node_id, (None, None))[1],
+            cluster_id=locations.get(match.node_id, (None, None, None))[0],
+            x=locations.get(match.node_id, (None, None, None))[1],
+            y=locations.get(match.node_id, (None, None, None))[2],
         )
         for match in limited
     )
@@ -185,19 +186,19 @@ def _record_match(
     )
 
 
-def _node_coordinates(
+def _node_locations(
     connection: sqlite3.Connection,
     *,
     dataset_id: str,
     layout_version: str,
     node_ids: list[str],
-) -> dict[str, tuple[float | None, float | None]]:
+) -> dict[str, tuple[str | None, float | None, float | None]]:
     if not node_ids:
         return {}
     placeholders = ",".join("?" for _ in node_ids)
     rows = connection.execute(
         f"""
-        select node_id, x, y
+        select node_id, cluster_id, x, y
         from node_positions
         where dataset_id = ?
           and layout_version = ?
@@ -205,4 +206,4 @@ def _node_coordinates(
         """,
         (dataset_id, layout_version, *node_ids),
     ).fetchall()
-    return {row["node_id"]: (row["x"], row["y"]) for row in rows}
+    return {row["node_id"]: (row["cluster_id"], row["x"], row["y"]) for row in rows}
