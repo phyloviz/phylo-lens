@@ -259,6 +259,7 @@ export class SigmaRenderer implements GraphRenderer {
     nodeCount?: number | null;
     getPaused?: () => boolean;
     onViewportLoaded?: (response: GraphViewportResponse) => void;
+    onGraphSynced?: (graph: PositionedGraph) => void;
     onError?: (error: unknown) => void;
     getRenderSettings?: () => ViewportSyncSettings;
   }): void {
@@ -282,7 +283,10 @@ export class SigmaRenderer implements GraphRenderer {
       onViewportLoaded: options.onViewportLoaded,
       onError: options.onError,
       getRenderSettings: options.getRenderSettings,
-      onGraphSynced: () => this.syncPieProgramsFromGraph(),
+      onGraphSynced: (response) => {
+        this.syncPieProgramsFromGraph();
+        options.onGraphSynced?.(this.currentPositionedGraph(response));
+      },
     });
     this.graphViewer.mount();
   }
@@ -617,6 +621,48 @@ export class SigmaRenderer implements GraphRenderer {
     applyClusterTriangleRotations(this.graph, this.lastRenderedGraph.edges);
     this.sigma?.scheduleRender();
   }
+
+  private currentPositionedGraph(response?: GraphViewportResponse): PositionedGraph {
+    const graph = this.graph;
+    if (!graph) {
+      return {
+        nodes: [],
+        edges: [],
+        viewMeta: {
+          layout: "server",
+          lodLevel: response?.lod_level ?? 0,
+        },
+      };
+    }
+
+    return {
+      nodes: graph.mapNodes((nodeId, attributes) => {
+        const nodeAttributes = attributes as Record<string, unknown>;
+        return {
+          id: nodeId,
+          x: numberAttribute(nodeAttributes.x),
+          y: numberAttribute(nodeAttributes.y),
+          size: optionalNumberAttribute(nodeAttributes.size),
+          color: optionalStringAttribute(nodeAttributes.color),
+          attributes: nodeAttributes,
+        };
+      }),
+      edges: graph.mapEdges((edgeId, attributes, source, target) => ({
+        id: edgeId,
+        source,
+        target,
+        attributes: attributes as Record<string, unknown>,
+      })),
+      viewMeta: {
+        layout: "server",
+        lodLevel: response?.lod_level ?? 0,
+        sliceNodeCount: graph.order,
+        sliceEdgeCount: graph.size,
+        zoom: response?.zoom,
+        layoutStatus: response?.layout_status,
+      },
+    };
+  }
 }
 
 // Project the live graphology graph into the node-attribute views the pie
@@ -625,6 +671,18 @@ function graphNodeViews(graph: Graph): PieNodeView[] {
   return graph.mapNodes((_nodeId, attributes) => ({
     attributes: attributes as Record<string, unknown>,
   }));
+}
+
+function numberAttribute(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function optionalNumberAttribute(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function optionalStringAttribute(value: unknown): string | undefined {
+  return typeof value === "string" ? value : undefined;
 }
 
 function applyClusterTriangleRotations(graph: Graph, edges: PositionedGraph["edges"]): void {

@@ -87,7 +87,7 @@ export interface GraphViewerOptions {
   // Fires after each viewport sync writes into the graph but before Sigma
   // refreshes, letting the renderer register piechart programs / flip node
   // types (and rebind this viewer via rebindSigma) while attributes are fresh.
-  onGraphSynced?: () => void;
+  onGraphSynced?: (response?: GraphViewportResponse) => void;
 }
 
 // One incident edge of a cluster representative, captured before expansion so
@@ -123,7 +123,7 @@ export class GraphViewer {
   private readonly onViewportLoaded?: (response: GraphViewportResponse) => void;
   private readonly onError?: (error: unknown) => void;
   private readonly getRenderSettings?: () => ViewportSyncSettings;
-  private readonly onGraphSynced?: () => void;
+  private readonly onGraphSynced?: (response?: GraphViewportResponse) => void;
   private debounceTimer: ReturnType<typeof window.setTimeout> | null = null;
   private initialFitTimer: ReturnType<typeof window.setTimeout> | null = null;
   private requestSequence = 0;
@@ -313,7 +313,7 @@ export class GraphViewer {
       const settings = this.getRenderSettings?.();
       syncGraphologyViewport(this.graph, response, settings);
       reconcileGraphologyViewport(this.graph, response, settings);
-      this.onGraphSynced?.();
+      this.onGraphSynced?.(response);
       // Fit the camera to the initial load whether it was the global overview
       // (tier 0) or a small tree's whole finest-tier render, so both frame the
       // full graph on first paint.
@@ -371,7 +371,7 @@ export class GraphViewer {
       snapshot.memberIds = response.nodes.filter((node) => !node.is_representative).map((node) => node.id);
       this.expandedClusterCache.set(clusterId, snapshot);
       this.expandedClusterIds.add(clusterId);
-      this.onGraphSynced?.();
+      this.onGraphSynced?.(response);
       // Expanding a cluster adds its members in place; the camera is left
       // untouched so the surrounding graph stays visible and the user can keep
       // expanding additional clusters up to the node budget without the view

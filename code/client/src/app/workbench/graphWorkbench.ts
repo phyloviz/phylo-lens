@@ -3,12 +3,7 @@ import type { NormalizeRequest } from "../../api/graphContracts";
 import { SOURCE_FORMAT_NEWICK } from "../../contracts/models";
 import { type PositionedGraph } from "../../contracts/positioned";
 import type { GraphRenderer } from "../../render/types";
-import {
-  DEFAULT_VIEWPORT,
-  DEFAULT_VIEW_SLICE_MAX_NODES,
-  createEmptyGraph,
-  updateStateFromGraphViewport,
-} from "./viewportGraph";
+import { DEFAULT_VIEWPORT, DEFAULT_VIEW_SLICE_MAX_NODES, createEmptyGraph } from "./viewportGraph";
 import graphFilters from "./graphFilters";
 import {
   clearPendingViewRefresh,
@@ -201,8 +196,11 @@ async function renderNewick({
     lodTierCount: preparedGraph.lod_tier_count,
     nodeCount: preparedGraph.node_count,
     getPaused: () => state.lodRefreshPaused,
-    onViewportLoaded: (response) => {
-      updateStateFromGraphViewport(state, response);
+    onGraphSynced: (graph) => {
+      graph.viewMeta.lodTierCount = state.preparedSession?.lodTierCount;
+      graph.viewMeta.layoutWarnings = state.preparedSession?.layoutWarnings;
+      state.currentGraph = graph;
+      state.graphRenderedHandler?.(graph);
     },
     getRenderSettings: () => ({
       visualMapping: state.preparedSession?.visualMapping,

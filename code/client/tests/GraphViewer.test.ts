@@ -913,12 +913,14 @@ describe("GraphViewer", () => {
         .mockResolvedValueOnce({ ...VIEWPORT_RESPONSE, lod_level: 0 })
         .mockResolvedValueOnce(clusterResponse),
     };
+    const onGraphSynced = vi.fn();
     const viewer = new GraphViewer({
       datasetId: "tree",
       client,
       graph,
       sigma: sigma as never,
       debounceMs: 0,
+      onGraphSynced,
     });
 
     viewer.mount();
@@ -938,6 +940,7 @@ describe("GraphViewer", () => {
     );
     expect(graph.getNodeAttribute("b1", "type")).toBeUndefined();
     expect(graph.hasEdge("edge_b1_b2")).toBe(true);
+    expect(onGraphSynced).toHaveBeenLastCalledWith(clusterResponse);
     // Expanding a cluster adds members in place; the camera must stay put so
     // the surrounding graph remains visible and the user can keep expanding.
     expect(camera.animate).not.toHaveBeenCalled();

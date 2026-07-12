@@ -65,6 +65,7 @@ export interface GraphRenderer {
     nodeCount?: number | null;
     getPaused?: () => boolean;
     onViewportLoaded?: (response: GraphViewportResponse) => void;
+    onGraphSynced?: (graph: PositionedGraph) => void;
     onError?: (error: unknown) => void;
     getRenderSettings?: () => ViewportSyncSettings;
   }) => void;
