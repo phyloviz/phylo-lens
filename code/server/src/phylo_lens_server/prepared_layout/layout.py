@@ -28,6 +28,7 @@ GRAPHVIZ_SFDP_COMMAND = "sfdp"
 GRAPHVIZ_TARGET_EDGE_LENGTH = 2.5
 GRAPHVIZ_MIN_EDGE_LENGTH = 0.5
 GRAPHVIZ_MAX_EDGE_LENGTH = 12.0
+GRAPHVIZ_LAYOUT_TIMEOUT_SECONDS = 20
 
 # Default iteration count used when a caller does not derive one from the graph
 # size; graphviz_sfdp_positions always passes sfdp_maxiter(node_count) instead.
@@ -154,8 +155,9 @@ def graphviz_sfdp_positions(
             text=True,
             capture_output=True,
             check=True,
+            timeout=GRAPHVIZ_LAYOUT_TIMEOUT_SECONDS,
         )
-    except (OSError, subprocess.CalledProcessError) as error:
+    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:
         logger.warning(
             "Graphviz '%s' layout failed (%s); falling back to a circular layout.",
             GRAPHVIZ_SFDP_COMMAND,
@@ -333,9 +335,60 @@ def normalize_global_positions(
     positive_edge_lengths = [length for length in edge_lengths if length > 0.0]
     reference_length = median(positive_edge_lengths) if positive_edge_lengths else 0.0
     scale = target_edge_length / reference_length if reference_length > 0.0 else 1.0
-    return {
+    normalized = {
         node_id: (position[0] * scale, position[1] * scale)
         for node_id, position in centered.items()
+    }
+    return ensure_two_axis_spread(normalized, target_edge_length)
+
+
+def ensure_two_axis_spread(
+    positions: dict[str, tuple[float, float]],
+    target_edge_length: float,
+) -> dict[str, tuple[float, float]]:
+    """Add deterministic separation when Graphviz collapses onto a line."""
+    if len(positions) < 3:
+        return positions
+
+    xs = [position[0] for position in positions.values()]
+    ys = [position[1] for position in positions.values()]
+    x_span = max(xs) - min(xs)
+    y_span = max(ys) - min(ys)
+    largest_span = max(x_span, y_span)
+    smallest_span = min(x_span, y_span)
+    if largest_span <= 0.0:
+        return circular_spread(positions, target_edge_length)
+    if smallest_span > largest_span * 0.2:
+        return positions
+
+    amplitude = max(largest_span * 0.35, target_edge_length)
+    ordered_ids = tuple(sorted(positions))
+    denominator = max(len(ordered_ids) - 1, 1)
+    repaired: dict[str, tuple[float, float]] = {}
+    for index, node_id in enumerate(ordered_ids):
+        x, y = positions[node_id]
+        offset = sin((index / denominator) * pi * 2.0) * amplitude
+        if x_span < y_span:
+            repaired[node_id] = (x + offset, y)
+        else:
+            repaired[node_id] = (x, y + offset)
+    return repaired
+
+
+def circular_spread(
+    positions: dict[str, tuple[float, float]],
+    target_edge_length: float,
+) -> dict[str, tuple[float, float]]:
+    center_x = sum(position[0] for position in positions.values()) / len(positions)
+    center_y = sum(position[1] for position in positions.values()) / len(positions)
+    ordered_ids = tuple(sorted(positions))
+    radius = max(target_edge_length, target_edge_length * len(ordered_ids) / pi)
+    return {
+        node_id: (
+            center_x + cos(2.0 * pi * index / len(ordered_ids)) * radius,
+            center_y + sin(2.0 * pi * index / len(ordered_ids)) * radius,
+        )
+        for index, node_id in enumerate(ordered_ids)
     }
 
 

@@ -22,11 +22,9 @@ from phylo_lens_server.prepared_layout.layout import (
     compute_prepared_layouts,
     graphviz_dot_payload,
     has_multiple_components,
+    normalize_global_positions,
     parse_graphviz_plain_positions,
 )
-
-SFDP_AVAILABLE = shutil.which(GRAPHVIZ_SFDP_COMMAND) is not None
-EXPECTED_LAYOUT_STATUS = "ready" if SFDP_AVAILABLE else "degraded"
 from phylo_lens_server.prepared_layout.store import (
     PreparedLayoutStore,
     aggregate_cluster_metadata,
@@ -35,6 +33,9 @@ from phylo_lens_server.prepared_layout.worker import (
     PreparedLayoutWorker,
     compute_prepared_edges,
 )
+
+SFDP_AVAILABLE = shutil.which(GRAPHVIZ_SFDP_COMMAND) is not None
+EXPECTED_LAYOUT_STATUS = "ready" if SFDP_AVAILABLE else "degraded"
 
 FORMAT_NEWICK = "newick"
 DATASET_ID = "prepared-layout-tree"
@@ -113,7 +114,9 @@ def _branching_dataset() -> CanonicalDataset:
     return result.dataset
 
 
-def test_prepare_layout_artifacts_builds_distance_clusters_with_representatives() -> None:
+def test_prepare_layout_artifacts_builds_distance_clusters_with_representatives() -> (
+    None
+):
     artifacts = prepare_layout_artifacts(_dataset())
 
     assert artifacts.dataset.dataset_id == DATASET_ID
@@ -222,6 +225,49 @@ def test_open_force_tree_layout_spreads_branching_tree_on_both_axes() -> None:
     assert y_span > 0
     assert min(x_span, y_span) > max(x_span, y_span) * 0.2
     assert max(x_span, y_span) > GLOBAL_TARGET_EDGE_LENGTH * 10
+
+
+def test_normalized_graphviz_positions_repair_single_axis_collapse() -> None:
+    positions = {
+        "a": (0.0, 0.0),
+        "b": (0.0, 1.0),
+        "c": (0.0, 2.0),
+        "d": (0.0, 3.0),
+    }
+
+    normalized = normalize_global_positions(
+        positions,
+        [(0, 1), (1, 2), (2, 3)],
+        GLOBAL_TARGET_EDGE_LENGTH,
+    )
+    xs = [position[0] for position in normalized.values()]
+    ys = [position[1] for position in normalized.values()]
+    x_span = max(xs) - min(xs)
+    y_span = max(ys) - min(ys)
+
+    assert x_span > 0.0
+    assert y_span > 0.0
+    assert min(x_span, y_span) > max(x_span, y_span) * 0.2
+
+
+def test_normalized_graphviz_positions_repair_point_collapse() -> None:
+    positions = {
+        "a": (0.0, 0.0),
+        "b": (0.0, 0.0),
+        "c": (0.0, 0.0),
+        "d": (0.0, 0.0),
+    }
+
+    normalized = normalize_global_positions(
+        positions,
+        [(0, 1), (1, 2), (2, 3)],
+        GLOBAL_TARGET_EDGE_LENGTH,
+    )
+    xs = [position[0] for position in normalized.values()]
+    ys = [position[1] for position in normalized.values()]
+
+    assert max(xs) - min(xs) > 0.0
+    assert max(ys) - min(ys) > 0.0
 
 
 def test_layout_reports_degraded_status_when_sfdp_is_missing(monkeypatch) -> None:
@@ -399,9 +445,7 @@ def test_prepared_layout_worker_persists_ready_cluster_and_node_positions(
     assert cluster_layouts
     assert node_positions
     assert all(layout.status == EXPECTED_LAYOUT_STATUS for layout in cluster_layouts)
-    assert all(
-        position.status == EXPECTED_LAYOUT_STATUS for position in node_positions
-    )
+    assert all(position.status == EXPECTED_LAYOUT_STATUS for position in node_positions)
     assert result.prepared_edges
     assert {position.node_id for position in node_positions} >= {
         "a",
@@ -534,9 +578,7 @@ def test_viewport_cluster_members_carry_public_node_metadata(tmp_path) -> None:
 
     assert metadata_by_id["a"] == {"region": "north", "score": 10, "flag": True}
     assert metadata_by_id["c"] == {"region": "south", "score": 30, "flag": False}
-    assert all(
-        INTERNAL_COUNT_KEY not in (node.metadata or {}) for node in read.nodes
-    )
+    assert all(INTERNAL_COUNT_KEY not in (node.metadata or {}) for node in read.nodes)
     schema_keys = {field.key for field in read.metadata_schema}
     assert schema_keys == {"region", "score", "flag"}
 
@@ -685,9 +727,7 @@ def test_viewport_representatives_carry_cluster_metadata_aggregate(tmp_path) -> 
     }
     public_metadata = {
         node_id: {
-            key: value
-            for key, value in metadata.items()
-            if key != INTERNAL_COUNT_KEY
+            key: value for key, value in metadata.items() if key != INTERNAL_COUNT_KEY
         }
         for node_id, metadata in dataset.metadata_by_node_id.items()
     }

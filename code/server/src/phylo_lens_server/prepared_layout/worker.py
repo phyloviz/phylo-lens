@@ -11,7 +11,9 @@ from phylo_lens_server.prepared_layout.models import (
     PreparedLayoutArtifacts,
     PreparedLayoutResult,
 )
-from phylo_lens_server.prepared_layout.store import PreparedLayoutStore
+from phylo_lens_server.prepared_layout.store.prepared_layout_store import (
+    PreparedLayoutStore,
+)
 
 
 class PreparedLayoutWorker:
@@ -39,9 +41,7 @@ class PreparedLayoutWorker:
         layout_status: LayoutStatus = (
             cluster_layouts[0].status
             if cluster_layouts
-            else node_positions[0].status
-            if node_positions
-            else "ready"
+            else node_positions[0].status if node_positions else "ready"
         )
         return PreparedLayoutResult(
             artifacts=artifacts,

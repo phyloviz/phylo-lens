@@ -32,6 +32,7 @@ def configure_logging() -> None:
     package_logger.setLevel(logging.INFO)
     package_logger.propagate = False
 
+
 APP_TITLE = "PhyloLens Server"
 APP_VERSION = "0.1.0"
 
@@ -44,21 +45,14 @@ UVICORN_PORT = 8000
 UVICORN_RELOAD = True
 UVICORN_APP = "phylo_lens_server.main:app"
 
-CLIENT_ORIGIN_LOCALHOST_5173 = "http://localhost:5173"
-CLIENT_ORIGIN_LOOPBACK_5173 = "http://127.0.0.1:5173"
 CLIENT_ORIGIN_LOCALHOST_3000 = "http://localhost:3000"
 CLIENT_ORIGIN_LOOPBACK_3000 = "http://127.0.0.1:3000"
-CLIENT_ORIGIN_LOCALHOST_4173 = "http://localhost:4173"
-CLIENT_ORIGIN_LOOPBACK_4173 = "http://127.0.0.1:4173"
 
 ALLOWED_ORIGINS = [
     CLIENT_ORIGIN_LOCALHOST_3000,
     CLIENT_ORIGIN_LOOPBACK_3000,
-    CLIENT_ORIGIN_LOCALHOST_5173,
-    CLIENT_ORIGIN_LOOPBACK_5173,
-    CLIENT_ORIGIN_LOCALHOST_4173,
-    CLIENT_ORIGIN_LOOPBACK_4173,
 ]
+
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:

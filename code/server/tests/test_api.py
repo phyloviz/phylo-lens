@@ -1,4 +1,5 @@
 import shutil
+from time import sleep
 
 import pytest
 from fastapi.testclient import TestClient
@@ -28,6 +29,7 @@ STATUS_ACCEPTED = 202
 STATUS_NOT_FOUND = 404
 
 PREPARE_POLL_ATTEMPTS = 200
+PREPARE_POLL_INTERVAL_SECONDS = 0.01
 
 DATASET_API_TREE = "api-tree"
 DATASET_UNKNOWN = "missing-tree"
@@ -70,6 +72,7 @@ def prepare_and_wait(client: TestClient, payload: dict) -> dict:
         body = status_response.json()
         if body["status"] != "pending":
             return body
+        sleep(PREPARE_POLL_INTERVAL_SECONDS)
     raise AssertionError("Prepare job did not complete within the poll budget.")
 
 
