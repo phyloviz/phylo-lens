@@ -41,14 +41,15 @@ so zoom-across-threshold was never delayed.
 **Resolution:** `sfdp` confirmed as the right multilevel choice for 12k+ nodes
 (O(V log V)); the subprocess boundary, not the algorithm, was the liability.
 Hardened in `layout.py`:
-- `maxiter` is now node-count-aware (`sfdp_maxiter`), scaling down for larger
-  graphs so wall time stays bounded.
-- Timeout is now node-count-aware (`sfdp_timeout_seconds`), scaling up to a
-  `GRAPHVIZ_MAX_TIMEOUT_SECONDS` ceiling instead of a flat 15s.
+- `maxiter` is now node-count-aware (`sfdp_maxiter`), scaling up as
+  `round(n * log2(n))` so larger graphs get more convergence work.
+- The `sfdp` subprocess no longer has a wall-clock timeout; prepare runs on the
+  background worker, so a slow large-tree layout is allowed to finish instead of
+  degrading to the circular fallback.
 - The degrade is no longer silent: `compute_global_node_positions` returns a
-  reason (`sfdp_missing` / `sfdp_timeout` / `sfdp_failed` / `sfdp_incomplete`)
+  reason (`sfdp_missing` / `sfdp_failed` / `sfdp_incomplete`)
   threaded through `PreparedLayoutResult.layout_degraded_reason` to a truthful
-  client warning in `api/graph.py`.
+  client warning in the graph API.
 - Separately, the additive `2.5 + distance` edge length (which crushed branch
   ratios) was replaced with ratio-preserving multiplicative scaling normalized
   by the per-graph median distance, clamped to bound outliers.

@@ -20,7 +20,28 @@ export function buildRenderedStatus(graph: PositionedGraph): string {
   }
 
   const status = `${STATUS_RENDERED_PREFIX}: ${parts.join(", ")}`;
-  return graph.viewMeta.layoutStatus === "degraded" ? `${status} — ${STATUS_DEGRADED_LAYOUT_WARNING}` : status;
+  const warnings = statusWarnings(graph);
+  return warnings.length > 0 ? `${status} — ${warnings.join(" — ")}` : status;
+}
+
+function statusWarnings(graph: PositionedGraph): string[] {
+  const warnings: string[] = [];
+  const prepareWarning = graph.viewMeta.layoutWarnings?.find((warning) => warning.trim().length > 0);
+  if (prepareWarning) {
+    warnings.push(prepareWarning);
+  }
+  if (graph.viewMeta.layoutStatus === "degraded" && !isLayoutWarning(prepareWarning)) {
+    warnings.push(STATUS_DEGRADED_LAYOUT_WARNING);
+  }
+  return warnings;
+}
+
+function isLayoutWarning(warning: string | undefined): boolean {
+  if (!warning) {
+    return false;
+  }
+  const normalized = warning.toLowerCase();
+  return normalized.includes("graphviz") || normalized.includes("layout");
 }
 
 // Human-readable current LoD tier. When the tier count is known it reads

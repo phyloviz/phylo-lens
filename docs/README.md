@@ -75,8 +75,9 @@ flowchart TD
   their members at coarser zoom. See
   [`LOD_AND_CLUSTERING.md`](./LOD_AND_CLUSTERING.md).
 - **Layout is force-directed (Graphviz `sfdp`)**, computed once during prepare,
-  with node-count-aware iteration and timeout budgets and a graceful degrade
-  path. See [`SERVER_PIPELINE.md`](./SERVER_PIPELINE.md).
+  with node-count-aware iteration, no server-side wall-clock timeout, and a
+  graceful degrade path for missing/failed/incomplete `sfdp` output. See
+  [`SERVER_PIPELINE.md`](./SERVER_PIPELINE.md).
 - **The client maps camera zoom to a tier** using geometric ratio bands with a
   hysteresis dead-band, then requests that tier's slice. Nodes are colored by
   their PHYLOViZ role by default, or by a frequency-ranked value color map when a

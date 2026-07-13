@@ -28,7 +28,6 @@ GRAPHVIZ_SFDP_COMMAND = "sfdp"
 GRAPHVIZ_TARGET_EDGE_LENGTH = 2.5
 GRAPHVIZ_MIN_EDGE_LENGTH = 0.5
 GRAPHVIZ_MAX_EDGE_LENGTH = 12.0
-GRAPHVIZ_LAYOUT_TIMEOUT_SECONDS = 20
 
 # Default iteration count used when a caller does not derive one from the graph
 # size; graphviz_sfdp_positions always passes sfdp_maxiter(node_count) instead.
@@ -99,7 +98,7 @@ def compute_global_node_positions(
     """Return the global node layout, a status, and a degrade reason (or None).
 
     A force-directed layout from Graphviz is reported as ``"ready"``. When the
-    ``sfdp`` binary is missing, times out, or fails, positions come from a
+    ``sfdp`` binary is missing or fails, positions come from a
     circular fallback that ignores tree topology, so the layout is reported as
     ``"degraded"`` and the reason identifies which failure occurred. Trivial
     graphs (zero or one node) need no force layout and are reported ``"ready"``.
@@ -155,9 +154,8 @@ def graphviz_sfdp_positions(
             text=True,
             capture_output=True,
             check=True,
-            timeout=GRAPHVIZ_LAYOUT_TIMEOUT_SECONDS,
         )
-    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:
+    except (OSError, subprocess.CalledProcessError) as error:
         logger.warning(
             "Graphviz '%s' layout failed (%s); falling back to a circular layout.",
             GRAPHVIZ_SFDP_COMMAND,

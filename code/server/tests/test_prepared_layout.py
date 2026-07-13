@@ -20,6 +20,7 @@ from phylo_lens_server.prepared_layout.layout import (
     GRAPHVIZ_SFDP_COMMAND,
     LAYOUT_DEGRADED_SFDP_MISSING,
     compute_prepared_layouts,
+    graphviz_sfdp_positions,
     graphviz_dot_payload,
     has_multiple_components,
     normalize_global_positions,
@@ -432,6 +433,40 @@ def test_graphviz_plain_parser_handles_quoted_node_ids() -> None:
     )
 
     assert positions == {"a b": (0.5, 1.25), "c-d": (2.0, 3.5)}
+
+
+def test_graphviz_sfdp_positions_does_not_apply_wall_clock_timeout(monkeypatch) -> None:
+    calls: list[dict[str, object]] = []
+
+    class Completed:
+        stdout = (
+            "graph 1 3 1\n"
+            'node "a" 0 0 0.1 0.1 "" solid ellipse black lightgrey\n'
+            'node "b" 1 0 0.1 0.1 "" solid ellipse black lightgrey\n'
+            "stop\n"
+        )
+
+    def fake_run(*args, **kwargs):
+        calls.append(kwargs)
+        return Completed()
+
+    monkeypatch.setattr(
+        "phylo_lens_server.prepared_layout.layout.shutil.which",
+        lambda command: "/usr/bin/sfdp",
+    )
+    monkeypatch.setattr(
+        "phylo_lens_server.prepared_layout.layout.subprocess.run",
+        fake_run,
+    )
+
+    positions, reason = graphviz_sfdp_positions(
+        ("a", "b"),
+        (CanonicalEdge(id="e1", source="a", target="b", distance=1.0),),
+    )
+
+    assert reason is None
+    assert positions == {"a": (0.0, 0.0), "b": (1.0, 0.0)}
+    assert "timeout" not in calls[0]
 
 
 def test_prepared_layout_worker_persists_ready_cluster_and_node_positions(

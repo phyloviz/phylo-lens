@@ -189,6 +189,52 @@ describe("uiShell", () => {
     shell.unmount();
   });
 
+  it("surfaces prepare warnings in the rendered status line", async () => {
+    document.body.innerHTML = `
+      <form id="render-form"></form>
+      <textarea id="newick-input"></textarea>
+      <div id="status"></div>
+    `;
+
+    const form = document.getElementById("render-form") as HTMLFormElement;
+    const input = document.getElementById(
+      "newick-input",
+    ) as HTMLTextAreaElement;
+    const status = document.getElementById("status") as HTMLElement;
+
+    input.value = "(A,B)Root;";
+
+    const fakeWorkbench = makeFakeWorkbench({
+      nodes: [{ id: "root", x: 0, y: 0 }],
+      edges: [],
+      viewMeta: {
+        layout: "server",
+        lodLevel: 0,
+        sliceNodeCount: 1,
+        layoutStatus: "ready",
+        layoutWarnings: [
+          "Newick input contains 761 disconnected components; kept as a forest.",
+        ],
+      },
+    });
+
+    const shell = uiShell({
+      workbench: fakeWorkbench,
+      elements: {
+        form,
+        newickInput: input,
+        status,
+      },
+    });
+
+    shell.mount();
+    await shell.renderCurrentInput();
+
+    expect(status.textContent).toContain("Rendered");
+    expect(status.textContent).toContain("761 disconnected components");
+    shell.unmount();
+  });
+
   it("shows failure status on empty Newick input", async () => {
     document.body.innerHTML = `
       <form id="render-form"></form>
