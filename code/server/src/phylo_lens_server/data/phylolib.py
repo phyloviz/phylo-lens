@@ -79,13 +79,18 @@ def docker_available() -> bool:
     return shutil.which(DOCKER_COMMAND) is not None
 
 
-def _run_phylolib(files_dir: Path, args: list[str], *, failure_reason: str,
-                  failure_message: str) -> None:
+def _run_phylolib(
+    files_dir: Path, args: list[str], *, failure_reason: str, failure_message: str
+) -> None:
     """Run one PhyloLib subcommand in the container with ``files_dir`` mounted."""
     command = [
-        DOCKER_COMMAND, "run", "--rm",
-        "-v", f"{files_dir}:{CONTAINER_FILES_DIR}",
-        PHYLOLIB_IMAGE, *args,
+        DOCKER_COMMAND,
+        "run",
+        "--rm",
+        "-v",
+        f"{files_dir}:{CONTAINER_FILES_DIR}",
+        PHYLOLIB_IMAGE,
+        *args,
     ]
     try:
         subprocess.run(command, capture_output=True, text=True, check=True)
@@ -126,11 +131,17 @@ def typing_profiles_to_newick(
         (files_dir / PROFILES_FILENAME).write_text(profiles, encoding="utf-8")
 
         distance_in = f"{DATASET_FORMAT_ML}:{CONTAINER_FILES_DIR}/{PROFILES_FILENAME}"
-        matrix_ref = f"{MATRIX_FORMAT_SYMMETRIC}:{CONTAINER_FILES_DIR}/{MATRIX_FILENAME}"
+        matrix_ref = (
+            f"{MATRIX_FORMAT_SYMMETRIC}:{CONTAINER_FILES_DIR}/{MATRIX_FILENAME}"
+        )
         _run_phylolib(
             files_dir,
-            ["distance", distance_method, f"--dataset={distance_in}",
-             f"--out={matrix_ref}"],
+            [
+                "distance",
+                distance_method,
+                f"--dataset={distance_in}",
+                f"--out={matrix_ref}",
+            ],
             failure_reason=TYPING_PHYLOLIB_DISTANCE_FAILED,
             failure_message=ERR_TYPING_DISTANCE_FAILED,
         )
@@ -138,18 +149,27 @@ def typing_profiles_to_newick(
         tree_ref = f"{TREE_FORMAT_NEWICK}:{CONTAINER_FILES_DIR}/{TREE_FILENAME}"
         _run_phylolib(
             files_dir,
-            ["algorithm", "goeburst", f"--matrix={matrix_ref}",
-             f"--out={tree_ref}", f"--lvs={goeburst_lvs}"],
+            [
+                "algorithm",
+                "goeburst",
+                f"--matrix={matrix_ref}",
+                f"--out={tree_ref}",
+                f"--lvs={goeburst_lvs}",
+            ],
             failure_reason=TYPING_PHYLOLIB_ALGORITHM_FAILED,
             failure_message=ERR_TYPING_ALGORITHM_FAILED,
         )
 
         tree_path = files_dir / TREE_FILENAME
-        newick = tree_path.read_text(encoding="utf-8").strip() if tree_path.exists() else ""
+        newick = (
+            tree_path.read_text(encoding="utf-8").strip() if tree_path.exists() else ""
+        )
 
     if not newick:
         logger.warning(ERR_TYPING_EMPTY_TREE)
-        raise TypingNormalizeError(ERR_TYPING_EMPTY_TREE, reason=TYPING_PHYLOLIB_EMPTY_TREE)
+        raise TypingNormalizeError(
+            ERR_TYPING_EMPTY_TREE, reason=TYPING_PHYLOLIB_EMPTY_TREE
+        )
 
     return newick
 

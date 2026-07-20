@@ -169,14 +169,15 @@ Nine tables:
 
 Indexes that make viewport reads cheap:
 
-- `idx_prepared_clusters_bounds (dataset_id, layout_version, min_x, max_x, min_y, max_y)`
-  — bounds-overlap reads for cluster representatives.
+- `idx_prepared_clusters_bounds (dataset_id, layout_version, threshold, max_x, min_x, max_y, min_y)`
+  — bounds-overlap reads for cluster representatives at a selected LoD tier.
 - `idx_prepared_clusters_threshold (dataset_id, layout_version, threshold)`
   — resolve a `lod_level` to its threshold and select that tier's clusters.
 - `idx_node_positions_xy (dataset_id, layout_version, x, y)`
   — bounds reads for finest-detail "ready" nodes.
-- `idx_prepared_edges_endpoints` and `idx_graph_edges_endpoints`
-  — edge lookups by endpoint at a given tier.
+- `idx_prepared_edges_endpoints`, `idx_graph_edges_endpoints`, and
+  `idx_graph_edges_target_endpoints` — edge lookups by endpoint at a given tier,
+  including reverse endpoint probes for expansion/boundary reads.
 
 **`threshold` semantics.** In `prepared_clusters`, `threshold` is `NULL` only
 where a cluster represents finest detail; otherwise it is one of the selected

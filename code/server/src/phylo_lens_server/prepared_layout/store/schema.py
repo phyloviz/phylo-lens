@@ -128,12 +128,25 @@ def initialize_schema(database_path: Path) -> None:
                 on node_positions(dataset_id, layout_version, node_id);
             create index if not exists idx_node_positions_cluster_id
                 on node_positions(dataset_id, layout_version, cluster_id);
+            create index if not exists idx_node_positions_xy
+                on node_positions(dataset_id, layout_version, x, y);
             create index if not exists idx_prepared_clusters_threshold
                 on prepared_clusters(dataset_id, layout_version, threshold);
+            create index if not exists idx_prepared_clusters_bounds
+                on prepared_clusters(
+                    dataset_id, layout_version, threshold, max_x, min_x, max_y, min_y
+                );
             create index if not exists idx_prepared_edges_lod
                 on prepared_edges(dataset_id, layout_version, lod_level);
+            create index if not exists idx_prepared_edges_endpoints
+                on prepared_edges(
+                    dataset_id, layout_version, lod_level,
+                    source_node_id, target_node_id
+                );
             create index if not exists idx_graph_edges_endpoints
                 on graph_edges(dataset_id, layout_version, source_node_id, target_node_id);
+            create index if not exists idx_graph_edges_target_endpoints
+                on graph_edges(dataset_id, layout_version, target_node_id, source_node_id);
             create index if not exists idx_node_metadata_json
                 on node_metadata(dataset_id, layout_version, metadata_json);
             create index if not exists idx_cluster_metadata_json
