@@ -136,8 +136,8 @@ def normalize_dataset(
             parsed = parse_newick_forest(request.content)
 
         # Typing data (MLST/cgMLST allelic profiles) is converted to a graph by
-        # the containerized PhyloLib CLI. goeBURST may emit a forest (one tree
-        # per connected component); typing_profiles_to_graph merges these into a
+        # the bundled PhyloLib JAR. goeBURST may emit a forest (one tree per
+        # connected component); typing_profiles_to_graph merges these into a
         # single disconnected ParsedGraph so everything downstream is unchanged.
         case NormalizeFormat.TYPING_DATA:
             try:

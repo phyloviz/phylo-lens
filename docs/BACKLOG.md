@@ -87,15 +87,17 @@ left as-is; only the per-threshold repetition was the waste.
 
 ## 4. Typing-data input via Phylolib (MLST/cgMLST profiles) — IMPLEMENTED
 
-**Status:** Implemented and **live-verified** against `gonfrutuoso/phylolib:latest`.
+**Status:** Implemented and **live-verified** against the bundled PhyloLib JAR.
 `data/phylolib.py` runs a two-stage subprocess (`distance hamming` →
-`algorithm goeburst --lvs=3`) through a `/files` bind mount;
+`algorithm goeburst --lvs=3`) through the configured Java runtime;
 `typing_profiles_to_graph` feeds the result through the existing `parse_newick`
 path and is wired into `normalize_dataset` via `NormalizeFormat.TYPING_DATA`.
-Requires Docker to be reachable; failures raise `ParseError` (400).
+Requires the configured PhyloLib JAR to be readable; failures raise `ParseError`
+(400).
 
-Live verification (real container + full `prepare → poll → viewport`) confirmed
-the `ml:` profile layout (tab-separated, header row) and flag behavior, and
+Live verification (self-contained service image + full `prepare → poll →
+viewport`) confirmed the `ml:` profile layout (tab-separated, header row), Java
+JAR invocation, and flag behavior, and
 surfaced one real issue now handled: **goeBURST emits a forest** (one
 `;`-terminated tree per connected component) for typical typing data. The
 forest is parsed per-component and merged into a single **disconnected**

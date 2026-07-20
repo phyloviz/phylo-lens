@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-import shutil
+import os
 import subprocess
 import tempfile
 from pathlib import Path
@@ -14,13 +14,12 @@ from phylo_lens_server.data.parsers import (
 
 logger = logging.getLogger(__name__)
 
-# Containerized PhyloLib CLI (https://github.com/phyloviz/phylolib). The image
-# exposes `distance` and `algorithm` subcommands and reads/writes files under a
-# mounted directory, addressed as <format>:<location>. We bind a host temp dir
-# to CONTAINER_FILES_DIR and reference inputs/outputs by their in-container path.
-DOCKER_COMMAND = "docker"
-PHYLOLIB_IMAGE = "gonfrutuoso/phylolib:latest"
-CONTAINER_FILES_DIR = "/files"
+# PhyloLib CLI (https://github.com/phyloviz/phylolib). The PhyloLens service
+# image runs the bundled JAR directly; the rest of the normalization pipeline
+# only deals with typing profiles and parsed Newick output.
+JAVA_COMMAND = "java"
+ENV_PHYLOLIB_JAR = "PHYLO_LENS_PHYLOLIB_JAR"
+ENV_PHYLOLIB_JAVA = "PHYLO_LENS_PHYLOLIB_JAVA"
 
 # Defaults per BACKLOG item 4: hamming for allelic MLST, goeBURST lvs=3, Newick
 # output feeding the existing parse_newick path.
@@ -35,15 +34,16 @@ MATRIX_FILENAME = "matrix.txt"
 TREE_FILENAME = "tree.nwk"
 
 # Error reasons surfaced to the caller so an operator can tell an unavailable
-# container apart from an algorithm failure, mirroring the sfdp degrade reasons.
-TYPING_DOCKER_MISSING = "docker_missing"
+# PhyloLib runtime apart from an algorithm failure, mirroring the sfdp degrade
+# reasons.
+TYPING_PHYLOLIB_RUNTIME_MISSING = "phylolib_runtime_missing"
 TYPING_PHYLOLIB_DISTANCE_FAILED = "phylolib_distance_failed"
 TYPING_PHYLOLIB_ALGORITHM_FAILED = "phylolib_algorithm_failed"
 TYPING_PHYLOLIB_EMPTY_TREE = "phylolib_empty_tree"
 
-ERR_TYPING_DOCKER_MISSING = (
-    "Typing-data ingest requires Docker to run the PhyloLib container, but the "
-    "'docker' command was not found on PATH."
+ERR_TYPING_PHYLOLIB_RUNTIME_MISSING = (
+    "Typing-data ingest requires a readable PhyloLib JAR configured with "
+    f"{ENV_PHYLOLIB_JAR}."
 )
 ERR_TYPING_DISTANCE_FAILED = (
     "PhyloLib failed to compute a distance matrix from the typing profiles."
@@ -74,35 +74,66 @@ class TypingNormalizeError(ValueError):
         self.reason = reason
 
 
-def docker_available() -> bool:
-    """Report whether the Docker CLI is on PATH (required for typing ingest)."""
-    return shutil.which(DOCKER_COMMAND) is not None
+def _configured_phylolib_jar() -> Path | None:
+    jar_path = os.environ.get(ENV_PHYLOLIB_JAR)
+    if not jar_path:
+        return None
+
+    path = Path(jar_path)
+    return path if path.is_file() else None
 
 
-def _run_phylolib(
-    files_dir: Path, args: list[str], *, failure_reason: str, failure_message: str
+def phylolib_jar_available() -> bool:
+    """Report whether a local PhyloLib JAR is configured and readable."""
+    return _configured_phylolib_jar() is not None
+
+
+def _java_command() -> str:
+    return os.environ.get(ENV_PHYLOLIB_JAVA, JAVA_COMMAND)
+
+
+def _run_phylolib_cli(
+    args: list[str], *, failure_reason: str, failure_message: str
 ) -> None:
-    """Run one PhyloLib subcommand in the container with ``files_dir`` mounted."""
-    command = [
-        DOCKER_COMMAND,
-        "run",
-        "--rm",
-        "-v",
-        f"{files_dir}:{CONTAINER_FILES_DIR}",
-        PHYLOLIB_IMAGE,
-        *args,
-    ]
+    """Run one PhyloLib CLI subcommand through the configured local JAR."""
+    jar_path = _configured_phylolib_jar()
+    if jar_path is None:
+        raise TypingNormalizeError(
+            ERR_TYPING_PHYLOLIB_RUNTIME_MISSING,
+            reason=TYPING_PHYLOLIB_RUNTIME_MISSING,
+        )
+
+    command = [_java_command(), "-jar", str(jar_path), *args]
+    _run_command(
+        command,
+        step=args[0] if args else "?",
+        failure_reason=failure_reason,
+        failure_message=failure_message,
+    )
+
+
+def _run_command(
+    command: list[str],
+    *,
+    step: str,
+    failure_reason: str,
+    failure_message: str,
+) -> None:
     try:
         subprocess.run(command, capture_output=True, text=True, check=True)
     except (OSError, subprocess.CalledProcessError) as error:
         stderr = getattr(error, "stderr", "") or ""
         logger.warning(
             "PhyloLib step %s failed (%s): %s",
-            args[0] if args else "?",
+            step,
             type(error).__name__,
             stderr.strip(),
         )
         raise TypingNormalizeError(failure_message, reason=failure_reason) from error
+
+
+def _phylolib_path(files_dir: Path, filename: str) -> str:
+    return str(files_dir / filename)
 
 
 def typing_profiles_to_newick(
@@ -113,29 +144,23 @@ def typing_profiles_to_newick(
 ) -> str:
     """Convert an MLST/cgMLST allelic profile matrix into raw PhyloLib Newick.
 
-    Runs two PhyloLib container stages against a temp directory mounted at
-    ``/files``: ``distance`` (profiles -> symmetric matrix) then ``algorithm
-    goeburst`` (matrix -> Newick MST). The returned text may be a *forest* —
-    one ``;``-terminated tree per connected component — which is normal for
-    typing data. Raises :class:`TypingNormalizeError` when Docker is unavailable
-    or either PhyloLib stage fails.
+    Runs two PhyloLib stages against a temp directory: ``distance`` (profiles ->
+    symmetric matrix) then ``algorithm goeburst`` (matrix -> Newick MST). The
+    returned text may be a *forest* — one ``;``-terminated tree per connected
+    component — which is normal for typing data. Raises
+    :class:`TypingNormalizeError` when no PhyloLib runtime is available or either
+    stage fails.
     """
-    if not docker_available():
-        logger.warning(ERR_TYPING_DOCKER_MISSING)
-        raise TypingNormalizeError(
-            ERR_TYPING_DOCKER_MISSING, reason=TYPING_DOCKER_MISSING
-        )
-
     with tempfile.TemporaryDirectory(prefix="phylolib-") as tmp:
         files_dir = Path(tmp)
         (files_dir / PROFILES_FILENAME).write_text(profiles, encoding="utf-8")
 
-        distance_in = f"{DATASET_FORMAT_ML}:{CONTAINER_FILES_DIR}/{PROFILES_FILENAME}"
-        matrix_ref = (
-            f"{MATRIX_FORMAT_SYMMETRIC}:{CONTAINER_FILES_DIR}/{MATRIX_FILENAME}"
-        )
-        _run_phylolib(
-            files_dir,
+        profiles_path = _phylolib_path(files_dir, PROFILES_FILENAME)
+        matrix_path = _phylolib_path(files_dir, MATRIX_FILENAME)
+        tree_path = files_dir / TREE_FILENAME
+        distance_in = f"{DATASET_FORMAT_ML}:{profiles_path}"
+        matrix_ref = f"{MATRIX_FORMAT_SYMMETRIC}:{matrix_path}"
+        _run_phylolib_cli(
             [
                 "distance",
                 distance_method,
@@ -146,9 +171,8 @@ def typing_profiles_to_newick(
             failure_message=ERR_TYPING_DISTANCE_FAILED,
         )
 
-        tree_ref = f"{TREE_FORMAT_NEWICK}:{CONTAINER_FILES_DIR}/{TREE_FILENAME}"
-        _run_phylolib(
-            files_dir,
+        tree_ref = f"{TREE_FORMAT_NEWICK}:{tree_path}"
+        _run_phylolib_cli(
             [
                 "algorithm",
                 "goeburst",
@@ -160,7 +184,6 @@ def typing_profiles_to_newick(
             failure_message=ERR_TYPING_ALGORITHM_FAILED,
         )
 
-        tree_path = files_dir / TREE_FILENAME
         newick = (
             tree_path.read_text(encoding="utf-8").strip() if tree_path.exists() else ""
         )

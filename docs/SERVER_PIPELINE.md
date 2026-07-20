@@ -42,9 +42,9 @@ branch lengths as edge distances.
 Two input formats are accepted (`NormalizeFormat`):
 
 - **`newick`** — parsed directly by `parse_newick`.
-- **`typing_data`** — MLST/cgMLST allelic profiles. `data/phylolib.py` shells
-  out to the containerized PhyloLib CLI (`gonfrutuoso/phylolib:latest`) in two
-  stages against a temp directory bind-mounted at `/files`:
+- **`typing_data`** — MLST/cgMLST allelic profiles. `data/phylolib.py` invokes
+  the bundled PhyloLib JAR directly in two stages against a temporary working
+  directory:
   `distance hamming --dataset=ml:… --out=symmetric:…` then
   `algorithm goeburst --matrix=symmetric:… --out=newick:… --lvs=3`.
   `typing_profiles_to_graph` parses the result through the *same* `parse_newick`
@@ -56,8 +56,8 @@ Two input formats are accepted (`NormalizeFormat`):
   collisions, explicit ST labels are preserved), with a warning recording the
   component count. Downstream clustering already partitions by connected
   component and sfdp handles disconnected graphs, so the forest flows through
-  unchanged. Typing ingest requires Docker to be reachable; when it is
-  unavailable or a PhyloLib stage fails, normalization raises a `ParseError`
+  unchanged. Typing ingest requires the configured PhyloLib JAR to be readable;
+  when it is unavailable or a PhyloLib stage fails, normalization raises a `ParseError`
   (surfaced as a `400`) — there is no meaningful tree fallback, unlike the
   layout step's circular degrade.
 

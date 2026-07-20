@@ -505,9 +505,9 @@ def test_typing_data_maps_phylolib_graph_into_pipeline(monkeypatch) -> None:
     )
 
 
-def test_typing_data_docker_missing_raises_parse_error(monkeypatch) -> None:
-    """When Docker is unavailable, typing ingest fails as a client-facing error."""
-    monkeypatch.setattr(phylolib, "docker_available", lambda: False)
+def test_typing_data_runtime_missing_raises_parse_error(monkeypatch) -> None:
+    """When PhyloLib is unavailable, typing ingest fails as a client-facing error."""
+    monkeypatch.delenv(phylolib.ENV_PHYLOLIB_JAR, raising=False)
 
     with pytest.raises(ParseError) as excinfo:
         normalize_dataset(
@@ -518,22 +518,26 @@ def test_typing_data_docker_missing_raises_parse_error(monkeypatch) -> None:
             )
         )
 
-    assert "Docker" in str(excinfo.value)
+    assert "PhyloLib" in str(excinfo.value)
 
 
-def test_typing_profiles_to_newick_reads_container_output(monkeypatch, tmp_path) -> None:
-    """The two-stage phylolib path returns the Newick the container wrote."""
-    monkeypatch.setattr(phylolib, "docker_available", lambda: True)
+def test_typing_profiles_to_newick_prefers_local_phylolib_jar(
+    monkeypatch, tmp_path
+) -> None:
+    """Production runs the configured PhyloLib JAR directly."""
+    jar_path = tmp_path / "phylolib.jar"
+    jar_path.write_text("fake jar", encoding="utf-8")
+    monkeypatch.setenv(phylolib.ENV_PHYLOLIB_JAR, str(jar_path))
+    monkeypatch.setenv(phylolib.ENV_PHYLOLIB_JAVA, "/opt/java/openjdk/bin/java")
+
+    commands: list[list[str]] = []
 
     def fake_run(command, **kwargs):
-        # The algorithm stage is responsible for producing the tree file. We
-        # locate the mounted host dir from the -v argument and write the tree.
+        commands.append(command)
         if "algorithm" in command:
-            mount = command[command.index("-v") + 1]
-            host_dir = mount.split(":", 1)[0]
-            (Path(host_dir) / phylolib.TREE_FILENAME).write_text(
-                TYPING_NEWICK, encoding="utf-8"
-            )
+            out_arg = next(arg for arg in command if arg.startswith("--out=newick:"))
+            tree_path = Path(out_arg.removeprefix("--out=newick:"))
+            tree_path.write_text(TYPING_NEWICK, encoding="utf-8")
 
         class _Completed:
             stdout = ""
@@ -546,11 +550,55 @@ def test_typing_profiles_to_newick_reads_container_output(monkeypatch, tmp_path)
     newick = phylolib.typing_profiles_to_newick(TYPING_PROFILES)
 
     assert newick == TYPING_NEWICK
+    assert commands
+    expected_prefix = ["/opt/java/openjdk/bin/java", "-jar", str(jar_path)]
+    assert all(command[:3] == expected_prefix for command in commands)
+    assert len(commands) == 2
+    assert commands[0][3:5] == ["distance", phylolib.DEFAULT_DISTANCE_METHOD]
+    assert commands[0][5].startswith("--dataset=ml:")
+    assert commands[0][6].startswith("--out=symmetric:")
+    assert commands[1][3:5] == ["algorithm", "goeburst"]
+    assert commands[1][5].startswith("--matrix=symmetric:")
+    assert commands[1][6].startswith("--out=newick:")
+    assert commands[1][7] == f"--lvs={phylolib.DEFAULT_GOEBURST_LVS}"
 
 
-def test_typing_profiles_to_newick_stage_failure_raises(monkeypatch) -> None:
-    """A non-zero container exit surfaces a typed TypingNormalizeError."""
-    monkeypatch.setattr(phylolib, "docker_available", lambda: True)
+def test_typing_profiles_to_newick_reads_jar_output(monkeypatch, tmp_path) -> None:
+    """The two-stage PhyloLib path returns the Newick the JAR wrote."""
+    jar_path = tmp_path / "phylolib.jar"
+    jar_path.write_text("fake jar", encoding="utf-8")
+    monkeypatch.setenv(phylolib.ENV_PHYLOLIB_JAR, str(jar_path))
+    temp_dirs: list[Path] = []
+
+    def fake_run(command, **kwargs):
+        # The algorithm stage is responsible for producing the tree file. We
+        # locate the output path from the newick reference and write the tree.
+        if "algorithm" in command:
+            out_arg = next(arg for arg in command if arg.startswith("--out=newick:"))
+            tree_path = Path(out_arg.removeprefix("--out=newick:"))
+            temp_dirs.append(tree_path.parent)
+            tree_path.write_text(TYPING_NEWICK, encoding="utf-8")
+
+        class _Completed:
+            stdout = ""
+            stderr = ""
+
+        return _Completed()
+
+    monkeypatch.setattr(phylolib.subprocess, "run", fake_run)
+
+    newick = phylolib.typing_profiles_to_newick(TYPING_PROFILES)
+
+    assert newick == TYPING_NEWICK
+    assert temp_dirs
+    assert all(not temp_dir.exists() for temp_dir in temp_dirs)
+
+
+def test_typing_profiles_to_newick_stage_failure_raises(monkeypatch, tmp_path) -> None:
+    """A non-zero PhyloLib process exit surfaces a typed TypingNormalizeError."""
+    jar_path = tmp_path / "phylolib.jar"
+    jar_path.write_text("fake jar", encoding="utf-8")
+    monkeypatch.setenv(phylolib.ENV_PHYLOLIB_JAR, str(jar_path))
 
     def fake_run(command, **kwargs):
         raise phylolib.subprocess.CalledProcessError(

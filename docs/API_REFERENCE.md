@@ -236,7 +236,7 @@ shape minus `lod_level`/`zoom`, plus `aggregated_metadata`):
 
 | Field | Type | Default | Notes |
 |---|---|---|---|
-| `format` | `"newick" \| "typing_data"` | — | `newick` parses `content` directly; `typing_data` runs `content` (MLST/cgMLST allelic profiles) through the containerized PhyloLib CLI to produce a tree (requires Docker; `400` if unavailable) |
+| `format` | `"newick" \| "typing_data"` | — | `newick` parses `content` directly; `typing_data` runs `content` (MLST/cgMLST allelic profiles) through the configured PhyloLib JAR to produce a tree (`400` if unavailable or invalid) |
 | `dataset_name` | `str` (min 1) | `"dataset"` | |
 | `content` | `str` (min 1) | — | raw Newick text, or an allelic profile matrix when `format` is `typing_data` |
 | `options` | `NormalizeOptions` | `{}` | `{ allow_self_loops: bool = false }` |

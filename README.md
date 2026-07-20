@@ -14,8 +14,8 @@ global work, and every interaction is a cheap bounded read.
 
 | Path | What it is |
 | --- | --- |
-| [`code/server`](code/server/README.md) | **Backend** — FastAPI service for normalization, threshold clustering, `sfdp` layout precompute, and bounded viewport/region reads, backed by a SQLite prepared-layout store. |
-| [`code/client`](code/client/README.md) | **Frontend** — TypeScript/Sigma.js renderer with server-driven level-of-detail, metadata-driven coloring/sizing, and box-select region isolation. Also packaged as a consumable library. |
+| [`code/server`](code/server/README.md) | **PhyloLens API service** — FastAPI service for normalization, threshold clustering, `sfdp` layout precompute, and bounded viewport/region reads, backed by a SQLite prepared-layout store. Distributed as a Docker runtime. |
+| [`code/client`](code/client/README.md) | **Browser library** — TypeScript/Sigma.js renderer with server-driven level-of-detail, metadata-driven coloring/sizing, and box-select region isolation. Packaged as `@phyloviz/phylo-lens`. |
 | [`docs`](docs/README.md) | Maintained technical documentation (architecture, data model, pipeline, LoD, rendering, API reference). |
 | [`examples`](examples/README.md) | Small input datasets for local runs and tests. |
 
@@ -78,12 +78,27 @@ pip install -e '.[test,dev]'
 uvicorn phylo_lens_server.main:app --reload   # serves http://localhost:8000
 ```
 
+Or run the containerized PhyloLens API service:
+
+```bash
+cd code/server
+docker build -t ghcr.io/phyloviz/phylo-lens-service:0.1.0 .
+docker run --rm -p 8000:8000 -v phylo-lens-data:/data ghcr.io/phyloviz/phylo-lens-service:0.1.0
+```
+
 **Frontend** (see [`code/client/README.md`](code/client/README.md)):
 
 ```bash
 cd code/client
 npm ci
 npm run dev                                    # serves http://localhost:3000
+```
+
+Host applications install `@phyloviz/phylo-lens` and pass the deployed service
+URI as `apiUrl`:
+
+```ts
+createPhyloLensView({ container, apiUrl: "http://localhost:8000" });
 ```
 
 **Validation:**
