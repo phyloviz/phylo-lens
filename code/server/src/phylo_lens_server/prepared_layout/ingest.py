@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-from collections import defaultdict
 from hashlib import sha1
 
 from phylo_lens_server.core.models import CanonicalDataset, CanonicalEdge
 from phylo_lens_server.prepared_layout.clustering import (
     ClusterIndex,
     MAX_CLUSTER_THRESHOLDS,
-    distance_clusters,
+    components_by_threshold,
     partition_for_threshold,
     prepared_cluster,
     representative_targets,
@@ -42,31 +41,26 @@ def prepare_layout_artifacts(
         dataset.edges,
         max_thresholds,
     )
-    clusters = distance_clusters(
-        dataset,
-        node_ids,
-        thresholds,
-        index=cluster_index,
-    )
-    clusters_by_id = {cluster.cluster_id: cluster for cluster in clusters}
     sorted_edges = sort_edges_by_distance(dataset.edges)
+    components = components_by_threshold(
+        node_ids,
+        dataset.edges,
+        thresholds,
+        sorted_edges=sorted_edges,
+    )
+    clusters_by_id = {}
     for threshold in thresholds:
-        partition = partition_for_threshold(
-            dataset, node_ids, threshold, sorted_edges=sorted_edges
-        )
-        members_by_cluster_id: dict[str, list[str]] = defaultdict(list)
-        for node_id, node_cluster_id in partition.items():
-            members_by_cluster_id[node_cluster_id].append(node_id)
-        for cluster_id in sorted(members_by_cluster_id):
-            if cluster_id in clusters_by_id:
-                continue
-            member_node_ids = tuple(members_by_cluster_id[cluster_id])
-            clusters_by_id[cluster_id] = prepared_cluster(
+        for member_node_ids in components[threshold]:
+            cluster = prepared_cluster(
                 dataset,
                 threshold,
                 member_node_ids,
                 index=cluster_index,
             )
+            cluster_id = cluster.cluster_id
+            if cluster_id in clusters_by_id:
+                continue
+            clusters_by_id[cluster_id] = cluster
     clusters = sorted(
         clusters_by_id.values(),
         key=lambda cluster: (

@@ -212,6 +212,36 @@ def partition_for_threshold(
     return partition
 
 
+def components_by_threshold(
+    node_ids: tuple[str, ...],
+    edges: list[CanonicalEdge],
+    thresholds_desc: tuple[float, ...],
+    *,
+    sorted_edges: tuple[CanonicalEdge, ...] | None = None,
+) -> dict[float, tuple[tuple[str, ...], ...]]:
+    node_index_by_id = {node_id: index for index, node_id in enumerate(node_ids)}
+    if sorted_edges is None:
+        sorted_edges = sort_edges_by_distance(edges)
+    thresholds_asc = tuple(reversed(thresholds_desc))
+    union_find = _UnionFind.create(len(node_ids))
+    edge_index = 0
+    components: dict[float, tuple[tuple[str, ...], ...]] = {}
+
+    for threshold in thresholds_asc:
+        while edge_index < len(sorted_edges):
+            edge = sorted_edges[edge_index]
+            if _edge_distance(edge) > threshold:
+                break
+            union_find.union(
+                node_index_by_id[edge.source],
+                node_index_by_id[edge.target],
+            )
+            edge_index += 1
+        components[threshold] = components_for_union_find(node_ids, union_find)
+
+    return components
+
+
 def prepared_cluster(
     dataset: CanonicalDataset,
     threshold: float,

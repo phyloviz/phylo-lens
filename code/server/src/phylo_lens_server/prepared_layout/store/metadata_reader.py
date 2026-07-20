@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Iterable
 from dataclasses import replace
 import json
 import sqlite3
@@ -33,29 +34,41 @@ def aggregate_cluster_metadata(
 ) -> MetadataMap:
     aggregate: MetadataMap = {}
     for key, field_type in schema:
-        values = [
-            metadata[key]
-            for metadata in member_metadata
-            if metadata.get(key) is not None
-        ]
-        if not values:
-            continue
-        if field_type == "number":
-            numeric = [
-                value
-                for value in values
-                if isinstance(value, (int, float)) and not isinstance(value, bool)
-            ]
-            if numeric:
-                aggregate[key] = sum(numeric) / len(numeric)
-            continue
-        counts = Counter(values)
-        best_count = max(counts.values())
-        aggregate[key] = min(
-            (value for value, count in counts.items() if count == best_count),
-            key=str,
+        value = aggregate_metadata_values(
+            field_type,
+            (
+                metadata[key]
+                for metadata in member_metadata
+                if metadata.get(key) is not None
+            ),
         )
+        if value is not None:
+            aggregate[key] = value
     return aggregate
+
+
+def aggregate_metadata_values(
+    field_type: str,
+    values: Iterable[MetadataValue],
+) -> MetadataValue:
+    if field_type == "number":
+        numeric = [
+            value
+            for value in values
+            if isinstance(value, (int, float)) and not isinstance(value, bool)
+        ]
+        if not numeric:
+            return None
+        return sum(numeric) / len(numeric)
+
+    counts = Counter(value for value in values if value is not None)
+    if not counts:
+        return None
+    best_count = max(counts.values())
+    return min(
+        (value for value, count in counts.items() if count == best_count),
+        key=str,
+    )
 
 
 def load_metadata_rows(
@@ -123,13 +136,11 @@ def attach_node_metadata(
         layout_version=layout_version,
         keys=node_ids,
     )
-    cluster_metadata = load_metadata_rows(
+    cluster_metadata = load_cluster_metadata(
         connection,
-        table="cluster_metadata",
-        key_column="cluster_id",
         dataset_id=dataset_id,
         layout_version=layout_version,
-        keys=cluster_ids,
+        cluster_ids=cluster_ids,
     )
     enriched: list[ViewportNode] = []
     for node in nodes:
@@ -140,3 +151,163 @@ def attach_node_metadata(
         )
         enriched.append(replace(node, metadata=metadata) if metadata else node)
     return tuple(enriched)
+
+
+def load_cluster_metadata(
+    connection: sqlite3.Connection,
+    *,
+    dataset_id: str,
+    layout_version: str,
+    cluster_ids: set[str],
+) -> dict[str, MetadataMap]:
+    if not cluster_ids:
+        return {}
+    cached = load_metadata_rows(
+        connection,
+        table="cluster_metadata",
+        key_column="cluster_id",
+        dataset_id=dataset_id,
+        layout_version=layout_version,
+        keys=cluster_ids,
+    )
+    missing_cluster_ids = cluster_ids - set(cached)
+    if not missing_cluster_ids:
+        return cached
+
+    computed = compute_cluster_metadata(
+        connection,
+        dataset_id=dataset_id,
+        layout_version=layout_version,
+        cluster_ids=missing_cluster_ids,
+    )
+    cache_cluster_metadata(
+        connection,
+        dataset_id=dataset_id,
+        layout_version=layout_version,
+        metadata_by_cluster_id=computed,
+    )
+    return {**cached, **computed}
+
+
+def compute_cluster_metadata(
+    connection: sqlite3.Connection,
+    *,
+    dataset_id: str,
+    layout_version: str,
+    cluster_ids: set[str],
+) -> dict[str, MetadataMap]:
+    schema = tuple(
+        (field.key, field.type)
+        for field in load_metadata_schema(
+            connection,
+            dataset_id=dataset_id,
+            layout_version=layout_version,
+        )
+    )
+    if not schema:
+        return {}
+
+    members_by_cluster_id = load_cluster_members(
+        connection,
+        dataset_id=dataset_id,
+        layout_version=layout_version,
+        cluster_ids=cluster_ids,
+    )
+    member_ids = {
+        node_id
+        for member_ids_for_cluster in members_by_cluster_id.values()
+        for node_id in member_ids_for_cluster
+    }
+    metadata_by_node = load_metadata_rows(
+        connection,
+        table="node_metadata",
+        key_column="node_id",
+        dataset_id=dataset_id,
+        layout_version=layout_version,
+        keys=member_ids,
+    )
+
+    computed: dict[str, MetadataMap] = {}
+    for cluster_id, member_ids_for_cluster in members_by_cluster_id.items():
+        if len(member_ids_for_cluster) == 1:
+            metadata = metadata_by_node.get(member_ids_for_cluster[0], {})
+        else:
+            metadata = aggregate_cluster_metadata_by_node_ids(
+                member_ids_for_cluster,
+                metadata_by_node,
+                schema,
+            )
+        if metadata:
+            computed[cluster_id] = metadata
+    return computed
+
+
+def load_cluster_members(
+    connection: sqlite3.Connection,
+    *,
+    dataset_id: str,
+    layout_version: str,
+    cluster_ids: set[str],
+) -> dict[str, tuple[str, ...]]:
+    if not cluster_ids:
+        return {}
+    placeholders = ",".join("?" for _ in cluster_ids)
+    rows = connection.execute(
+        f"""
+        select cluster_id, node_id
+        from cluster_members
+        where dataset_id = ?
+          and layout_version = ?
+          and cluster_id in ({placeholders})
+        order by cluster_id, node_id
+        """,
+        (dataset_id, layout_version, *sorted(cluster_ids)),
+    ).fetchall()
+    members: dict[str, list[str]] = {}
+    for row in rows:
+        members.setdefault(row["cluster_id"], []).append(row["node_id"])
+    return {cluster_id: tuple(node_ids) for cluster_id, node_ids in members.items()}
+
+
+def aggregate_cluster_metadata_by_node_ids(
+    member_node_ids: tuple[str, ...],
+    metadata_by_node: dict[str, MetadataMap],
+    schema: tuple[tuple[str, str], ...],
+) -> MetadataMap:
+    aggregate: MetadataMap = {}
+    for key, field_type in schema:
+        value = aggregate_metadata_values(
+            field_type,
+            (
+                metadata_by_node.get(node_id, {}).get(key)
+                for node_id in member_node_ids
+            ),
+        )
+        if value is not None:
+            aggregate[key] = value
+    return aggregate
+
+
+def cache_cluster_metadata(
+    connection: sqlite3.Connection,
+    *,
+    dataset_id: str,
+    layout_version: str,
+    metadata_by_cluster_id: dict[str, MetadataMap],
+) -> None:
+    if not metadata_by_cluster_id:
+        return
+    connection.executemany(
+        """
+        insert into cluster_metadata(
+            dataset_id, layout_version, cluster_id, metadata_json
+        )
+        values (?, ?, ?, ?)
+        on conflict(dataset_id, layout_version, cluster_id) do update set
+            metadata_json = excluded.metadata_json
+        """,
+        [
+            (dataset_id, layout_version, cluster_id, json.dumps(metadata))
+            for cluster_id, metadata in metadata_by_cluster_id.items()
+        ],
+    )

@@ -386,29 +386,13 @@ def read_ready_nodes(
         ymin=ymin,
         ymax=ymax,
     )
-    count_params = (
-        dataset_id,
-        layout_version,
-        dataset_id,
-        layout_version,
-        *bounds_params,
-    )
+    count_params = (dataset_id, layout_version, *bounds_params)
     total_row = connection.execute(
         f"""
-        with base_threshold as (
-            select min(threshold) as value
-            from prepared_clusters
-            where dataset_id = ? and layout_version = ?
-        )
         select count(*) as total_count
         from node_positions np
-        join prepared_clusters pc
-          on pc.dataset_id = np.dataset_id
-         and pc.layout_version = np.layout_version
-         and pc.cluster_id = np.cluster_id
         where np.dataset_id = ?
           and np.layout_version = ?
-          and pc.threshold = (select value from base_threshold)
           {bounds_filter}
         """,
         count_params,
@@ -416,20 +400,10 @@ def read_ready_nodes(
     total = int(total_row["total_count"]) if total_row is not None else 0
     rows = connection.execute(
         f"""
-        with base_threshold as (
-            select min(threshold) as value
-            from prepared_clusters
-            where dataset_id = ? and layout_version = ?
-        )
         select np.node_id, np.cluster_id, np.x, np.y, np.status
         from node_positions np
-        join prepared_clusters pc
-          on pc.dataset_id = np.dataset_id
-         and pc.layout_version = np.layout_version
-         and pc.cluster_id = np.cluster_id
         where np.dataset_id = ?
           and np.layout_version = ?
-          and pc.threshold = (select value from base_threshold)
           {bounds_filter}
         order by np.cluster_id, np.node_id
         limit ?
@@ -464,7 +438,7 @@ def _read_cluster_member_nodes(
     total_row = connection.execute(
         """
         select count(*) as total_count
-        from node_positions
+        from cluster_members
         where dataset_id = ?
           and layout_version = ?
           and cluster_id = ?
@@ -474,11 +448,15 @@ def _read_cluster_member_nodes(
     total = int(total_row["total_count"]) if total_row is not None else 0
     rows = connection.execute(
         """
-        select np.node_id, np.cluster_id, np.x, np.y, np.status
-        from node_positions np
-        where np.dataset_id = ?
-          and np.layout_version = ?
-          and np.cluster_id = ?
+        select cm.node_id, cm.cluster_id, np.x, np.y, np.status
+        from cluster_members cm
+        join node_positions np
+          on np.dataset_id = cm.dataset_id
+         and np.layout_version = cm.layout_version
+         and np.node_id = cm.node_id
+        where cm.dataset_id = ?
+          and cm.layout_version = ?
+          and cm.cluster_id = ?
         order by case when np.node_id = ? then 0 else 1 end, np.node_id
         limit ?
         """,
@@ -657,28 +635,19 @@ def _read_distinct_node_positions(
     total_row = connection.execute(
         """
         select count(*) as total_count
-        from (
-            select node_id, x, y
-            from node_positions
-            where dataset_id = ?
-              and layout_version = ?
-            group by node_id, x, y
-        )
+        from node_positions
+        where dataset_id = ?
+          and layout_version = ?
         """,
         (dataset_id, layout_version),
     ).fetchone()
     total = int(total_row["total_count"]) if total_row is not None else 0
     rows = connection.execute(
         """
-        select node_id,
-               min(cluster_id) as cluster_id,
-               x,
-               y,
-               max(status) as status
+        select node_id, cluster_id, x, y, status
         from node_positions
         where dataset_id = ?
           and layout_version = ?
-        group by node_id, x, y
         order by node_id
         limit ?
         """,
@@ -921,27 +890,15 @@ def _read_node_positions_by_ids(
     placeholders = ",".join("?" for _ in node_ids)
     rows = connection.execute(
         f"""
-        with base_threshold as (
-            select min(threshold) as value
-            from prepared_clusters
-            where dataset_id = ? and layout_version = ?
-        )
         select np.node_id, np.cluster_id, np.x, np.y, np.status
         from node_positions np
-        join prepared_clusters pc
-          on pc.dataset_id = np.dataset_id
-         and pc.layout_version = np.layout_version
-         and pc.cluster_id = np.cluster_id
         where np.dataset_id = ?
           and np.layout_version = ?
-          and pc.threshold = (select value from base_threshold)
           and np.node_id in ({placeholders})
         order by np.cluster_id, np.node_id
         limit ?
         """,
         (
-            dataset_id,
-            layout_version,
             dataset_id,
             layout_version,
             *sorted(node_ids),

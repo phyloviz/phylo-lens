@@ -310,15 +310,13 @@ def test_ghost_layout_uses_global_coordinates_for_clusters_and_members() -> None
     artifacts = prepare_layout_artifacts(dataset)
     cluster_layouts, node_positions, _reason = compute_prepared_layouts(artifacts)
     cluster_by_id = {cluster.cluster_id: cluster for cluster in artifacts.clusters}
-    position_by_cluster_and_node = {
-        (position.cluster_id, position.node_id): position for position in node_positions
-    }
+    position_by_node = {position.node_id: position for position in node_positions}
+
+    assert len(node_positions) == len(position_by_node)
 
     for layout in cluster_layouts:
         representative_node_id = cluster_by_id[layout.cluster_id].representative_node_id
-        representative_position = position_by_cluster_and_node[
-            (layout.cluster_id, representative_node_id)
-        ]
+        representative_position = position_by_node[representative_node_id]
         assert (layout.x, layout.y) == (
             representative_position.x,
             representative_position.y,
@@ -490,6 +488,7 @@ def test_prepared_layout_worker_persists_ready_cluster_and_node_positions(
     assert node_positions
     assert all(layout.status == EXPECTED_LAYOUT_STATUS for layout in cluster_layouts)
     assert all(position.status == EXPECTED_LAYOUT_STATUS for position in node_positions)
+    assert len(node_positions) == len({position.node_id for position in node_positions})
     assert result.prepared_edges
     assert {position.node_id for position in node_positions} >= {
         "a",

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+from contextlib import AbstractContextManager
 from pathlib import Path
 
 from phylo_lens_server.prepared_layout.models import (
@@ -34,18 +36,45 @@ class PreparedLayoutStore:
     def clear_dataset(self, dataset_id: str) -> None:
         writer.clear_dataset(self._database_path, dataset_id, self._threshold_cache)
 
-    def save_artifacts(self, artifacts: PreparedLayoutArtifacts) -> None:
-        writer.save_artifacts(self._database_path, artifacts)
+    def save_artifacts(
+        self,
+        artifacts: PreparedLayoutArtifacts,
+        *,
+        status: str = "refining",
+        stage_factory: Callable[[str], AbstractContextManager[None]] | None = None,
+    ) -> None:
+        writer.save_artifacts(
+            self._database_path,
+            artifacts,
+            status=status,
+            stage_factory=stage_factory,
+        )
 
     def save_layouts(
         self,
         cluster_layouts: tuple[ClusterLayout, ...],
         node_positions: tuple[NodeLayoutPosition, ...],
+        *,
+        stage_factory: Callable[[str], AbstractContextManager[None]] | None = None,
     ) -> None:
-        writer.save_layouts(self._database_path, cluster_layouts, node_positions)
+        writer.save_layouts(
+            self._database_path,
+            cluster_layouts,
+            node_positions,
+            stage_factory=stage_factory,
+        )
 
-    def save_prepared_edges(self, prepared_edges: tuple[PreparedEdge, ...]) -> None:
-        writer.save_prepared_edges(self._database_path, prepared_edges)
+    def save_prepared_edges(
+        self,
+        prepared_edges: tuple[PreparedEdge, ...],
+        *,
+        stage_factory: Callable[[str], AbstractContextManager[None]] | None = None,
+    ) -> None:
+        writer.save_prepared_edges(
+            self._database_path,
+            prepared_edges,
+            stage_factory=stage_factory,
+        )
 
     def load_cluster_layouts(
         self,

@@ -105,28 +105,16 @@ def query_plan_events(
                 explain(
                     connection,
                     """
-                    with base_threshold as (
-                        select min(threshold) as value
-                        from prepared_clusters
-                        where dataset_id = ? and layout_version = ?
-                    )
                     select np.node_id, np.cluster_id, np.x, np.y, np.status
                     from node_positions np
-                    join prepared_clusters pc
-                      on pc.dataset_id = np.dataset_id
-                     and pc.layout_version = np.layout_version
-                     and pc.cluster_id = np.cluster_id
                     where np.dataset_id = ?
                       and np.layout_version = ?
-                      and pc.threshold = (select value from base_threshold)
                       and np.x between ? and ?
                       and np.y between ? and ?
                     order by np.cluster_id, np.node_id
                     limit ?
                     """,
                     (
-                        dataset_id,
-                        layout_version,
                         dataset_id,
                         layout_version,
                         bounds.xmin,
@@ -181,4 +169,3 @@ def explain(
 ) -> list[str]:
     rows = connection.execute(f"explain query plan {sql}", params).fetchall()
     return [str(row["detail"]) for row in rows]
-

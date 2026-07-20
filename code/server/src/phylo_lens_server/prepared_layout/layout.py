@@ -53,13 +53,19 @@ def compute_prepared_layouts(
     )
 
     cluster_layouts: list[ClusterLayout] = []
-    node_positions: list[NodeLayoutPosition] = []
+    singleton_cluster_by_node_id: dict[str, str] = {}
+    fallback_cluster_by_node_id: dict[str, str] = {}
     for cluster in artifacts.clusters:
         member_positions = {
             node_id: global_positions[node_id]
             for node_id in cluster.member_node_ids
             if node_id in global_positions
         }
+        for node_id in member_positions:
+            fallback_cluster_by_node_id.setdefault(node_id, cluster.cluster_id)
+        if cluster.member_count == 1:
+            for node_id in member_positions:
+                singleton_cluster_by_node_id[node_id] = cluster.cluster_id
         representative_position = global_positions[cluster.representative_node_id]
         bounds = bounds_for_positions(member_positions)
         cluster_layouts.append(
@@ -76,20 +82,24 @@ def compute_prepared_layouts(
                 status=layout_status,
             )
         )
-        node_positions.extend(
-            NodeLayoutPosition(
-                dataset_id=artifacts.dataset.dataset_id,
-                layout_version=artifacts.layout_version,
-                cluster_id=cluster.cluster_id,
-                node_id=node_id,
-                x=position[0],
-                y=position[1],
-                status=layout_status,
-            )
-            for node_id, position in sorted(member_positions.items())
+    node_positions = tuple(
+        NodeLayoutPosition(
+            dataset_id=artifacts.dataset.dataset_id,
+            layout_version=artifacts.layout_version,
+            cluster_id=singleton_cluster_by_node_id.get(
+                node_id,
+                fallback_cluster_by_node_id[node_id],
+            ),
+            node_id=node_id,
+            x=position[0],
+            y=position[1],
+            status=layout_status,
         )
+        for node_id, position in sorted(global_positions.items())
+        if node_id in fallback_cluster_by_node_id
+    )
 
-    return tuple(cluster_layouts), tuple(node_positions), degraded_reason
+    return tuple(cluster_layouts), node_positions, degraded_reason
 
 
 def compute_global_node_positions(

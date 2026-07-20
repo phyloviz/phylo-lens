@@ -15,11 +15,16 @@ from phylo_profile.server_runner import ServerProfileConfig, run_one_dataset
 
 bootstrap_server_src()
 
-from phylo_lens_server.prepared_layout.layout import GRAPHVIZ_ROUGH_MAXITER  # noqa: E402
+from phylo_lens_server.prepared_layout import layout as layout_module  # noqa: E402
 
 
 DEFAULT_VIEWPORT_FRACTIONS = (0.05, 0.2, 1.0)
 DEFAULT_LOD_LEVELS = (0, 1, 2, -1)
+DEFAULT_LAYOUT_MAXITER = getattr(
+    layout_module,
+    "GRAPHVIZ_ROUGH_MAXITER",
+    layout_module.GRAPHVIZ_BASE_MAXITER,
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -51,7 +56,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--layout-maxiter",
         type=int,
-        default=GRAPHVIZ_ROUGH_MAXITER,
+        default=DEFAULT_LAYOUT_MAXITER,
         help="Graphviz sfdp maxiter for development profiling.",
     )
     parser.add_argument("--search-query", default="n000")

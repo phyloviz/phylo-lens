@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import inspect
 from pathlib import Path
 import tempfile
 
@@ -27,6 +28,9 @@ from phylo_lens_server.prepared_layout.worker import compute_prepared_edges  # n
 
 
 DEFAULT_SEARCH_LIMIT = 25
+LAYOUT_ACCEPTS_MAXITER = "maxiter" in inspect.signature(
+    compute_prepared_layouts
+).parameters
 
 
 @dataclass(frozen=True)
@@ -77,19 +81,37 @@ def run_one_dataset(
             "compute_layout",
             layout_maxiter=config.layout_maxiter,
         ):
-            cluster_layouts, node_positions, degraded_reason = compute_prepared_layouts(
-                artifacts,
-                maxiter=config.layout_maxiter,
-            )
+            if LAYOUT_ACCEPTS_MAXITER:
+                cluster_layouts, node_positions, degraded_reason = (
+                    compute_prepared_layouts(
+                        artifacts,
+                        maxiter=config.layout_maxiter,
+                    )
+                )
+            else:
+                cluster_layouts, node_positions, degraded_reason = (
+                    compute_prepared_layouts(artifacts)
+                )
 
         with recorder.stage("persist_artifacts"):
-            store.save_artifacts(artifacts, status="ready")
+            store.save_artifacts(
+                artifacts,
+                status="ready",
+                stage_factory=recorder.stage,
+            )
 
         with recorder.stage("persist_layouts"):
-            store.save_layouts(cluster_layouts, node_positions)
+            store.save_layouts(
+                cluster_layouts,
+                node_positions,
+                stage_factory=recorder.stage,
+            )
 
         with recorder.stage("persist_prepared_edges"):
-            store.save_prepared_edges(prepared_edges)
+            store.save_prepared_edges(
+                prepared_edges,
+                stage_factory=recorder.stage,
+            )
 
         layout_version = artifacts.layout_version
         full_bounds = dataset_bounds(store, dataset.dataset_id, layout_version)
