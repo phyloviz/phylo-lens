@@ -10,6 +10,13 @@ import {
   ROUTE_GRAPH_VIEWPORT,
 } from "../src/api/graphClient";
 import type { GraphPrepareStatus } from "../src/api/graphContracts";
+import {
+  IncompatiblePhyloLensServiceError,
+  PhyloLensServiceProtocolError,
+  PhyloLensServiceUnavailableError,
+  ROUTE_SERVICE_HEALTH,
+  SUPPORTED_PHYLO_LENS_API_VERSION,
+} from "../src/api/serviceCompatibility";
 import { SOURCE_FORMAT_NEWICK } from "../src/contracts/models";
 
 const BASE_URL = "http://localhost:8000";
@@ -18,6 +25,11 @@ const PREPARE_JOB_FIXTURE = {
   job_id: "job-1",
   status: "pending",
   dataset_id: "tree",
+} satisfies unknown;
+const SERVICE_INFO_FIXTURE = {
+  status: "ok",
+  service_version: "0.1.0",
+  api_version: SUPPORTED_PHYLO_LENS_API_VERSION,
 } satisfies unknown;
 
 // No polling delay in tests: the client sleeps between polls, so inject a
@@ -74,6 +86,49 @@ function makeJsonResponse(payload: unknown, status = 200): Response {
 }
 
 describe("graphClient", () => {
+  it("normalizes trailing slashes before constructing service and graph URLs", async () => {
+    const responses = [
+      makeJsonResponse(SERVICE_INFO_FIXTURE),
+      makeJsonResponse(PREPARE_JOB_FIXTURE, 202),
+      makeJsonResponse({ job_id: "job-1", status: "ready", result: PREPARE_FIXTURE }),
+    ];
+    const seen: string[] = [];
+    const fetchSpy = vi.fn(async (input: RequestInfo | URL) => {
+      seen.push(String(input));
+      return responses.shift() ?? makeJsonResponse({});
+    }) as unknown as typeof fetch;
+    const client = createGraphClient({ baseUrl: `${BASE_URL}/`, fetchImpl: fetchSpy });
+
+    await client.prepareGraph(
+      {
+        format: SOURCE_FORMAT_NEWICK,
+        dataset_name: "tree",
+        content: "(A,B)Root;",
+      },
+      NO_SLEEP,
+    );
+
+    expect(seen[0]).toBe(`${BASE_URL}${ROUTE_SERVICE_HEALTH}`);
+    expect(seen[1]).toBe(`${BASE_URL}${ROUTE_GRAPH_PREPARE}`);
+  });
+
+  it("joins relative apiUrl prefixes predictably", async () => {
+    const seen: string[] = [];
+    const fetchSpy = vi.fn(async (input: RequestInfo | URL) => {
+      seen.push(String(input));
+      return makeJsonResponse(SEARCH_FIXTURE);
+    }) as unknown as typeof fetch;
+    const client = createGraphClient({ baseUrl: "/phylo-lens/api/", fetchImpl: fetchSpy });
+
+    await client.searchGraph({
+      dataset_id: "tree",
+      query: "port",
+      limit: 25,
+    });
+
+    expect(seen[0]).toBe(`/phylo-lens/api${ROUTE_GRAPH_SEARCH}`);
+  });
+
   it("posts a whole-tree search and returns scored matches", async () => {
     const seen: string[] = [];
     const fetchSpy = vi.fn(async (input: RequestInfo | URL) => {
@@ -104,8 +159,13 @@ describe("graphClient", () => {
       status: "ready",
       result: PREPARE_FIXTURE as never,
     };
-    // POST submit -> pending poll -> ready poll.
-    const responses = [makeJsonResponse(PREPARE_JOB_FIXTURE, 202), makeJsonResponse(pending), makeJsonResponse(ready)];
+    // health check -> POST submit -> pending poll -> ready poll.
+    const responses = [
+      makeJsonResponse(SERVICE_INFO_FIXTURE),
+      makeJsonResponse(PREPARE_JOB_FIXTURE, 202),
+      makeJsonResponse(pending),
+      makeJsonResponse(ready),
+    ];
     const seen: string[] = [];
     const fetchSpy = vi.fn(async (input: RequestInfo | URL) => {
       seen.push(String(input));
@@ -128,14 +188,125 @@ describe("graphClient", () => {
     );
 
     expect(response.layout_version).toBe("abc123");
-    expect(seen[0]).toBe(`${BASE_URL}${ROUTE_GRAPH_PREPARE}`);
-    expect(seen[1]).toBe(statusUrl);
+    expect(seen[0]).toBe(`${BASE_URL}${ROUTE_SERVICE_HEALTH}`);
+    expect(seen[1]).toBe(`${BASE_URL}${ROUTE_GRAPH_PREPARE}`);
     expect(seen[2]).toBe(statusUrl);
+    expect(seen[3]).toBe(statusUrl);
     expect(onPending).toHaveBeenCalledTimes(1);
+  });
+
+  it("caches a successful compatibility check across multiple prepares", async () => {
+    const ready: GraphPrepareStatus = {
+      job_id: "job-1",
+      status: "ready",
+      result: PREPARE_FIXTURE as never,
+    };
+    const responses = [
+      makeJsonResponse(SERVICE_INFO_FIXTURE),
+      makeJsonResponse(PREPARE_JOB_FIXTURE, 202),
+      makeJsonResponse(ready),
+      makeJsonResponse(PREPARE_JOB_FIXTURE, 202),
+      makeJsonResponse(ready),
+    ];
+    const seen: string[] = [];
+    const fetchSpy = vi.fn(async (input: RequestInfo | URL) => {
+      seen.push(String(input));
+      return responses.shift() ?? makeJsonResponse(ready);
+    }) as unknown as typeof fetch;
+    const client = createGraphClient({ baseUrl: BASE_URL, fetchImpl: fetchSpy });
+
+    await client.prepareGraph({ format: SOURCE_FORMAT_NEWICK, dataset_name: "first", content: "(A)R;" }, NO_SLEEP);
+    await client.prepareGraph({ format: SOURCE_FORMAT_NEWICK, dataset_name: "second", content: "(B)R;" }, NO_SLEEP);
+
+    expect(seen.filter((url) => url === `${BASE_URL}${ROUTE_SERVICE_HEALTH}`)).toHaveLength(1);
+    expect(seen.filter((url) => url === `${BASE_URL}${ROUTE_GRAPH_PREPARE}`)).toHaveLength(2);
+  });
+
+  it("rejects incompatible service API versions before graph preparation", async () => {
+    const seen: string[] = [];
+    const client = createGraphClient({
+      baseUrl: BASE_URL,
+      fetchImpl: vi.fn(async (input: RequestInfo | URL) => {
+        seen.push(String(input));
+        return makeJsonResponse({ ...SERVICE_INFO_FIXTURE, api_version: "2" });
+      }) as unknown as typeof fetch,
+    });
+
+    await expect(
+      client.prepareGraph({ format: SOURCE_FORMAT_NEWICK, dataset_name: "tree", content: "(A)R;" }, NO_SLEEP),
+    ).rejects.toMatchObject({
+      expectedApiVersion: SUPPORTED_PHYLO_LENS_API_VERSION,
+      receivedApiVersion: "2",
+    });
+    await expect(
+      client.prepareGraph({ format: SOURCE_FORMAT_NEWICK, dataset_name: "tree", content: "(A)R;" }, NO_SLEEP),
+    ).rejects.toBeInstanceOf(IncompatiblePhyloLensServiceError);
+    expect(seen).toEqual([`${BASE_URL}${ROUTE_SERVICE_HEALTH}`, `${BASE_URL}${ROUTE_SERVICE_HEALTH}`]);
+  });
+
+  it("rejects malformed service information before graph preparation", async () => {
+    const seen: string[] = [];
+    const client = createGraphClient({
+      baseUrl: BASE_URL,
+      fetchImpl: vi.fn(async (input: RequestInfo | URL) => {
+        seen.push(String(input));
+        return makeJsonResponse({ status: "ok" });
+      }) as unknown as typeof fetch,
+    });
+
+    await expect(
+      client.prepareGraph({ format: SOURCE_FORMAT_NEWICK, dataset_name: "tree", content: "(A)R;" }, NO_SLEEP),
+    ).rejects.toBeInstanceOf(PhyloLensServiceProtocolError);
+    expect(seen).toEqual([`${BASE_URL}${ROUTE_SERVICE_HEALTH}`]);
+  });
+
+  it("rejects malformed service JSON as a protocol error", async () => {
+    const client = createGraphClient({
+      baseUrl: BASE_URL,
+      fetchImpl: vi.fn(
+        async () =>
+          new Response("{", {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+      ) as unknown as typeof fetch,
+    });
+
+    await expect(
+      client.prepareGraph({ format: SOURCE_FORMAT_NEWICK, dataset_name: "tree", content: "(A)R;" }, NO_SLEEP),
+    ).rejects.toBeInstanceOf(PhyloLensServiceProtocolError);
+  });
+
+  it("rejects unavailable services before graph preparation", async () => {
+    const seen: string[] = [];
+    const client = createGraphClient({
+      baseUrl: BASE_URL,
+      fetchImpl: vi.fn(async (input: RequestInfo | URL) => {
+        seen.push(String(input));
+        throw new TypeError("network down");
+      }) as unknown as typeof fetch,
+    });
+
+    await expect(
+      client.prepareGraph({ format: SOURCE_FORMAT_NEWICK, dataset_name: "tree", content: "(A)R;" }, NO_SLEEP),
+    ).rejects.toBeInstanceOf(PhyloLensServiceUnavailableError);
+    expect(seen).toEqual([`${BASE_URL}${ROUTE_SERVICE_HEALTH}`]);
+  });
+
+  it("checks compatibility before submitting graph preparation", async () => {
+    const fetchSpy = vi.fn(async () => makeJsonResponse({ status: "ok" })) as unknown as typeof fetch;
+    const client = createGraphClient({ baseUrl: BASE_URL, fetchImpl: fetchSpy });
+
+    await expect(
+      client.prepareGraph({ format: SOURCE_FORMAT_NEWICK, dataset_name: "tree", content: "(A)R;" }, NO_SLEEP),
+    ).rejects.toBeInstanceOf(PhyloLensServiceProtocolError);
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 
   it("rejects when a prepare job resolves to failed", async () => {
     const responses = [
+      makeJsonResponse(SERVICE_INFO_FIXTURE),
       makeJsonResponse(PREPARE_JOB_FIXTURE, 202),
       makeJsonResponse({
         job_id: "job-1",
@@ -162,6 +333,7 @@ describe("graphClient", () => {
 
   it("uses a default failure message when a failed job omits an error", async () => {
     const responses = [
+      makeJsonResponse(SERVICE_INFO_FIXTURE),
       makeJsonResponse(PREPARE_JOB_FIXTURE, 202),
       makeJsonResponse({ job_id: "job-1", status: "failed" }),
     ];
@@ -223,9 +395,10 @@ describe("graphClient", () => {
   });
 
   it("rejects an invalid prepare-job submit response", async () => {
+    const responses = [makeJsonResponse(SERVICE_INFO_FIXTURE), makeJsonResponse({ invalid: true })];
     const client = createGraphClient({
       baseUrl: BASE_URL,
-      fetchImpl: vi.fn(async () => makeJsonResponse({ invalid: true })) as unknown as typeof fetch,
+      fetchImpl: vi.fn(async () => responses.shift() ?? makeJsonResponse({})) as unknown as typeof fetch,
     });
 
     await expect(

@@ -34,7 +34,11 @@ for _ in range(60):
     try:
         with urllib.request.urlopen(f"{base_url}/health", timeout=2) as response:
             body = json.load(response)
-        if body == {"status": "ok"}:
+        if (
+            body.get("status") == "ok"
+            and body.get("api_version") == "1"
+            and isinstance(body.get("service_version"), str)
+        ):
             break
     except (OSError, urllib.error.URLError):
         pass

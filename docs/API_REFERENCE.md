@@ -82,7 +82,9 @@ Field-level model tables follow in [Request/response models](#requestresponse-mo
 
 ### `GET /health`
 
-**Description:** Liveness probe for local runs and CI.
+**Description:** Liveness probe and lightweight service information response.
+The browser library reads this endpoint before the first graph preparation and
+requires `api_version` to match its supported API contract version.
 
 **Request:** no body.
 
@@ -93,7 +95,11 @@ curl --location --request GET 'http://localhost:8000/health'
 **Success — `200 OK`** (`application/json`):
 
 ```json
-{ "status": "ok" }
+{
+  "status": "ok",
+  "service_version": "0.1.0",
+  "api_version": "1"
+}
 ```
 
 ### `POST /api/graph/prepare`

@@ -49,6 +49,7 @@ Run it locally:
 ```bash
 docker run --rm \
   -p 8000:8000 \
+  -e PHYLO_LENS_CORS_ORIGINS=http://localhost:3000,http://localhost:5173 \
   -v phylo-lens-data:/data \
   ghcr.io/phyloviz/phylo-lens-service:0.1.0
 ```
@@ -86,8 +87,13 @@ Health check:
 
 ```bash
 curl http://localhost:8000/health
-# {"status":"ok"}
+# {"status":"ok","service_version":"0.1.0","api_version":"1"}
 ```
+
+The browser library reads this same endpoint on the first `load()` call and
+verifies `api_version` before submitting a prepare job. `service_version`
+identifies the service implementation build; `api_version` is the stable HTTP
+contract version and is the only value used for compatibility.
 
 Local Compose usage:
 
@@ -181,6 +187,12 @@ Environment variable:
   a `phylo_lens_prepared_layout` directory under the system temp dir when
   `PHYLO_LENS_DATA_DIR` is unset. If both variables are set, this explicit store
   directory wins.
+- `PHYLO_LENS_CORS_ORIGINS`: comma-separated browser origins allowed to call the
+  service directly, for example
+  `http://localhost:5173,https://phyloviz.example.org`. Values are trimmed and
+  empty entries are ignored. The default is empty, so production deployments do
+  not permit cross-origin browser access unless explicitly configured. The
+  service does not enable browser credentials/cookies.
 - `PHYLO_LENS_PHYLOLIB_JAR`: path to the bundled PhyloLib JAR for
   `typing_data` ingest. The Docker image sets this to `/app.jar`.
 - `PHYLO_LENS_PHYLOLIB_JAVA`: Java executable used with the PhyloLib JAR. The
@@ -210,6 +222,50 @@ createPhyloLensView({
   apiUrl: "http://localhost:8000",
 });
 ```
+
+### Deployment Modes
+
+Direct API access:
+
+```ts
+createPhyloLensView({
+  container,
+  apiUrl: "https://api.example.org",
+});
+```
+
+For this mode, configure the service with the host application's browser origin:
+
+```bash
+PHYLO_LENS_CORS_ORIGINS=https://app.example.org
+```
+
+Same-origin reverse proxy, recommended for many production deployments:
+
+```ts
+createPhyloLensView({
+  container,
+  apiUrl: "/phylo-lens/api",
+});
+```
+
+The host web server proxies that path to the service container. This avoids
+cross-origin configuration and browser mixed-content issues. Minimal Nginx
+example:
+
+```nginx
+location /phylo-lens/api/ {
+  proxy_pass http://phylo-lens-service:8000/;
+  proxy_http_version 1.1;
+  proxy_set_header Host $host;
+  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+  proxy_set_header X-Forwarded-Proto $scheme;
+}
+```
+
+Docker-internal names such as `http://phylo-lens-service:8000` are reachable by
+other containers, not by browser JavaScript, unless exposed through a published
+port or a reverse proxy.
 
 ## Tests
 

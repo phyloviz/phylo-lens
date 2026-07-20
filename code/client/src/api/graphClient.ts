@@ -18,6 +18,7 @@ import type {
   GraphViewportResponse,
   NormalizeRequest,
 } from "./graphContracts";
+import { validateServiceCompatibility } from "./serviceCompatibility";
 
 // Routes
 export const ROUTE_GRAPH_PREPARE = "/api/graph/prepare";
@@ -55,10 +56,20 @@ export type GraphClient = ReturnType<typeof createGraphClient>;
 
 export function createGraphClient(options: GraphClientOptions) {
   const http = createHttpClient(options);
+  let compatibilityCheck: Promise<void> | null = null;
+
+  const ensureCompatible = () => {
+    compatibilityCheck ??= validateServiceCompatibility(http).catch((error: unknown) => {
+      compatibilityCheck = null;
+      throw error;
+    });
+
+    return compatibilityCheck;
+  };
 
   return {
     prepareGraph: (request: NormalizeRequest, prepareOptions?: PrepareGraphOptions) =>
-      prepareGraph(http, request, prepareOptions),
+      prepareGraph(http, request, prepareOptions, ensureCompatible),
 
     readViewport: (query: GraphViewportQuery) => readGraphViewport(http, query),
 
@@ -72,7 +83,9 @@ export async function prepareGraph(
   http: HttpClient,
   request: NormalizeRequest,
   options: PrepareGraphOptions = {},
+  ensureCompatible: () => Promise<void> = () => validateServiceCompatibility(http),
 ): Promise<GraphPrepareResponse> {
+  await ensureCompatible();
   const job = await submitPrepareGraph(http, request);
 
   return pollPrepareGraph(http, job.job_id, options);

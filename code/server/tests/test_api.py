@@ -14,6 +14,7 @@ from phylo_lens_server.prepared_layout.layout import GRAPHVIZ_SFDP_COMMAND
 from phylo_lens_server.prepared_layout.store import PreparedLayoutStore
 from phylo_lens_server.prepared_layout.worker import PreparedLayoutWorker
 from phylo_lens_server.data.normalizer import NormalizeRequest, normalize_dataset
+from phylo_lens_server.versions import API_VERSION, service_version
 
 SFDP_AVAILABLE = shutil.which(GRAPHVIZ_SFDP_COMMAND) is not None
 EXPECTED_LAYOUT_STATUS = "ready" if SFDP_AVAILABLE else "degraded"
@@ -85,7 +86,11 @@ def test_health(client) -> None:
     response = client.get(ROUTE_HEALTH)
 
     assert response.status_code == STATUS_OK
-    assert response.json() == {"status": "ok"}
+    assert response.json() == {
+        "status": "ok",
+        "service_version": service_version(),
+        "api_version": API_VERSION,
+    }
 
 
 def test_graph_prepare_materializes_layout_for_viewport_reads(client) -> None:

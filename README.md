@@ -83,7 +83,11 @@ Or run the containerized PhyloLens API service:
 ```bash
 cd code/server
 docker build -t ghcr.io/phyloviz/phylo-lens-service:0.1.0 .
-docker run --rm -p 8000:8000 -v phylo-lens-data:/data ghcr.io/phyloviz/phylo-lens-service:0.1.0
+docker run --rm \
+  -p 8000:8000 \
+  -e PHYLO_LENS_CORS_ORIGINS=http://localhost:3000,http://localhost:5173 \
+  -v phylo-lens-data:/data \
+  ghcr.io/phyloviz/phylo-lens-service:0.1.0
 ```
 
 **Frontend** (see [`code/client/README.md`](code/client/README.md)):
@@ -100,6 +104,11 @@ URI as `apiUrl`:
 ```ts
 createPhyloLensView({ container, apiUrl: "http://localhost:8000" });
 ```
+
+The browser package validates the service `api_version` from `/health` before
+submitting a graph preparation job. For production, prefer a same-origin reverse
+proxy such as `apiUrl: "/phylo-lens/api"` when possible; direct cross-origin API
+access requires `PHYLO_LENS_CORS_ORIGINS` to include the host application origin.
 
 **Validation:**
 

@@ -11,8 +11,10 @@ export interface HttpClientOptions {
 }
 
 export function createHttpClient({ baseUrl, fetchImpl = safeFetch }: HttpClientOptions) {
+  const normalizedBaseUrl = normalizeBaseUrl(baseUrl);
+
   async function request<TResponse>(path: string, init?: RequestInit): Promise<TResponse> {
-    const response = await fetchImpl(`${baseUrl}${path}`, {
+    const response = await fetchImpl(joinUrl(normalizedBaseUrl, path), {
       ...init,
       headers: {
         [HEADER_CONTENT_TYPE]: CONTENT_TYPE_JSON,
@@ -45,6 +47,17 @@ export function createHttpClient({ baseUrl, fetchImpl = safeFetch }: HttpClientO
 }
 
 export type HttpClient = ReturnType<typeof createHttpClient>;
+
+export function normalizeBaseUrl(baseUrl: string): string {
+  return baseUrl.replace(/\/+$/, "");
+}
+
+export function joinUrl(baseUrl: string, path: string): string {
+  const normalizedBaseUrl = normalizeBaseUrl(baseUrl);
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+
+  return `${normalizedBaseUrl}${normalizedPath}`;
+}
 
 async function buildHttpErrorMessage(response: Response): Promise<string> {
   const detail = await readErrorDetail(response);

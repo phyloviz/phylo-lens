@@ -79,5 +79,10 @@ await view.load({
 view.dispose();
 ```
 
+`apiUrl` may also be a same-origin proxy prefix, for example
+`"/phylo-lens/api"`. The first `load()` call reads `${apiUrl}/health` and checks
+the service `api_version` before submitting a prepare job; incompatible or
+unreachable services fail early with exported compatibility errors.
+
 The local demo/reference application is useful for exploration, but it is not the
 public integration API.

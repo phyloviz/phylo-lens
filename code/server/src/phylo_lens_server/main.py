@@ -1,6 +1,7 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 import logging
+import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,6 +11,7 @@ from phylo_lens_server.api.graph import (
     get_prepare_job_registry,
     router as graph_router,
 )
+from phylo_lens_server.versions import API_VERSION, service_version
 
 PACKAGE_LOGGER_NAME = "phylo_lens_server"
 
@@ -34,24 +36,21 @@ def configure_logging() -> None:
 
 
 APP_TITLE = "PhyloLens Server"
-APP_VERSION = "0.1.0"
 
 ROUTE_HEALTH = "/health"
 HEALTH_STATUS_KEY = "status"
 HEALTH_STATUS_VALUE_OK = "ok"
+HEALTH_SERVICE_VERSION_KEY = "service_version"
+HEALTH_API_VERSION_KEY = "api_version"
 
 UVICORN_HOST = "127.0.0.1"
 UVICORN_PORT = 8000
 UVICORN_RELOAD = True
 UVICORN_APP = "phylo_lens_server.main:app"
 
-CLIENT_ORIGIN_LOCALHOST_3000 = "http://localhost:3000"
-CLIENT_ORIGIN_LOOPBACK_3000 = "http://127.0.0.1:3000"
-
-ALLOWED_ORIGINS = [
-    CLIENT_ORIGIN_LOCALHOST_3000,
-    CLIENT_ORIGIN_LOOPBACK_3000,
-]
+ENV_CORS_ORIGINS = "PHYLO_LENS_CORS_ORIGINS"
+ALLOWED_CORS_METHODS = ["GET", "POST"]
+ALLOWED_CORS_HEADERS = ["Content-Type"]
 
 
 @asynccontextmanager
@@ -65,23 +64,42 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 
 configure_logging()
 
-app = FastAPI(title=APP_TITLE, version=APP_VERSION, lifespan=lifespan)
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+def parse_cors_origins(raw_origins: str | None = None) -> list[str]:
+    """Parse a comma-separated CORS origin list from deployment config."""
+    value = os.environ.get(ENV_CORS_ORIGINS, "") if raw_origins is None else raw_origins
 
-app.include_router(graph_router)
+    return [origin.strip() for origin in value.split(",") if origin.strip()]
 
 
-@app.get(ROUTE_HEALTH)
+def create_app() -> FastAPI:
+    app = FastAPI(title=APP_TITLE, version=service_version(), lifespan=lifespan)
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=parse_cors_origins(),
+        allow_credentials=False,
+        allow_methods=ALLOWED_CORS_METHODS,
+        allow_headers=ALLOWED_CORS_HEADERS,
+    )
+
+    app.include_router(graph_router)
+
+    app.get(ROUTE_HEALTH)(health)
+
+    return app
+
+
 def health() -> dict[str, str]:
     """Return a basic liveness signal for local and CI checks."""
-    return {HEALTH_STATUS_KEY: HEALTH_STATUS_VALUE_OK}
+    return {
+        HEALTH_STATUS_KEY: HEALTH_STATUS_VALUE_OK,
+        HEALTH_SERVICE_VERSION_KEY: service_version(),
+        HEALTH_API_VERSION_KEY: API_VERSION,
+    }
+
+
+app = create_app()
 
 
 def run() -> None:

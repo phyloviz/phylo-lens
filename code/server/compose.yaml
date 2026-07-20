@@ -8,6 +8,7 @@ services:
     environment:
       PHYLO_LENS_DATA_DIR: /data
       PHYLO_LENS_PORT: "8000"
+      PHYLO_LENS_CORS_ORIGINS: http://localhost:3000,http://localhost:5173
     volumes:
       - phylo-lens-data:/data
     healthcheck:
