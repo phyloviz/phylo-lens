@@ -26,6 +26,7 @@ Start here, then follow the path that matches your interest.
 | How zoom maps to detail (the LoD engine) | [`LOD_AND_CLUSTERING.md`](./LOD_AND_CLUSTERING.md) |
 | How the client draws and colors the graph | [`CLIENT_RENDERING.md`](./CLIENT_RENDERING.md) |
 | How clusters expand and collapse | [`EXPAND_COLLAPSE.md`](./EXPAND_COLLAPSE.md) |
+| CI and release automation | [`RELEASE.md`](./RELEASE.md) |
 | Deferred tuning / scalability follow-ups | [`BACKLOG.md`](./BACKLOG.md) |
 
 ## Document Map
@@ -41,6 +42,7 @@ flowchart TD
   LOD["LOD_AND_CLUSTERING.md<br/>(semantic zoom)"]
   CLIENT["CLIENT_RENDERING.md<br/>(rendering + color)"]
   EC["EXPAND_COLLAPSE.md<br/>(cluster interaction)"]
+  REL["RELEASE.md<br/>(CI + release)"]
   BACKLOG["BACKLOG.md<br/>(follow-ups)"]
 
   README --> ARCH
@@ -51,6 +53,7 @@ flowchart TD
   ARCH --> LOD
   ARCH --> CLIENT
   ARCH --> EC
+  ARCH --> REL
   PIPE --> DATA
   PIPE --> LOD
   LOD --> CLIENT

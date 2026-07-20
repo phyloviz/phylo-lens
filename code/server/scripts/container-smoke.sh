@@ -4,6 +4,7 @@ set -euo pipefail
 IMAGE_NAME="${IMAGE_NAME:-phylo-lens-service:local}"
 CONTAINER_NAME="${CONTAINER_NAME:-phylo-lens-service-smoke}"
 PORT="${PORT:-18080}"
+SKIP_BUILD="${SKIP_BUILD:-0}"
 export PORT
 
 cleanup() {
@@ -11,7 +12,9 @@ cleanup() {
 }
 
 cleanup
-docker build -t "$IMAGE_NAME" .
+if [ "$SKIP_BUILD" != "1" ]; then
+  docker build -t "$IMAGE_NAME" .
+fi
 docker run -d \
   --name "$CONTAINER_NAME" \
   -p "${PORT}:8000" \

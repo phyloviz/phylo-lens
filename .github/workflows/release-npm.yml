@@ -1,0 +1,87 @@
+name: Release npm package
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to validate and publish, for example v0.1.0"
+        required: true
+        type: string
+
+concurrency:
+  group: release-npm-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    name: Publish @phyloviz/phylo-lens
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: npm-production
+    defaults:
+      run:
+        working-directory: code/client
+    steps:
+      - name: Resolve release tag
+        id: release
+        working-directory: .
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            tag="${{ inputs.tag }}"
+          else
+            tag="${GITHUB_REF_NAME}"
+          fi
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.release.outputs.tag }}
+
+      - name: Validate monorepo release version
+        working-directory: .
+        run: python scripts/check-release-version.py "${{ steps.release.outputs.tag }}"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          cache: npm
+          cache-dependency-path: code/client/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify npm version is not published
+        run: |
+          if npm view "@phyloviz/phylo-lens@${{ steps.release.outputs.version }}" version >/dev/null 2>&1; then
+            echo "@phyloviz/phylo-lens@${{ steps.release.outputs.version }} already exists on npm."
+            exit 1
+          fi
+
+      - name: Check formatting
+        run: npm run format:check
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
+      - name: Build library
+        run: npm run build:lib
+
+      - name: Inspect npm package contents
+        run: npm pack --dry-run
+
+      - name: Publish package
+        run: npm publish --provenance --access public

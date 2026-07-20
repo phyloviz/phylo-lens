@@ -1,5 +1,3 @@
-from pathlib import Path
-
 from phylo_lens_server.api.graph import dependencies
 
 

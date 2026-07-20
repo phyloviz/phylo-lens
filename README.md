@@ -128,5 +128,6 @@ points:
 - [LoD and clustering](docs/LOD_AND_CLUSTERING.md) — how zoom maps to detail
 - [Client rendering](docs/CLIENT_RENDERING.md) — rendering, coloring, and
   consuming the client as a library
+- [Release and CI](docs/RELEASE.md) — workflows, publication, and versioning
 - [Backend README](code/server/README.md) · [Frontend README](code/client/README.md)
   · [Examples](examples/README.md)
