@@ -6,21 +6,20 @@ import { defineConfig } from "vite";
 // untouched: `npm run build` still emits the demo app, while `npm run
 // build:lib` emits the consumable package from src/index.ts.
 //
-// The rendering stack (sigma / graphology / @sigma/*) is externalized so the
-// package declares them as peerDependencies and a host app supplies a single
-// shared copy rather than bundling a duplicate Sigma/Graphology.
-const PEER_DEPENDENCIES = [
+// The rendering stack is installed as normal package dependencies so consumers
+// do not need to know the implementation details, but it remains externalized
+// from this ESM bundle so host bundlers can process the upstream packages once.
+const EXTERNAL_RUNTIME_DEPENDENCIES = [
   "sigma",
   "graphology",
-  "graphology-layout-force",
   "graphology-layout-forceatlas2",
   "@sigma/node-border",
   "@sigma/node-piechart",
 ];
 
-// Externalize peer deps and any of their subpath imports (e.g. "sigma/...").
+// Externalize runtime deps and any of their subpath imports (e.g. "sigma/...").
 function isExternal(id: string): boolean {
-  return PEER_DEPENDENCIES.some(
+  return EXTERNAL_RUNTIME_DEPENDENCIES.some(
     (dep) => id === dep || id.startsWith(`${dep}/`),
   );
 }
@@ -34,7 +33,7 @@ export default defineConfig({
     },
     outDir: "dist",
     emptyOutDir: true,
-    sourcemap: true,
+    sourcemap: false,
     rollupOptions: {
       external: isExternal,
     },

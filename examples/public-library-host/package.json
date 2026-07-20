@@ -6,13 +6,7 @@
     "build": "tsc -b && vite build"
   },
   "dependencies": {
-    "@sigma/node-border": "^3.0.0",
-    "@sigma/node-piechart": "^3.0.0",
-    "graphology": "^0.26.0",
-    "graphology-layout-force": "^0.2.4",
-    "graphology-layout-forceatlas2": "^0.10.1",
-    "phylo-lens-client": "file:../../code/client/phylo-lens-client-0.1.0.tgz",
-    "sigma": "^3.0.2"
+    "@phyloviz/phylo-lens": "file:../../code/client/phyloviz-phylo-lens-0.1.0.tgz"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^5.0.4",

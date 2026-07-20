@@ -1,4 +1,4 @@
-import { createPhyloLensView } from "phylo-lens-client";
+import { createPhyloLensView } from "@phyloviz/phylo-lens";
 
 const container = document.getElementById("graph-root");
 if (!(container instanceof HTMLElement)) {

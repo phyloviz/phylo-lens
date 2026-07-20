@@ -1,6 +1,6 @@
 import type Graph from "graphology";
 import forceAtlas2, { type ForceAtlas2Settings } from "graphology-layout-forceatlas2";
-import ForceAtlas2Supervisor from "graphology-layout-forceatlas2/worker";
+import ForceAtlas2Supervisor from "graphology-layout-forceatlas2/worker.js";
 
 import { LAYOUT_FORCE, type PositionedGraph } from "../../../../contracts/positioned";
 

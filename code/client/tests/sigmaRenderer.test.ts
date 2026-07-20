@@ -34,7 +34,7 @@ let animationFrameId = 0;
 let graphToViewportPoint = (point: { x: number; y: number }) => point;
 let viewportToFramedGraphPoint = (point: { x: number; y: number }) => point;
 
-vi.mock("graphology-layout-forceatlas2/worker", () => ({
+vi.mock("graphology-layout-forceatlas2/worker.js", () => ({
   default: class FakeForceSupervisor {
     constructor(_graph: unknown, options?: { settings?: Record<string, number> }) {
       lastForceMotionSettings = options?.settings ?? null;

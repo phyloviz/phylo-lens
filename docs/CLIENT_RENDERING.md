@@ -180,14 +180,15 @@ the active selection. Region reads are always finest-detail (no `zoom`/
 
 ## Consuming the Client as a Library
 
-The client ships as an installable package (`phylo-lens-client`), not just the
+The client ships as an installable package (`@phyloviz/phylo-lens`), not just the
 demo app. A host application such as PHYLOViZ mounts the renderer as a component
 and never has to touch the HTTP contract itself — the workbench drives the whole
-prepare → poll → viewport loop internally. The package externalizes the
-rendering stack (`sigma`, `graphology`, `graphology-layout-force`,
-`graphology-layout-forceatlas2`, `@sigma/node-border`, `@sigma/node-piechart`)
-as **peer dependencies**, so the host provides a single shared copy of Sigma and
-Graphology rather than bundling a duplicate.
+prepare → poll → viewport loop internally. The default renderer's implementation
+packages (`sigma`, `graphology`, `graphology-layout-forceatlas2`,
+`@sigma/node-border`, `@sigma/node-piechart`) are normal dependencies, so
+ordinary hosts install only PhyloLens. They remain externalized from the library
+bundle so host bundlers resolve them from dependencies rather than receiving a
+large pre-bundled copy.
 
 Build the package with `npm run build:lib`, which emits `dist/index.js` (ESM) via
 `vite.lib.config.ts` and `dist/types/**/*.d.ts` declarations via
@@ -207,7 +208,7 @@ recommended integration API.
 ### One-call `load`
 
 ```ts
-import { createPhyloLensView } from "phylo-lens-client";
+import { createPhyloLensView } from "@phyloviz/phylo-lens";
 
 const container = document.getElementById("graph-root");
 if (!(container instanceof HTMLElement)) {

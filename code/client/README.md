@@ -9,7 +9,7 @@ viewport synchronization, and rendering loop internally. See the
 internals.
 
 The package ships two ways: a **demo app** for local exploration, and a
-**consumable library** (`phylo-lens-client`) a host app such as PHYLOViZ can
+**consumable library** (`@phyloviz/phylo-lens`) a host app such as PHYLOViZ can
 embed.
 
 ## Setup
@@ -35,10 +35,12 @@ npm run build       # demo build (index.html → dist/)
 npm run build:lib   # library build: dist/index.js (ESM) + dist/types/*.d.ts
 ```
 
-`build:lib` externalizes the rendering stack (`sigma`, `graphology`, the
-graphology layout packages, and the `@sigma/*` programs) as **peer
-dependencies**, so a host app supplies a single shared copy rather than bundling
-a duplicate Sigma/Graphology.
+`build:lib` emits the embeddable package entry. The default implementation uses
+Sigma, Graphology, ForceAtlas2, and Sigma node programs internally; those are
+installed as package dependencies so ordinary host applications do not install
+or configure them manually. They remain externalized from `dist/index.js` so the
+host bundler resolves them from dependencies instead of receiving a large
+pre-bundled copy.
 
 ## Test
 
@@ -54,7 +56,7 @@ dataset ids, layout versions, polling, renderer factories, and viewport
 synchronization are internal implementation details.
 
 ```ts
-import { createPhyloLensView } from "phylo-lens-client";
+import { createPhyloLensView } from "@phyloviz/phylo-lens";
 
 const container = document.getElementById("graph-root");
 if (!(container instanceof HTMLElement)) {
