@@ -1,6 +1,6 @@
 import type Sigma from "sigma";
 
-import type { SigmaViewportBounds } from "../viewport/graphViewport.types";
+import type { RenderViewportBounds } from "../../../renderer.types";
 
 // MouseCoords as emitted by Sigma's mouse captor: viewport pixel position plus
 // the originating DOM event (for the Shift modifier) and the pan-suppression
@@ -23,7 +23,7 @@ interface SigmaBoxSelectControllerOptions {
   // True while the toolbar toggle keeps region-select mode on. When enabled a
   // plain drag draws a box; otherwise a box is only drawn while Shift is held.
   isModeEnabled: () => boolean;
-  onRegionSelected: (bounds: SigmaViewportBounds) => void;
+  onRegionSelected: (bounds: RenderViewportBounds) => void;
   suppressNodeClicksFor?: (durationMs: number) => void;
 }
 
@@ -138,7 +138,7 @@ export default function (options: SigmaBoxSelectControllerOptions) {
 
     const startGraph = sigma.viewportToGraph(start);
     const endGraph = sigma.viewportToGraph(end);
-    const bounds: SigmaViewportBounds = {
+    const bounds: RenderViewportBounds = {
       xmin: Math.min(startGraph.x, endGraph.x),
       xmax: Math.max(startGraph.x, endGraph.x),
       ymin: Math.min(startGraph.y, endGraph.y),

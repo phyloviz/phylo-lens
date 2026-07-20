@@ -1,6 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { GraphClient } from "../src/api/graphClient";
-import type { GraphViewportResponse } from "../src/api/graphContracts";
 
 let lastSigmaOptions: Record<string, unknown> | null = null;
 let lastGraph: {
@@ -21,6 +19,8 @@ let lastCamera: {
   off: (event: string, handler: () => void) => void;
 } | null = null;
 let lastStageClickHandler: (() => void) | null = null;
+let lastNodeClickHandler: ((payload: { node?: string; event?: { node?: string } }) => void) | null = null;
+let lastNodeDoubleClickHandler: ((payload: { node?: string; event?: { node?: string } }) => void) | null = null;
 let shouldThrowOnPieProgram = false;
 let pieProgramInputs: Array<{
   slices: Array<{ color: { value: string }; value: { attribute: string } }>;
@@ -94,16 +94,28 @@ vi.mock("sigma", () => {
       sigmaConstructions += 1;
     }
 
-    on(event: string, handler: () => void) {
+    on(event: string, handler: (payload?: { node?: string; event?: { node?: string } }) => void) {
       if (event === "clickStage") {
-        lastStageClickHandler = handler;
+        lastStageClickHandler = handler as () => void;
+      }
+      if (event === "clickNode") {
+        lastNodeClickHandler = handler;
+      }
+      if (event === "doubleClickNode") {
+        lastNodeDoubleClickHandler = handler;
       }
       return this;
     }
 
-    off(event: string, handler: () => void) {
+    off(event: string, handler: (payload?: { node?: string; event?: { node?: string } }) => void) {
       if (event === "clickStage" && lastStageClickHandler === handler) {
         lastStageClickHandler = null;
+      }
+      if (event === "clickNode" && lastNodeClickHandler === handler) {
+        lastNodeClickHandler = null;
+      }
+      if (event === "doubleClickNode" && lastNodeDoubleClickHandler === handler) {
+        lastNodeDoubleClickHandler = null;
       }
       return this;
     }
@@ -143,6 +155,10 @@ vi.mock("sigma", () => {
       return point;
     }
 
+    getDimensions() {
+      return { width: 300, height: 200 };
+    }
+
     setCustomBBox(bounds: { x: [number, number]; y: [number, number] } | null) {
       lastCustomBBox = bounds;
       return this;
@@ -170,7 +186,6 @@ import {
   PHYLOVIZ_NODE_SELECTED_COLOR,
   SIGMA_NODE_TYPE_PIECHART,
 } from "../src/render/adapters/sigma/sigmaRendering.constants";
-import { syncGraphologyViewport } from "../src/render/adapters/sigma/viewport/graphViewportSync";
 
 const CONTAINER_ID = "graph-root";
 
@@ -191,6 +206,8 @@ describe("sigmaRenderer", () => {
     sigmaConstructions = 0;
     lastForceMotionSettings = null;
     lastStageClickHandler = null;
+    lastNodeClickHandler = null;
+    lastNodeDoubleClickHandler = null;
     animationFrameCallback = null;
     animationFrameId = 0;
     graphToViewportPoint = (point) => point;
@@ -222,6 +239,91 @@ describe("sigmaRenderer", () => {
       ],
       edges: [{ id: "e_root_a_1", source: "root", target: "a" }],
       viewMeta: { layout: "force", lodLevel: 0 },
+    });
+
+    renderer.unmount();
+  });
+
+  it("exposes renderer-neutral viewport sync state", () => {
+    document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
+
+    const renderer = new SigmaRenderer();
+    renderer.mount({ container: requireContainer() });
+    lastCamera?.setState({ ratio: 2 });
+
+    expect(renderer.getViewportSyncState()).toEqual({
+      bounds: { xmin: 0, xmax: 300, ymin: 0, ymax: 200 },
+      cameraRatio: 2,
+    });
+
+    renderer.unmount();
+  });
+
+  it("emits separate node click and double-click callbacks", () => {
+    document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
+
+    const renderer = new SigmaRenderer();
+    const clickHandler = vi.fn();
+    const doubleClickHandler = vi.fn();
+    renderer.mount({ container: requireContainer() });
+    renderer.render({
+      nodes: [{ id: "cluster-a", x: 0, y: 0, attributes: { cluster_id: "cluster-a" } }],
+      edges: [],
+      viewMeta: { layout: "server", lodLevel: 0 },
+    });
+    renderer.setNodeClickHandler(clickHandler);
+    renderer.setNodeDoubleClickHandler(doubleClickHandler);
+
+    lastNodeClickHandler?.({ node: "cluster-a" });
+    lastNodeDoubleClickHandler?.({ node: "cluster-a" });
+
+    expect(clickHandler).toHaveBeenCalledWith({
+      nodeId: "cluster-a",
+      attributes: expect.objectContaining({ cluster_id: "cluster-a" }),
+    });
+    expect(doubleClickHandler).toHaveBeenCalledWith({
+      nodeId: "cluster-a",
+      attributes: expect.objectContaining({ cluster_id: "cluster-a" }),
+    });
+
+    renderer.unmount();
+  });
+
+  it("keeps camera and node handlers bound after Sigma is rebuilt for pie programs", () => {
+    document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
+
+    const renderer = new SigmaRenderer();
+    const viewHandler = vi.fn();
+    const clickHandler = vi.fn();
+    renderer.mount({ container: requireContainer() });
+    renderer.setViewChangeHandler(viewHandler);
+    renderer.setNodeClickHandler(clickHandler);
+
+    renderer.render({
+      nodes: [
+        {
+          id: "a",
+          x: 0,
+          y: 0,
+          attributes: { pie__country__value__portugal: 1 },
+        },
+      ],
+      edges: [],
+      viewMeta: { layout: "server", lodLevel: 0 },
+    });
+
+    lastCamera?.handler?.();
+    lastNodeClickHandler?.({ node: "a" });
+
+    expect(viewHandler).toHaveBeenCalledWith(
+      expect.objectContaining({
+        viewport: expect.any(Object),
+        zoom: expect.any(Number),
+      }),
+    );
+    expect(clickHandler).toHaveBeenCalledWith({
+      nodeId: "a",
+      attributes: expect.objectContaining({ pie__country__value__portugal: 1 }),
     });
 
     renderer.unmount();
@@ -881,59 +983,25 @@ describe("sigmaRenderer", () => {
     warnSpy.mockRestore();
   });
 
-  it("does not reconstruct Sigma on a plain (no-pie) viewport sync", async () => {
+  it("does not reconstruct Sigma when applying a plain server graph snapshot", () => {
     document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
-    vi.useFakeTimers();
-
-    const plainResponse = {
-      dataset_id: "tree",
-      layout_version: "layout-1",
-      lod_level: 0,
-      zoom: 1,
-      layout_status: "ready" as const,
-      truncated: false,
-      total_node_count: 1,
-      metadata_schema: [],
-      nodes: [
-        {
-          id: "leaf",
-          cluster_id: "c1",
-          x: 0,
-          y: 0,
-          layout_status: "ready" as const,
-          member_count: 1,
-          is_representative: false,
-        },
-      ],
+    const plainGraph = {
+      nodes: [{ id: "leaf", x: 0, y: 0, size: 5, color: "#93c5fd", attributes: { color: "#93c5fd", size: 5 } }],
       edges: [],
-    };
-    const client = {
-      readViewport: vi.fn(async () => plainResponse),
+      viewMeta: { layout: "server" as const, lodLevel: 0 },
     };
 
     const renderer = new SigmaRenderer();
     renderer.mount({ container: requireContainer() });
-    // One construction from mount(); reset so we count only sync-driven rebuilds.
+    // One construction from mount(); reset so we count only snapshot-driven rebuilds.
     sigmaConstructions = 0;
 
-    renderer.startGraphViewportSync({
-      client: client as never,
-      datasetId: "tree",
-      layoutVersion: "layout-1",
-      lodTierCount: 1,
-    });
-    // Flush the debounced initial read + a second refresh: a plain role-color
-    // slice carries no pie__* attributes, so the cheap probe short-circuits and
-    // Sigma is never torn down and rebuilt.
-    await vi.advanceTimersByTimeAsync(500);
-    renderer.refreshGraphViewportSync();
-    await vi.advanceTimersByTimeAsync(500);
+    renderer.applyGraphSnapshot(plainGraph);
+    renderer.applyGraphSnapshot(plainGraph);
 
-    expect(client.readViewport).toHaveBeenCalled();
     expect(sigmaConstructions).toBe(0);
 
     renderer.unmount();
-    vi.useRealTimers();
   });
 
   it("rebuilds pie programs when category colors change", () => {
@@ -1043,35 +1111,16 @@ describe("sigmaRenderer", () => {
 
     const renderer = new SigmaRenderer();
     renderer.mount({ container: requireContainer() });
-    const mockResponse: GraphViewportResponse = {
-      dataset_id: "test",
-      layout_version: "1",
-      lod_level: 0,
-      zoom: 1,
-      layout_status: "ready",
-      total_node_count: 2,
-      truncated: false,
+    renderer.applyGraphSnapshot({
       nodes: [
-        { id: "node_1", cluster_id: "node_1", x: 10, y: 20, layout_status: "ready", member_count: 1 },
-        { id: "node_2", cluster_id: "node_2", x: 30, y: 40, layout_status: "ready", member_count: 1 },
+        { id: "node_1", x: 10, y: 20, size: 5, color: "#93c5fd", attributes: { color: "#93c5fd", size: 5 } },
+        { id: "node_2", x: 30, y: 40, size: 5, color: "#93c5fd", attributes: { color: "#93c5fd", size: 5 } },
       ],
       edges: [],
-      metadata_schema: [],
-    };
-    const client: Pick<GraphClient, "readViewport"> = {
-      readViewport: async () => mockResponse,
-    };
-
-    // Start viewport sync.
-    renderer.startGraphViewportSync({
-      client,
-      datasetId: "test",
-      layoutVersion: "1",
+      viewMeta: { layout: "server", lodLevel: 0 },
     });
 
-    // We can run reconcile/sync manually on renderer's graph.
     const graph = (renderer as unknown as { graph: Graph }).graph;
-    syncGraphologyViewport(graph, mockResponse);
 
     // Nodes keep their base graphology attributes; selection is a render reducer.
     expect(graph.getNodeAttribute("node_1", "unselectedStyle")).toBeUndefined();

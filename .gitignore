@@ -47,3 +47,5 @@ pnpm-debug.log*
 # Editor folders
 .idea/
 .vscode/
+
+code/client/*.tgz

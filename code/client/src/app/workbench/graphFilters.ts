@@ -6,13 +6,15 @@ import type { GraphDisplayOptions, GraphRenderer } from "../../render/renderer.t
 import { requirePreparedSession } from "./graphWorkbench.state";
 import type { GraphWorkbenchState } from "./graphWorkbench.types";
 import { createEmptyGraph } from "./viewportGraph";
+import type { ViewportSyncController } from "./viewport/viewportSyncController";
 
 interface GraphFiltersOptions {
   state: GraphWorkbenchState;
   renderer: GraphRenderer;
+  getViewportSync: () => ViewportSyncController | null;
 }
 
-export default function createGraphFilters({ state, renderer }: GraphFiltersOptions) {
+export default function createGraphFilters({ state, renderer, getViewportSync }: GraphFiltersOptions) {
   return {
     applyMetadataFilters: applyMetadataFilters,
     clearMetadataFilters: clearMetadataFilters,
@@ -26,7 +28,7 @@ export default function createGraphFilters({ state, renderer }: GraphFiltersOpti
     // Filtering is applied inside the viewport sync via getRenderSettings; the
     // refresh re-fetches the current viewport and re-runs the filter/visual pass.
     state.activeFilters = filterState;
-    renderer.refreshGraphViewportSync?.();
+    getViewportSync()?.refreshNow();
 
     return currentGraph(state);
   }
@@ -35,7 +37,7 @@ export default function createGraphFilters({ state, renderer }: GraphFiltersOpti
     requirePreparedSession(state);
 
     state.activeFilters = EMPTY_METADATA_FILTER_STATE;
-    renderer.refreshGraphViewportSync?.();
+    getViewportSync()?.refreshNow();
 
     return currentGraph(state);
   }
@@ -45,7 +47,7 @@ export default function createGraphFilters({ state, renderer }: GraphFiltersOpti
 
     // Persist the mapping so the viewport sync re-derives visuals on refresh.
     session.visualMapping = visualMapping;
-    renderer.refreshGraphViewportSync?.();
+    getViewportSync()?.refreshNow();
 
     return currentGraph(state);
   }
@@ -55,7 +57,7 @@ export default function createGraphFilters({ state, renderer }: GraphFiltersOpti
   // updateDisplayOptions rebuilds Sigma settings (so the node-label toggle takes
   // effect and the live viewer stays bound), and the persisted session options
   // are re-read by getRenderSettings on the next viewport sync, which
-  // refreshGraphViewportSync forces immediately. We deliberately do NOT call
+  // refreshNow forces immediately. We deliberately do NOT call
   // renderer.render() here: under LoD that clears the live viewport graph and
   // repopulates it from a stale coarse snapshot, resurfacing cluster-proxy
   // triangles and freezing the sync loop.
@@ -67,7 +69,7 @@ export default function createGraphFilters({ state, renderer }: GraphFiltersOpti
       };
     }
     renderer.updateDisplayOptions?.(displayOptions);
-    renderer.refreshGraphViewportSync?.();
+    getViewportSync()?.refreshNow();
   }
 }
 

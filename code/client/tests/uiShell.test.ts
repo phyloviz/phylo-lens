@@ -13,14 +13,8 @@ function makeFakeWorkbench(
 ) {
   let graphRenderedHandler: ((graph: PositionedGraph) => void) | null = null;
   let nodeClickedHandler: ((state: { nodeId: string | null }) => void) | null = null;
-  let regionSelectedHandler:
-    | ((bounds: {
-        xmin: number;
-        xmax: number;
-        ymin: number;
-        ymax: number;
-      }) => void)
-    | null = null;
+  let regionSelectedHandler: ((bounds: { xmin: number; xmax: number; ymin: number; ymax: number }) => void) | null =
+    null;
   let lodRefreshPaused = false;
   let regionSelectModeEnabled = false;
 
@@ -83,12 +77,7 @@ function makeFakeWorkbench(
     emitNodeClick: (nodeId: string) => {
       nodeClickedHandler?.({ nodeId });
     },
-    emitRegionSelected: (bounds: {
-      xmin: number;
-      xmax: number;
-      ymin: number;
-      ymax: number;
-    }) => {
+    emitRegionSelected: (bounds: { xmin: number; xmax: number; ymin: number; ymax: number }) => {
       regionSelectedHandler?.(bounds);
     },
     dispose: vi.fn(),
@@ -104,9 +93,7 @@ describe("uiShell", () => {
     `;
 
     const form = document.getElementById("render-form") as HTMLFormElement;
-    const input = document.getElementById(
-      "newick-input",
-    ) as HTMLTextAreaElement;
+    const input = document.getElementById("newick-input") as HTMLTextAreaElement;
     const status = document.getElementById("status") as HTMLElement;
 
     input.value = "(A,B)Root;";
@@ -152,9 +139,7 @@ describe("uiShell", () => {
     `;
 
     const form = document.getElementById("render-form") as HTMLFormElement;
-    const input = document.getElementById(
-      "newick-input",
-    ) as HTMLTextAreaElement;
+    const input = document.getElementById("newick-input") as HTMLTextAreaElement;
     const status = document.getElementById("status") as HTMLElement;
 
     input.value = "(A,B)Root;";
@@ -197,9 +182,7 @@ describe("uiShell", () => {
     `;
 
     const form = document.getElementById("render-form") as HTMLFormElement;
-    const input = document.getElementById(
-      "newick-input",
-    ) as HTMLTextAreaElement;
+    const input = document.getElementById("newick-input") as HTMLTextAreaElement;
     const status = document.getElementById("status") as HTMLElement;
 
     input.value = "(A,B)Root;";
@@ -212,9 +195,7 @@ describe("uiShell", () => {
         lodLevel: 0,
         sliceNodeCount: 1,
         layoutStatus: "ready",
-        layoutWarnings: [
-          "Newick input contains 761 disconnected components; kept as a forest.",
-        ],
+        layoutWarnings: ["Newick input contains 761 disconnected components; kept as a forest."],
       },
     });
 
@@ -243,9 +224,7 @@ describe("uiShell", () => {
     `;
 
     const form = document.getElementById("render-form") as HTMLFormElement;
-    const input = document.getElementById(
-      "newick-input",
-    ) as HTMLTextAreaElement;
+    const input = document.getElementById("newick-input") as HTMLTextAreaElement;
     const status = document.getElementById("status") as HTMLElement;
 
     input.value = "   ";
@@ -282,12 +261,8 @@ describe("uiShell", () => {
     `;
 
     const form = document.getElementById("render-form") as HTMLFormElement;
-    const input = document.getElementById(
-      "newick-input",
-    ) as HTMLTextAreaElement;
-    const ancillary = document.getElementById(
-      "ancillary-input",
-    ) as HTMLTextAreaElement;
+    const input = document.getElementById("newick-input") as HTMLTextAreaElement;
+    const ancillary = document.getElementById("ancillary-input") as HTMLTextAreaElement;
     const status = document.getElementById("status") as HTMLElement;
 
     input.value = "(A,B)Root;";
@@ -326,12 +301,8 @@ describe("uiShell", () => {
     `;
 
     const form = document.getElementById("render-form") as HTMLFormElement;
-    const input = document.getElementById(
-      "newick-input",
-    ) as HTMLTextAreaElement;
-    const maxNodesInput = document.getElementById(
-      "max-nodes",
-    ) as HTMLInputElement;
+    const input = document.getElementById("newick-input") as HTMLTextAreaElement;
+    const maxNodesInput = document.getElementById("max-nodes") as HTMLInputElement;
     const status = document.getElementById("status") as HTMLElement;
 
     input.value = "(A,B)Root;";
@@ -383,32 +354,18 @@ describe("uiShell", () => {
     `;
 
     const form = document.getElementById("render-form") as HTMLFormElement;
-    const input = document.getElementById(
-      "newick-input",
-    ) as HTMLTextAreaElement;
-    const newickFileInput = document.getElementById(
-      "newick-file",
-    ) as HTMLInputElement;
-    const ancillaryFileInput = document.getElementById(
-      "ancillary-file",
-    ) as HTMLInputElement;
-    const ancillaryJoinColumnInput = document.getElementById(
-      "ancillary-join-column",
-    ) as HTMLInputElement;
-    const ancillaryFormatSelect = document.getElementById(
-      "ancillary-format",
-    ) as HTMLSelectElement;
+    const input = document.getElementById("newick-input") as HTMLTextAreaElement;
+    const newickFileInput = document.getElementById("newick-file") as HTMLInputElement;
+    const ancillaryFileInput = document.getElementById("ancillary-file") as HTMLInputElement;
+    const ancillaryJoinColumnInput = document.getElementById("ancillary-join-column") as HTMLInputElement;
+    const ancillaryFormatSelect = document.getElementById("ancillary-format") as HTMLSelectElement;
     const status = document.getElementById("status") as HTMLElement;
 
     input.value = "(Ignored:1)Root;";
     ancillaryJoinColumnInput.value = "isolate";
     ancillaryFormatSelect.value = "tsv";
-    setInputFiles(newickFileInput, [
-      new File(["(P09:0.1,P12:0.2)Root;"], "tree.nwk"),
-    ]);
-    setInputFiles(ancillaryFileInput, [
-      new File(["isolate\tcountry\nP09\tUnknown\n"], "isolates.tsv"),
-    ]);
+    setInputFiles(newickFileInput, [new File(["(P09:0.1,P12:0.2)Root;"], "tree.nwk")]);
+    setInputFiles(ancillaryFileInput, [new File(["isolate\tcountry\nP09\tUnknown\n"], "isolates.tsv")]);
 
     const fakeWorkbench = makeFakeWorkbench({
       nodes: [{ id: "p09", x: 0, y: 0 }],
@@ -460,24 +417,14 @@ describe("uiShell", () => {
     `;
 
     const form = document.getElementById("render-form") as HTMLFormElement;
-    const input = document.getElementById(
-      "newick-input",
-    ) as HTMLTextAreaElement;
-    const newickFileInput = document.getElementById(
-      "newick-file",
-    ) as HTMLInputElement;
-    const typingFileInput = document.getElementById(
-      "typing-file",
-    ) as HTMLInputElement;
-    const sourceFormatSelect = document.getElementById(
-      "source-format",
-    ) as HTMLSelectElement;
+    const input = document.getElementById("newick-input") as HTMLTextAreaElement;
+    const newickFileInput = document.getElementById("newick-file") as HTMLInputElement;
+    const typingFileInput = document.getElementById("typing-file") as HTMLInputElement;
+    const sourceFormatSelect = document.getElementById("source-format") as HTMLSelectElement;
     const status = document.getElementById("status") as HTMLElement;
 
     sourceFormatSelect.value = "typing_data";
-    setInputFiles(typingFileInput, [
-      new File(["ST\tgene1\tgene2\n1\t1\t2\n"], "profiles.tsv"),
-    ]);
+    setInputFiles(typingFileInput, [new File(["ST\tgene1\tgene2\n1\t1\t2\n"], "profiles.tsv")]);
 
     const fakeWorkbench = makeFakeWorkbench({
       nodes: [{ id: "1", x: 0, y: 0 }],
@@ -518,15 +465,9 @@ describe("uiShell", () => {
     `;
 
     const form = document.getElementById("render-form") as HTMLFormElement;
-    const input = document.getElementById(
-      "newick-input",
-    ) as HTMLTextAreaElement;
-    const metadataPieFieldSelect = document.getElementById(
-      "metadata-pie-field",
-    ) as HTMLSelectElement;
-    const ancillaryWheelContainer = document.getElementById(
-      "ancillary-wheel",
-    ) as HTMLElement;
+    const input = document.getElementById("newick-input") as HTMLTextAreaElement;
+    const metadataPieFieldSelect = document.getElementById("metadata-pie-field") as HTMLSelectElement;
+    const ancillaryWheelContainer = document.getElementById("ancillary-wheel") as HTMLElement;
     const status = document.getElementById("status") as HTMLElement;
 
     input.value = "(A,B,C)Root;";
@@ -578,10 +519,7 @@ describe("uiShell", () => {
         fields: ["country"],
       },
     });
-    expect([...metadataPieFieldSelect.options].map((option) => option.value)).toEqual([
-      "",
-      "country",
-    ]);
+    expect([...metadataPieFieldSelect.options].map((option) => option.value)).toEqual(["", "country"]);
     expect(ancillaryWheelContainer.textContent).toContain("Portugal");
     expect(ancillaryWheelContainer.textContent).toContain("Canada");
     shell.unmount();
@@ -638,25 +576,13 @@ describe("uiShell", () => {
     const fakeWorkbench = makeFakeWorkbench(graph) as GraphWorkbench & {
       emitNodeClick: (nodeId: string) => void;
     };
-    const newickInput = document.getElementById(
-      "newick-input",
-    ) as HTMLTextAreaElement;
+    const newickInput = document.getElementById("newick-input") as HTMLTextAreaElement;
     newickInput.value = "(A,B)Root;";
-    const ancillaryModeSelect = document.getElementById(
-      "ancillary-mode",
-    ) as HTMLSelectElement;
-    const ancillaryNodeSelect = document.getElementById(
-      "ancillary-node",
-    ) as HTMLSelectElement;
-    const metadataPieFieldSelect = document.getElementById(
-      "metadata-pie-field",
-    ) as HTMLSelectElement;
-    const ancillaryWheelContainer = document.getElementById(
-      "ancillary-wheel",
-    ) as HTMLElement;
-    const ancillarySelectedNodeWheelContainer = document.getElementById(
-      "ancillary-selected-node-wheel",
-    ) as HTMLElement;
+    const ancillaryModeSelect = document.getElementById("ancillary-mode") as HTMLSelectElement;
+    const ancillaryNodeSelect = document.getElementById("ancillary-node") as HTMLSelectElement;
+    const metadataPieFieldSelect = document.getElementById("metadata-pie-field") as HTMLSelectElement;
+    const ancillaryWheelContainer = document.getElementById("ancillary-wheel") as HTMLElement;
+    const ancillarySelectedNodeWheelContainer = document.getElementById("ancillary-selected-node-wheel") as HTMLElement;
 
     const shell = uiShell({
       workbench: fakeWorkbench,
@@ -682,13 +608,9 @@ describe("uiShell", () => {
     // The overview wheel and its mode selector are left untouched by a click.
     expect(ancillaryModeSelect.value).toBe("global");
     // The clicked node's distribution appears in the dedicated second panel.
-    expect(ancillarySelectedNodeWheelContainer.textContent).toContain(
-      "Portugal",
-    );
+    expect(ancillarySelectedNodeWheelContainer.textContent).toContain("Portugal");
     expect(ancillarySelectedNodeWheelContainer.textContent).toContain("75.0%");
-    expect(ancillarySelectedNodeWheelContainer.textContent).toContain(
-      "Ancillary distribution across 1 node",
-    );
+    expect(ancillarySelectedNodeWheelContainer.textContent).toContain("Ancillary distribution across 1 node");
     shell.unmount();
   });
 
@@ -703,18 +625,10 @@ describe("uiShell", () => {
     `;
 
     const form = document.getElementById("render-form") as HTMLFormElement;
-    const input = document.getElementById(
-      "newick-input",
-    ) as HTMLTextAreaElement;
-    const metadataPieFieldSelect = document.getElementById(
-      "metadata-pie-field",
-    ) as HTMLSelectElement;
-    const ancillaryWheelContainer = document.getElementById(
-      "ancillary-wheel",
-    ) as HTMLElement;
-    const paletteControlsContainer = document.getElementById(
-      "palette-controls",
-    ) as HTMLElement;
+    const input = document.getElementById("newick-input") as HTMLTextAreaElement;
+    const metadataPieFieldSelect = document.getElementById("metadata-pie-field") as HTMLSelectElement;
+    const ancillaryWheelContainer = document.getElementById("ancillary-wheel") as HTMLElement;
+    const paletteControlsContainer = document.getElementById("palette-controls") as HTMLElement;
     const status = document.getElementById("status") as HTMLElement;
 
     input.value = "(A,B)Root;";
@@ -753,19 +667,13 @@ describe("uiShell", () => {
     const countryOption = [...metadataPieFieldSelect.options].find(
       (option) => option.value === "country",
     ) as HTMLOptionElement;
-    countryOption.dispatchEvent(
-      new MouseEvent("mousedown", { bubbles: true, cancelable: true }),
-    );
+    countryOption.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
     const sourceOption = [...metadataPieFieldSelect.options].find(
       (option) => option.value === "source",
     ) as HTMLOptionElement;
-    sourceOption.dispatchEvent(
-      new MouseEvent("mousedown", { bubbles: true, cancelable: true }),
-    );
+    sourceOption.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
 
-    const selectedValues = [...metadataPieFieldSelect.selectedOptions].map(
-      (option) => option.value,
-    );
+    const selectedValues = [...metadataPieFieldSelect.selectedOptions].map((option) => option.value);
     expect(selectedValues).toEqual(["country", "source"]);
     expect(fakeWorkbench.updateVisualMapping).toHaveBeenLastCalledWith({
       colorField: "country",
@@ -790,15 +698,9 @@ describe("uiShell", () => {
     `;
 
     const form = document.getElementById("render-form") as HTMLFormElement;
-    const input = document.getElementById(
-      "newick-input",
-    ) as HTMLTextAreaElement;
-    const metadataSizeFieldInput = document.getElementById(
-      "metadata-size-field",
-    ) as HTMLInputElement;
-    const metadataSizeScaleSelect = document.getElementById(
-      "metadata-size-scale",
-    ) as HTMLSelectElement;
+    const input = document.getElementById("newick-input") as HTMLTextAreaElement;
+    const metadataSizeFieldInput = document.getElementById("metadata-size-field") as HTMLInputElement;
+    const metadataSizeScaleSelect = document.getElementById("metadata-size-scale") as HTMLSelectElement;
     const status = document.getElementById("status") as HTMLElement;
 
     input.value = "(A,B)Root;";
@@ -844,21 +746,11 @@ describe("uiShell", () => {
     `;
 
     const form = document.getElementById("render-form") as HTMLFormElement;
-    const input = document.getElementById(
-      "newick-input",
-    ) as HTMLTextAreaElement;
-    const metadataPieFieldSelect = document.getElementById(
-      "metadata-pie-field",
-    ) as HTMLSelectElement;
-    const paletteControlsContainer = document.getElementById(
-      "palette-controls",
-    ) as HTMLElement;
-    const paletteLoadInput = document.getElementById(
-      "palette-load-input",
-    ) as HTMLInputElement;
-    const paletteSaveButton = document.getElementById(
-      "palette-save-button",
-    ) as HTMLButtonElement;
+    const input = document.getElementById("newick-input") as HTMLTextAreaElement;
+    const metadataPieFieldSelect = document.getElementById("metadata-pie-field") as HTMLSelectElement;
+    const paletteControlsContainer = document.getElementById("palette-controls") as HTMLElement;
+    const paletteLoadInput = document.getElementById("palette-load-input") as HTMLInputElement;
+    const paletteSaveButton = document.getElementById("palette-save-button") as HTMLButtonElement;
     const status = document.getElementById("status") as HTMLElement;
 
     input.value = "(A,B)Root;";
@@ -904,10 +796,7 @@ describe("uiShell", () => {
     metadataPieFieldSelect.value = "country";
     metadataPieFieldSelect.dispatchEvent(new Event("change"));
 
-    const portugalColor =
-      paletteControlsContainer.querySelector<HTMLInputElement>(
-        "[data-category-color='Portugal']",
-      );
+    const portugalColor = paletteControlsContainer.querySelector<HTMLInputElement>("[data-category-color='Portugal']");
     expect(portugalColor).not.toBeNull();
     portugalColor!.value = "#123456";
     portugalColor!.dispatchEvent(new Event("input", { bubbles: true }));
@@ -924,9 +813,7 @@ describe("uiShell", () => {
       }),
     );
 
-    setInputFiles(paletteLoadInput, [
-      new File(["18,52,86\n171,205,239\n"], "colors.palette"),
-    ]);
+    setInputFiles(paletteLoadInput, [new File(["18,52,86\n171,205,239\n"], "colors.palette")]);
     paletteLoadInput.dispatchEvent(new Event("change"));
     await vi.waitFor(() => {
       expect(fakeWorkbench.updateVisualMapping).toHaveBeenLastCalledWith(
@@ -954,15 +841,9 @@ describe("uiShell", () => {
       });
     }
 
-    const createObjectUrl = vi
-      .spyOn(URL, "createObjectURL")
-      .mockReturnValue("blob:palette");
-    const revokeObjectUrl = vi
-      .spyOn(URL, "revokeObjectURL")
-      .mockImplementation(() => undefined);
-    const clickAnchor = vi
-      .spyOn(HTMLAnchorElement.prototype, "click")
-      .mockImplementation(() => undefined);
+    const createObjectUrl = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:palette");
+    const revokeObjectUrl = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
+    const clickAnchor = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
 
     paletteSaveButton.click();
 
@@ -990,12 +871,8 @@ describe("uiShell", () => {
     `;
 
     const form = document.getElementById("render-form") as HTMLFormElement;
-    const input = document.getElementById(
-      "newick-input",
-    ) as HTMLTextAreaElement;
-    const displayOptionsSelect = document.getElementById(
-      "display-options",
-    ) as HTMLSelectElement;
+    const input = document.getElementById("newick-input") as HTMLTextAreaElement;
+    const displayOptionsSelect = document.getElementById("display-options") as HTMLSelectElement;
     const status = document.getElementById("status") as HTMLElement;
 
     const fakeWorkbench = makeFakeWorkbench();
@@ -1035,12 +912,8 @@ describe("uiShell", () => {
     `;
 
     const form = document.getElementById("render-form") as HTMLFormElement;
-    const input = document.getElementById(
-      "newick-input",
-    ) as HTMLTextAreaElement;
-    const displayOptionsSelect = document.getElementById(
-      "display-options",
-    ) as HTMLSelectElement;
+    const input = document.getElementById("newick-input") as HTMLTextAreaElement;
+    const displayOptionsSelect = document.getElementById("display-options") as HTMLSelectElement;
     const status = document.getElementById("status") as HTMLElement;
 
     const fakeWorkbench = makeFakeWorkbench();
@@ -1055,12 +928,8 @@ describe("uiShell", () => {
     });
 
     shell.mount();
-    displayOptionsSelect.options[1]!.dispatchEvent(
-      new MouseEvent("mousedown", { bubbles: true, cancelable: true }),
-    );
-    displayOptionsSelect.options[2]!.dispatchEvent(
-      new MouseEvent("mousedown", { bubbles: true, cancelable: true }),
-    );
+    displayOptionsSelect.options[1]!.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+    displayOptionsSelect.options[2]!.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
 
     expect(displayOptionsSelect.options[0]!.selected).toBe(true);
     expect(displayOptionsSelect.options[1]!.selected).toBe(true);
@@ -1071,9 +940,7 @@ describe("uiShell", () => {
       distanceWeightedEdges: true,
     });
 
-    displayOptionsSelect.options[1]!.dispatchEvent(
-      new MouseEvent("mousedown", { bubbles: true, cancelable: true }),
-    );
+    displayOptionsSelect.options[1]!.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
 
     expect(displayOptionsSelect.options[0]!.selected).toBe(true);
     expect(displayOptionsSelect.options[1]!.selected).toBe(false);
@@ -1097,15 +964,9 @@ describe("uiShell", () => {
     `;
 
     const form = document.getElementById("render-form") as HTMLFormElement;
-    const input = document.getElementById(
-      "newick-input",
-    ) as HTMLTextAreaElement;
-    const lodPlayButton = document.getElementById(
-      "lod-play-button",
-    ) as HTMLButtonElement;
-    const lodPauseButton = document.getElementById(
-      "lod-pause-button",
-    ) as HTMLButtonElement;
+    const input = document.getElementById("newick-input") as HTMLTextAreaElement;
+    const lodPlayButton = document.getElementById("lod-play-button") as HTMLButtonElement;
+    const lodPauseButton = document.getElementById("lod-pause-button") as HTMLButtonElement;
     const status = document.getElementById("status") as HTMLElement;
 
     input.value = "(A,B)Root;";
@@ -1172,33 +1033,15 @@ describe("uiShell", () => {
     `;
 
     const form = document.getElementById("render-form") as HTMLFormElement;
-    const input = document.getElementById(
-      "newick-input",
-    ) as HTMLTextAreaElement;
-    const searchInput = document.getElementById(
-      "search-input",
-    ) as HTMLInputElement;
-    const searchButton = document.getElementById(
-      "search-button",
-    ) as HTMLButtonElement;
-    const searchResults = document.getElementById(
-      "search-results",
-    ) as HTMLElement;
-    const ancillaryModeSelect = document.getElementById(
-      "ancillary-mode",
-    ) as HTMLSelectElement;
-    const ancillaryNodeSelect = document.getElementById(
-      "ancillary-node",
-    ) as HTMLSelectElement;
-    const metadataPieFieldSelect = document.getElementById(
-      "metadata-pie-field",
-    ) as HTMLSelectElement;
-    const ancillaryWheelContainer = document.getElementById(
-      "ancillary-wheel",
-    ) as HTMLElement;
-    const ancillarySelectedNodeWheelContainer = document.getElementById(
-      "ancillary-selected-node-wheel",
-    ) as HTMLElement;
+    const input = document.getElementById("newick-input") as HTMLTextAreaElement;
+    const searchInput = document.getElementById("search-input") as HTMLInputElement;
+    const searchButton = document.getElementById("search-button") as HTMLButtonElement;
+    const searchResults = document.getElementById("search-results") as HTMLElement;
+    const ancillaryModeSelect = document.getElementById("ancillary-mode") as HTMLSelectElement;
+    const ancillaryNodeSelect = document.getElementById("ancillary-node") as HTMLSelectElement;
+    const metadataPieFieldSelect = document.getElementById("metadata-pie-field") as HTMLSelectElement;
+    const ancillaryWheelContainer = document.getElementById("ancillary-wheel") as HTMLElement;
+    const ancillarySelectedNodeWheelContainer = document.getElementById("ancillary-selected-node-wheel") as HTMLElement;
     const status = document.getElementById("status") as HTMLElement;
 
     input.value = "(A,B)Root;";
@@ -1247,9 +1090,7 @@ describe("uiShell", () => {
     searchButton.click();
     await Promise.resolve();
 
-    const resultButton = searchResults.querySelector(
-      ".search-result",
-    ) as HTMLButtonElement;
+    const resultButton = searchResults.querySelector(".search-result") as HTMLButtonElement;
     expect(fakeWorkbench.searchNodes).toHaveBeenCalledWith({
       query: "port",
       limit: 25,
@@ -1274,9 +1115,7 @@ describe("uiShell", () => {
     // Focusing a search result populates the selected-node panel, not the
     // overview wheel or its mode selector.
     expect(ancillaryModeSelect.value).toBe("global");
-    expect(ancillarySelectedNodeWheelContainer.textContent).toContain(
-      "Portugal",
-    );
+    expect(ancillarySelectedNodeWheelContainer.textContent).toContain("Portugal");
     expect(ancillarySelectedNodeWheelContainer.textContent).toContain("75.0%");
     expect(status.textContent).toBe("Focused a");
     shell.unmount();
@@ -1292,15 +1131,9 @@ describe("uiShell", () => {
     `;
 
     const form = document.getElementById("render-form") as HTMLFormElement;
-    const input = document.getElementById(
-      "newick-input",
-    ) as HTMLTextAreaElement;
-    const regionSelectToggle = document.getElementById(
-      "region-select-toggle",
-    ) as HTMLButtonElement;
-    const regionSelectionPanel = document.getElementById(
-      "region-selection-panel",
-    ) as HTMLElement;
+    const input = document.getElementById("newick-input") as HTMLTextAreaElement;
+    const regionSelectToggle = document.getElementById("region-select-toggle") as HTMLButtonElement;
+    const regionSelectionPanel = document.getElementById("region-selection-panel") as HTMLElement;
     const status = document.getElementById("status") as HTMLElement;
 
     const fakeWorkbench = makeFakeWorkbench();
@@ -1321,16 +1154,12 @@ describe("uiShell", () => {
     expect(regionSelectionPanel.textContent).toContain("Shift+drag");
 
     regionSelectToggle.click();
-    expect(fakeWorkbench.setRegionSelectModeEnabled).toHaveBeenLastCalledWith(
-      true,
-    );
+    expect(fakeWorkbench.setRegionSelectModeEnabled).toHaveBeenLastCalledWith(true);
     expect(regionSelectToggle.getAttribute("aria-pressed")).toBe("true");
 
     // Toggling off disables the mode and clears any selection.
     regionSelectToggle.click();
-    expect(fakeWorkbench.setRegionSelectModeEnabled).toHaveBeenLastCalledWith(
-      false,
-    );
+    expect(fakeWorkbench.setRegionSelectModeEnabled).toHaveBeenLastCalledWith(false);
     expect(fakeWorkbench.clearRegionSelection).toHaveBeenCalled();
     expect(regionSelectToggle.getAttribute("aria-pressed")).toBe("false");
 
@@ -1347,24 +1176,13 @@ describe("uiShell", () => {
     `;
 
     const form = document.getElementById("render-form") as HTMLFormElement;
-    const input = document.getElementById(
-      "newick-input",
-    ) as HTMLTextAreaElement;
-    const regionSelectToggle = document.getElementById(
-      "region-select-toggle",
-    ) as HTMLButtonElement;
-    const regionSelectionPanel = document.getElementById(
-      "region-selection-panel",
-    ) as HTMLElement;
+    const input = document.getElementById("newick-input") as HTMLTextAreaElement;
+    const regionSelectToggle = document.getElementById("region-select-toggle") as HTMLButtonElement;
+    const regionSelectionPanel = document.getElementById("region-selection-panel") as HTMLElement;
     const status = document.getElementById("status") as HTMLElement;
 
     const fakeWorkbench = makeFakeWorkbench() as GraphWorkbench & {
-      emitRegionSelected: (bounds: {
-        xmin: number;
-        xmax: number;
-        ymin: number;
-        ymax: number;
-      }) => void;
+      emitRegionSelected: (bounds: { xmin: number; xmax: number; ymin: number; ymax: number }) => void;
     };
     const shell = uiShell({
       workbench: fakeWorkbench,

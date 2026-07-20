@@ -6,10 +6,7 @@ import {
   collectMetadataFieldKeys,
 } from "../src/components/ancillaryWheel";
 import type { PositionedGraph } from "../src/contracts/positioned";
-import {
-  buildValueColorMap,
-  DEFAULT_COLOR_PALETTE,
-} from "../src/render/mapping/colorMapping";
+import { buildValueColorMap, DEFAULT_COLOR_PALETTE } from "../src/render/mapping/colorMapping";
 import {
   buildPieAttributes,
   detectPieSliceKeys,
@@ -176,11 +173,7 @@ describe("ancillaryWheel metadata distributions", () => {
 
     const stats = buildMetadataFieldWheelStats(graph, "country");
 
-    expect(stats?.slices.map((slice) => slice.label)).toEqual([
-      "Iceland",
-      "Canada",
-      "Portugal",
-    ]);
+    expect(stats?.slices.map((slice) => slice.label)).toEqual(["Iceland", "Canada", "Portugal"]);
     const colors = stats?.slices.map((slice) => slice.color) ?? [];
     // Colours are ranked by graph-wide frequency and assigned palette entries in
     // order — the same map that paints the node fill — so the wheel and node
@@ -200,20 +193,17 @@ describe("ancillaryWheel metadata distributions", () => {
     // The wheel graph snapshot carries no palette edits on its nodes, so the
     // shell forwards the current override map. A colour edit for one value must
     // recolour just that slice (matching the tree, repainted the same way).
-    const nodes = [
-      { country: "Iceland" },
-      { country: "Iceland" },
-      { country: "Portugal" },
-      { country: "Peru" },
-    ].map((metadata, index) => ({
-      id: `n${index}`,
-      x: index,
-      y: 0,
-      attributes: {
-        metadata,
-        ...buildPieAttributes(metadata, { enabled: true, fields: ["country"] }),
-      },
-    }));
+    const nodes = [{ country: "Iceland" }, { country: "Iceland" }, { country: "Portugal" }, { country: "Peru" }].map(
+      (metadata, index) => ({
+        id: `n${index}`,
+        x: index,
+        y: 0,
+        attributes: {
+          metadata,
+          ...buildPieAttributes(metadata, { enabled: true, fields: ["country"] }),
+        },
+      }),
+    );
     const graph: PositionedGraph = {
       nodes,
       edges: [],
@@ -224,9 +214,7 @@ describe("ancillaryWheel metadata distributions", () => {
       categoryColors: { Peru: "#123456" },
     });
     const peru = overridden?.slices.find((slice) => slice.label === "Peru");
-    const iceland = overridden?.slices.find(
-      (slice) => slice.label === "Iceland",
-    );
+    const iceland = overridden?.slices.find((slice) => slice.label === "Iceland");
     expect(peru?.color).toBe("#123456");
     // Only the overridden value changes; the rest keep their ranked colours.
     expect(iceland?.color).toBe(DEFAULT_COLOR_PALETTE[0]);
@@ -236,11 +224,7 @@ describe("ancillaryWheel metadata distributions", () => {
     // Swapping the palette must recolour the wheel: the most frequent value
     // takes the new palette[0], mirroring how the tree re-ranks on the same
     // palette. Guards the wheel against ignoring palette edits.
-    const nodes = [
-      { country: "Iceland" },
-      { country: "Iceland" },
-      { country: "Portugal" },
-    ].map((metadata, index) => ({
+    const nodes = [{ country: "Iceland" }, { country: "Iceland" }, { country: "Portugal" }].map((metadata, index) => ({
       id: `n${index}`,
       x: index,
       y: 0,
@@ -292,9 +276,7 @@ describe("ancillaryWheel metadata distributions", () => {
     };
 
     const overview = buildMetadataFieldWheelStats(graph, "country");
-    const overviewColorByLabel = new Map(
-      (overview?.slices ?? []).map((slice) => [slice.label, slice.color]),
-    );
+    const overviewColorByLabel = new Map((overview?.slices ?? []).map((slice) => [slice.label, slice.color]));
 
     // The Peru node (least frequent) must match the colour Peru has in the
     // overview wheel and equal its graph-wide ranked colour — not palette index
@@ -310,9 +292,7 @@ describe("ancillaryWheel metadata distributions", () => {
     expect(peruStats?.slices[0]?.label).toBe("Peru");
     expect(peruStats?.slices[0]?.color).toBe(overviewColorByLabel.get("Peru"));
     expect(peruStats?.slices[0]?.color).toBe(rankedColor("Peru"));
-    expect(peruStats?.slices[0]?.color).not.toBe(
-      overviewColorByLabel.get("Iceland"),
-    );
+    expect(peruStats?.slices[0]?.color).not.toBe(overviewColorByLabel.get("Iceland"));
   });
 
   it("matches wheel slice colors to the on-node Sigma pie colors", () => {
@@ -357,16 +337,11 @@ describe("ancillaryWheel metadata distributions", () => {
         }),
       },
     }));
-    const sigmaColors = resolvePieSliceColors(
-      sigmaNodeViews,
-      detectPieSliceKeys(sigmaNodeViews),
-    );
+    const sigmaColors = resolvePieSliceColors(sigmaNodeViews, detectPieSliceKeys(sigmaNodeViews));
 
     const wheel = buildMetadataFieldWheelStats(graph, "country");
     for (const slice of wheel?.slices ?? []) {
-      expect(slice.color).toBe(
-        sigmaColors[pieCategoricalAttributeKey("country", slice.label)],
-      );
+      expect(slice.color).toBe(sigmaColors[pieCategoricalAttributeKey("country", slice.label)]);
     }
   });
 
@@ -404,9 +379,7 @@ describe("ancillaryWheel metadata distributions", () => {
       includeNodeIds: new Set(["oceania"]),
     });
 
-    expect(selectedStats?.slices[0]?.color).toBe(
-      globalStats?.slices.find((slice) => slice.key === oceaniaKey)?.color,
-    );
+    expect(selectedStats?.slices[0]?.color).toBe(globalStats?.slices.find((slice) => slice.key === oceaniaKey)?.color);
   });
 
   it("builds auto-mode pie stats from workbench-derived node attributes", () => {
@@ -450,12 +423,8 @@ describe("ancillaryWheel metadata distributions", () => {
 
     expect(stats).not.toBeNull();
     expect(stats?.total).toBe(4);
-    const byValue = new Map(
-      stats?.slices.map((slice) => [slice.value, slice.key]),
-    );
-    expect(byValue.get(3)).toBe(
-      pieCategoricalAttributeKey("country", "Portugal"),
-    );
+    const byValue = new Map(stats?.slices.map((slice) => [slice.value, slice.key]));
+    expect(byValue.get(3)).toBe(pieCategoricalAttributeKey("country", "Portugal"));
     expect(byValue.get(1)).toBe(pieCategoricalAttributeKey("country", "Canada"));
   });
 

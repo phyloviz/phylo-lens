@@ -23,6 +23,7 @@ import {
   ERR_NO_GRAPH_RENDERED,
 } from "./graphWorkbench.errors";
 import graphNavigation from "./graphNavigation";
+import { ViewportSyncController } from "./viewport/viewportSyncController";
 
 export { DEFAULT_VIEWPORT, DEFAULT_VIEW_SLICE_MAX_NODES } from "./viewportGraph";
 export type {
@@ -39,27 +40,29 @@ export { ERR_GRAPH_VIEWPORT_SYNC_REQUIRED, ERR_LOD_PLAYBACK_REQUIRES_LOD, ERR_NO
 
 export function createGraphWorkbench(options: GraphWorkbenchOptions): GraphWorkbench {
   const state = createInitialWorkbenchState();
+  let viewportSync: ViewportSyncController | null = null;
+  const replaceViewportSync = (controller: ViewportSyncController | null) => {
+    viewportSync?.unmount();
+    viewportSync = controller;
+  };
 
   const renderer = options.rendererFactory.createRenderer(options.rendererKind);
   renderer.mount(options.renderContext);
-  const filters = graphFilters({ state, renderer });
+  const filters = graphFilters({ state, renderer, getViewportSync: () => viewportSync });
   const navigation = graphNavigation({
     state,
     renderer,
     graphClient: options.graphClient,
-  });
-
-  renderer.setViewChangeHandler?.(() => {
-    if (!state.preparedSession) {
-      return;
-    }
-
-    clearPendingViewRefresh(state);
+    getViewportSync: () => viewportSync,
   });
 
   renderer.setNodeClickHandler?.((clickState) => {
     state.focusedNodeId = clickState.nodeId;
+    viewportSync?.handleNodeClick(clickState);
     state.nodeClickedHandler?.(clickState);
+  });
+  renderer.setNodeDoubleClickHandler?.((clickState) => {
+    viewportSync?.handleNodeDoubleClick(clickState);
   });
 
   async function setLodRefreshPaused(paused: boolean): Promise<PositionedGraph | null> {
@@ -68,9 +71,9 @@ export function createGraphWorkbench(options: GraphWorkbenchOptions): GraphWorkb
     state.lodRefreshPaused = paused;
     clearPendingViewRefresh(state);
     // On resume, reconcile the frozen view to wherever the camera drifted while
-    // paused. refreshNow() bypasses the pause guard in GraphViewportController.
+    // paused. refreshNow() bypasses the pause guard in ViewportSyncController.
     if (!paused) {
-      renderer.refreshGraphViewportSync?.();
+      viewportSync?.refreshNow();
     }
     return state.currentGraph;
   }
@@ -81,6 +84,7 @@ export function createGraphWorkbench(options: GraphWorkbenchOptions): GraphWorkb
         state,
         renderer,
         graphClient: options.graphClient,
+        setViewportSync: replaceViewportSync,
         newick,
         datasetName,
         options: renderOptions,
@@ -128,9 +132,10 @@ export function createGraphWorkbench(options: GraphWorkbenchOptions): GraphWorkb
       clearPendingViewRefresh(state);
       renderer.setViewChangeHandler?.(null);
       renderer.setNodeClickHandler?.(null);
+      renderer.setNodeDoubleClickHandler?.(null);
       renderer.setRegionSelectedHandler?.(null);
       renderer.setHighlightedNodes?.(null);
-      renderer.stopGraphViewportSync?.();
+      replaceViewportSync(null);
       renderer.unmount();
     },
   };
@@ -140,6 +145,7 @@ interface RenderNewickArgs {
   state: GraphWorkbenchState;
   renderer: GraphRenderer;
   graphClient: GraphClient;
+  setViewportSync: (controller: ViewportSyncController | null) => void;
   newick: string;
   datasetName?: string;
   options?: RenderNewickOptions;
@@ -149,10 +155,12 @@ async function renderNewick({
   state,
   renderer,
   graphClient,
+  setViewportSync,
   newick,
   datasetName = DEFAULT_DATASET_NAME,
   options = {},
 }: RenderNewickArgs): Promise<PositionedGraph> {
+  setViewportSync(null);
   resetWorkbenchState(state);
   renderer.focusNode?.(null);
 
@@ -165,7 +173,7 @@ async function renderNewick({
     ancillary_data: options.ancillaryData,
   };
 
-  if (!renderer.startGraphViewportSync) {
+  if (!renderer.getViewportSyncState || !renderer.applyGraphSnapshot) {
     throw new Error(ERR_GRAPH_VIEWPORT_SYNC_REQUIRED);
   }
 
@@ -189,10 +197,11 @@ async function renderNewick({
   };
   state.currentSliceDataset = null;
 
-  renderer.startGraphViewportSync({
+  const viewportSync = new ViewportSyncController({
     client: graphClient,
     datasetId: preparedGraph.dataset_id,
     layoutVersion: preparedGraph.layout_version,
+    renderer,
     maxNodes: state.preparedSession.lod.maxNodes,
     lodTierCount: preparedGraph.lod_tier_count,
     nodeCount: preparedGraph.node_count,
@@ -210,6 +219,8 @@ async function renderNewick({
       displayOptions: state.preparedSession?.displayOptions,
     }),
   });
+  setViewportSync(viewportSync);
+  viewportSync.mount();
 
   const placeholderGraph = createEmptyGraph();
   state.currentGraph = placeholderGraph;

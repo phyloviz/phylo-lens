@@ -100,7 +100,7 @@ views may surface off-screen neighbor nodes so returned edges keep both
 endpoints, and cluster expansion may return all members of the opened cluster.
 The result carries `total_node_count` and `truncated`.
 
-## Client: Mapping Zoom to a Tier (`graphViewerQuery.ts`)
+## Client: Mapping Zoom to a Tier (`app/workbench/viewport/viewportQuery.ts`)
 
 The client turns Sigma's camera `ratio` (smaller ratio = zoomed in) into a tier
 index using **geometric bands**. Boundary for tier `k`:

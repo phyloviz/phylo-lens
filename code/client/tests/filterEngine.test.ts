@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  EMPTY_METADATA_FILTER_STATE,
-  filterGraphByMetadata,
-} from "../src/ancillary/filterEngine";
+import { EMPTY_METADATA_FILTER_STATE, filterGraphByMetadata } from "../src/ancillary/filterEngine";
 import type { MetadataFilterState } from "../src/ancillary/metadataTypes";
 import { buildMetadataIndex } from "../src/ancillary/metadataIndex";
 import type { CanonicalDataset } from "../src/contracts/models";
@@ -52,11 +49,7 @@ describe("filterGraphByMetadata", () => {
   it("returns the original graph when no active filters exist", () => {
     const index = buildMetadataIndex(DATASET);
 
-    const filtered = filterGraphByMetadata(
-      GRAPH,
-      index,
-      EMPTY_METADATA_FILTER_STATE,
-    );
+    const filtered = filterGraphByMetadata(GRAPH, index, EMPTY_METADATA_FILTER_STATE);
 
     expect(filtered).toBe(GRAPH);
   });

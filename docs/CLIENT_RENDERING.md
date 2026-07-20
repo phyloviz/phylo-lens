@@ -1,21 +1,21 @@
 # Client Rendering
 
 The client renders with Sigma.js over a Graphology graph. The workbench prepares
-a dataset and starts a viewport-sync loop; `GraphViewportController` keeps the
-Graphology graph in step with the camera by pulling viewport slices from the
-server and reconciling them into the graph. This document covers the viewport
-lifecycle, node/edge attribute derivation, the triangle rule, PHYLOViZ +
-value-based coloring, pie programs, and region (box) selection.
+a dataset and starts a viewport-sync loop; `ViewportSyncController` keeps the
+rendered graph snapshot in step with the camera by pulling viewport slices from
+the server and handing renderer-neutral snapshots to Sigma. This document covers
+the viewport lifecycle, node/edge attribute derivation, the triangle rule,
+PHYLOViZ + value-based coloring, pie programs, and region (box) selection.
 
 For how zoom picks a tier, see [`LOD_AND_CLUSTERING.md`](./LOD_AND_CLUSTERING.md);
 for expand/collapse, see [`EXPAND_COLLAPSE.md`](./EXPAND_COLLAPSE.md).
 
-## Viewport Lifecycle (`render/adapters/sigma/viewport/graphViewportController.ts`)
+## Viewport Lifecycle (`app/workbench/viewport/viewportSyncController.ts`)
 
-`GraphViewportController` is constructed by the Sigma adapter's
-`startGraphViewportSync`. Key options: `datasetId`, `layoutVersion`, `client`
-(`GraphClient`), `graph` (Graphology), `sigma`, `maxNodes`, and
-`lodTierCount` (from the prepare response, normalized to `>= 1`).
+`ViewportSyncController` is constructed by the workbench after `prepareGraph`.
+Key options: `datasetId`, `layoutVersion`, `client` (`GraphClient`),
+`renderer` (`GraphRenderer`), `maxNodes`, and `lodTierCount` (from the prepare
+response, normalized to `>= 1`).
 
 ```mermaid
 flowchart TD
@@ -23,9 +23,10 @@ flowchart TD
   BIND --> INIT["scheduleViewportRefresh(0)"]
   INIT --> LOAD["loadViewport() (forceGlobal → tier 0)"]
   LOAD --> READ["client.readViewport(query)"]
-  READ --> SYNC["syncGraphologyViewport + reconcileGraphologyViewport"]
-  SYNC --> HOOK["onGraphSynced() → pie programs"]
-  HOOK --> FIT["fitSigmaToViewportResponse (first load)"]
+  READ --> SNAP["graphSnapshotFromViewportResponse"]
+  SNAP --> APPLY["renderer.applyGraphSnapshot"]
+  APPLY --> HOOK["onGraphSynced()"]
+  APPLY --> FIT["renderer.fitGraphSnapshot (first load)"]
 
   CAM["camera 'updated'"] --> SCHED["scheduleViewportRefreshForCamera()"]
   SCHED --> LOAD
@@ -40,35 +41,26 @@ flowchart TD
   bounds); at finer tiers a same-tier pan schedules a bounded refetch so panning
   reveals new nodes (see [`LOD_AND_CLUSTERING.md`](./LOD_AND_CLUSTERING.md)).
 - **`loadViewport()`** builds the query (`buildGraphViewportQuery`), records
-  `lastRequestedLodLevel` (the hysteresis anchor), reads the slice, then syncs
-  and reconciles into the graph. On the first tier-0 load it fits the camera.
-- **`rebindSigma()`** re-attaches handlers when Sigma is rebuilt (e.g. after a
-  piechart program registration).
+  `lastRequestedLodLevel` (the hysteresis anchor), reads the slice, converts it
+  to a renderer-neutral `PositionedGraph`, and applies it through the renderer.
+  On the first tier-0 load it fits the camera.
+- Sigma owns only adapter concerns: applying graph snapshots to Graphology,
+  rebuilding pie programs when needed, and fitting the camera on request.
 
 `lodTierCount` and `lastRequestedLodLevel` are threaded into
 `buildGraphViewportQuery`, which calls
 `semanticLodLevelForCameraRatioWithHysteresis` to pick the tier and expands the
 query bounds by `GRAPH_VIEWER_VIEWPORT_PADDING_RATIO = 0.5` for tiers > 0.
 
-## Sync and Reconcile (`render/adapters/sigma/viewport/graphViewportSync.ts`)
+## Snapshot Application (`app/workbench/viewport/viewportSnapshot.ts`)
 
-- **`syncGraphologyViewport(graph, response, settings?)`** filters nodes by any
-  active metadata filter (`matchesFilterState`), resolves visual-mapping palette
-  when active, then upserts each node and edge. Node attributes are built in
-  `graphViewportNodeAttributes.ts`; edge attributes are built in
-  `graphViewportEdgeAttributes.ts`. `upsertGraphNode` merges only changed
-  attributes to emit a single Graphology event instead of one per field.
-- **`reconcileGraphologyViewport(...)`** drops nodes and edges not present in the
-  response — this is what makes the graph track the moving viewport instead of
-  accumulating stale geometry. It **suspends Sigma's `nodeDropped`/`edgeDropped`
-  listeners** for the batch: each of those handlers otherwise calls `refresh()`
-  with no `partialGraph`, forcing a full O(N+E) Sigma re-index _per drop event_.
-  Dropping thousands of elements one at a time turned into thousands of full
-  re-indexes (the O(n²) fingerprint — a ~6.5s stall observed on large tier
-  transitions). The batch drops edges first, then nodes (so `dropNode` has no
-  incident edges to cascade through), restores the listeners in a `finally`, and
-  the single `sigma.refresh()` the caller already runs afterward does one correct
-  re-index.
+- **`graphSnapshotFromViewportResponse(response, settings?)`** filters nodes by
+  any active metadata filter (`matchesFilterState`), resolves visual-mapping
+  palette when active, derives node/edge attributes, and returns a
+  renderer-neutral `PositionedGraph`.
+- **`SigmaRenderer.applyGraphSnapshot(graph)`** replaces the adapter-owned
+  Graphology graph from that snapshot, reapplies highlighting and pie programs,
+  then refreshes Sigma once for the completed snapshot.
 
 ## The Triangle Rule
 
@@ -90,7 +82,8 @@ cluster never dominates the canvas.
 
 ## Node Coloring
 
-Color precedence in `buildGraphViewportNodeAttributes` (highest first):
+Color precedence in the viewport snapshot node-attribute builder (highest
+first):
 
 1. **Active visual mapping, when the node has a value for the color field** — an
    explicit user choice. Color comes from a graph-wide, frequency-ranked map
@@ -142,10 +135,10 @@ edge-tiebreak color constants for goeBURST link rules also live in
 
 ## Camera Fit (`render/adapters/sigma/viewport/graphViewportFit.ts`)
 
-- **`fitSigmaToViewportResponse`** — after the first tier-0 load, fits the
+- **`fitSigmaToGraphSnapshot`** — after the first tier-0 load, fits the
   overview into view after `GRAPH_VIEWER_INITIAL_FIT_DELAY_MS = 50ms` with a
   `300ms` animation and `GRAPH_VIEWER_FIT_PADDING_RATIO = 1.15` padding.
-- **`fitSigmaToClusterResponse`** — frames a set of opened members with
+- **`fitSigmaToClusterGraph`** — frames a set of opened members with
   `GRAPH_VIEWER_CLUSTER_FIT_PADDING_RATIO = 1.35` over a `350ms` animation.
   The helper remains available, but the click-to-expand flow no longer calls it:
   expansion adds members in place and leaves the camera untouched so the
@@ -164,11 +157,11 @@ Pie mapping is split by responsibility:
 - `render/adapters/sigma/programs/sigmaPiePrograms.ts` adapts those slice keys
   into Sigma node programs.
 
-After each sync, `onGraphSynced` triggers `syncPieProgramsFromGraph`, which
-detects the pie-slice keys present in the live graph and rebuilds the Sigma
-instance only when the program signature changed, then rebinds
-`GraphViewportController` to the new instance. When pie charts are disabled the
-work is skipped.
+After each snapshot application, `SigmaRenderer` runs `syncPieProgramsFromGraph`,
+which detects the pie-slice keys present in the live graph and rebuilds the
+Sigma instance only when the program signature changed. Camera and node handlers
+are rebound inside the adapter rebuild. When pie charts are disabled the work is
+skipped.
 
 ## Region Selection (`render/adapters/sigma/interaction/sigmaBoxSelectController.ts`)
 

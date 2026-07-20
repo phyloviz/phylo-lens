@@ -9,10 +9,10 @@ import type {
   GraphDisplayOptions,
   RenderNodeClickState,
   RenderContext,
+  RenderViewportBounds,
   RendererFactory,
   RendererKind,
 } from "../../render/renderer.types";
-import type { SigmaViewportBounds } from "../../render/adapters/sigma/viewport/graphViewport.types";
 
 // Public workbench contracts.
 
@@ -27,7 +27,7 @@ export interface RegionSelectionResult {
   metadataSchema: GraphMetadataField[];
 }
 
-export type RegionSelectedHandler = (bounds: SigmaViewportBounds) => void;
+export type RegionSelectedHandler = (bounds: RenderViewportBounds) => void;
 
 export interface RenderNewickOptions {
   // Source family of `content`: "newick" parses the text directly; "typing_data"
@@ -93,7 +93,7 @@ export interface GraphWorkbench {
 
   // Read the isolated subgraph + aggregated metadata for a box-select region
   // and highlight the selected nodes on the canvas.
-  selectRegion: (bounds: SigmaViewportBounds) => Promise<RegionSelectionResult>;
+  selectRegion: (bounds: RenderViewportBounds) => Promise<RegionSelectionResult>;
 
   // Register a handler that fires when the user completes a box-select drag.
   setRegionSelectedHandler: (handler: RegionSelectedHandler | null) => void;

@@ -1,11 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { buildMetadataIndex } from "../src/ancillary/metadataIndex";
-import {
-  METADATA_TYPE_NUMBER,
-  METADATA_TYPE_STRING,
-  SOURCE_FORMAT_NEWICK,
-} from "../src/contracts/models";
+import { METADATA_TYPE_NUMBER, METADATA_TYPE_STRING, SOURCE_FORMAT_NEWICK } from "../src/contracts/models";
 import type { CanonicalDataset } from "../src/contracts/models";
 import type { PositionedGraph } from "../src/contracts/positioned";
 import {
@@ -73,17 +69,10 @@ describe("visualMappings", () => {
     expect(mapped.nodes[0]?.color).toBeDefined();
     expect(mapped.nodes[1]?.color).toBeDefined();
     expect(mapped.nodes[0]?.size).toBeLessThan(mapped.nodes[1]?.size ?? 0);
-    expect(
-      (mapped.nodes[0]?.attributes as Record<string, unknown>)?.dataset_id,
-    ).toBe("visual-dataset");
+    expect((mapped.nodes[0]?.attributes as Record<string, unknown>)?.dataset_id).toBe("visual-dataset");
 
-    const nodeAttributes = mapped.nodes[0]?.attributes as Record<
-      string,
-      unknown
-    >;
-    const pieKeys = Object.keys(nodeAttributes).filter((key) =>
-      key.startsWith(PIE_ATTRIBUTE_PREFIX),
-    );
+    const nodeAttributes = mapped.nodes[0]?.attributes as Record<string, unknown>;
+    const pieKeys = Object.keys(nodeAttributes).filter((key) => key.startsWith(PIE_ATTRIBUTE_PREFIX));
 
     expect(pieKeys).toContain(`${PIE_ATTRIBUTE_PREFIX}trait_a`);
     expect(Array.isArray(nodeAttributes?.[PIE_PALETTE_ATTRIBUTE])).toBe(true);
@@ -125,13 +114,8 @@ describe("visualMappings", () => {
       },
     });
 
-    const nodeAttributes = mapped.nodes[0]?.attributes as Record<
-      string,
-      unknown
-    >;
-    const categoryColors = nodeAttributes[PIE_CATEGORY_COLORS_ATTRIBUTE] as
-      | Record<string, string>
-      | undefined;
+    const nodeAttributes = mapped.nodes[0]?.attributes as Record<string, unknown>;
+    const categoryColors = nodeAttributes[PIE_CATEGORY_COLORS_ATTRIBUTE] as Record<string, string> | undefined;
 
     expect(categoryColors).toMatchObject({
       [pieCategoricalAttributeKey("region", "EU")]: "#123456",
@@ -143,10 +127,7 @@ describe("visualMappings", () => {
     const profileDataset: CanonicalDataset = {
       ...DATASET,
       nodes: [...DATASET.nodes, { id: "c" }],
-      metadata_schema: [
-        ...DATASET.metadata_schema,
-        { key: "profile_count", type: METADATA_TYPE_NUMBER },
-      ],
+      metadata_schema: [...DATASET.metadata_schema, { key: "profile_count", type: METADATA_TYPE_NUMBER }],
       metadata_by_node_id: {
         a: { region: "EU", distance: 10, trait_a: 4, profile_count: 10 },
         b: { region: "US", distance: 30, trait_a: 8, profile_count: 100 },
@@ -172,19 +153,14 @@ describe("visualMappings", () => {
     expect(linearMapped.nodes[2]?.size).toBe(MAX_NODE_SIZE);
     expect(logMapped.nodes[0]?.size).toBe(MIN_NODE_SIZE);
     expect(logMapped.nodes[2]?.size).toBe(MAX_NODE_SIZE);
-    expect(logMapped.nodes[1]?.size ?? 0).toBeGreaterThan(
-      linearMapped.nodes[1]?.size ?? 0,
-    );
+    expect(logMapped.nodes[1]?.size ?? 0).toBeGreaterThan(linearMapped.nodes[1]?.size ?? 0);
   });
 
   it("defaults the size field to profile count when present, else distance", () => {
     // Given: a dataset carrying profile_count and one without it.
     const profileDataset: CanonicalDataset = {
       ...DATASET,
-      metadata_schema: [
-        ...DATASET.metadata_schema,
-        { key: "profile_count", type: METADATA_TYPE_NUMBER },
-      ],
+      metadata_schema: [...DATASET.metadata_schema, { key: "profile_count", type: METADATA_TYPE_NUMBER }],
       metadata_by_node_id: {
         a: { region: "EU", distance: 30, trait_a: 4, profile_count: 10 },
         b: { region: "US", distance: 10, trait_a: 8, profile_count: 100 },
@@ -192,16 +168,8 @@ describe("visualMappings", () => {
     };
 
     // When: no explicit size mapping is passed.
-    const withProfile = applyVisualMappings(
-      BASE_GRAPH,
-      profileDataset,
-      buildMetadataIndex(profileDataset),
-    );
-    const withoutProfile = applyVisualMappings(
-      BASE_GRAPH,
-      DATASET,
-      buildMetadataIndex(DATASET),
-    );
+    const withProfile = applyVisualMappings(BASE_GRAPH, profileDataset, buildMetadataIndex(profileDataset));
+    const withoutProfile = applyVisualMappings(BASE_GRAPH, DATASET, buildMetadataIndex(DATASET));
 
     // Then: profile_count wins when present (b is the max), distance otherwise
     // (b has the larger distance in DATASET).
@@ -234,11 +202,9 @@ describe("visualMappings", () => {
     const proxyNode = mapped.nodes[0];
 
     expect(proxyNode?.color).toBe(CLUSTER_PROXY_COLOR);
-    expect((proxyNode?.size ?? 0)).toBeGreaterThan(DEFAULT_NODE_SIZE);
-    expect((proxyNode?.size ?? 0)).toBeLessThanOrEqual(CLUSTER_PROXY_MAX_SIZE);
-    expect(
-      (proxyNode?.attributes as Record<string, unknown>)?.is_cluster_proxy,
-    ).toBe(true);
+    expect(proxyNode?.size ?? 0).toBeGreaterThan(DEFAULT_NODE_SIZE);
+    expect(proxyNode?.size ?? 0).toBeLessThanOrEqual(CLUSTER_PROXY_MAX_SIZE);
+    expect((proxyNode?.attributes as Record<string, unknown>)?.is_cluster_proxy).toBe(true);
   });
 
   it("renders generated union nodes as structural PHYLOViZ junctions", () => {
@@ -260,27 +226,18 @@ describe("visualMappings", () => {
       nodes: [...BASE_GRAPH.nodes, { id: "union_1", x: 50, y: 50 }],
     };
 
-    const mapped = applyVisualMappings(
-      graph,
-      dataset,
-      buildMetadataIndex(dataset),
-      {
-        colorField: "region",
-        sizeField: "profile_count",
-        pie: { fields: ["trait_a"] },
-      },
-    );
+    const mapped = applyVisualMappings(graph, dataset, buildMetadataIndex(dataset), {
+      colorField: "region",
+      sizeField: "profile_count",
+      pie: { fields: ["trait_a"] },
+    });
     const unionNode = mapped.nodes.find((node) => node.id === "union_1");
     const attributes = unionNode?.attributes as Record<string, unknown>;
 
     expect(unionNode?.color).toBe(UNION_NODE_COLOR);
     expect(unionNode?.size).toBe(UNION_NODE_SIZE);
     expect(attributes.is_union_node).toBe(true);
-    expect(
-      Object.keys(attributes).some((key) =>
-        key.startsWith(PIE_ATTRIBUTE_PREFIX),
-      ),
-    ).toBe(false);
+    expect(Object.keys(attributes).some((key) => key.startsWith(PIE_ATTRIBUTE_PREFIX))).toBe(false);
   });
 
   it("maps selected categorical metadata fields to graph pie slices", () => {
@@ -291,13 +248,8 @@ describe("visualMappings", () => {
       },
     });
 
-    const nodeAttributes = mapped.nodes[0]?.attributes as Record<
-      string,
-      unknown
-    >;
-    const pieKeys = Object.keys(nodeAttributes).filter((key) =>
-      key.startsWith(PIE_ATTRIBUTE_PREFIX),
-    );
+    const nodeAttributes = mapped.nodes[0]?.attributes as Record<string, unknown>;
+    const pieKeys = Object.keys(nodeAttributes).filter((key) => key.startsWith(PIE_ATTRIBUTE_PREFIX));
 
     const expectedKey = pieCategoricalAttributeKey("region", "EU");
 
@@ -330,10 +282,7 @@ describe("visualMappings", () => {
     });
 
     // Then
-    const nodeAttributes = mapped.nodes[0]?.attributes as Record<
-      string,
-      unknown
-    >;
+    const nodeAttributes = mapped.nodes[0]?.attributes as Record<string, unknown>;
     expect(nodeAttributes[pieCategoricalAttributeKey("region", "EU")]).toBe(3);
     expect(nodeAttributes[pieCategoricalAttributeKey("region", "US")]).toBe(1);
   });
@@ -357,26 +306,16 @@ describe("visualMappings", () => {
     });
 
     // Then
-    const nodeAttributes = mapped.nodes[0]?.attributes as Record<
-      string,
-      unknown
-    >;
-    expect(nodeAttributes[pieCategoricalAttributeKey("region", "Asia")]).toBe(
-      1,
-    );
-    expect(nodeAttributes[pieCategoricalAttributeKey("region", "Europe")]).toBe(
-      1,
-    );
+    const nodeAttributes = mapped.nodes[0]?.attributes as Record<string, unknown>;
+    expect(nodeAttributes[pieCategoricalAttributeKey("region", "Asia")]).toBe(1);
+    expect(nodeAttributes[pieCategoricalAttributeKey("region", "Europe")]).toBe(1);
   });
 
   it("combines multiple selected metadata fields into pie slices", () => {
     // Given
     const dataset: CanonicalDataset = {
       ...DATASET,
-      metadata_schema: [
-        ...DATASET.metadata_schema,
-        { key: "country", type: METADATA_TYPE_STRING },
-      ],
+      metadata_schema: [...DATASET.metadata_schema, { key: "country", type: METADATA_TYPE_STRING }],
       metadata_by_node_id: {
         a: {
           region: "Europe",
@@ -397,26 +336,16 @@ describe("visualMappings", () => {
     });
 
     // Then
-    const nodeAttributes = mapped.nodes[0]?.attributes as Record<
-      string,
-      unknown
-    >;
-    expect(nodeAttributes[pieCategoricalAttributeKey("region", "Europe")]).toBe(
-      1,
-    );
-    expect(
-      nodeAttributes[pieCategoricalAttributeKey("country", "Portugal")],
-    ).toBe(1);
+    const nodeAttributes = mapped.nodes[0]?.attributes as Record<string, unknown>;
+    expect(nodeAttributes[pieCategoricalAttributeKey("region", "Europe")]).toBe(1);
+    expect(nodeAttributes[pieCategoricalAttributeKey("country", "Portugal")]).toBe(1);
   });
 
   it("uses ancillary isolate rows for multi-field combination pie slices", () => {
     // Given
     const dataset: CanonicalDataset = {
       ...DATASET,
-      metadata_schema: [
-        ...DATASET.metadata_schema,
-        { key: "country", type: METADATA_TYPE_STRING },
-      ],
+      metadata_schema: [...DATASET.metadata_schema, { key: "country", type: METADATA_TYPE_STRING }],
       metadata_by_node_id: {
         a: {
           region: "Europe",
@@ -444,24 +373,11 @@ describe("visualMappings", () => {
     });
 
     // Then
-    const nodeAttributes = mapped.nodes[0]?.attributes as Record<
-      string,
-      unknown
-    >;
+    const nodeAttributes = mapped.nodes[0]?.attributes as Record<string, unknown>;
     const fieldKey = combinationPieFieldKey(["region", "country"]);
-    expect(
-      nodeAttributes[
-        pieCategoricalAttributeKey(fieldKey, "region:Europe country:Portugal")
-      ],
-    ).toBe(2);
-    expect(
-      nodeAttributes[
-        pieCategoricalAttributeKey(fieldKey, "region:Europe country:Spain")
-      ],
-    ).toBe(1);
-    expect(nodeAttributes[pieCategoricalAttributeKey("region", "Europe")]).toBe(
-      undefined,
-    );
+    expect(nodeAttributes[pieCategoricalAttributeKey(fieldKey, "region:Europe country:Portugal")]).toBe(2);
+    expect(nodeAttributes[pieCategoricalAttributeKey(fieldKey, "region:Europe country:Spain")]).toBe(1);
+    expect(nodeAttributes[pieCategoricalAttributeKey("region", "Europe")]).toBe(undefined);
   });
 
   it("caps detected pie slice keys and aggregates the tail as Others", () => {
@@ -477,13 +393,9 @@ describe("visualMappings", () => {
 
     // Then
     expect(keys).toHaveLength(MAX_PIE_SLICE_KEYS);
-    expect(keys).toContain(
-      `${PIE_ATTRIBUTE_PREFIX}country_${MAX_PIE_SLICE_KEYS + 9}`,
-    );
+    expect(keys).toContain(`${PIE_ATTRIBUTE_PREFIX}country_${MAX_PIE_SLICE_KEYS + 9}`);
     expect(keys).toContain(PIE_OTHER_SLICE_KEY);
-    expect(keys.filter((key) => key !== PIE_OTHER_SLICE_KEY)).toHaveLength(
-      MAX_PIE_SLICE_KEYS - 1,
-    );
+    expect(keys.filter((key) => key !== PIE_OTHER_SLICE_KEY)).toHaveLength(MAX_PIE_SLICE_KEYS - 1);
     expect(keys).not.toContain(`${PIE_ATTRIBUTE_PREFIX}country_0`);
   });
 
@@ -493,9 +405,7 @@ describe("visualMappings", () => {
 
     // Then
     expect(palette).toHaveLength(12);
-    expect(palette.every((color) => /^#[0-9a-fA-F]{6}$/.test(color))).toBe(
-      true,
-    );
+    expect(palette.every((color) => /^#[0-9a-fA-F]{6}$/.test(color))).toBe(true);
   });
 
   it("sanitizes real-world categorical values for graph pie attributes", () => {
@@ -512,10 +422,7 @@ describe("visualMappings", () => {
       },
     });
 
-    const nodeAttributes = mapped.nodes[0]?.attributes as Record<
-      string,
-      unknown
-    >;
+    const nodeAttributes = mapped.nodes[0]?.attributes as Record<string, unknown>;
     const expectedKey = pieCategoricalAttributeKey("region", "UK [England]");
 
     expect(expectedKey).toMatch(/^pie__region_/);

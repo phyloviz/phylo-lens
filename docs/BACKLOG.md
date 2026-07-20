@@ -14,9 +14,9 @@ needs a product/perf decision, not a mechanical fix.
 **Area:** client viewport refresh timing.
 
 **Resolution:** lowered `DEFAULT_GRAPH_VIEWER_DEBOUNCE_MS` from 250 → 120ms
-(`graphViewerQuery.ts:8`) for snappier same-level panning. This is the only
+(`app/workbench/viewport/viewportQuery.ts`) for snappier same-level panning. This is the only
 genuine perf knob: LoD-level changes already bypass the debounce and refresh
-immediately (`GraphViewer.ts:183`, `scheduleViewportRefresh(lodChanged ? 0 : …)`),
+immediately (`ViewportSyncController.scheduleViewportRefreshForCamera`),
 so zoom-across-threshold was never delayed.
 
 **Left unchanged (correctness guards, not perf padding):**
@@ -167,9 +167,8 @@ feature, not required for typing-data ingest.
 
 ## Not in this list (already resolved on the branch)
 
-- **Filter-logic duplication** — `nodePassesFilters` in `graphViewerSync.ts`
-  removed; both paths now use the single `matchesFilterState` in
-  `ancillary/filterEngine.ts`.
+- **Filter-logic duplication** — viewport snapshot filtering now uses the single
+  `matchesFilterState` in `ancillary/filterEngine.ts`.
 - **Metadata / visual mappings / pies / filtering under LoD** — confirmed wired
   and green.
 - **The "dome"** — fixed at the pipeline level (sfdp installed, stale store

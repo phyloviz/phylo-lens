@@ -4,6 +4,7 @@ import {
   RENDERER_KIND_MOCK,
   type RenderContext,
   type RenderNodeClickState,
+  type RenderViewportSyncState,
   type RendererKind,
   type RenderViewportState,
 } from "../../renderer.types";
@@ -17,9 +18,13 @@ export default function () {
   let lastCenteredNodeId: string | null = null;
   let lastCenteredCoordinates: { x: number; y: number } | null = null;
   let lastFocusedNodeId: string | null = null;
-  let lastExpandedClusterId: string | null = null;
   let viewChangeHandler: ((state: RenderViewportState) => void) | null = null;
   let nodeClickHandler: ((state: RenderNodeClickState) => void) | null = null;
+  let nodeDoubleClickHandler: ((state: RenderNodeClickState) => void) | null = null;
+  let viewportSyncState: RenderViewportSyncState | null = {
+    bounds: { xmin: 0, xmax: 100, ymin: 0, ymax: 100 },
+    cameraRatio: 1,
+  };
 
   return {
     kind: RENDERER_KIND_MOCK as RendererKind,
@@ -30,16 +35,20 @@ export default function () {
     centerOnNode: centerOnNode,
     centerOnCoordinates: centerOnCoordinates,
     focusNode: focusNode,
-    expandCluster: expandCluster,
+    getViewportSyncState: getViewportSyncState,
+    applyGraphSnapshot: render,
+    fitGraphSnapshot: fitGraphSnapshot,
+    setNodeDoubleClickHandler: setNodeDoubleClickHandler,
     unmount: unmount,
     getRenderedGraph: getRenderedGraph,
     getMountedContainerId: getMountedContainerId,
     getLastCenteredNodeId: getLastCenteredNodeId,
     getLastCenteredCoordinates: getLastCenteredCoordinates,
     getLastFocusedNodeId: getLastFocusedNodeId,
-    getLastExpandedClusterId: getLastExpandedClusterId,
+    setViewportSyncState: setViewportSyncState,
     emitViewChange: emitViewChange,
     emitNodeClick: emitNodeClick,
+    emitNodeDoubleClick: emitNodeDoubleClick,
   } satisfies GraphRenderer & {
     kind: RendererKind;
     getRenderedGraph: typeof getRenderedGraph;
@@ -47,9 +56,10 @@ export default function () {
     getLastCenteredNodeId: typeof getLastCenteredNodeId;
     getLastCenteredCoordinates: typeof getLastCenteredCoordinates;
     getLastFocusedNodeId: typeof getLastFocusedNodeId;
-    getLastExpandedClusterId: typeof getLastExpandedClusterId;
+    setViewportSyncState: typeof setViewportSyncState;
     emitViewChange: typeof emitViewChange;
     emitNodeClick: typeof emitNodeClick;
+    emitNodeDoubleClick: typeof emitNodeDoubleClick;
   };
 
   // Bind the mock renderer to a container identifier.
@@ -59,7 +69,6 @@ export default function () {
     lastCenteredNodeId = null;
     lastCenteredCoordinates = null;
     lastFocusedNodeId = null;
-    lastExpandedClusterId = null;
   }
 
   // Store rendered graph snapshot for assertions and debug checks.
@@ -89,8 +98,20 @@ export default function () {
     lastFocusedNodeId = nodeId;
   }
 
-  function expandCluster(clusterId: string): void {
-    lastExpandedClusterId = clusterId;
+  function getViewportSyncState(): RenderViewportSyncState | null {
+    return viewportSyncState;
+  }
+
+  function setViewportSyncState(state: RenderViewportSyncState | null): void {
+    viewportSyncState = state;
+  }
+
+  function fitGraphSnapshot(): null {
+    return null;
+  }
+
+  function setNodeDoubleClickHandler(handler: ((state: RenderNodeClickState) => void) | null): void {
+    nodeDoubleClickHandler = handler;
   }
 
   // Reset internal references on renderer teardown.
@@ -98,10 +119,11 @@ export default function () {
     container = null;
     lastGraph = null;
     lastCenteredNodeId = null;
+    lastCenteredCoordinates = null;
     lastFocusedNodeId = null;
-    lastExpandedClusterId = null;
     viewChangeHandler = null;
     nodeClickHandler = null;
+    nodeDoubleClickHandler = null;
   }
 
   // Expose the last rendered graph for tests and diagnostics.
@@ -125,15 +147,15 @@ export default function () {
     return lastFocusedNodeId;
   }
 
-  function getLastExpandedClusterId(): string | null {
-    return lastExpandedClusterId;
-  }
-
   function emitViewChange(state: RenderViewportState): void {
     viewChangeHandler?.(state);
   }
 
   function emitNodeClick(state: RenderNodeClickState): void {
     nodeClickHandler?.(state);
+  }
+
+  function emitNodeDoubleClick(state: RenderNodeClickState): void {
+    nodeDoubleClickHandler?.(state);
   }
 }

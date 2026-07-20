@@ -1,5 +1,5 @@
 import type { AncillaryWheelStats } from "../../../components/ancillaryWheel";
-import type { SigmaViewportBounds } from "../../../render/adapters/sigma/viewport/graphViewport.types";
+import type { RenderViewportBounds } from "../../../render/renderer.types";
 import type { GraphWorkbench } from "../../workbench/graphWorkbench";
 import { renderRegionPanel } from "./regionPanelView";
 
@@ -45,7 +45,7 @@ export default function (options: RegionSelectionOptions) {
     resetPanel();
   }
 
-  async function handleSelected(bounds: SigmaViewportBounds): Promise<void> {
+  async function handleSelected(bounds: RenderViewportBounds): Promise<void> {
     if (!options.panel) {
       return;
     }

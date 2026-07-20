@@ -43,7 +43,7 @@ flowchart TD
     G --> H["status ready -> GraphPrepareResponse
     lod_tier_count, layout_status, warnings"]
 
-    H --> I["startGraphViewportSync(lodTierCount)"]
+    H --> I["ViewportSyncController.mount(lodTierCount)"]
 
     I --> J["POST /api/graph/viewport
     dataset_id, layout_version

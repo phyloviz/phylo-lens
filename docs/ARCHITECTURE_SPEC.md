@@ -135,8 +135,9 @@ the status poll.
 `workbench/graphWorkbench.ts` is the workflow facade. `renderNewick` calls
 `prepareGraph`, stores the prepared session (`datasetId`, `layoutVersion`,
 `lod_tier_count`, metadata schema), and starts viewport sync through the
-renderer. It also owns display options, metadata filters, visual mapping, node
-search/focus, region selection (`selectRegion`), and the LoD-refresh
+workbench-owned `ViewportSyncController`. It also owns display options,
+metadata filters, visual mapping, node search/focus, region selection
+(`selectRegion`), and the LoD-refresh
 pause/resume control. The `shell/` subtree holds UI wiring — `shell/controls/`
 (e.g. `visualMappingControls.ts`, which builds a `VisualMapping` from the
 color-field, size-field, size-scale, and category-color controls) and
@@ -149,16 +150,17 @@ Renderer adapter layer, behind the `GraphRenderer` interface (`render/renderer.t
 The production adapter is Sigma (`render/adapters/sigma/`):
 
 - `sigmaRenderer.ts`: adapter lifecycle, Sigma instance ownership,
-  `startGraphViewportSync` / `stopGraphViewportSync` /
-  `refreshGraphViewportSync`, and piechart-program rebuilds.
-- `GraphViewer.ts`: the viewport-sync engine — camera binding, LoD tier
-  detection, debounced refresh, cluster expand/collapse, initial fit.
-- `graphViewerQuery.ts`: viewport query building and the semantic-zoom band
-  mapping (`semanticLodLevelForCameraRatio`,
+  graph snapshot application, viewport state reads, camera fitting, and
+  piechart-program rebuilds.
+- `app/workbench/viewport/viewportSyncController.ts`: the viewport-sync engine —
+  renderer view-change binding, LoD tier detection, debounced refresh, cluster
+  expand/collapse, and initial fit coordination.
+- `app/workbench/viewport/viewportQuery.ts`: viewport query building and the
+  semantic-zoom band mapping (`semanticLodLevelForCameraRatio`,
   `semanticLodLevelForCameraRatioWithHysteresis`).
-- `graphViewerSync.ts`: `syncGraphologyViewport` / `reconcileGraphologyViewport`,
-  node/edge attribute derivation, the triangle rule, and PHYLOViZ role coloring
-  (`deriveViewportNodeColor`).
+- `app/workbench/viewport/viewportSnapshot.ts`: viewport response to
+  `PositionedGraph` conversion, node/edge attribute derivation, the triangle
+  rule, and PHYLOViZ role coloring.
 - `colorHash.ts`: the shared color source. `buildValueColorMap(values, palette)`
   ranks values by graph-wide frequency (ties broken by label) and assigns
   palette entries in order, so node fills, on-node pies, and the ancillary wheel
@@ -185,20 +187,22 @@ flowchart TD
     APIC["api/graphClient.ts"]
     RPORT["render/renderer.types.ts (GraphRenderer)"]
     SR["render/adapters/sigma/sigmaRenderer.ts"]
-    GVW["GraphViewer.ts"]
-    QRY["graphViewerQuery.ts"]
-    SYNC["graphViewerSync.ts"]
-    FIT["graphViewerFit.ts"]
+    VS["app/workbench/viewport/viewportSyncController.ts"]
+    QRY["app/workbench/viewport/viewportQuery.ts"]
+    SNAP["app/workbench/viewport/viewportSnapshot.ts"]
+    FIT["render/adapters/sigma/viewport/graphViewportFit.ts"]
     FILT["ancillary/filterEngine.ts"]
 
     WB --> APIC
     WB --> RPORT
+    WB --> VS
+    VS --> APIC
+    VS --> RPORT
+    VS --> QRY
+    VS --> SNAP
+    SNAP --> FILT
     RPORT --> SR
-    SR --> GVW
-    GVW --> QRY
-    GVW --> SYNC
-    GVW --> FIT
-    SYNC --> FILT
+    SR --> FIT
   end
 
   subgraph Server
@@ -257,21 +261,21 @@ sequenceDiagram
   end
   API-->>WB: prepared session (lod_tier_count, layout_status)
 
-  WB->>GV: startGraphViewportSync(lodTierCount)
-  GV->>API: readViewport(lod_level=0, forceGlobal)
+  WB->>VS: mount viewport sync (lodTierCount)
+  VS->>API: readViewport(lod_level=0, forceGlobal)
   API->>Srv: POST /api/graph/viewport
   Srv->>Store: read_viewport(...)
   Store-->>Srv: ViewportReadResult
   Srv-->>API: GraphViewportResponse (nodes, edges, truncated)
-  API-->>GV: viewport slice
-  GV->>GV: sync + reconcile Graphology, fit camera
+  API-->>VS: viewport slice
+  VS->>Renderer: applyGraphSnapshot + fitGraphSnapshot
 
   loop camera pan / zoom
-    GV->>GV: semanticLodLevelForCameraRatioWithHysteresis
-    GV->>API: debounced readViewport(lod_level, bounds)
+    VS->>VS: semanticLodLevelForCameraRatioWithHysteresis
+    VS->>API: debounced readViewport(lod_level, bounds)
     API->>Srv: POST /api/graph/viewport
     Srv->>Store: read_viewport(...)
-    Srv-->>GV: next slice
+    Srv-->>VS: next slice
   end
 ```
 

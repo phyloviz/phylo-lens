@@ -1,26 +1,32 @@
 import type { GraphClient } from "../../api/graphClient";
 import type { SearchDatasetResponse } from "../../contracts/models";
 import type { PositionedGraph } from "../../contracts/positioned";
-import type { SigmaViewportBounds } from "../../render/adapters/sigma/viewport/graphViewport.types";
-import type { GraphRenderer } from "../../render/renderer.types";
+import type { GraphRenderer, RenderViewportBounds } from "../../render/renderer.types";
 import { requirePreparedSession } from "./graphWorkbench.state";
 import type { GraphWorkbenchState, RegionSelectionResult } from "./graphWorkbench.types";
 import { createEmptyGraph } from "./viewportGraph";
+import type { ViewportSyncController } from "./viewport/viewportSyncController";
 
 interface WorkbenchNavigationOptions {
   state: GraphWorkbenchState;
   renderer: GraphRenderer;
   graphClient: GraphClient;
+  getViewportSync: () => ViewportSyncController | null;
 }
 
-export default function createGraphNavigation({ state, renderer, graphClient }: WorkbenchNavigationOptions) {
+export default function createGraphNavigation({
+  state,
+  renderer,
+  graphClient,
+  getViewportSync,
+}: WorkbenchNavigationOptions) {
   return {
     selectRegion: selectRegion,
     searchNodes: searchNodes,
     focusNode: focusNode,
   };
 
-  async function selectRegion(bounds: SigmaViewportBounds): Promise<RegionSelectionResult> {
+  async function selectRegion(bounds: RenderViewportBounds): Promise<RegionSelectionResult> {
     const session = requirePreparedSession(state);
 
     const response = await graphClient.readRegion({
@@ -92,9 +98,9 @@ export default function createGraphNavigation({ state, renderer, graphClient }: 
       renderer.centerOnCoordinates?.(coordinates.x, coordinates.y) === true
     ) {
       if (coordinates.clusterId) {
-        renderer.expandCluster?.(coordinates.clusterId, { fitToResponse: true, focusNodeId: nodeId });
+        getViewportSync()?.expandCluster(coordinates.clusterId, { fitToResponse: true, focusNodeId: nodeId });
       } else {
-        renderer.refreshGraphViewportSync?.({ lodLevel: "finest", fitToResponse: true });
+        getViewportSync()?.refreshNow({ lodLevel: "finest", fitToResponse: true });
       }
     }
 

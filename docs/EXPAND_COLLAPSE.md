@@ -68,11 +68,11 @@ clade" — how related the outside taxon is to the collapsed group.
 `GraphViewportEdge` carries the optional `is_meta` and `bundled_edge_count`
 fields; ordinary edges leave them `None`.
 
-## Client: Stateful Collapse (`GraphViewer.ts`)
+## Client: Stateful Collapse (`app/workbench/viewport/viewportSyncController.ts`)
 
 The client keeps the expansion reversible without a server round-trip:
 
-- **`expandClusterFromClick`** — on single-click of an expandable representative
+- **`handleNodeClick` / `expandCluster`** — on single-click of an expandable representative
   (`isExpandableRepresentative`), it **snapshots the proxy** first
   (`captureClusterSnapshot`: the representative node's attributes plus its
   incident edges, shallow-copied since Graphology returns live references), then
@@ -82,7 +82,7 @@ The client keeps the expansion reversible without a server round-trip:
   so the surrounding graph stays visible and the user can keep expanding
   additional clusters up to the node budget without the view snapping to a single
   expanded region.
-- **`collapseClusterFromDoubleClick` → `collapseCluster`** — on double-click, it
+- **`handleNodeDoubleClick` → `collapseCluster`** — on double-click, it
   drops the cached member nodes, re-adds the representative node from the
   snapshot, and restores the snapshot's incident edges — **no server call**. It
   clears the cache entry and the `expandedClusterIds` membership.

@@ -105,11 +105,7 @@ describe("graphClient", () => {
       result: PREPARE_FIXTURE as never,
     };
     // POST submit -> pending poll -> ready poll.
-    const responses = [
-      makeJsonResponse(PREPARE_JOB_FIXTURE, 202),
-      makeJsonResponse(pending),
-      makeJsonResponse(ready),
-    ];
+    const responses = [makeJsonResponse(PREPARE_JOB_FIXTURE, 202), makeJsonResponse(pending), makeJsonResponse(ready)];
     const seen: string[] = [];
     const fetchSpy = vi.fn(async (input: RequestInfo | URL) => {
       seen.push(String(input));
@@ -149,9 +145,7 @@ describe("graphClient", () => {
     ];
     const client = createGraphClient({
       baseUrl: BASE_URL,
-      fetchImpl: vi.fn(
-        async () => responses.shift() ?? makeJsonResponse({}),
-      ) as unknown as typeof fetch,
+      fetchImpl: vi.fn(async () => responses.shift() ?? makeJsonResponse({})) as unknown as typeof fetch,
     });
 
     await expect(
@@ -173,9 +167,7 @@ describe("graphClient", () => {
     ];
     const client = createGraphClient({
       baseUrl: BASE_URL,
-      fetchImpl: vi.fn(
-        async () => responses.shift() ?? makeJsonResponse({}),
-      ) as unknown as typeof fetch,
+      fetchImpl: vi.fn(async () => responses.shift() ?? makeJsonResponse({})) as unknown as typeof fetch,
     });
 
     await expect(
@@ -216,9 +208,7 @@ describe("graphClient", () => {
   it("rejects invalid viewport responses", async () => {
     const client = createGraphClient({
       baseUrl: BASE_URL,
-      fetchImpl: vi.fn(async () =>
-        makeJsonResponse({ invalid: true }),
-      ) as unknown as typeof fetch,
+      fetchImpl: vi.fn(async () => makeJsonResponse({ invalid: true })) as unknown as typeof fetch,
     });
 
     await expect(
@@ -235,9 +225,7 @@ describe("graphClient", () => {
   it("rejects an invalid prepare-job submit response", async () => {
     const client = createGraphClient({
       baseUrl: BASE_URL,
-      fetchImpl: vi.fn(async () =>
-        makeJsonResponse({ invalid: true }),
-      ) as unknown as typeof fetch,
+      fetchImpl: vi.fn(async () => makeJsonResponse({ invalid: true })) as unknown as typeof fetch,
     });
 
     await expect(

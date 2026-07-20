@@ -61,7 +61,10 @@ export default function applySigmaHighlighting({
           const source = graph?.source(edgeId);
           const target = graph?.target(edgeId);
           const withinRegion =
-            source !== undefined && target !== undefined && highlightedNodeIds.has(source) && highlightedNodeIds.has(target);
+            source !== undefined &&
+            target !== undefined &&
+            highlightedNodeIds.has(source) &&
+            highlightedNodeIds.has(target);
           return withinRegion ? data : { ...data, color: SIGMA_REGION_DIMMED_EDGE_COLOR };
         }
       : null,

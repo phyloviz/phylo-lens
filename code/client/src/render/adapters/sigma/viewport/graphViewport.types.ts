@@ -24,10 +24,12 @@ export type SigmaViewportLike = Sigma & {
   getCamera: () => SigmaCameraLike;
   getDimensions?: () => { width: number; height: number };
   getContainer?: () => HTMLElement;
-  viewportToGraph: (point: { x: number; y: number }) => {
-    x: number;
-    y: number;
-  };
+  viewportToGraph: (point: { x: number; y: number }) => { x: number; y: number };
+  viewportToFramedGraph: (point: { x: number; y: number }) => { x: number; y: number };
+  graphToViewport: (
+    point: { x: number; y: number },
+    options?: { cameraState?: { x: number; y: number; ratio: number; angle: number } },
+  ) => { x: number; y: number };
   refresh?: () => void;
   scheduleRender?: () => void;
 };

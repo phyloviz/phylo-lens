@@ -1,5 +1,4 @@
-import type { GraphViewportResponse } from "../../../../api/graphContracts";
-import { sigmaDimensions } from "./graphViewportQuery";
+import type { PositionedGraph } from "../../../../contracts/positioned";
 import type { SigmaViewportBounds, SigmaViewportLike } from "./graphViewport.types";
 
 export const GRAPH_VIEWER_FIT_PADDING_RATIO = 1.15;
@@ -10,17 +9,17 @@ export const GRAPH_VIEWER_MIN_FOCUS_FIT_RATIO = 0.02;
 export const GRAPH_VIEWER_CLUSTER_FIT_PADDING_RATIO = 1.35;
 export const GRAPH_VIEWER_CLUSTER_FIT_DURATION_MS = 350;
 
-export function fitSigmaToViewportResponse(
+export function fitSigmaToGraphSnapshot(
   sigma: SigmaViewportLike,
-  response: GraphViewportResponse,
+  graph: PositionedGraph,
   options: { resetFirst?: boolean } = {},
 ): ReturnType<typeof window.setTimeout> | null {
-  if (response.nodes.length === 0) {
+  if (graph.nodes.length === 0) {
     return null;
   }
   sigma.refresh?.();
   const camera = sigma.getCamera();
-  const target = cameraTargetForResponse(sigma, response, GRAPH_VIEWER_FIT_PADDING_RATIO);
+  const target = cameraTargetForGraph(sigma, graph, GRAPH_VIEWER_FIT_PADDING_RATIO);
 
   if (options.resetFirst === false) {
     return animateCameraToTarget(sigma, target, GRAPH_VIEWER_INITIAL_FIT_DURATION_MS);
@@ -52,16 +51,14 @@ export function fitSigmaToViewportResponse(
   }, GRAPH_VIEWER_INITIAL_FIT_DELAY_MS);
 }
 
-export function fitSigmaToClusterResponse(sigma: SigmaViewportLike, response: GraphViewportResponse): void {
-  if (response.nodes.length === 0) {
+export function fitSigmaToClusterGraph(sigma: SigmaViewportLike, graph: PositionedGraph): void {
+  if (graph.nodes.length === 0) {
     return;
   }
   sigma.refresh?.();
-  sigma
-    .getCamera()
-    .animate?.(cameraTargetForResponse(sigma, response, GRAPH_VIEWER_CLUSTER_FIT_PADDING_RATIO), {
-      duration: GRAPH_VIEWER_CLUSTER_FIT_DURATION_MS,
-    });
+  sigma.getCamera().animate?.(cameraTargetForGraph(sigma, graph, GRAPH_VIEWER_CLUSTER_FIT_PADDING_RATIO), {
+    duration: GRAPH_VIEWER_CLUSTER_FIT_DURATION_MS,
+  });
 }
 
 function animateCameraToTarget(
@@ -76,8 +73,7 @@ function animateCameraToTarget(
     return null;
   }
 
-  const currentRatio =
-    typeof state.ratio === "number" && Number.isFinite(state.ratio) ? state.ratio : target.ratio;
+  const currentRatio = typeof state.ratio === "number" && Number.isFinite(state.ratio) ? state.ratio : target.ratio;
   if (!shouldStageFocusAnimation(state, target, currentRatio)) {
     camera.animate(target, { duration: durationMs });
     return null;
@@ -114,9 +110,9 @@ function stagedZoomOutRatio(currentRatio: number, targetRatio: number): number {
   return Math.max(currentRatio * 3, targetRatio * 0.75, Number.EPSILON);
 }
 
-function responseBounds(response: GraphViewportResponse): SigmaViewportBounds {
-  const xs = response.nodes.map((node) => node.x);
-  const ys = response.nodes.map((node) => node.y);
+function graphBounds(graph: PositionedGraph): SigmaViewportBounds {
+  const xs = graph.nodes.map((node) => node.x);
+  const ys = graph.nodes.map((node) => node.y);
   return {
     xmin: Math.min(...xs),
     xmax: Math.max(...xs),
@@ -125,17 +121,17 @@ function responseBounds(response: GraphViewportResponse): SigmaViewportBounds {
   };
 }
 
-function cameraTargetForResponse(
+function cameraTargetForGraph(
   sigma: SigmaViewportLike,
-  response: GraphViewportResponse,
+  graph: PositionedGraph,
   paddingRatio: number,
 ): { x: number; y: number; ratio: number } {
-  const bounds = responseBounds(response);
+  const bounds = graphBounds(graph);
   const center = graphPointToFramedGraph(sigma, {
     x: (bounds.xmin + bounds.xmax) / 2,
     y: (bounds.ymin + bounds.ymax) / 2,
   });
-  const ratio = cameraRatioForResponse(sigma, response, center, paddingRatio);
+  const ratio = cameraRatioForGraph(sigma, graph, center, paddingRatio);
   return {
     x: center.x,
     y: center.y,
@@ -143,9 +139,9 @@ function cameraTargetForResponse(
   };
 }
 
-function cameraRatioForResponse(
+function cameraRatioForGraph(
   sigma: SigmaViewportLike,
-  response: GraphViewportResponse,
+  graph: PositionedGraph,
   center: { x: number; y: number },
   paddingRatio: number,
 ): number {
@@ -154,15 +150,15 @@ function cameraRatioForResponse(
   const cameraState = camera.getState?.() ?? camera;
   const currentRatio =
     typeof cameraState.ratio === "number" && Number.isFinite(cameraState.ratio) ? cameraState.ratio : 1;
-  const viewportPoints = response.nodes.map((node) =>
+  const viewportPoints = graph.nodes.map((node) =>
     sigma.graphToViewport(
       { x: node.x, y: node.y },
       {
         cameraState: {
-          ...cameraState,
           x: center.x,
           y: center.y,
           ratio: currentRatio,
+          angle: typeof cameraState.angle === "number" && Number.isFinite(cameraState.angle) ? cameraState.angle : 0,
         },
       },
     ),
@@ -179,9 +175,21 @@ function cameraRatioForResponse(
   return Math.max(currentRatio * scale, GRAPH_VIEWER_MIN_FOCUS_FIT_RATIO, Number.EPSILON);
 }
 
-function graphPointToFramedGraph(
-  sigma: SigmaViewportLike,
-  point: { x: number; y: number },
-): { x: number; y: number } {
+function sigmaDimensions(sigma: SigmaViewportLike): {
+  width: number;
+  height: number;
+} {
+  const dimensions = sigma.getDimensions?.();
+  if (dimensions) {
+    return dimensions;
+  }
+  const rect = sigma.getContainer?.().getBoundingClientRect();
+  return {
+    width: rect?.width ?? 1,
+    height: rect?.height ?? 1,
+  };
+}
+
+function graphPointToFramedGraph(sigma: SigmaViewportLike, point: { x: number; y: number }): { x: number; y: number } {
   return sigma.viewportToFramedGraph(sigma.graphToViewport(point));
 }

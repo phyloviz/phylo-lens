@@ -1,8 +1,4 @@
 import type { PositionedGraph } from "../contracts/positioned";
-import type { GraphClient } from "../api/graphClient";
-import type { GraphViewportResponse } from "../api/graphContracts";
-import type { ViewportSyncSettings } from "./adapters/sigma/viewport/graphViewportSync";
-import type { SigmaViewportBounds } from "./adapters/sigma/viewport/graphViewport.types";
 
 export const RENDERER_KIND_SIGMA = "sigma";
 export const RENDERER_KIND_MOCK = "mock";
@@ -21,6 +17,18 @@ export interface RenderViewportState {
     height: number;
   };
   zoom: number;
+}
+
+export interface RenderViewportBounds {
+  xmin: number;
+  xmax: number;
+  ymin: number;
+  ymax: number;
+}
+
+export interface RenderViewportSyncState {
+  bounds: RenderViewportBounds;
+  cameraRatio: number;
 }
 
 export interface RenderNodeClickState {
@@ -54,27 +62,16 @@ export interface GraphRenderer {
 
   focusNode?: (nodeId: string | null) => void;
 
-  expandCluster?: (clusterId: string, options?: { fitToResponse?: boolean; focusNodeId?: string | null }) => void;
-
   updateDisplayOptions?: (options: GraphDisplayOptions) => void;
 
-  startGraphViewportSync?: (options: {
-    client: GraphClient;
-    datasetId: string;
-    layoutVersion?: string | null;
-    maxNodes?: number;
-    lodTierCount?: number;
-    nodeCount?: number | null;
-    getPaused?: () => boolean;
-    onViewportLoaded?: (response: GraphViewportResponse) => void;
-    onGraphSynced?: (graph: PositionedGraph) => void;
-    onError?: (error: unknown) => void;
-    getRenderSettings?: () => ViewportSyncSettings;
-  }) => void;
+  getViewportSyncState?: () => RenderViewportSyncState | null;
 
-  stopGraphViewportSync?: () => void;
+  applyGraphSnapshot?: (graph: PositionedGraph) => void;
 
-  refreshGraphViewportSync?: (options?: { lodLevel?: number | "finest"; fitToResponse?: boolean }) => void;
+  fitGraphSnapshot?: (
+    graph: PositionedGraph,
+    options?: { resetFirst?: boolean },
+  ) => ReturnType<typeof window.setTimeout> | null;
 
   // Enable/disable region (box) selection mode. While enabled a plain drag on
   // the canvas draws a selection box; Shift+drag works regardless of the toggle.
@@ -82,7 +79,9 @@ export interface GraphRenderer {
 
   // Register a handler invoked with graph-space bounds when the user completes
   // a box-select drag.
-  setRegionSelectedHandler?: (handler: ((bounds: SigmaViewportBounds) => void) | null) => void;
+  setRegionSelectedHandler?: (handler: ((bounds: RenderViewportBounds) => void) | null) => void;
+
+  setNodeDoubleClickHandler?: (handler: ((state: RenderNodeClickState) => void) | null) => void;
 
   // Highlight a set of node ids on the canvas by dimming everything outside it.
   // Passing an empty set (or null) clears the highlight.

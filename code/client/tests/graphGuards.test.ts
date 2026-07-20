@@ -74,15 +74,12 @@ const SEARCH_FIXTURE = {
 describe("graphGuards", () => {
   it("validates prepare responses", () => {
     expect(isGraphPrepareResponse(PREPARE_FIXTURE)).toBe(true);
-    expect(isGraphPrepareResponse({ ...PREPARE_FIXTURE, node_count: "3" }))
-      .toBe(false);
+    expect(isGraphPrepareResponse({ ...PREPARE_FIXTURE, node_count: "3" })).toBe(false);
   });
 
   it("validates viewport responses", () => {
     expect(isGraphViewportResponse(VIEWPORT_FIXTURE)).toBe(true);
-    expect(isGraphViewportResponse({ ...VIEWPORT_FIXTURE, nodes: [{}] })).toBe(
-      false,
-    );
+    expect(isGraphViewportResponse({ ...VIEWPORT_FIXTURE, nodes: [{}] })).toBe(false);
   });
 
   it("validates region responses", () => {
@@ -99,9 +96,7 @@ describe("graphGuards", () => {
       }),
     ).toBe(false);
     // Malformed nodes are rejected.
-    expect(isGraphRegionResponse({ ...REGION_FIXTURE, nodes: [{}] })).toBe(
-      false,
-    );
+    expect(isGraphRegionResponse({ ...REGION_FIXTURE, nodes: [{}] })).toBe(false);
   });
 
   it("accepts meta-edge fields on edges and rejects wrong types", () => {
@@ -197,7 +192,7 @@ describe("graphGuards", () => {
           ...VIEWPORT_FIXTURE.nodes[0],
           metadata: {
             profile_count: 5,
-            "__category_count__region__value__eu": 3,
+            __category_count__region__value__eu: 3,
             region: "eu",
           },
         },
@@ -257,10 +252,7 @@ describe("graphGuards", () => {
 
   it("validates search responses", () => {
     expect(isGraphSearchResponse(SEARCH_FIXTURE)).toBe(true);
-    expect(isGraphSearchResponse({ ...SEARCH_FIXTURE, total_count: "2" }))
-      .toBe(false);
-    expect(
-      isGraphSearchResponse({ ...SEARCH_FIXTURE, matches: [{ node_id: "x" }] }),
-    ).toBe(false);
+    expect(isGraphSearchResponse({ ...SEARCH_FIXTURE, total_count: "2" })).toBe(false);
+    expect(isGraphSearchResponse({ ...SEARCH_FIXTURE, matches: [{ node_id: "x" }] })).toBe(false);
   });
 });
