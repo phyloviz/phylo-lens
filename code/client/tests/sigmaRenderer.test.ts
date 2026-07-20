@@ -3,33 +3,23 @@ import type { GraphClient } from "../src/api/graphClient";
 import type { GraphViewportResponse } from "../src/api/graphContracts";
 
 let lastSigmaOptions: Record<string, unknown> | null = null;
-let lastGraph:
-  | {
-      getNodeAttribute: (node: string, attribute: string) => unknown;
-      getEdgeAttribute: (edge: string, attribute: string) => unknown;
-      setNodeAttribute: (
-        node: string,
-        attribute: string,
-        value: unknown,
-      ) => void;
-    }
-  | null = null;
-let lastCustomBBox:
-  | {
-      x: [number, number];
-      y: [number, number];
-    }
-  | null = null;
-let lastCamera:
-  | {
-      state: { x?: number; y?: number; ratio?: number };
-      handler: (() => void) | null;
-      setState: (state: { x?: number; y?: number; ratio?: number }) => void;
-      getState: () => { x?: number; y?: number; ratio?: number };
-      on: (event: string, handler: () => void) => void;
-      off: (event: string, handler: () => void) => void;
-    }
-  | null = null;
+let lastGraph: {
+  getNodeAttribute: (node: string, attribute: string) => unknown;
+  getEdgeAttribute: (edge: string, attribute: string) => unknown;
+  setNodeAttribute: (node: string, attribute: string, value: unknown) => void;
+} | null = null;
+let lastCustomBBox: {
+  x: [number, number];
+  y: [number, number];
+} | null = null;
+let lastCamera: {
+  state: { x?: number; y?: number; ratio?: number };
+  handler: (() => void) | null;
+  setState: (state: { x?: number; y?: number; ratio?: number }) => void;
+  getState: () => { x?: number; y?: number; ratio?: number };
+  on: (event: string, handler: () => void) => void;
+  off: (event: string, handler: () => void) => void;
+} | null = null;
 let lastStageClickHandler: (() => void) | null = null;
 let shouldThrowOnPieProgram = false;
 let pieProgramInputs: Array<{
@@ -46,10 +36,7 @@ let viewportToFramedGraphPoint = (point: { x: number; y: number }) => point;
 
 vi.mock("graphology-layout-forceatlas2/worker", () => ({
   default: class FakeForceSupervisor {
-    constructor(
-      _graph: unknown,
-      options?: { settings?: Record<string, number> },
-    ) {
+    constructor(_graph: unknown, options?: { settings?: Record<string, number> }) {
       lastForceMotionSettings = options?.settings ?? null;
     }
 
@@ -64,9 +51,7 @@ vi.mock("graphology-layout-forceatlas2/worker", () => ({
 }));
 
 vi.mock("@sigma/node-piechart", () => ({
-  createNodePiechartProgram: (input: {
-    slices: Array<{ color: { value: string }; value: { attribute: string } }>;
-  }) => {
+  createNodePiechartProgram: (input: { slices: Array<{ color: { value: string }; value: { attribute: string } }> }) => {
     pieProgramInputs.push(input);
     if (shouldThrowOnPieProgram) {
       throw new Error("pie program failed");
@@ -158,9 +143,7 @@ vi.mock("sigma", () => {
       return point;
     }
 
-    setCustomBBox(
-      bounds: { x: [number, number]; y: [number, number] } | null,
-    ) {
+    setCustomBBox(bounds: { x: [number, number]; y: [number, number] } | null) {
       lastCustomBBox = bounds;
       return this;
     }
@@ -174,18 +157,13 @@ vi.mock("sigma", () => {
 });
 
 import {
-  ERR_CONTAINER_NOT_FOUND,
   SIGMA_MAX_LOD_ZOOM,
   SigmaRenderer,
   sigmaCameraToViewportState,
   sigmaCameraToSemanticViewState,
   sigmaRatioToLodZoom,
 } from "../src/render/adapters/sigma/sigmaRenderer";
-import {
-  MAX_PIE_SLICE_KEYS,
-  PIE_ATTRIBUTE_PREFIX,
-  PIE_OTHER_SLICE_KEY,
-} from "../src/render/mapping/pieMapping";
+import { MAX_PIE_SLICE_KEYS, PIE_ATTRIBUTE_PREFIX, PIE_OTHER_SLICE_KEY } from "../src/render/mapping/pieMapping";
 import Graph from "graphology";
 import { applyPieChartNodeTypes } from "../src/render/adapters/sigma/attributes/sigmaNodeAttributes";
 import {
@@ -195,6 +173,14 @@ import {
 import { syncGraphologyViewport } from "../src/render/adapters/sigma/viewport/graphViewportSync";
 
 const CONTAINER_ID = "graph-root";
+
+function requireContainer(): HTMLElement {
+  const container = document.getElementById(CONTAINER_ID);
+  if (!container) {
+    throw new Error(`Missing test container: ${CONTAINER_ID}`);
+  }
+  return container;
+}
 
 describe("sigmaRenderer", () => {
   beforeEach(() => {
@@ -223,20 +209,12 @@ describe("sigmaRenderer", () => {
     vi.restoreAllMocks();
   });
 
-  it("throws when mounting with a missing container", () => {
-    const renderer = new SigmaRenderer();
-
-    expect(() => renderer.mount({ containerId: CONTAINER_ID })).toThrow(
-      ERR_CONTAINER_NOT_FOUND.replace("{containerId}", CONTAINER_ID),
-    );
-  });
-
   it("mounts, renders, and unmounts with a valid container", () => {
     document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
 
     const renderer = new SigmaRenderer();
 
-    renderer.mount({ containerId: CONTAINER_ID });
+    renderer.mount({ container: requireContainer() });
     renderer.render({
       nodes: [
         { id: "root", x: 0, y: 0 },
@@ -253,7 +231,7 @@ describe("sigmaRenderer", () => {
     document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
 
     const renderer = new SigmaRenderer();
-    renderer.mount({ containerId: CONTAINER_ID });
+    renderer.mount({ container: requireContainer() });
     renderer.render({
       nodes: [
         { id: "a", x: 0, y: 0 },
@@ -270,11 +248,9 @@ describe("sigmaRenderer", () => {
     renderer.setHighlightedNodes(new Set(["a", "b"]));
 
     const nodeReducer = lastSigmaOptions?.nodeReducer as
-      | ((id: string, data: Record<string, unknown>) => Record<string, unknown>)
-      | undefined;
+      ((id: string, data: Record<string, unknown>) => Record<string, unknown>) | undefined;
     const edgeReducer = lastSigmaOptions?.edgeReducer as
-      | ((id: string, data: Record<string, unknown>) => Record<string, unknown>)
-      | undefined;
+      ((id: string, data: Record<string, unknown>) => Record<string, unknown>) | undefined;
     expect(typeof nodeReducer).toBe("function");
     // Highlighted node is untouched; outside node is dimmed and delabeled.
     expect(nodeReducer?.("a", { color: "#111", label: "a" })).toMatchObject({
@@ -305,7 +281,7 @@ describe("sigmaRenderer", () => {
     document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
 
     const renderer = new SigmaRenderer({ forceMotion: { durationMs: 0 } });
-    renderer.mount({ containerId: CONTAINER_ID });
+    renderer.mount({ container: requireContainer() });
     renderer.render({
       nodes: [
         { id: "root", x: 0, y: 0 },
@@ -349,7 +325,7 @@ describe("sigmaRenderer", () => {
         settings: { gravity: 0.5, scalingRatio: 24 },
       },
     });
-    renderer.mount({ containerId: CONTAINER_ID });
+    renderer.mount({ container: requireContainer() });
     renderer.render({
       nodes: [
         { id: "root", x: 0, y: 0 },
@@ -372,7 +348,7 @@ describe("sigmaRenderer", () => {
     document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
 
     const renderer = new SigmaRenderer({ forceMotion: { enabled: false } });
-    renderer.mount({ containerId: CONTAINER_ID });
+    renderer.mount({ container: requireContainer() });
     renderer.render({
       nodes: [
         { id: "root", x: 0, y: 0 },
@@ -391,11 +367,9 @@ describe("sigmaRenderer", () => {
     document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
 
     const renderer = new SigmaRenderer();
-    renderer.mount({ containerId: CONTAINER_ID });
+    renderer.mount({ container: requireContainer() });
 
-    const nodeProgramClasses = lastSigmaOptions?.[
-      "nodeProgramClasses"
-    ] as Record<string, unknown> | undefined;
+    const nodeProgramClasses = lastSigmaOptions?.["nodeProgramClasses"] as Record<string, unknown> | undefined;
 
     expect(nodeProgramClasses).toBeDefined();
     expect(nodeProgramClasses?.["border"]).toBeDefined();
@@ -408,7 +382,7 @@ describe("sigmaRenderer", () => {
     document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
 
     const renderer = new SigmaRenderer();
-    renderer.mount({ containerId: CONTAINER_ID });
+    renderer.mount({ container: requireContainer() });
     renderer.render({
       nodes: [
         { id: "root", x: 0, y: 0 },
@@ -424,9 +398,7 @@ describe("sigmaRenderer", () => {
     });
 
     expect(lastGraph?.getNodeAttribute("cluster", "type")).toBe("triangle");
-    expect(lastGraph?.getNodeAttribute("cluster", "triangleRotation")).toBeCloseTo(
-      -Math.PI / 2,
-    );
+    expect(lastGraph?.getNodeAttribute("cluster", "triangleRotation")).toBeCloseTo(-Math.PI / 2);
 
     renderer.unmount();
   });
@@ -435,7 +407,7 @@ describe("sigmaRenderer", () => {
     document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
 
     const renderer = new SigmaRenderer({ forceMotion: { durationMs: 0 } });
-    renderer.mount({ containerId: CONTAINER_ID });
+    renderer.mount({ container: requireContainer() });
     renderer.render({
       nodes: [
         { id: "root", x: 0, y: 0 },
@@ -453,9 +425,7 @@ describe("sigmaRenderer", () => {
     lastGraph?.setNodeAttribute("root", "x", 10);
     animationFrameCallback?.(16);
 
-    expect(lastGraph?.getNodeAttribute("cluster", "triangleRotation")).toBeCloseTo(
-      Math.atan2(-10, 10),
-    );
+    expect(lastGraph?.getNodeAttribute("cluster", "triangleRotation")).toBeCloseTo(Math.atan2(-10, 10));
 
     renderer.unmount();
   });
@@ -464,7 +434,7 @@ describe("sigmaRenderer", () => {
     document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
 
     const renderer = new SigmaRenderer();
-    renderer.mount({ containerId: CONTAINER_ID });
+    renderer.mount({ container: requireContainer() });
     renderer.render({
       nodes: [
         { id: "union_1", x: 0, y: 0 },
@@ -493,21 +463,12 @@ describe("sigmaRenderer", () => {
     expect(lastGraph?.getNodeAttribute("union_1", "label")).toBe("");
     expect(lastGraph?.getNodeAttribute("union_1", "size")).toBe(0);
     expect(lastGraph?.getNodeAttribute("union_1", "color")).toBe("#ffffff");
-    expect(lastGraph?.getNodeAttribute("union_sample", "label")).toBe(
-      "union_sample",
-    );
+    expect(lastGraph?.getNodeAttribute("union_sample", "label")).toBe("union_sample");
     expect(lastGraph?.getNodeAttribute("union_sample", "size")).not.toBe(0);
-    expect(lastGraph?.getNodeAttribute("internal_7", "label")).toBe(
-      "internal_7",
-    );
+    expect(lastGraph?.getNodeAttribute("internal_7", "label")).toBe("internal_7");
     expect(lastGraph?.getNodeAttribute("internal_7", "size")).not.toBe(0);
     expect(lastGraph?.getNodeAttribute("profile_1", "label")).toBe("profile_1");
-    expect(
-      lastGraph?.getNodeAttribute(
-        "cluster_proxy:threshold_cluster_4_42",
-        "label",
-      ),
-    ).toBe("");
+    expect(lastGraph?.getNodeAttribute("cluster_proxy:threshold_cluster_4_42", "label")).toBe("");
 
     renderer.unmount();
   });
@@ -521,7 +482,7 @@ describe("sigmaRenderer", () => {
         distanceWeightedEdges: true,
       },
     });
-    renderer.mount({ containerId: CONTAINER_ID });
+    renderer.mount({ container: requireContainer() });
     renderer.render({
       nodes: [
         { id: "root", x: 0, y: 0 },
@@ -541,9 +502,7 @@ describe("sigmaRenderer", () => {
     expect(lastSigmaOptions?.renderEdgeLabels).toBe(false);
     expect(lastGraph?.getEdgeAttribute("e_root_a_1", "label")).toBe("2.500");
     expect(lastGraph?.getEdgeAttribute("e_root_a_1", "forceLabel")).toBe(true);
-    expect(lastGraph?.getEdgeAttribute("e_root_a_1", "size")).toBeGreaterThan(
-      1.25,
-    );
+    expect(lastGraph?.getEdgeAttribute("e_root_a_1", "size")).toBeGreaterThan(1.25);
 
     lastCamera?.setState({ ratio: 0.4 });
     lastCamera?.handler?.();
@@ -560,7 +519,7 @@ describe("sigmaRenderer", () => {
     document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
 
     const renderer = new SigmaRenderer();
-    renderer.mount({ containerId: CONTAINER_ID });
+    renderer.mount({ container: requireContainer() });
     renderer.render({
       nodes: [
         { id: "root", x: 0, y: 0 },
@@ -607,7 +566,7 @@ describe("sigmaRenderer", () => {
     document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
 
     const renderer = new SigmaRenderer();
-    renderer.mount({ containerId: CONTAINER_ID });
+    renderer.mount({ container: requireContainer() });
     renderer.render({
       nodes: [
         {
@@ -667,7 +626,7 @@ describe("sigmaRenderer", () => {
         nodeLabels: false,
       },
     });
-    renderer.mount({ containerId: CONTAINER_ID });
+    renderer.mount({ container: requireContainer() });
     renderer.render({
       nodes: [
         { id: "target", x: 0, y: 0, size: 6 },
@@ -680,8 +639,7 @@ describe("sigmaRenderer", () => {
     renderer.focusNode("target");
 
     const nodeReducer = lastSigmaOptions?.nodeReducer as
-      | ((id: string, data: Record<string, unknown>) => Record<string, unknown>)
-      | undefined;
+      ((id: string, data: Record<string, unknown>) => Record<string, unknown>) | undefined;
     const renderedTarget = nodeReducer?.("target", {
       type: lastGraph?.getNodeAttribute("target", "type"),
       color: lastGraph?.getNodeAttribute("target", "color"),
@@ -717,7 +675,7 @@ describe("sigmaRenderer", () => {
     });
 
     const renderer = new SigmaRenderer();
-    renderer.mount({ containerId: CONTAINER_ID });
+    renderer.mount({ container: requireContainer() });
 
     expect(renderer.centerOnCoordinates(25, -5)).toBe(true);
     expect(lastCamera?.state).toMatchObject({
@@ -734,7 +692,7 @@ describe("sigmaRenderer", () => {
 
     const renderer = new SigmaRenderer();
     const nodeClickHandler = vi.fn();
-    renderer.mount({ containerId: CONTAINER_ID });
+    renderer.mount({ container: requireContainer() });
     renderer.setNodeClickHandler(nodeClickHandler);
     renderer.render({
       nodes: [
@@ -760,7 +718,7 @@ describe("sigmaRenderer", () => {
     document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
 
     const renderer = new SigmaRenderer();
-    renderer.mount({ containerId: CONTAINER_ID });
+    renderer.mount({ container: requireContainer() });
     renderer.render({
       nodes: [
         { id: "a", x: 0, y: 0 },
@@ -802,10 +760,7 @@ describe("sigmaRenderer", () => {
 
   it("translates sigma camera state into graph-space viewport bounds", () => {
     expect(
-      sigmaCameraToViewportState(
-        { minX: -120, maxX: 280, minY: 0, maxY: 300 },
-        { x: 0.25, y: 0.5, ratio: 0.5 },
-      ),
+      sigmaCameraToViewportState({ minX: -120, maxX: 280, minY: 0, maxY: 300 }, { x: 0.25, y: 0.5, ratio: 0.5 }),
     ).toEqual({
       x: -20,
       y: 150,
@@ -816,10 +771,7 @@ describe("sigmaRenderer", () => {
 
   it("derives semantic view state from normalized sigma camera state", () => {
     expect(
-      sigmaCameraToSemanticViewState(
-        { minX: -120, maxX: 280, minY: 0, maxY: 300 },
-        { x: -10, y: 2, ratio: 0.25 },
-      ),
+      sigmaCameraToSemanticViewState({ minX: -120, maxX: 280, minY: 0, maxY: 300 }, { x: -10, y: 2, ratio: 0.25 }),
     ).toEqual({
       camera: {
         x: 0,
@@ -842,7 +794,7 @@ describe("sigmaRenderer", () => {
 
     const renderer = new SigmaRenderer();
     const handler = vi.fn();
-    renderer.mount({ containerId: CONTAINER_ID });
+    renderer.mount({ container: requireContainer() });
     renderer.setViewChangeHandler(handler);
     renderer.render({
       nodes: [
@@ -884,7 +836,7 @@ describe("sigmaRenderer", () => {
       return undefined;
     });
     const renderer = new SigmaRenderer();
-    renderer.mount({ containerId: CONTAINER_ID });
+    renderer.mount({ container: requireContainer() });
     renderer.render({
       nodes: [{ id: "a", x: 0, y: 0 }],
       edges: [],
@@ -960,7 +912,7 @@ describe("sigmaRenderer", () => {
     };
 
     const renderer = new SigmaRenderer();
-    renderer.mount({ containerId: CONTAINER_ID });
+    renderer.mount({ container: requireContainer() });
     // One construction from mount(); reset so we count only sync-driven rebuilds.
     sigmaConstructions = 0;
 
@@ -988,7 +940,7 @@ describe("sigmaRenderer", () => {
     document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
 
     const renderer = new SigmaRenderer();
-    renderer.mount({ containerId: CONTAINER_ID });
+    renderer.mount({ container: requireContainer() });
     renderer.render({
       nodes: [
         {
@@ -1035,7 +987,7 @@ describe("sigmaRenderer", () => {
     document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
 
     const renderer = new SigmaRenderer();
-    renderer.mount({ containerId: CONTAINER_ID });
+    renderer.mount({ container: requireContainer() });
     renderer.render({
       nodes: Array.from({ length: MAX_PIE_SLICE_KEYS + 2 }, (_, index) => ({
         id: `node_${index}`,
@@ -1051,9 +1003,7 @@ describe("sigmaRenderer", () => {
 
     const latestPieProgram = pieProgramInputs.at(-1);
     expect(latestPieProgram?.slices).toHaveLength(MAX_PIE_SLICE_KEYS);
-    expect(
-      latestPieProgram?.slices.map((slice) => slice.value.attribute),
-    ).toContain(PIE_OTHER_SLICE_KEY);
+    expect(latestPieProgram?.slices.map((slice) => slice.value.attribute)).toContain(PIE_OTHER_SLICE_KEY);
     expect(lastGraph?.getNodeAttribute("node_0", PIE_OTHER_SLICE_KEY)).toBe(1);
     expect(lastGraph?.getNodeAttribute("node_0", "type")).toBe("piechart");
 
@@ -1065,7 +1015,7 @@ describe("sigmaRenderer", () => {
 
     const categories = Array.from({ length: 24 }, (_, index) => `emm_${index}`);
     const renderer = new SigmaRenderer();
-    renderer.mount({ containerId: CONTAINER_ID });
+    renderer.mount({ container: requireContainer() });
     renderer.render({
       nodes: categories.map((category, index) => ({
         id: `node_${index}`,
@@ -1081,9 +1031,7 @@ describe("sigmaRenderer", () => {
 
     const latestPieProgram = pieProgramInputs.at(-1);
     expect(latestPieProgram?.slices).toHaveLength(MAX_PIE_SLICE_KEYS);
-    expect(
-      latestPieProgram?.slices.map((slice) => slice.value.attribute),
-    ).toContain(PIE_OTHER_SLICE_KEY);
+    expect(latestPieProgram?.slices.map((slice) => slice.value.attribute)).toContain(PIE_OTHER_SLICE_KEY);
     expect(lastGraph?.getNodeAttribute("node_0", "type")).toBe("piechart");
     expect(lastGraph?.getNodeAttribute("node_0", PIE_OTHER_SLICE_KEY)).toBe(1);
 
@@ -1094,7 +1042,7 @@ describe("sigmaRenderer", () => {
     document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
 
     const renderer = new SigmaRenderer();
-    renderer.mount({ containerId: CONTAINER_ID });
+    renderer.mount({ container: requireContainer() });
     const mockResponse: GraphViewportResponse = {
       dataset_id: "test",
       layout_version: "1",
@@ -1132,8 +1080,7 @@ describe("sigmaRenderer", () => {
 
     renderer.focusNode("node_1");
     const selectedNodeReducer = lastSigmaOptions?.nodeReducer as
-      | ((id: string, data: Record<string, unknown>) => Record<string, unknown>)
-      | undefined;
+      ((id: string, data: Record<string, unknown>) => Record<string, unknown>) | undefined;
     expect(selectedNodeReducer?.("node_1", graph.getNodeAttributes("node_1"))).toMatchObject({
       type: "border",
       color: PHYLOVIZ_NODE_SELECTED_COLOR,
@@ -1145,8 +1092,7 @@ describe("sigmaRenderer", () => {
 
     renderer.focusNode("node_2");
     const nextNodeReducer = lastSigmaOptions?.nodeReducer as
-      | ((id: string, data: Record<string, unknown>) => Record<string, unknown>)
-      | undefined;
+      ((id: string, data: Record<string, unknown>) => Record<string, unknown>) | undefined;
     expect(nextNodeReducer?.("node_2", graph.getNodeAttributes("node_2"))).toMatchObject({
       type: "border",
       color: PHYLOVIZ_NODE_SELECTED_COLOR,
@@ -1170,21 +1116,14 @@ describe("applyPieChartNodeTypes", () => {
       [`${PIE_ATTRIBUTE_PREFIX}region__value__eu`]: 3,
     });
     graph.addNode("leaf", {});
-    const sliceKeys = [
-      `${PIE_ATTRIBUTE_PREFIX}region__value__eu`,
-      `${PIE_ATTRIBUTE_PREFIX}region__value__us`,
-    ];
+    const sliceKeys = [`${PIE_ATTRIBUTE_PREFIX}region__value__eu`, `${PIE_ATTRIBUTE_PREFIX}region__value__us`];
 
     applyPieChartNodeTypes(graph, sliceKeys);
 
     // Cluster has positive pie data: type flips (overriding triangle) and the
     // absent slice key is filled with 0 so the program can read it.
-    expect(graph.getNodeAttribute("cluster", "type")).toBe(
-      SIGMA_NODE_TYPE_PIECHART,
-    );
-    expect(
-      graph.getNodeAttribute("cluster", `${PIE_ATTRIBUTE_PREFIX}region__value__us`),
-    ).toBe(0);
+    expect(graph.getNodeAttribute("cluster", "type")).toBe(SIGMA_NODE_TYPE_PIECHART);
+    expect(graph.getNodeAttribute("cluster", `${PIE_ATTRIBUTE_PREFIX}region__value__us`)).toBe(0);
     // Leaf has no positive pie data: type is left untouched.
     expect(graph.getNodeAttribute("leaf", "type")).toBeUndefined();
   });
@@ -1195,10 +1134,7 @@ describe("applyPieChartNodeTypes", () => {
       [`${PIE_ATTRIBUTE_PREFIX}region__value__eu`]: 2,
       [`${PIE_ATTRIBUTE_PREFIX}region__value__hidden`]: 5,
     });
-    const sliceKeys = [
-      `${PIE_ATTRIBUTE_PREFIX}region__value__eu`,
-      PIE_OTHER_SLICE_KEY,
-    ];
+    const sliceKeys = [`${PIE_ATTRIBUTE_PREFIX}region__value__eu`, PIE_OTHER_SLICE_KEY];
 
     applyPieChartNodeTypes(graph, sliceKeys);
 

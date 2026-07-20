@@ -42,12 +42,14 @@ export const ID_REGION_SELECTION_PANEL = "region-selection-panel";
 export const ERR_MISSING_RENDER_FORM = "Missing render form element.";
 export const ERR_MISSING_NEWICK_INPUT = "Missing Newick input element.";
 export const ERR_MISSING_STATUS = "Missing status element.";
+export const ERR_MISSING_GRAPH_ROOT = "Missing graph root element.";
 
 export default function bootstrapClientShell(baseUrl = DEFAULT_SERVER_BASE_URL): UiShell {
   const elements = {
     form: requireElement<HTMLFormElement>(ID_RENDER_FORM, ERR_MISSING_RENDER_FORM),
     newickInput: requireElement<HTMLTextAreaElement>(ID_NEWICK_INPUT, ERR_MISSING_NEWICK_INPUT),
     status: requireElement(ID_STATUS, ERR_MISSING_STATUS),
+    graphRoot: requireElement(ID_GRAPH_ROOT, ERR_MISSING_GRAPH_ROOT),
 
     newickFileInput: getInput(ID_NEWICK_FILE_INPUT),
     sourceFormatSelect: getSelect(ID_SOURCE_FORMAT),
@@ -90,7 +92,7 @@ export default function bootstrapClientShell(baseUrl = DEFAULT_SERVER_BASE_URL):
     graphClient,
     rendererFactory: rendererFactory(),
     rendererKind: RENDERER_KIND_SIGMA,
-    renderContext: { containerId: ID_GRAPH_ROOT },
+    renderContext: { container: elements.graphRoot },
   });
 
   const shell = uiShell({

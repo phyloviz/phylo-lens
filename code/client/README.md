@@ -1,11 +1,12 @@
 # PhyloLens Client
 
-TypeScript renderer for scalable phylogenetic visualization. It draws with
-Sigma.js over a Graphology graph, driving the server's level-of-detail loop:
-prepare a dataset once, then pull only the viewport slice for the current camera
-at the current zoom tier. See the [`docs/`](../../docs/README.md) set for the
-full architecture, and [`docs/CLIENT_RENDERING.md`](../../docs/CLIENT_RENDERING.md)
-for the rendering internals.
+Embeddable TypeScript visualization library for scalable phylogenetic views. A
+host application provides a DOM container, the URI of a separately deployed
+PhyloLens API service, and dataset content; the library owns the prepare, polling,
+viewport synchronization, and rendering loop internally. See the
+[`docs/`](../../docs/README.md) set for the full architecture, and
+[`docs/CLIENT_RENDERING.md`](../../docs/CLIENT_RENDERING.md) for rendering
+internals.
 
 The package ships two ways: a **demo app** for local exploration, and a
 **consumable library** (`phylo-lens-client`) a host app such as PHYLOViZ can
@@ -45,31 +46,36 @@ a duplicate Sigma/Graphology.
 npm test        # vitest run
 ```
 
-## Consuming as a library
+## Embedding PhyloLens
 
-The public surface is re-exported from `src/index.ts` and organized in three
-layers — Transport (`createGraphClient`), Workbench (`createGraphWorkbench`),
-and Shell (`bootstrapClientShell`). Most host apps target the Workbench layer,
-which handles the entire prepare → poll → viewport loop internally:
+Host applications should use `createPhyloLensView` from the package root. The
+computational API service is deployed separately; HTTP endpoints, prepared
+dataset ids, layout versions, polling, renderer factories, and viewport
+synchronization are internal implementation details.
 
 ```ts
-import {
-  createGraphClient,
-  createGraphWorkbench,
-  DefaultRendererFactory,
-  RENDERER_KIND_SIGMA,
-} from "phylo-lens-client";
+import { createPhyloLensView } from "phylo-lens-client";
 
-const workbench = createGraphWorkbench({
-  graphClient: createGraphClient({ baseUrl: "http://localhost:8000" }),
-  rendererFactory: new DefaultRendererFactory(),
-  rendererKind: RENDERER_KIND_SIGMA,
-  renderContext: { containerId: "graph-root" },
+const container = document.getElementById("graph-root");
+if (!(container instanceof HTMLElement)) {
+  throw new Error("Missing graph container.");
+}
+
+const view = createPhyloLensView({
+  container,
+  apiUrl: "http://localhost:8000",
 });
 
-await workbench.renderNewick(newickString, "my-dataset");
+await view.load({
+  content: newickString,
+  name: "my-dataset",
+  sourceFormat: "newick",
+  metadataSchema,
+  metadataByNodeId,
+});
+
+view.dispose();
 ```
 
-See the **Consuming the client as a library** section in
-[`docs/CLIENT_RENDERING.md`](../../docs/CLIENT_RENDERING.md) for the layered
-facade table, the full `renderNewick` options, and teardown.
+The local demo/reference application is useful for exploration, but it is not the
+public integration API.

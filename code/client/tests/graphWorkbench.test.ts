@@ -39,7 +39,7 @@ describe("graphWorkbench navigation", () => {
       graphClient,
       rendererFactory,
       rendererKind: "sigma",
-      renderContext: { containerId: "graph" },
+      renderContext: { container: document.createElement("div") },
     });
 
     await workbench.renderNewick("(a:1,b:1)root;", "tree");

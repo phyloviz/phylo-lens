@@ -12,7 +12,7 @@ export const MOCK_RENDERER_EMPTY_CONTAINER = "";
 
 // Mock renderer adapter supports testing and local dry-runs without Sigma runtime.
 export default function () {
-  let containerId: string = MOCK_RENDERER_EMPTY_CONTAINER;
+  let container: HTMLElement | null = null;
   let lastGraph: PositionedGraph | null = null;
   let lastCenteredNodeId: string | null = null;
   let lastCenteredCoordinates: { x: number; y: number } | null = null;
@@ -54,7 +54,7 @@ export default function () {
 
   // Bind the mock renderer to a container identifier.
   function mount(context: RenderContext): void {
-    containerId = context.containerId;
+    container = context.container;
     lastGraph = null;
     lastCenteredNodeId = null;
     lastCenteredCoordinates = null;
@@ -95,7 +95,7 @@ export default function () {
 
   // Reset internal references on renderer teardown.
   function unmount(): void {
-    containerId = MOCK_RENDERER_EMPTY_CONTAINER;
+    container = null;
     lastGraph = null;
     lastCenteredNodeId = null;
     lastFocusedNodeId = null;
@@ -110,7 +110,7 @@ export default function () {
   }
 
   function getMountedContainerId(): string {
-    return containerId;
+    return container?.id ?? MOCK_RENDERER_EMPTY_CONTAINER;
   }
 
   function getLastCenteredNodeId(): string | null {

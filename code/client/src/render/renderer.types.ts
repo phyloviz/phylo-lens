@@ -10,7 +10,7 @@ export const RENDERER_KIND_MOCK = "mock";
 export type RendererKind = typeof RENDERER_KIND_SIGMA | typeof RENDERER_KIND_MOCK;
 
 export interface RenderContext {
-  containerId: string;
+  container: HTMLElement;
 }
 
 export interface RenderViewportState {

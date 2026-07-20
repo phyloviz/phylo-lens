@@ -62,7 +62,7 @@ query bounds by `GRAPH_VIEWER_VIEWPORT_PADDING_RATIO = 0.5` for tiers > 0.
   response — this is what makes the graph track the moving viewport instead of
   accumulating stale geometry. It **suspends Sigma's `nodeDropped`/`edgeDropped`
   listeners** for the batch: each of those handlers otherwise calls `refresh()`
-  with no `partialGraph`, forcing a full O(N+E) Sigma re-index *per drop event*.
+  with no `partialGraph`, forcing a full O(N+E) Sigma re-index _per drop event_.
   Dropping thousands of elements one at a time turned into thousands of full
   re-indexes (the O(n²) fingerprint — a ~6.5s stall observed on large tier
   transitions). The batch drops edges first, then nodes (so `dropNode` has no
@@ -127,12 +127,12 @@ normalized by `normalizeRoleValue` (lowercases, collapses separators, maps
 happens to carry, so treating them as roles mis-tinted ordinary nodes green.
 Resolution order:
 
-| Condition | Color constant | Hex | Meaning |
-| --- | --- | --- | --- |
-| `selected` / `is_selected` truthy | `PHYLOVIZ_NODE_SELECTED_COLOR` | `#dc2626` | red — selected |
-| role `group_founder` (or founder flags) | `PHYLOVIZ_NODE_GROUP_FOUNDER_COLOR` | `#86efac` | light green |
-| role `subgroup_founder` (or flags) | `PHYLOVIZ_NODE_SUBGROUP_FOUNDER_COLOR` | `#15803d` | dark green |
-| otherwise | `PHYLOVIZ_NODE_COMMON_COLOR` | `#93c5fd` | blue — common |
+| Condition                               | Color constant                         | Hex       | Meaning        |
+| --------------------------------------- | -------------------------------------- | --------- | -------------- |
+| `selected` / `is_selected` truthy       | `PHYLOVIZ_NODE_SELECTED_COLOR`         | `#dc2626` | red — selected |
+| role `group_founder` (or founder flags) | `PHYLOVIZ_NODE_GROUP_FOUNDER_COLOR`    | `#86efac` | light green    |
+| role `subgroup_founder` (or flags)      | `PHYLOVIZ_NODE_SUBGROUP_FOUNDER_COLOR` | `#15803d` | dark green     |
+| otherwise                               | `PHYLOVIZ_NODE_COMMON_COLOR`           | `#93c5fd` | blue — common  |
 
 `GRAPH_VIEWER_NODE_COLOR` equals `PHYLOVIZ_NODE_COMMON_COLOR`, so a node with
 no role stays the common blue. These hex codes mirror the original PHYLOViZ
@@ -200,53 +200,48 @@ Build the package with `npm run build:lib`, which emits `dist/index.js` (ESM) vi
 `vite.lib.config.ts` and `dist/types/**/*.d.ts` declarations via
 `tsconfig.lib.json`. The demo build (`npm run build`, `index.html`) is untouched.
 
-### Layered facade
+### Public facade
 
-Everything the host needs is re-exported from `src/index.ts`. A host adopts one
-of three layers, from lowest to highest:
+Host applications consume the package root through `createPhyloLensView`. The
+host provides a DOM container, the PhyloLens API service URI, and dataset content;
+transport, prepare polling, renderer selection, prepared dataset ids, layout
+versions, and viewport synchronization stay inside the library.
 
-| Layer | Entry point | Responsibility |
-|-------|-------------|----------------|
-| Transport | `createGraphClient({ baseUrl })` | Typed bridge to the four HTTP routes (`prepareGraph`, `readViewport`, `readRegion`). Server URL is injectable. |
-| Workbench | `createGraphWorkbench({ graphClient, rendererFactory, rendererKind, renderContext })` | Encapsulates the entire prepare → poll → viewport-sync lifecycle and LoD/clustering. Exposes `renderNewick`, filters, visual mapping, search, region selection, and `dispose`. |
-| Shell | `bootstrapClientShell(baseUrl)` | The full demo UI (`UiShellController`) wired to DOM ids — the reference integration. |
+The lower transport, workbench, renderer, and shell modules remain internal
+implementation layers. The demo shell is a reference application, not the
+recommended integration API.
 
-Most host apps target the **Workbench** layer: it gives PHYLOViZ-grade visuals
-(server-side LoD, goeBURST colouring, data-aware defaults, pie/wheel charts,
-box-select region isolation) with one component and no knowledge of the server.
-
-### One-call `renderNewick`
+### One-call `load`
 
 ```ts
-import {
-  createGraphClient,
-  createGraphWorkbench,
-  DefaultRendererFactory,
-  RENDERER_KIND_SIGMA,
-} from "phylo-lens-client";
+import { createPhyloLensView } from "phylo-lens-client";
 
-const workbench = createGraphWorkbench({
-  graphClient: createGraphClient({ baseUrl: "http://localhost:8000" }),
-  rendererFactory: new DefaultRendererFactory(),
-  rendererKind: RENDERER_KIND_SIGMA,
-  renderContext: { containerId: "graph-root" }, // an existing DOM element id
+const container = document.getElementById("graph-root");
+if (!(container instanceof HTMLElement)) {
+  throw new Error("Missing graph container.");
+}
+
+const view = createPhyloLensView({
+  container,
+  apiUrl: "http://localhost:8000",
 });
 
 // Submits the tree, polls prepare to 'ready', starts the viewport-sync loop,
-// and paints into #graph-root — the host never sees a job id or a poll.
-await workbench.renderNewick(newickString, "my-dataset", {
+// and paints into the container. The host never sees a job id or a poll.
+await view.load({
+  content: newickString,
+  name: "my-dataset",
   metadataSchema,
   metadataByNodeId,
   visualMapping: { colorField: "region" }, // size defaults to profile_count
 });
 
 // Later, on teardown:
-workbench.dispose();
+view.dispose();
 ```
 
-The optional third argument (`RenderNewickOptions`) carries metadata, ancillary
-CSV/TSV joins, visual mapping, layout iterations, and LoD tuning. Colour defaults
-to the `region` field and size defaults to `profile_count` (falling back to
-branch `distance`), matching PHYLOViZ conventions. See
-[`API_REFERENCE.md`](./API_REFERENCE.md) for the underlying HTTP contract a host
-can call directly if it supplies its own paint layer instead.
+`load` accepts metadata, ancillary CSV/TSV joins, visual mapping, layout
+iterations, and LoD tuning. Colour defaults to the `region` field and size
+defaults to `profile_count` (falling back to branch `distance`), matching
+PHYLOViZ conventions. See [`API_REFERENCE.md`](./API_REFERENCE.md) for the
+underlying service contract.

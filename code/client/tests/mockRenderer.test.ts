@@ -18,7 +18,10 @@ describe("mockRenderer", () => {
 
     expect(renderer.kind).toBe(RENDERER_KIND_MOCK);
 
-    renderer.mount({ containerId: "graph-root" });
+    const container = document.createElement("div");
+    container.id = "graph-root";
+
+    renderer.mount({ container });
     renderer.render(graph);
     renderer.setViewChangeHandler(viewHandler);
     renderer.setNodeClickHandler(clickHandler);

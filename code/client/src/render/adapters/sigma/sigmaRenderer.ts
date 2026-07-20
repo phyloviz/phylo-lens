@@ -52,7 +52,6 @@ export {
 } from "./camera/sigmaCamera";
 export type { SigmaPiechartOptions, SigmaRendererOptions };
 
-export const ERR_CONTAINER_NOT_FOUND = "Sigma container not found: {containerId}";
 export const ERR_SIGMA_NOT_READY = "Sigma renderer is not mounted.";
 
 // Sigma renderer adapter keeps Sigma-specific behavior isolated from core contracts.
@@ -118,12 +117,7 @@ export class SigmaRenderer implements GraphRenderer {
 
   // Bind the renderer adapter to a view container.
   mount(context: RenderContext): void {
-    const container = document.getElementById(context.containerId);
-    if (!container) {
-      throw new Error(ERR_CONTAINER_NOT_FOUND.replace("{containerId}", context.containerId));
-    }
-
-    this.containerElement = container;
+    this.containerElement = context.container;
     this.graph = new Graph();
     this.sigma = new Sigma(this.graph, this.containerElement, buildSigmaSettings(this.rendererOptions));
     this.sigma.getCamera().setState(defaultCameraState());
