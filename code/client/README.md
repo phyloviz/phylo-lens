@@ -22,11 +22,16 @@ npm ci
 ## Develop (demo app)
 
 ```bash
-npm run dev     # dev server on http://localhost:3000, proxies /api → :8000
+npm run dev     # dev server on http://localhost:3000, proxies /api and /health → :8000
 ```
 
-The demo expects the backend running at `http://localhost:8000` (see
-[`../server/README.md`](../server/README.md)).
+The demo uses same-origin requests by default, so the browser calls `/health`
+and `/api/...` on the Vite origin. Set `VITE_PHYLO_LENS_PROXY_TARGET` when the
+backend is not on `http://localhost:8000`:
+
+```bash
+VITE_PHYLO_LENS_PROXY_TARGET=http://127.0.0.1:8001 npm run dev
+```
 
 ## Build
 
@@ -65,7 +70,7 @@ if (!(container instanceof HTMLElement)) {
 
 const view = createPhyloLensView({
   container,
-  apiUrl: "http://localhost:8000",
+  apiUrl: "",
 });
 
 await view.load({
@@ -79,10 +84,11 @@ await view.load({
 view.dispose();
 ```
 
-`apiUrl` may also be a same-origin proxy prefix, for example
-`"/phylo-lens/api"`. The first `load()` call reads `${apiUrl}/health` and checks
-the service `api_version` before submitting a prepare job; incompatible or
-unreachable services fail early with exported compatibility errors.
+`apiUrl` may be an absolute API origin, the empty string for a same-origin
+`/health` + `/api/...` proxy, or a proxy prefix such as `"/phylo-lens/api"`.
+The first `load()` call reads `${apiUrl}/health` and checks the service
+`api_version` before submitting a prepare job; incompatible or unreachable
+services fail early with exported compatibility errors.
 
 The local demo/reference application is useful for exploration, but it is not the
 public integration API.

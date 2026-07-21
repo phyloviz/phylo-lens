@@ -19,7 +19,7 @@ varying vec4 v_color;
 const float bias = 255.0 / 254.0;
 
 void main() {
-  float size = a_size * u_correctionRatio / u_sizeRatio * 4.0;
+  float size = a_size * u_correctionRatio / u_sizeRatio * 1.35;
   float angle = a_angle + a_rotation;
   vec2 position = a_position + size * vec2(cos(angle), sin(angle));
 
@@ -84,7 +84,7 @@ export const drawTriangleNodeHover: NodeHoverDrawingFunction = (context, data) =
 
   context.shadowBlur = 0;
   context.fillStyle = data.color;
-  trianglePath(context, data.x, data.y, data.size, rotation);
+  trianglePath(context, data.x, data.y, data.size * 1.35, rotation);
   context.fill();
   context.restore();
 };
@@ -93,7 +93,7 @@ function trianglePath(context: CanvasRenderingContext2D, x: number, y: number, r
   context.beginPath();
   for (let index = 0; index < 3; index += 1) {
     const angle = rotation + (index * Math.PI * 2) / 3;
-    const point = [x + Math.cos(angle) * radius * 2, y + Math.sin(angle) * radius * 2] as const;
+    const point = [x + Math.cos(angle) * radius, y + Math.sin(angle) * radius] as const;
     if (index === 0) context.moveTo(...point);
     else context.lineTo(...point);
   }

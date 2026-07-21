@@ -15,6 +15,7 @@ const VIEWPORT_FIXTURE = {
   layout_status: "ready",
   truncated: false,
   total_node_count: 1,
+  global_bounds: { min_x: -10, max_x: 10, min_y: -5, max_y: 5 },
   nodes: [
     {
       id: "cluster_1",
@@ -80,6 +81,12 @@ describe("graphGuards", () => {
   it("validates viewport responses", () => {
     expect(isGraphViewportResponse(VIEWPORT_FIXTURE)).toBe(true);
     expect(isGraphViewportResponse({ ...VIEWPORT_FIXTURE, nodes: [{}] })).toBe(false);
+    expect(
+      isGraphViewportResponse({
+        ...VIEWPORT_FIXTURE,
+        global_bounds: { min_x: -10, max_x: "10", min_y: -5, max_y: 5 },
+      }),
+    ).toBe(false);
   });
 
   it("validates region responses", () => {

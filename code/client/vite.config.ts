@@ -1,6 +1,9 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
+const PHYLO_LENS_PROXY_TARGET =
+  process.env.VITE_PHYLO_LENS_PROXY_TARGET ?? "http://localhost:8000";
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
@@ -8,7 +11,7 @@ export default defineConfig({
     port: 3000,
     proxy: {
       "/api": {
-        target: "http://localhost:8000",
+        target: PHYLO_LENS_PROXY_TARGET,
         changeOrigin: true,
         configure: (proxy) => {
           proxy.on("error", (_, __, res) => {
@@ -30,6 +33,10 @@ export default defineConfig({
             }
           });
         },
+      },
+      "/health": {
+        target: PHYLO_LENS_PROXY_TARGET,
+        changeOrigin: true,
       },
     },
   },

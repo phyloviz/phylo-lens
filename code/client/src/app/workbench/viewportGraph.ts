@@ -115,7 +115,7 @@ function buildViewportDataset(state: GraphWorkbenchState, response: GraphViewpor
       target: edge.target,
       distance: edge.distance ?? null,
     })),
-    metadata_schema: state.preparedSession?.metadataSchema ?? [],
+    metadata_schema: response.metadata_schema ?? state.preparedSession?.metadataSchema ?? [],
     metadata_by_node_id: metadataByNodeId,
     source: {
       format: SOURCE_FORMAT_NEWICK,

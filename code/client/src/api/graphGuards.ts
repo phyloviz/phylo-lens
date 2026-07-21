@@ -67,6 +67,7 @@ export function isGraphViewportResponse(value: unknown): value is GraphViewportR
     isFiniteNumber(value.total_node_count) &&
     isArrayOf(value.nodes, isGraphViewportNode) &&
     isArrayOf(value.edges, isGraphViewportEdge) &&
+    (value.global_bounds == null || isGraphLayoutBounds(value.global_bounds)) &&
     isOptionalGraphMetadataSchema(value.metadata_schema)
   );
 }
@@ -127,6 +128,16 @@ function isGraphViewportEdge(value: unknown): value is GraphViewportEdge {
     isOptionalFiniteNumber(value.distance) &&
     isOptionalBoolean(value.is_meta) &&
     isOptionalFiniteNumber(value.bundled_edge_count)
+  );
+}
+
+function isGraphLayoutBounds(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    isFiniteNumber(value.min_x) &&
+    isFiniteNumber(value.max_x) &&
+    isFiniteNumber(value.min_y) &&
+    isFiniteNumber(value.max_y)
   );
 }
 

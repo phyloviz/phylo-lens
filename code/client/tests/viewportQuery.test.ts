@@ -81,6 +81,11 @@ describe("viewportQuery", () => {
     expect(semanticLodLevelForCameraRatio(Number.NaN, 4)).toBe(0);
   });
 
+  it("uses denser semantic lod progression for large tier stacks", () => {
+    expect(semanticLodLevelForCameraRatio(1 / 224, 15)).toBeGreaterThanOrEqual(12);
+    expect(semanticLodLevelForCameraRatio(1 / 224, 15)).toBeLessThan(15);
+  });
+
   it("holds the current tier within the boundary hysteresis dead-band", () => {
     expect(semanticLodLevelForCameraRatioWithHysteresis(0.79, 4, 0)).toBe(0);
     expect(semanticLodLevelForCameraRatioWithHysteresis(0.74, 4, 0)).toBe(1);

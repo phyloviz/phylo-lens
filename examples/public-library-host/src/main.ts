@@ -7,7 +7,7 @@ if (!(container instanceof HTMLElement)) {
 
 const view = createPhyloLensView({
   container,
-  apiUrl: "http://localhost:8000",
+  apiUrl: import.meta.env.VITE_PHYLO_LENS_API_URL ?? "",
 });
 
 void loadExampleTree();
@@ -17,11 +17,5 @@ async function loadExampleTree(): Promise<void> {
     content: "(A:1,(B:2,C:4)N:3)R;",
     name: "example-tree",
     sourceFormat: "newick",
-    metadataSchema: [{ key: "country", type: "string" }],
-    metadataByNodeId: {
-      A: { country: "PT" },
-      B: { country: "PT" },
-      C: { country: "ES" },
-    },
   });
 }

@@ -50,7 +50,9 @@ export async function validateServiceCompatibility(http: HttpClient): Promise<vo
       throw new PhyloLensServiceProtocolError(undefined, { cause: error });
     }
 
-    throw new PhyloLensServiceUnavailableError(undefined, { cause: error });
+    throw new PhyloLensServiceUnavailableError(serviceUnavailableMessage(error), {
+      cause: error,
+    });
   }
 
   if (!isServiceInformation(response)) {
@@ -60,6 +62,14 @@ export async function validateServiceCompatibility(http: HttpClient): Promise<vo
   if (response.api_version !== SUPPORTED_PHYLO_LENS_API_VERSION) {
     throw new IncompatiblePhyloLensServiceError(SUPPORTED_PHYLO_LENS_API_VERSION, response.api_version);
   }
+}
+
+function serviceUnavailableMessage(error: unknown): string {
+  if (error instanceof Error && error.message) {
+    return `${ERR_PHYLO_LENS_SERVICE_UNAVAILABLE} ${error.message}`;
+  }
+
+  return ERR_PHYLO_LENS_SERVICE_UNAVAILABLE;
 }
 
 function isServiceInformation(value: unknown): value is ServiceInformation {

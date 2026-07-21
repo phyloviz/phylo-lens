@@ -4,7 +4,7 @@ import { RENDERER_KIND_SIGMA } from "../render/renderer.types";
 import { createGraphWorkbench } from "./workbench/graphWorkbench";
 import uiShell, { type UiShell } from "./uiShell";
 
-export const DEFAULT_SERVER_BASE_URL = "http://localhost:8000";
+export const DEFAULT_SERVER_BASE_URL = "";
 
 export const ID_RENDER_FORM = "render-form";
 export const ID_NEWICK_INPUT = "newick-input";

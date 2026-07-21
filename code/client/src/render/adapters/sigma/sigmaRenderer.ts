@@ -260,12 +260,16 @@ export class SigmaRenderer implements GraphRenderer {
       throw new Error(ERR_SIGMA_NOT_READY);
     }
 
+    const cameraState = readCameraState(this.sigma);
+    const previousCoordinateBounds = this.coordinateBounds;
     this.forceMotion.stop();
     this.lastRenderedGraph = graph;
     this.graph.clear();
     this.graphBounds = deriveGraphBounds(graph.nodes);
     this.coordinateBounds = normalizeGraphBounds(graph.viewMeta.globalBounds) ?? this.graphBounds;
-    applyStableCameraBounds(this.sigma, this.coordinateBounds);
+    if (!graphBoundsEqual(previousCoordinateBounds, this.coordinateBounds)) {
+      applyStableCameraBounds(this.sigma, this.coordinateBounds);
+    }
 
     graph.nodes.forEach((node) => {
       this.graph?.addNode(node.id, {
@@ -287,6 +291,10 @@ export class SigmaRenderer implements GraphRenderer {
     this.applyHighlighting();
     this.sigma.refresh();
     this.sigma.scheduleRender();
+    if (cameraState) {
+      this.suppressViewChangesFor(16);
+      restoreCameraState(this.sigma, cameraState);
+    }
     this.updateEdgeLabelVisibility(this.readSemanticViewState());
   }
 
@@ -678,6 +686,21 @@ function graphNodeViews(graph: Graph): PieNodeView[] {
   return graph.mapNodes((_nodeId, attributes) => ({
     attributes: attributes as Record<string, unknown>,
   }));
+}
+
+function graphBoundsEqual(left: GraphBounds | null, right: GraphBounds | null): boolean {
+  if (left === right) {
+    return true;
+  }
+  if (!left || !right) {
+    return false;
+  }
+  return (
+    left.minX === right.minX &&
+    left.maxX === right.maxX &&
+    left.minY === right.minY &&
+    left.maxY === right.maxY
+  );
 }
 
 function applyClusterTriangleRotations(graph: Graph, edges: PositionedGraph["edges"]): void {

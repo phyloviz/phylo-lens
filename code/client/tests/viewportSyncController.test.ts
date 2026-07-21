@@ -16,6 +16,7 @@ function viewportResponse(overrides: Partial<GraphViewportResponse> = {}): Graph
     layout_status: "ready",
     truncated: false,
     total_node_count: 2,
+    global_bounds: { min_x: -100, max_x: 100, min_y: -50, max_y: 50 },
     metadata_schema: [],
     nodes: [
       {
@@ -131,10 +132,46 @@ describe("ViewportSyncController", () => {
     expect(renderer.applyGraphSnapshot).toHaveBeenCalledTimes(1);
     expect(renderer.fitGraphSnapshot).toHaveBeenCalledWith(renderer.appliedGraphs[0]);
     expect(renderer.appliedGraphs[0]?.nodes.map((node) => node.id)).toEqual(["root", "cluster-a"]);
+    expect(renderer.appliedGraphs[0]?.viewMeta.globalBounds).toEqual({
+      minX: -100,
+      maxX: 100,
+      minY: -50,
+      maxY: 50,
+    });
     expect(onGraphSynced).toHaveBeenCalledWith(
       renderer.appliedGraphs[0],
       expect.objectContaining({ dataset_id: "tree" }),
     );
+  });
+
+  it("keeps very large cluster representatives visually bounded", async () => {
+    const renderer = createRenderer();
+    const readViewport = vi.fn(async () =>
+      viewportResponse({
+        nodes: [
+          {
+            id: "cluster-huge",
+            cluster_id: "cluster-huge",
+            x: 0,
+            y: 0,
+            layout_status: "ready",
+            member_count: 97_000,
+            is_representative: true,
+          },
+        ],
+        edges: [],
+      }),
+    );
+    const controller = new ViewportSyncController({
+      datasetId: "tree",
+      client: { readViewport },
+      renderer,
+    });
+
+    controller.mount();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(renderer.appliedGraphs[0]?.nodes[0]?.size).toBeLessThanOrEqual(6);
   });
 
   it("reads a bounded viewport when the renderer reports a camera change", async () => {
@@ -168,6 +205,31 @@ describe("ViewportSyncController", () => {
         lod_level: expect.any(Number),
       }),
     );
+  });
+
+  it("loads known medium-small datasets at the finest tier within the node budget", async () => {
+    const renderer = createRenderer();
+    const readViewport = vi.fn(async () => viewportResponse());
+    const controller = new ViewportSyncController({
+      datasetId: "tree",
+      client: { readViewport },
+      renderer,
+      lodTierCount: 4,
+      maxNodes: 6000,
+      nodeCount: 6000,
+    });
+
+    controller.mount();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(readViewport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        dataset_id: "tree",
+        lod_level: 3,
+        max_nodes: 6000,
+      }),
+    );
+    expect(readViewport.mock.calls[0]?.[0]).not.toHaveProperty("xmin");
   });
 
   it("suppresses older in-flight responses when a newer viewport request wins", async () => {

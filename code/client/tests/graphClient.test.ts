@@ -13,7 +13,6 @@ import type { GraphPrepareStatus } from "../src/api/graphContracts";
 import {
   IncompatiblePhyloLensServiceError,
   PhyloLensServiceProtocolError,
-  PhyloLensServiceUnavailableError,
   ROUTE_SERVICE_HEALTH,
   SUPPORTED_PHYLO_LENS_API_VERSION,
 } from "../src/api/serviceCompatibility";
@@ -289,7 +288,7 @@ describe("graphClient", () => {
 
     await expect(
       client.prepareGraph({ format: SOURCE_FORMAT_NEWICK, dataset_name: "tree", content: "(A)R;" }, NO_SLEEP),
-    ).rejects.toBeInstanceOf(PhyloLensServiceUnavailableError);
+    ).rejects.toThrow("PhyloLens service is unavailable. network down");
     expect(seen).toEqual([`${BASE_URL}${ROUTE_SERVICE_HEALTH}`]);
   });
 

@@ -4,10 +4,12 @@ import type { RenderViewportBounds, RenderViewportSyncState } from "../../../ren
 export const DEFAULT_GRAPH_VIEWER_DEBOUNCE_MS = 120;
 export const GRAPH_VIEWER_LOD_CHANGE_DEBOUNCE_MS = 60;
 export const DEFAULT_GRAPH_VIEWER_MAX_NODES = 5_000;
-export const GRAPH_VIEWER_SMALL_TREE_NODE_THRESHOLD = 2_500;
+export const GRAPH_VIEWER_SMALL_TREE_NODE_THRESHOLD = 6_000;
 export const GRAPH_VIEWER_VIEWPORT_PADDING_RATIO = 0.5;
 export const GRAPH_VIEWER_DETAIL_RATIO_THRESHOLD = 0.8;
 export const GRAPH_VIEWER_LOD_RATIO_STEP = 0.4;
+export const GRAPH_VIEWER_DENSE_LOD_RATIO_STEP = 2 / 3;
+export const GRAPH_VIEWER_DENSE_LOD_MIN_TIER_COUNT = 8;
 export const GRAPH_VIEWER_LOD_RATIO_HYSTERESIS = 0.05;
 
 export function buildGraphViewportQuery({
@@ -67,11 +69,12 @@ export function semanticLodLevelForCameraRatio(ratio: number, lodTierCount = 1):
   if (ratio >= GRAPH_VIEWER_DETAIL_RATIO_THRESHOLD) {
     return 0;
   }
+  const ratioStep = lodRatioStepForTierCount(lodTierCount);
   let tier = 1;
-  let boundary = GRAPH_VIEWER_DETAIL_RATIO_THRESHOLD * GRAPH_VIEWER_LOD_RATIO_STEP;
+  let boundary = GRAPH_VIEWER_DETAIL_RATIO_THRESHOLD * ratioStep;
   while (tier < lodTierCount - 1 && ratio < boundary) {
     tier += 1;
-    boundary *= GRAPH_VIEWER_LOD_RATIO_STEP;
+    boundary *= ratioStep;
   }
   return tier;
 }
@@ -86,10 +89,17 @@ export function semanticLodLevelForCameraRatioWithHysteresis(
     return naiveTier;
   }
   const boundaryTier = Math.min(currentLodLevel, naiveTier);
-  const boundary = GRAPH_VIEWER_DETAIL_RATIO_THRESHOLD * Math.pow(GRAPH_VIEWER_LOD_RATIO_STEP, boundaryTier);
+  const boundary =
+    GRAPH_VIEWER_DETAIL_RATIO_THRESHOLD * Math.pow(lodRatioStepForTierCount(lodTierCount), boundaryTier);
   const inDeadBand =
     ratio > boundary - GRAPH_VIEWER_LOD_RATIO_HYSTERESIS && ratio < boundary + GRAPH_VIEWER_LOD_RATIO_HYSTERESIS;
   return inDeadBand ? currentLodLevel : naiveTier;
+}
+
+function lodRatioStepForTierCount(lodTierCount: number): number {
+  return lodTierCount >= GRAPH_VIEWER_DENSE_LOD_MIN_TIER_COUNT
+    ? GRAPH_VIEWER_DENSE_LOD_RATIO_STEP
+    : GRAPH_VIEWER_LOD_RATIO_STEP;
 }
 
 export function expandViewportBounds(bounds: RenderViewportBounds, paddingRatio: number): RenderViewportBounds {

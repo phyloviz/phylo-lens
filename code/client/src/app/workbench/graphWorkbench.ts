@@ -206,7 +206,10 @@ async function renderNewick({
     lodTierCount: preparedGraph.lod_tier_count,
     nodeCount: preparedGraph.node_count,
     getPaused: () => state.lodRefreshPaused,
-    onGraphSynced: (graph) => {
+    onGraphSynced: (graph, response) => {
+      if (response && state.preparedSession) {
+        state.preparedSession.metadataSchema = response.metadata_schema ?? [];
+      }
       graph.viewMeta.lodTierCount = state.preparedSession?.lodTierCount;
       graph.viewMeta.layoutWarnings = state.preparedSession?.layoutWarnings;
       state.currentGraph = graph;

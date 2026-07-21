@@ -10,6 +10,9 @@ import {
   SIGMA_REGION_DIMMED_NODE_COLOR,
 } from "../sigmaRendering.constants";
 
+const SELECTED_NODE_SCALE_FACTOR = 1.35;
+const SELECTED_NODE_SIZE_BOOST = 2;
+
 interface SigmaHighlightingOptions {
   graph: Graph | null;
   sigma: Sigma | null;
@@ -46,7 +49,7 @@ export default function applySigmaHighlighting({
     return {
       ...nextData,
       color: PHYLOVIZ_NODE_SELECTED_COLOR,
-      size: Math.max(baseSize * 1.55, baseSize + 6),
+      size: Math.max(baseSize * SELECTED_NODE_SCALE_FACTOR, baseSize + SELECTED_NODE_SIZE_BOOST),
       type: SIGMA_NODE_TYPE_BORDER,
       borderColor: PHYLOVIZ_NODE_SELECTED_BORDER_COLOR,
       label: typeof nextData.label === "string" && nextData.label.length > 0 ? nextData.label : nodeId,

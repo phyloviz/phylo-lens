@@ -27,9 +27,10 @@ import {
   PIE_PALETTE_ATTRIBUTE,
 } from "../../../render/mapping/pieMapping";
 
-export const DEFAULT_GRAPH_VIEWER_NODE_SIZE = 5;
-export const GRAPH_VIEWER_MEMBER_SIZE_FACTOR = 1.25;
-export const GRAPH_VIEWER_MAX_MEMBER_SIZE_BOOST = 6;
+export const DEFAULT_GRAPH_VIEWER_NODE_SIZE = 3;
+export const GRAPH_VIEWER_REPRESENTATIVE_BASE_SIZE = 3.5;
+export const GRAPH_VIEWER_REPRESENTATIVE_LOG_SIZE_FACTOR = 0.55;
+export const GRAPH_VIEWER_REPRESENTATIVE_MAX_SIZE = 6;
 export const GRAPH_VIEWER_REPRESENTATIVE_COLOR = "#b45309";
 export const GRAPH_VIEWER_NODE_COLOR = "#93c5fd";
 export const GRAPH_VIEWER_EDGE_COLOR = "#94a3b8";
@@ -58,7 +59,7 @@ export function graphSnapshotFromViewportResponse(
   settings?: ViewportSyncSettings,
 ): PositionedGraph {
   const nodes = filteredViewportNodes(response, settings);
-  const visuals = resolveViewportVisuals(nodes, settings);
+  const visuals = resolveViewportVisuals(nodes, response.metadata_schema ?? [], settings);
   const liveNodeIds = new Set(nodes.map((node) => node.id));
   const displayOptions = settings?.displayOptions;
 
@@ -74,6 +75,14 @@ export function graphSnapshotFromViewportResponse(
       sliceEdgeCount: response.edges.length,
       zoom: response.zoom,
       layoutStatus: response.layout_status,
+      globalBounds: response.global_bounds
+        ? {
+            minX: response.global_bounds.min_x,
+            maxX: response.global_bounds.max_x,
+            minY: response.global_bounds.min_y,
+            maxY: response.global_bounds.max_y,
+          }
+        : undefined,
     },
   };
 }
@@ -188,6 +197,7 @@ function filteredViewportNodes(response: GraphViewportResponse, settings?: Viewp
 
 function resolveViewportVisuals(
   nodes: GraphViewportNode[],
+  responseMetadataSchema: MetadataField[],
   settings?: ViewportSyncSettings,
 ): ResolvedViewportVisuals | null {
   const mapping = settings?.visualMapping;
@@ -195,7 +205,11 @@ function resolveViewportVisuals(
     return null;
   }
 
-  const colorField = resolveColorField(settings?.metadataSchema ?? [], mapping.colorField);
+  const metadataSchema =
+    responseMetadataSchema.length > 0
+      ? responseMetadataSchema
+      : settings?.metadataSchema ?? [];
+  const colorField = resolveColorField(metadataSchema, mapping.colorField);
   const sizeField = mapping.size?.field ?? mapping.sizeField ?? resolveDefaultSizeField(viewportHasProfileCount(nodes));
   const scale = mapping.size?.scale ?? SIZE_SCALE_LINEAR;
   const palette = mapping.palette ?? DEFAULT_COLOR_PALETTE;
@@ -244,11 +258,11 @@ function computeSizeFieldStats(
 
 function nodeSizeForMemberCount(memberCount: number): number {
   const safeMemberCount = Math.max(1, memberCount);
-  const boost = Math.min(
-    GRAPH_VIEWER_MAX_MEMBER_SIZE_BOOST,
-    (Math.sqrt(safeMemberCount) - 1) * GRAPH_VIEWER_MEMBER_SIZE_FACTOR,
-  );
-  return DEFAULT_GRAPH_VIEWER_NODE_SIZE + boost;
+  if (safeMemberCount === 1) {
+    return DEFAULT_GRAPH_VIEWER_NODE_SIZE;
+  }
+  const boost = Math.log2(safeMemberCount) * GRAPH_VIEWER_REPRESENTATIVE_LOG_SIZE_FACTOR;
+  return Math.min(GRAPH_VIEWER_REPRESENTATIVE_MAX_SIZE, GRAPH_VIEWER_REPRESENTATIVE_BASE_SIZE + boost);
 }
 
 function deriveViewportNodeColor(node: GraphViewportNode): string {

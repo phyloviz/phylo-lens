@@ -13,4 +13,6 @@ function runWhenDocumentReady(callback: () => void): void {
   callback();
 }
 
-runWhenDocumentReady(bootstrapClientShell);
+runWhenDocumentReady(() => {
+  bootstrapClientShell(import.meta.env.VITE_PHYLO_LENS_API_URL ?? undefined);
+});

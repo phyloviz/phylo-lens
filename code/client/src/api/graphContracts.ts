@@ -1,4 +1,4 @@
-import type { SourceFormat } from "../contracts/models";
+import type { MetadataType, SourceFormat } from "../contracts/models";
 
 export type GraphPrepareJobStatus = "pending" | "ready" | "failed";
 
@@ -10,7 +10,7 @@ export type GraphMetadata = Record<string, GraphMetadataValue>;
 
 export interface GraphMetadataField {
   key: string;
-  type: string;
+  type: MetadataType;
 }
 
 export interface NormalizeRequest {
@@ -87,6 +87,13 @@ export interface GraphViewportEdge {
   bundled_edge_count?: number | null;
 }
 
+export interface GraphLayoutBounds {
+  min_x: number;
+  max_x: number;
+  min_y: number;
+  max_y: number;
+}
+
 export interface GraphViewportResponse {
   dataset_id: string;
   layout_version: string;
@@ -97,6 +104,7 @@ export interface GraphViewportResponse {
   total_node_count: number;
   nodes: GraphViewportNode[];
   edges: GraphViewportEdge[];
+  global_bounds?: GraphLayoutBounds | null;
   metadata_schema?: GraphMetadataField[];
 }
 

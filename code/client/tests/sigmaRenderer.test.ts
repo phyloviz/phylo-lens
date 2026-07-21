@@ -10,6 +10,7 @@ let lastCustomBBox: {
   x: [number, number];
   y: [number, number];
 } | null = null;
+let customBBoxCalls = 0;
 let lastCamera: {
   state: { x?: number; y?: number; ratio?: number };
   handler: (() => void) | null;
@@ -161,6 +162,7 @@ vi.mock("sigma", () => {
 
     setCustomBBox(bounds: { x: [number, number]; y: [number, number] } | null) {
       lastCustomBBox = bounds;
+      customBBoxCalls += 1;
       return this;
     }
 
@@ -204,6 +206,8 @@ describe("sigmaRenderer", () => {
     forceMotionStarts = 0;
     forceMotionKills = 0;
     sigmaConstructions = 0;
+    lastCustomBBox = null;
+    customBBoxCalls = 0;
     lastForceMotionSettings = null;
     lastStageClickHandler = null;
     lastNodeClickHandler = null;
@@ -1000,6 +1004,35 @@ describe("sigmaRenderer", () => {
     renderer.applyGraphSnapshot(plainGraph);
 
     expect(sigmaConstructions).toBe(0);
+
+    renderer.unmount();
+  });
+
+  it("preserves camera state across repeated server graph snapshots", () => {
+    document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
+    const graph = {
+      nodes: [{ id: "leaf", x: 0, y: 0, size: 5, color: "#93c5fd", attributes: { color: "#93c5fd", size: 5 } }],
+      edges: [],
+      viewMeta: {
+        layout: "server" as const,
+        lodLevel: 1,
+        globalBounds: { minX: -100, maxX: 100, minY: -50, maxY: 50 },
+      },
+    };
+
+    const renderer = new SigmaRenderer();
+    renderer.mount({ container: requireContainer() });
+    lastCamera?.setState({ x: 0.35, y: 0.45, ratio: 0.2 });
+
+    renderer.applyGraphSnapshot(graph);
+    renderer.applyGraphSnapshot({
+      ...graph,
+      nodes: [{ id: "leaf-2", x: 10, y: 5, size: 5, color: "#93c5fd", attributes: { color: "#93c5fd", size: 5 } }],
+    });
+
+    expect(lastCamera?.state).toMatchObject({ x: 0.35, y: 0.45, ratio: 0.2 });
+    expect(lastCustomBBox).toEqual({ x: [-100, 100], y: [-50, 50] });
+    expect(customBBoxCalls).toBe(1);
 
     renderer.unmount();
   });
