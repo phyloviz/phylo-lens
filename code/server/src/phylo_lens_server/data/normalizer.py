@@ -11,20 +11,20 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from phylo_lens_server.core.models import (
+from phylo_lens_server.domain.models import (
     CanonicalDataset,
     CanonicalEdge,
     CanonicalNode,
     DatasetSource,
     MetadataField,
 )
-from phylo_lens_server.core.metadata_keys import (
+from phylo_lens_server.domain.metadata_keys import (
     CATEGORY_COUNT_FIELD_PREFIX,
     PROFILE_COUNT_FIELD,
     is_internal_metadata_key,
     public_metadata_schema_dataset,
 )
-from phylo_lens_server.core.validators import validate_canonical_dataset
+from phylo_lens_server.domain.validators import validate_canonical_dataset
 from phylo_lens_server.data.parsers import (
     ParseError,
     parse_newick_forest,

@@ -1,4 +1,4 @@
-from phylo_lens_server.core.models import (
+from phylo_lens_server.domain.models import (
     CanonicalDataset,
     CanonicalEdge,
     CanonicalNode,
@@ -6,7 +6,7 @@ from phylo_lens_server.core.models import (
     DomainValidationError,
     MetadataField,
 )
-from phylo_lens_server.core.validators import validate_canonical_dataset
+from phylo_lens_server.domain.validators import validate_canonical_dataset
 
 DATASET_ID = "test"
 NODE_A = "a"

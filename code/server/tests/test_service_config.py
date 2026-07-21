@@ -8,7 +8,7 @@ from phylo_lens_server.main import (
     create_app,
     parse_cors_origins,
 )
-from phylo_lens_server.versions import API_VERSION, service_version
+from phylo_lens_server.utils.versions import API_VERSION, service_version
 
 
 def test_health_includes_service_and_api_versions(monkeypatch) -> None:

@@ -9,7 +9,7 @@ from .paths import bootstrap_server_src
 
 bootstrap_server_src()
 
-from phylo_lens_server.prepared_layout.store.prepared_layout_store import (  # noqa: E402
+from phylo_lens_server.repository.layout.sqlite_layout_repository import (  # noqa: E402
     PreparedLayoutStore,
 )
 

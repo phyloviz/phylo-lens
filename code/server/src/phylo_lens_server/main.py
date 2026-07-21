@@ -7,11 +7,11 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
-from phylo_lens_server.api.graph import (
-    get_prepare_job_registry,
-    router as graph_router,
+from phylo_lens_server.http.graph.dependencies import (
+    shutdown_prepare_job_registry_if_started,
 )
-from phylo_lens_server.versions import API_VERSION, service_version
+from phylo_lens_server.http.graph.router import router as graph_router
+from phylo_lens_server.utils.versions import API_VERSION, service_version
 
 PACKAGE_LOGGER_NAME = "phylo_lens_server"
 
@@ -59,7 +59,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     try:
         yield
     finally:
-        get_prepare_job_registry().shutdown()
+        shutdown_prepare_job_registry_if_started()
 
 
 configure_logging()

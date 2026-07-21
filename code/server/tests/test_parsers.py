@@ -106,6 +106,31 @@ def test_parse_newick_preserves_branch_lengths_on_edges() -> None:
     assert parsed.explicit_node_ids == {"a", "b", "c", "n", "r"}
 
 
+def test_parse_newick_accepts_quoted_labels_with_punctuation() -> None:
+    """Quoted labels can contain delimiters that would otherwise split tokens."""
+    parsed = parse_newick("('A:1,west':0.10,'B (east)':0.20)'Root node':0.30;")
+
+    assert set(parsed.nodes) == {"a_1_west", "b_east", "root_node"}
+    edge_by_pair = {(edge.source, edge.target): edge.distance for edge in parsed.edges}
+    assert edge_by_pair == {
+        ("root_node", "a_1_west"): 0.10,
+        ("root_node", "b_east"): 0.20,
+    }
+    assert parsed.explicit_node_ids == {"a_1_west", "b_east", "root_node"}
+
+
+def test_parse_newick_ignores_comments_and_annotations() -> None:
+    """Tree annotations should not be treated as label or branch-length text."""
+    parsed = parse_newick("([&leaf]A:1[&edge],B:2)'Root [kept]';")
+
+    assert set(parsed.nodes) == {"a", "b", "root_kept"}
+    edge_by_pair = {(edge.source, edge.target): edge.distance for edge in parsed.edges}
+    assert edge_by_pair == {
+        ("root_kept", "a"): 1.0,
+        ("root_kept", "b"): 2.0,
+    }
+
+
 def test_parse_newick_ignores_empty_children_from_trailing_commas() -> None:
     """Confirm loose Newick separators do not create phantom missing-distance nodes."""
     parsed = parse_newick("((A:1,B:1,)X:2,(C:3,D:5,)Y:4,)Root;")
@@ -177,6 +202,15 @@ def test_parse_newick_forest_namespaces_generated_ids_across_components() -> Non
 
     assert len(parsed.nodes) == len(set(parsed.nodes))
     assert len(parsed.nodes) == 6
+
+
+def test_parse_newick_forest_does_not_split_semicolons_inside_quotes_or_comments() -> (
+    None
+):
+    parsed = parse_newick_forest("('A;1':1,B[comment;still comment]:2)Root;C;")
+
+    assert sorted(parsed.nodes) == ["a_1", "b", "c", "root"]
+    assert any("2 disconnected components" in warning for warning in parsed.warnings)
 
 
 def test_parse_newick_forest_empty_content_raises() -> None:

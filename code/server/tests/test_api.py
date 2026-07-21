@@ -4,17 +4,17 @@ from time import sleep
 import pytest
 from fastapi.testclient import TestClient
 
-from phylo_lens_server.api.graph import (
+from phylo_lens_server.http.graph import (
     get_prepare_job_registry,
     get_prepared_layout_store,
 )
 from phylo_lens_server.main import app
-from phylo_lens_server.prepared_layout.jobs import PrepareJobRegistry
-from phylo_lens_server.prepared_layout.layout import GRAPHVIZ_SFDP_COMMAND
-from phylo_lens_server.prepared_layout.store import PreparedLayoutStore
-from phylo_lens_server.prepared_layout.worker import PreparedLayoutWorker
+from phylo_lens_server.repository.jobs.local import PrepareJobRegistry
+from phylo_lens_server.pipeline.layout import GRAPHVIZ_SFDP_COMMAND
+from phylo_lens_server.repository.layout import PreparedLayoutStore
+from phylo_lens_server.pipeline.worker import PreparedLayoutWorker
 from phylo_lens_server.data.normalizer import NormalizeRequest, normalize_dataset
-from phylo_lens_server.versions import API_VERSION, service_version
+from phylo_lens_server.utils.versions import API_VERSION, service_version
 
 SFDP_AVAILABLE = shutil.which(GRAPHVIZ_SFDP_COMMAND) is not None
 EXPECTED_LAYOUT_STATUS = "ready" if SFDP_AVAILABLE else "degraded"
@@ -125,6 +125,51 @@ def test_graph_prepare_materializes_layout_for_viewport_reads(client) -> None:
 
     assert viewport_response.status_code == STATUS_OK
     assert {node["id"] for node in viewport_body["nodes"]} >= {"a", "b", "c", "d"}
+    assert viewport_body["global_bounds"]["min_x"] <= min(
+        node["x"] for node in viewport_body["nodes"]
+    )
+    assert viewport_body["global_bounds"]["max_x"] >= max(
+        node["x"] for node in viewport_body["nodes"]
+    )
+    assert viewport_body["global_bounds"]["min_y"] <= min(
+        node["y"] for node in viewport_body["nodes"]
+    )
+    assert viewport_body["global_bounds"]["max_y"] >= max(
+        node["y"] for node in viewport_body["nodes"]
+    )
+
+
+def test_graph_prepare_accepts_real_world_newick_labels_and_comments(client) -> None:
+    status_body = prepare_and_wait(
+        client,
+        {
+            "format": FORMAT_NEWICK,
+            "dataset_name": "quoted-commented-tree",
+            "content": "('A:1,west':0.10[&edge],'B (east)':0.20)'Root node';",
+        },
+    )
+    prepare_body = status_body["result"]
+
+    assert status_body["status"] == "ready"
+    assert prepare_body["dataset_id"] == "quoted-commented-tree"
+
+    viewport_response = client.post(
+        ROUTE_GRAPH_VIEWPORT,
+        json={
+            "dataset_id": "quoted-commented-tree",
+            "layout_version": prepare_body["layout_version"],
+            "lod_level": 0,
+            "max_nodes": 20,
+        },
+    )
+    viewport_body = viewport_response.json()
+
+    assert viewport_response.status_code == STATUS_OK
+    assert {node["id"] for node in viewport_body["nodes"]} >= {
+        "a_1_west",
+        "b_east",
+        "root_node",
+    }
 
 
 def test_graph_search_finds_nodes_across_whole_tree(client) -> None:
@@ -169,7 +214,7 @@ def test_graph_prepare_reports_degraded_status_when_sfdp_is_missing(
     client, monkeypatch
 ) -> None:
     monkeypatch.setattr(
-        "phylo_lens_server.prepared_layout.layout.shutil.which",
+        "phylo_lens_server.pipeline.layout.shutil.which",
         lambda command: None,
     )
 

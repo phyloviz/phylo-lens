@@ -19,12 +19,12 @@ from .sqlite_inspection import (
 
 bootstrap_server_src()
 
-from phylo_lens_server.prepared_layout.ingest import prepare_layout_artifacts  # noqa: E402
-from phylo_lens_server.prepared_layout.layout import compute_prepared_layouts  # noqa: E402
-from phylo_lens_server.prepared_layout.store.prepared_layout_store import (  # noqa: E402
+from phylo_lens_server.pipeline.ingest import prepare_layout_artifacts  # noqa: E402
+from phylo_lens_server.pipeline.layout import compute_prepared_layouts  # noqa: E402
+from phylo_lens_server.repository.layout.sqlite_layout_repository import (  # noqa: E402
     PreparedLayoutStore,
 )
-from phylo_lens_server.prepared_layout.worker import compute_prepared_edges  # noqa: E402
+from phylo_lens_server.pipeline.worker import compute_prepared_edges  # noqa: E402
 
 
 DEFAULT_SEARCH_LIMIT = 25

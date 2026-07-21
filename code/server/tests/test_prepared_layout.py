@@ -1,21 +1,26 @@
+from concurrent.futures import Future
 import shutil
 
 import pytest
 
-from phylo_lens_server.core.models import (
+from phylo_lens_server.domain.models import (
     CanonicalDataset,
     CanonicalEdge,
     MetadataField,
     MetadataType,
 )
 from phylo_lens_server.data.normalizer import NormalizeRequest, normalize_dataset
-from phylo_lens_server.prepared_layout.ingest import (
+from phylo_lens_server.pipeline.ingest import (
     PreparedLayoutIngestError,
     partition_for_threshold,
     prepare_layout_artifacts,
     representative_targets,
 )
-from phylo_lens_server.prepared_layout.layout import (
+from phylo_lens_server.repository.jobs.local import (
+    PrepareJobRegistry,
+    PrepareQueueFullError,
+)
+from phylo_lens_server.pipeline.layout import (
     GLOBAL_TARGET_EDGE_LENGTH,
     GRAPHVIZ_SFDP_COMMAND,
     LAYOUT_DEGRADED_SFDP_MISSING,
@@ -26,11 +31,12 @@ from phylo_lens_server.prepared_layout.layout import (
     normalize_global_positions,
     parse_graphviz_plain_positions,
 )
-from phylo_lens_server.prepared_layout.store import (
+from phylo_lens_server.repository.layout import (
     PreparedLayoutStore,
     aggregate_cluster_metadata,
 )
-from phylo_lens_server.prepared_layout.worker import (
+from phylo_lens_server.pipeline.models import PreparedLayoutResult
+from phylo_lens_server.pipeline.worker import (
     PreparedLayoutWorker,
     compute_prepared_edges,
 )
@@ -282,7 +288,7 @@ def test_normalized_graphviz_positions_repair_point_collapse() -> None:
 
 def test_layout_reports_degraded_status_when_sfdp_is_missing(monkeypatch) -> None:
     monkeypatch.setattr(
-        "phylo_lens_server.prepared_layout.layout.shutil.which",
+        "phylo_lens_server.pipeline.layout.shutil.which",
         lambda command: None,
     )
 
@@ -449,11 +455,11 @@ def test_graphviz_sfdp_positions_does_not_apply_wall_clock_timeout(monkeypatch) 
         return Completed()
 
     monkeypatch.setattr(
-        "phylo_lens_server.prepared_layout.layout.shutil.which",
+        "phylo_lens_server.pipeline.layout.shutil.which",
         lambda command: "/usr/bin/sfdp",
     )
     monkeypatch.setattr(
-        "phylo_lens_server.prepared_layout.layout.subprocess.run",
+        "phylo_lens_server.pipeline.layout.subprocess.run",
         fake_run,
     )
 
@@ -500,7 +506,9 @@ def test_prepared_layout_worker_persists_ready_cluster_and_node_positions(
     assert all(position.cluster_id for position in node_positions)
 
 
-def test_prepared_layout_worker_clears_previous_dataset_positions(tmp_path) -> None:
+def test_prepared_layout_worker_keeps_previous_ready_version_until_replaced(
+    tmp_path,
+) -> None:
     store = PreparedLayoutStore(tmp_path)
     worker = PreparedLayoutWorker(store)
 
@@ -513,10 +521,14 @@ def test_prepared_layout_worker_clears_previous_dataset_positions(tmp_path) -> N
     first = worker.prepare_dataset(first_dataset)
     second = worker.prepare_dataset(second_dataset)
 
-    assert not store.load_node_positions(
+    assert store.latest_layout_version("replace-tree") == second.artifacts.layout_version
+    previous_positions = store.load_node_positions(
         first.artifacts.dataset.dataset_id,
         first.artifacts.layout_version,
     )
+    assert {position.node_id for position in previous_positions} == {
+        f"n{index}" for index in range(30)
+    }
     current_positions = store.load_node_positions(
         second.artifacts.dataset.dataset_id,
         second.artifacts.layout_version,
@@ -524,6 +536,36 @@ def test_prepared_layout_worker_clears_previous_dataset_positions(tmp_path) -> N
     assert {position.node_id for position in current_positions} == {
         f"n{index}" for index in range(5)
     }
+
+
+def test_latest_layout_version_ignores_refining_layouts(tmp_path) -> None:
+    store = PreparedLayoutStore(tmp_path)
+    ready_artifacts = prepare_layout_artifacts(
+        _varied_chain_dataset(5).model_copy(update={"dataset_id": "publish-tree"})
+    )
+    refining_artifacts = prepare_layout_artifacts(
+        _varied_chain_dataset(8).model_copy(update={"dataset_id": "publish-tree"})
+    )
+
+    store.save_artifacts(ready_artifacts, status="refining")
+    assert store.latest_layout_version("publish-tree") is None
+
+    store.publish_layout_version(
+        dataset_id=ready_artifacts.dataset.dataset_id,
+        layout_version=ready_artifacts.layout_version,
+        status="ready",
+    )
+    assert store.latest_layout_version("publish-tree") == ready_artifacts.layout_version
+
+    store.save_artifacts(refining_artifacts, status="refining")
+    assert store.latest_layout_version("publish-tree") == ready_artifacts.layout_version
+
+    store.publish_layout_version(
+        dataset_id=refining_artifacts.dataset.dataset_id,
+        layout_version=refining_artifacts.layout_version,
+        status="degraded",
+    )
+    assert store.latest_layout_version("publish-tree") == refining_artifacts.layout_version
 
 
 def test_prepared_layout_worker_can_run_on_background_thread(tmp_path) -> None:
@@ -538,6 +580,125 @@ def test_prepared_layout_worker_can_run_on_background_thread(tmp_path) -> None:
 
     assert result.artifacts.dataset.dataset_id == DATASET_ID
     assert store.load_node_positions(DATASET_ID, result.artifacts.layout_version)
+
+
+class RecordingPrepareWorker:
+    def __init__(self) -> None:
+        self.submitted_datasets: list[CanonicalDataset] = []
+        self.futures: list[Future[PreparedLayoutResult]] = []
+
+    def submit_prepare_dataset(
+        self,
+        dataset: CanonicalDataset,
+    ) -> Future[PreparedLayoutResult]:
+        future: Future[PreparedLayoutResult] = Future()
+        self.submitted_datasets.append(dataset)
+        self.futures.append(future)
+        return future
+
+    def shutdown(self) -> None:
+        pass
+
+
+def _prepared_result(dataset: CanonicalDataset) -> PreparedLayoutResult:
+    return PreparedLayoutResult(artifacts=prepare_layout_artifacts(dataset))
+
+
+def test_prepare_job_registry_coalesces_duplicate_in_flight_layouts() -> None:
+    worker = RecordingPrepareWorker()
+    registry = PrepareJobRegistry(worker)
+
+    first_job_id = registry.submit(_dataset())
+    second_job_id = registry.submit(_dataset())
+
+    assert second_job_id == first_job_id
+    assert len(worker.submitted_datasets) == 1
+
+
+def test_prepare_job_registry_reuses_completed_successful_layout_jobs() -> None:
+    worker = RecordingPrepareWorker()
+    registry = PrepareJobRegistry(worker)
+    dataset = _dataset()
+
+    first_job_id = registry.submit(dataset)
+    worker.futures[0].set_result(_prepared_result(dataset))
+    second_job_id = registry.submit(dataset)
+
+    assert second_job_id == first_job_id
+    assert len(worker.submitted_datasets) == 1
+
+
+def test_prepare_job_registry_retries_failed_layout_jobs() -> None:
+    worker = RecordingPrepareWorker()
+    registry = PrepareJobRegistry(worker)
+    dataset = _dataset()
+
+    first_job_id = registry.submit(dataset)
+    worker.futures[0].set_exception(RuntimeError("layout failed"))
+    second_job_id = registry.submit(dataset)
+
+    assert second_job_id != first_job_id
+    assert len(worker.submitted_datasets) == 2
+
+
+def test_prepare_job_registry_does_not_coalesce_changed_dataset_content() -> None:
+    worker = RecordingPrepareWorker()
+    registry = PrepareJobRegistry(worker)
+    first_dataset = _varied_chain_dataset(5).model_copy(
+        update={"dataset_id": "same-name"}
+    )
+    second_dataset = _varied_chain_dataset(6).model_copy(
+        update={"dataset_id": "same-name"}
+    )
+
+    first_job_id = registry.submit(first_dataset)
+    second_job_id = registry.submit(second_dataset)
+
+    assert second_job_id != first_job_id
+    assert len(worker.submitted_datasets) == 2
+
+
+def test_prepare_job_registry_rejects_new_work_at_active_limit() -> None:
+    worker = RecordingPrepareWorker()
+    registry = PrepareJobRegistry(
+        worker,
+        max_active_jobs=1,
+    )
+    first_dataset = _varied_chain_dataset(5).model_copy(
+        update={"dataset_id": "limited"}
+    )
+    second_dataset = _varied_chain_dataset(6).model_copy(
+        update={"dataset_id": "limited"}
+    )
+
+    first_job_id = registry.submit(first_dataset)
+    duplicate_job_id = registry.submit(first_dataset)
+
+    assert duplicate_job_id == first_job_id
+    with pytest.raises(PrepareQueueFullError):
+        registry.submit(second_dataset)
+    assert len(worker.submitted_datasets) == 1
+
+
+def test_prepare_job_registry_allows_new_work_after_active_job_completes() -> None:
+    worker = RecordingPrepareWorker()
+    registry = PrepareJobRegistry(
+        worker,
+        max_active_jobs=1,
+    )
+    first_dataset = _varied_chain_dataset(5).model_copy(
+        update={"dataset_id": "limited"}
+    )
+    second_dataset = _varied_chain_dataset(6).model_copy(
+        update={"dataset_id": "limited"}
+    )
+
+    first_job_id = registry.submit(first_dataset)
+    worker.futures[0].set_result(_prepared_result(first_dataset))
+    second_job_id = registry.submit(second_dataset)
+
+    assert second_job_id != first_job_id
+    assert len(worker.submitted_datasets) == 2
 
 
 INTERNAL_COUNT_KEY = "__category_count__region__value__north"
@@ -619,9 +780,19 @@ def test_viewport_cluster_members_carry_public_node_metadata(tmp_path) -> None:
     )
     metadata_by_id = {node.node_id: node.metadata for node in read.nodes}
 
-    assert metadata_by_id["a"] == {"region": "north", "score": 10, "flag": True}
-    assert metadata_by_id["c"] == {"region": "south", "score": 30, "flag": False}
-    assert all(INTERNAL_COUNT_KEY not in (node.metadata or {}) for node in read.nodes)
+    assert metadata_by_id["a"] == {
+        "region": "north",
+        "score": 10,
+        "flag": True,
+        INTERNAL_COUNT_KEY: 2,
+    }
+    assert metadata_by_id["c"] == {
+        "region": "south",
+        "score": 30,
+        "flag": False,
+        INTERNAL_COUNT_KEY: 2,
+    }
+    assert metadata_by_id["b"][INTERNAL_COUNT_KEY] == 2
     schema_keys = {field.key for field in read.metadata_schema}
     assert schema_keys == {"region", "score", "flag"}
 
@@ -819,8 +990,8 @@ def test_viewport_representatives_carry_cluster_metadata_aggregate(tmp_path) -> 
             [public_metadata[nid] for nid in members_by_cluster[node.cluster_id]],
             public_schema,
         )
+        expected[INTERNAL_COUNT_KEY] = len(members_by_cluster[node.cluster_id])
         assert node.metadata == expected
-        assert INTERNAL_COUNT_KEY not in (node.metadata or {})
 
 
 def test_detail_viewport_keeps_boundary_edges_and_offscreen_neighbors(
@@ -1008,9 +1179,7 @@ def test_read_region_aggregates_selected_member_metadata(tmp_path) -> None:
     # alphabetically to "north"; score mean = (10+20+30+5+15)/5 = 16.0.
     assert read.aggregated_metadata["region"] == "north"
     assert read.aggregated_metadata["score"] == 16.0
-    # Internal category-count keys are filtered out of per-node metadata, so
-    # they never reach the aggregate.
-    assert INTERNAL_COUNT_KEY not in read.aggregated_metadata
+    assert read.aggregated_metadata[INTERNAL_COUNT_KEY] == 10
 
 
 def test_read_region_empty_box_returns_empty(tmp_path) -> None:

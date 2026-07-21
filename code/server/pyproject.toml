@@ -11,6 +11,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+postgres = [
+  "psycopg[binary]>=3.2.0,<4.0.0"
+]
 test = [
   "pytest>=8.3.0,<9.0.0",
   "httpx>=0.27.0,<1.0.0"
@@ -22,6 +25,8 @@ dev = [
 
 [project.scripts]
 phylo-lens-server = "phylo_lens_server.main:run"
+phylo-lens-init-postgres = "phylo_lens_server.cli.init_postgres:main"
+phylo-lens-prepare-worker = "phylo_lens_server.cli.prepare_worker:main"
 
 [build-system]
 requires = ["setuptools>=68", "wheel"]
@@ -32,6 +37,10 @@ package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.data-files]
+"sql/postgres" = ["sql/postgres/create-schema.sql"]
+"sql/sqlite" = ["sql/sqlite/create-schema.sql"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

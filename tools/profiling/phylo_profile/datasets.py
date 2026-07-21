@@ -8,7 +8,7 @@ from .paths import bootstrap_server_src
 
 bootstrap_server_src()
 
-from phylo_lens_server.core.models import (  # noqa: E402
+from phylo_lens_server.domain.models import (  # noqa: E402
     CanonicalDataset,
     CanonicalEdge,
     CanonicalNode,

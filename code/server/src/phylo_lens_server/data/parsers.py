@@ -13,6 +13,9 @@ TOKEN_CLOSE_PAREN = ")"
 TOKEN_COMMA = ","
 TOKEN_COLON = ":"
 TOKEN_TERMINATOR = ";"
+TOKEN_COMMENT_OPEN = "["
+TOKEN_COMMENT_CLOSE = "]"
+TOKEN_QUOTE = "'"
 
 NODE_PREFIX_LEAF = "leaf"
 NODE_PREFIX_UNION = "union"
@@ -21,6 +24,8 @@ ERR_NEWICK_EMPTY = "Newick content is empty."
 ERR_NEWICK_TRAILING_CONTENT = "Unexpected content after Newick tree terminator."
 ERR_NEWICK_MISSING_CLOSE = "Missing ')' in Newick content."
 ERR_NEWICK_BRANCH_LENGTH = "Invalid Newick branch length near index {index}."
+ERR_NEWICK_COMMENT = "Unterminated Newick comment near index {index}."
+ERR_NEWICK_QUOTED_LABEL = "Unterminated quoted Newick label near index {index}."
 WARN_DUPLICATE_LABEL = (
     "Label '{label}' is duplicated, generated deterministic suffix for uniqueness."
 )
@@ -115,14 +120,51 @@ def parse_newick(content: str) -> ParsedGraph:
             return None
         return content[index]
 
-    def consume_whitespace() -> None:
+    def consume_ignored() -> None:
         nonlocal index
-        while index < content_length and content[index].isspace():
+        while index < content_length:
+            if content[index].isspace():
+                index += 1
+                continue
+            if content[index] == TOKEN_COMMENT_OPEN:
+                consume_comment()
+                continue
+            break
+
+    def consume_comment() -> None:
+        nonlocal index
+        start = index
+        index += 1
+        while index < content_length and content[index] != TOKEN_COMMENT_CLOSE:
             index += 1
+        if index >= content_length:
+            raise ParseError(ERR_NEWICK_COMMENT.format(index=start))
+        index += 1
+
+    def parse_quoted_label() -> str:
+        nonlocal index
+        start = index
+        index += 1
+        chunks: list[str] = []
+        while index < content_length:
+            current = content[index]
+            if current != TOKEN_QUOTE:
+                chunks.append(current)
+                index += 1
+                continue
+            if index + 1 < content_length and content[index + 1] == TOKEN_QUOTE:
+                chunks.append(TOKEN_QUOTE)
+                index += 2
+                continue
+            index += 1
+            return "".join(chunks)
+        raise ParseError(ERR_NEWICK_QUOTED_LABEL.format(index=start))
 
     def parse_label_optional() -> str | None:
         nonlocal index
-        consume_whitespace()
+        consume_ignored()
+        if peek() == TOKEN_QUOTE:
+            return parse_quoted_label()
         start = index
         while index < content_length and content[index] not in (
             TOKEN_COMMA
@@ -130,6 +172,7 @@ def parse_newick(content: str) -> ParsedGraph:
             + TOKEN_CLOSE_PAREN
             + TOKEN_COLON
             + TOKEN_TERMINATOR
+            + TOKEN_COMMENT_OPEN
         ):
             index += 1
         label = content[start:index].strip()
@@ -137,22 +180,28 @@ def parse_newick(content: str) -> ParsedGraph:
 
     def parse_branch_length_optional() -> float | None:
         nonlocal index
-        consume_whitespace()
+        consume_ignored()
         if peek() != TOKEN_COLON:
             return None
         index += 1
         start = index
         while index < content_length and content[index] not in (
-            TOKEN_COMMA + TOKEN_OPEN_PAREN + TOKEN_CLOSE_PAREN + TOKEN_TERMINATOR
+            TOKEN_COMMA
+            + TOKEN_OPEN_PAREN
+            + TOKEN_CLOSE_PAREN
+            + TOKEN_TERMINATOR
+            + TOKEN_COMMENT_OPEN
         ):
             index += 1
         raw_value = content[start:index].strip()
         if not raw_value:
             raise ParseError(ERR_NEWICK_BRANCH_LENGTH.format(index=start))
         try:
-            return float(raw_value)
+            branch_length = float(raw_value)
         except ValueError as exc:
             raise ParseError(ERR_NEWICK_BRANCH_LENGTH.format(index=start)) from exc
+        consume_ignored()
+        return branch_length
 
     def emit_completed_node(node_id: str, distance_to_parent: float | None) -> None:
         nonlocal root_id
@@ -164,7 +213,7 @@ def parse_newick(content: str) -> ParsedGraph:
         root_id = node_id
 
     while True:
-        consume_whitespace()
+        consume_ignored()
         current = peek()
 
         if expect_subtree:
@@ -239,7 +288,7 @@ def parse_newick(content: str) -> ParsedGraph:
             if stack:
                 raise ParseError(ERR_NEWICK_MISSING_CLOSE)
             index += 1
-            consume_whitespace()
+            consume_ignored()
             if index != content_length:
                 raise ParseError(ERR_NEWICK_TRAILING_CONTENT)
             break
@@ -261,11 +310,53 @@ def parse_newick(content: str) -> ParsedGraph:
 
 def _split_forest(content: str) -> list[str]:
     """Split Newick text into individual ``;``-terminated trees."""
-    return [
-        f"{part.strip()}{TOKEN_TERMINATOR}"
-        for part in content.split(TOKEN_TERMINATOR)
-        if part.strip()
-    ]
+    trees: list[str] = []
+    start = 0
+    index = 0
+    content_length = len(content)
+    in_quote = False
+    in_comment = False
+
+    while index < content_length:
+        current = content[index]
+
+        if in_comment:
+            if current == TOKEN_COMMENT_CLOSE:
+                in_comment = False
+            index += 1
+            continue
+
+        if in_quote:
+            if current == TOKEN_QUOTE:
+                if index + 1 < content_length and content[index + 1] == TOKEN_QUOTE:
+                    index += 2
+                    continue
+                in_quote = False
+            index += 1
+            continue
+
+        if current == TOKEN_COMMENT_OPEN:
+            in_comment = True
+            index += 1
+            continue
+
+        if current == TOKEN_QUOTE:
+            in_quote = True
+            index += 1
+            continue
+
+        if current == TOKEN_TERMINATOR:
+            tree = content[start : index + 1].strip()
+            if tree:
+                trees.append(tree)
+            start = index + 1
+
+        index += 1
+
+    tail = content[start:].strip()
+    if tail:
+        trees.append(f"{tail}{TOKEN_TERMINATOR}")
+    return trees
 
 
 def _merge_parsed_forest(graphs: list[ParsedGraph]) -> ParsedGraph:

@@ -15,7 +15,7 @@ from phylo_profile.server_runner import ServerProfileConfig, run_one_dataset
 
 bootstrap_server_src()
 
-from phylo_lens_server.prepared_layout import layout as layout_module  # noqa: E402
+from phylo_lens_server.pipeline import layout as layout_module  # noqa: E402
 
 
 DEFAULT_VIEWPORT_FRACTIONS = (0.05, 0.2, 1.0)
