@@ -77,8 +77,10 @@ type: isRepresentative ? SIGMA_NODE_TYPE_TRIANGLE : undefined; // else "circle"
 (`type === "triangle"`, `is_cluster_proxy === true`, or `member_count > 1`).
 
 Node size grows with cluster size but is capped:
-`nodeSizeForMemberCount(n) = 5 + min(6, (sqrt(n) - 1) * 1.25)`, so even a huge
-cluster never dominates the canvas.
+`nodeSizeForMemberCount(n) = min(6, 3.5 + log2(n) * 0.55)` for representatives,
+while leaves stay at size `3`, so even a huge cluster remains clickable without
+dominating the canvas. Leaf labels remain available whenever node labels are
+enabled; Sigma's own rendered-size threshold controls when they become visible.
 
 ## Node Coloring
 

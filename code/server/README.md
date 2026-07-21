@@ -1,9 +1,10 @@
 # PhyloLens Server
 
 FastAPI service for deterministic phylogenetic normalization, threshold
-clustering, `sfdp` layout precomputation, and bounded viewport reads backed by a
-SQLite prepared-layout store. See the [`docs/`](../../docs/README.md) set for the
-full architecture.
+clustering, `sfdp` layout precomputation, and bounded viewport reads. Local mode
+uses a SQLite prepared-layout store; distributed production mode uses Postgres
+for durable prepare jobs and prepared-layout artifacts. See the
+[`docs/`](../../docs/README.md) set for the full architecture.
 
 ## Setup
 
@@ -54,10 +55,11 @@ docker run --rm \
   ghcr.io/phyloviz/phylo-lens-service:0.1.0
 ```
 
-The container listens on port `8000`, binds to `0.0.0.0`, and writes prepared
-layout data under `/data`. The image includes Python 3.12, the server package,
-FastAPI/uvicorn, SQLite from the Python standard library, Graphviz `sfdp`, and
-the PhyloLib Java runtime from the digest-pinned PhyloLib image. Production
+The container listens on port `8000`, binds to `0.0.0.0`, and writes local-mode
+prepared layout data under `/data`. The image includes Python 3.12, the server
+package, FastAPI/uvicorn, SQLite from the Python standard library, Graphviz
+`sfdp`, and the PhyloLib Java runtime from the digest-pinned PhyloLib image.
+Production
 `typing_data` ingest runs `java -jar /app.jar` inside this service container; it
 does not need host Docker access.
 
@@ -109,6 +111,14 @@ cd code/server
 ./scripts/container-smoke.sh
 ```
 
+Postgres distributed-storage smoke validation:
+
+```bash
+cd code/server
+python -m pip install -e '.[postgres]'
+./scripts/postgres-job-smoke.sh
+```
+
 ## API
 
 The runtime is driven by two endpoints under `/api/graph`. See
@@ -122,7 +132,7 @@ Returns service health.
 ### `POST /api/graph/prepare`
 
 Normalizes input (synchronously) and submits a background job that materializes
-the LoD runtime artifacts into the SQLite prepared-layout store:
+the LoD runtime artifacts into the configured prepared-layout store:
 
 - threshold clusters (up to 16 tiers) with layout-centroid representatives;
 - `sfdp` force-directed node and cluster positions;
@@ -169,24 +179,86 @@ Returns a bounded visible graph slice for a prepared dataset.
 
 The response (`GraphViewportResponse`) includes visible nodes, visible edges
 (with meta-edge fields for expanded clusters), `total_node_count`, `truncated`,
-and `metadata_schema`. Set `cluster_id` to expand a single cluster into its
-members.
+stable full-layout `global_bounds`, and `metadata_schema`. Set `cluster_id` to
+expand a single cluster into its members.
 
 ## Storage
 
-Prepared layouts are persisted through `PreparedLayoutStore`, a SQLite database
-keyed by `(dataset_id, layout_version)`. See the schema in
-[`../../docs/DATA_MODEL.md`](../../docs/DATA_MODEL.md).
+Local deployments persist prepared layouts through `PreparedLayoutStore`, a
+SQLite database keyed by `(dataset_id, layout_version)`. Distributed deployments
+use Postgres for both durable job state and prepared-layout artifacts, so API
+replicas and external workers read and write the same database without a shared
+filesystem. See the schema in [`../../docs/DATA_MODEL.md`](../../docs/DATA_MODEL.md).
+
+Install the Postgres extra for production/distributed mode:
+
+```bash
+pip install "phylo-lens-server[postgres]"
+```
+
+The Postgres schema lives in `sql/postgres/create-schema.sql` and is packaged
+with the server distribution. The applied schema checksum is recorded in
+`phylo_lens_schema_version`.
+
+Create the schema explicitly before starting API replicas or workers:
+
+```bash
+PHYLO_LENS_POSTGRES_DSN=postgresql://... phylo-lens-init-postgres
+```
+
+API replicas and workers verify that the schema is current at startup;
+they do not create or mutate the Postgres schema as a side effect of serving
+traffic.
+
+Run API replicas against the durable job backend:
+
+```bash
+PHYLO_LENS_PREPARE_JOB_BACKEND=postgres \
+PHYLO_LENS_POSTGRES_DSN=postgresql://... \
+phylo-lens-server
+```
+
+Run one or more external prepare workers:
+
+```bash
+PHYLO_LENS_POSTGRES_DSN=postgresql://... \
+phylo-lens-prepare-worker
+```
+
+When `PHYLO_LENS_PREPARE_JOB_BACKEND=postgres`, the API uses
+`PostgresPrepareJobStore` for queue/lease state and
+`PostgresPreparedLayoutStore` for materialized layouts. `PHYLO_LENS_DATA_DIR`
+and `PHYLO_LENS_PREPARED_LAYOUT_STORE_DIR` apply only to local SQLite mode.
 
 Environment variable:
 
-- `PHYLO_LENS_DATA_DIR`: deployment data root. When set, prepared layouts are
-  stored below `${PHYLO_LENS_DATA_DIR}/prepared_layout`. The Docker image sets
-  this to `/data`.
-- `PHYLO_LENS_PREPARED_LAYOUT_STORE_DIR`: store directory. Defaults to
+- `PHYLO_LENS_DATA_DIR`: local-mode data root. When set, SQLite prepared layouts
+  are stored below `${PHYLO_LENS_DATA_DIR}/prepared_layout`. The Docker image
+  sets this to `/data`.
+- `PHYLO_LENS_PREPARED_LAYOUT_STORE_DIR`: local-mode SQLite store directory.
+  Defaults to
   a `phylo_lens_prepared_layout` directory under the system temp dir when
   `PHYLO_LENS_DATA_DIR` is unset. If both variables are set, this explicit store
   directory wins.
+- `PHYLO_LENS_MAX_ACTIVE_PREPARE_JOBS`: optional positive integer cap for new
+  queued/running prepare jobs in this server process. Duplicate submissions for
+  the same `(dataset_id, layout_version)` reuse the existing job and do not
+  consume extra capacity. When the cap is reached, new distinct prepare requests
+  return `429`.
+- `PHYLO_LENS_PREPARE_JOB_BACKEND`: `local` (default) uses the in-process
+  background worker; `postgres` submits/polls durable jobs in Postgres and
+  expects separate `phylo-lens-prepare-worker` processes to execute them.
+- `PHYLO_LENS_POSTGRES_DSN`: Postgres connection string required by
+  `PHYLO_LENS_PREPARE_JOB_BACKEND=postgres`, `phylo-lens-init-postgres`, and
+  `phylo-lens-prepare-worker`.
+- `PHYLO_LENS_WORKER_ID`: optional stable worker id for
+  `phylo-lens-prepare-worker`. Defaults to a generated host-qualified id.
+- `PHYLO_LENS_WORKER_LEASE_SECONDS`: worker lease duration. The worker renews
+  the lease while layout computation is running and fences artifact publication
+  on current ownership.
+- `PHYLO_LENS_WORKER_POLL_INTERVAL_SECONDS`: delay between empty worker polls.
+- `PHYLO_LENS_WORKER_MAX_JOBS`: optional positive integer for one-shot worker
+  runs, mostly useful for tests, batch jobs, and controlled process recycling.
 - `PHYLO_LENS_CORS_ORIGINS`: comma-separated browser origins allowed to call the
   service directly, for example
   `http://localhost:5173,https://phyloviz.example.org`. Values are trimmed and

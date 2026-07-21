@@ -57,7 +57,7 @@ flowchart TD
     K -->|else| K4["representatives at level's threshold, in bounds"]
 
     K1 --> L["GraphViewportResponse
-    nodes, edges, total_node_count, truncated"]
+    nodes, edges, global_bounds, total_node_count, truncated"]
     K2 --> L
     K3 --> L
     K4 --> L

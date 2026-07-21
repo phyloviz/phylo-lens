@@ -14,7 +14,7 @@ global work, and every interaction is a cheap bounded read.
 
 | Path | What it is |
 | --- | --- |
-| [`code/server`](code/server/README.md) | **PhyloLens API service** — FastAPI service for normalization, threshold clustering, `sfdp` layout precompute, and bounded viewport/region reads, backed by a SQLite prepared-layout store. Distributed as a Docker runtime. |
+| [`code/server`](code/server/README.md) | **PhyloLens API service** — FastAPI service for normalization, threshold clustering, `sfdp` layout precompute, and bounded viewport/region reads. Local mode uses SQLite; distributed production mode uses Postgres for jobs and prepared-layout artifacts. Distributed as a Docker runtime. |
 | [`code/client`](code/client/README.md) | **Browser library** — TypeScript/Sigma.js renderer with server-driven level-of-detail, metadata-driven coloring/sizing, and box-select region isolation. Packaged as `@phyloviz/phylo-lens`. |
 | [`docs`](docs/README.md) | Maintained technical documentation (architecture, data model, pipeline, LoD, rendering, API reference). |
 | [`examples`](examples/README.md) | Small input datasets for local runs and tests. |
@@ -26,7 +26,7 @@ sequenceDiagram
   participant C as Client (Sigma.js)
   participant S as Server (FastAPI)
   participant W as Layout worker
-  participant DB as SQLite store
+  participant DB as Layout store
 
   C->>S: POST /api/graph/prepare (Newick)
   S->>S: normalize + validate (sync)
@@ -56,7 +56,7 @@ sequenceDiagram
    synchronously, then submits a background layout job (returns `202`).
 2. The server builds a deterministic distance-threshold hierarchy (Union-Find
    over weighted edges, up to 16 tiers) and computes force-directed positions
-   (Graphviz `sfdp`), persisting the result to SQLite keyed by
+  (Graphviz `sfdp`), persisting the result keyed by
    `(dataset_id, layout_version)`.
 3. The client **polls `GET /api/graph/prepare/{job_id}`** until the layout is
    `ready`, then maps camera zoom to a LoD tier and calls
@@ -98,11 +98,18 @@ npm ci
 npm run dev                                    # serves http://localhost:3000
 ```
 
+The local dev server proxies same-origin `/health` and `/api/...` requests to
+`http://localhost:8000` by default. If the backend runs elsewhere, set:
+
+```bash
+VITE_PHYLO_LENS_PROXY_TARGET=http://127.0.0.1:8001 npm run dev
+```
+
 Host applications install `@phyloviz/phylo-lens` and pass the deployed service
-URI as `apiUrl`:
+URI or same-origin proxy prefix as `apiUrl`:
 
 ```ts
-createPhyloLensView({ container, apiUrl: "http://localhost:8000" });
+createPhyloLensView({ container, apiUrl: "" });
 ```
 
 The browser package validates the service `api_version` from `/health` before

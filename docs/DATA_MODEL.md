@@ -1,19 +1,19 @@
 # Data Model
 
 This document defines the data contracts that flow through PhyloLens and the
-SQLite schema that persists prepared layouts. It is the reference for
+storage schema that persists prepared layouts. It is the reference for
 [`ARCHITECTURE_SPEC.md`](./ARCHITECTURE_SPEC.md) and
 [`SERVER_PIPELINE.md`](./SERVER_PIPELINE.md).
 
 Three layers of models exist:
 
-1. **Canonical models** — the normalized input (`core/models.py`).
+1. **Canonical models** — the normalized input (`domain/models.py`).
 2. **Prepared/layout models** — server-internal materialization records
-   (`prepared_layout/models.py`).
+   (`pipeline/models.py`).
 3. **Viewport wire models** — the request/response types crossing the HTTP
-   boundary (`api/graph.py`, mirrored client-side in `api/graphClient.ts`).
+   boundary (`http/graph/router.py`, mirrored client-side in `api/graphClient.ts`).
 
-## 1. Canonical Models (`core/models.py`)
+## 1. Canonical Models (`domain/models.py`)
 
 ### `CanonicalDataset`
 
@@ -47,7 +47,7 @@ with `1.0` and emits a warning).
 
 ## 2. Metadata Rules
 
-### Internal-key filtering (`core/metadata_keys.py`)
+### Internal-key filtering (`domain/metadata_keys.py`)
 
 Two families of keys are internal and must never surface in public payloads:
 
@@ -69,7 +69,7 @@ A cluster representative summarizes its members' metadata:
 - **Categorical / boolean fields** (`"string"`, `"boolean"`): **mode** (most
   common non-null value), with an alphabetical tie-break for determinism.
 
-## 3. Prepared / Layout Models (`prepared_layout/models.py`)
+## 3. Prepared / Layout Models (`pipeline/models.py`)
 
 `LayoutStatus = Literal["pending", "refining", "ready", "degraded", "failed"]`.
 
@@ -103,7 +103,7 @@ holds one member's `x`, `y`, `cluster_id`, and `status` at finest detail.
 - `ViewportEdge`: `edge_id`, `source`, `target`, `distance`, `is_meta`
   (default None), `bundled_edge_count` (default None).
 - `ViewportReadResult`: `nodes`, `edges`, `total_node_count`, `truncated`,
-  `layout_status`, `metadata_schema`.
+  `layout_status`, `global_bounds`, `metadata_schema`.
 - `RegionReadResult`: the `ViewportReadResult` fields plus `aggregated_metadata`
   (`dict[str, str | float | bool | None]`) — backs the `/region` box-select read
   (see [§4 Region wire models](#region-wire-models-apigraphpy)).
@@ -116,7 +116,7 @@ The API maps `ViewportNode`/`ViewportEdge` onto `GraphViewportNode`/
 response field lists and [`CLIENT_RENDERING.md`](./CLIENT_RENDERING.md) for how
 the client interprets them.
 
-### Region wire models (`api/graph.py`)
+### Region wire models (`http/graph/router.py`)
 
 The `/region` route (hand-drawn box select) uses its own request/response pair:
 
@@ -132,14 +132,21 @@ The `/region` route (hand-drawn box select) uses its own request/response pair:
   `store.read_region`, which returns a `RegionReadResult` (the `ViewportReadResult`
   fields plus `aggregated_metadata`).
 
-## 5. SQLite Schema (`prepared_layout/store.py`)
+## 5. Prepared Layout Store Schema
 
-`PreparedLayoutStore` materializes every prepared artifact into a SQLite
-database. All tables are keyed by `(dataset_id, layout_version)` so multiple
-datasets and layout versions can coexist. The store replaced the earlier
-in-memory JSON + STR R-tree model: bounds and position lookups are served by
-ordinary B-tree indexes on the coordinate columns rather than a bespoke spatial
-index.
+`PreparedLayoutStore` materializes every prepared artifact into a local SQLite
+database, while `PostgresPreparedLayoutStore` uses the same logical artifact
+tables in Postgres for distributed production deployments. All tables are keyed
+by `(dataset_id, layout_version)` so multiple datasets and layout versions can
+coexist. The store replaced the earlier in-memory JSON + STR R-tree model:
+bounds and position lookups are served by ordinary database indexes on the
+coordinate columns rather than a bespoke spatial index.
+
+Layout versions are published explicitly. A worker writes a new version with
+`datasets.status = "refining"` and flips it to `ready` or `degraded` only after
+all artifact tables have been populated. Reads that omit `layout_version` resolve
+only published versions, so an in-flight prepare cannot replace the previous
+ready layout with a partial one.
 
 ```mermaid
 erDiagram
@@ -153,7 +160,7 @@ erDiagram
   prepared_clusters ||--o{ cluster_members : contains
 ```
 
-Nine tables:
+The artifact tables are:
 
 | Table | Purpose | Key columns |
 | --- | --- | --- |
@@ -166,6 +173,11 @@ Nine tables:
 | `node_metadata` | per-node metadata as JSON | `node_id`, `metadata_json` |
 | `cluster_metadata` | aggregated cluster metadata as JSON | `cluster_id`, `metadata_json` |
 | `metadata_schema` | public field schema | `field_key`, `field_type` |
+
+Postgres production mode also stores durable prepare jobs in `prepare_jobs`
+beside these artifact tables. Schema files live under
+`code/server/sql/{postgres,sqlite}/create-schema.sql`; the applied Postgres
+checksum is tracked by `phylo_lens_schema_version`.
 
 Indexes that make viewport reads cheap:
 

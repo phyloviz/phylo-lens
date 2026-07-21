@@ -21,8 +21,9 @@ This document is the system-level map. For the runtime narrative see
 2. **Precompute before interaction.** All expensive global work happens once in
    `prepare`. Interactive camera updates issue bounded, indexed viewport reads.
 3. **Materialize, don't recompute.** Prepared artifacts (clusters, per-tier
-   edges, node positions, metadata) are persisted in SQLite keyed by
-   `(dataset_id, layout_version)` and read back by query, not rebuilt.
+   edges, node positions, metadata) are persisted keyed by
+   `(dataset_id, layout_version)` and read back by query, not rebuilt. Local
+   mode uses SQLite; distributed production mode uses Postgres.
 4. **Keep runtime payloads bounded.** A viewport read uses `max_nodes` as the
    primary slice budget; the response carries a `truncated` flag and the true
    `total_node_count` so the client knows it is seeing a slice. Edge-preserving
@@ -34,7 +35,7 @@ This document is the system-level map. For the runtime narrative see
 ## Route Contract
 
 The runtime is driven by FastAPI routes under the prefix `/api/graph`
-(`api/graph.py`, `ROUTER_PREFIX`). Prepare and viewport are the core loop;
+(`http/graph/router.py`, `ROUTER_PREFIX`). Prepare and viewport are the core loop;
 region is an on-demand read for a hand-drawn selection box. This section is the
 system-level summary; for the field-by-field request/response models, error
 shapes, and the prepare lifecycle see [`API_REFERENCE.md`](./API_REFERENCE.md):
@@ -52,7 +53,8 @@ shapes, and the prepare lifecycle see [`API_REFERENCE.md`](./API_REFERENCE.md):
 - **`POST /api/graph/viewport`** — `read_graph_viewport()`. Takes a
   `GraphViewportQuery` (bounds, `zoom`, `lod_level`, `cluster_id`, `max_nodes`)
   and returns a `GraphViewportResponse` (visible `nodes`, `edges`,
-  `total_node_count`, `truncated`, `metadata_schema`).
+  `total_node_count`, `truncated`, stable full-layout `global_bounds`,
+  `metadata_schema`).
 - **`POST /api/graph/region`** — `read_graph_region()`. Takes a
   `GraphRegionQuery` (required bounds `xmin/xmax/ymin/ymax`, `max_nodes`) and
   returns a `GraphRegionResponse`: the isolated subgraph inside the box plus
@@ -70,7 +72,7 @@ step inside `prepare`. Defaults: `DEFAULT_MAX_VIEWPORT_NODES = 2500`,
 
 Pydantic contracts and domain errors: `CanonicalDataset`, `CanonicalNode`,
 `CanonicalEdge`, metadata field types, and the internal-key filter in
-`core/metadata_keys.py` (`is_internal_metadata_key`). `core` must not import
+`domain/metadata_keys.py` (`is_internal_metadata_key`). `core` must not import
 parsing, HTTP, or layout code.
 
 ### `data`
@@ -80,7 +82,7 @@ lengths and assigns deterministic node IDs; `normalize_dataset` produces the
 `CanonicalDataset`, aligns per-node metadata, and can expose the internal
 metadata schema for prepare.
 
-### `prepared_layout`
+### `pipeline`
 
 The heart of the server. It turns a `CanonicalDataset` into a persisted,
 queryable layout:
@@ -99,21 +101,32 @@ queryable layout:
   layout → prepared edges → persist; `submit_prepare_dataset` runs it on a
   single-worker `ThreadPoolExecutor`, and `compute_prepared_edges` builds the
   per-tier quotient edge lists.
-- `jobs.py`: `PrepareJobRegistry` tracks background prepare `Future`s (plus their
-  submit-time warnings) so `/prepare` can submit and clients can poll;
-  `PrepareJobSnapshot` is the immutable `pending`/`ready`/`failed` view.
-- `store.py`: `PreparedLayoutStore`, the SQLite-backed materialized store, and
-  `read_viewport` with its four read paths (see below).
+### `services`
 
-### `api`
+Application services coordinate use cases without owning HTTP transport details:
+`graph_service.py` prepares datasets, maps prepare status, resolves layout
+versions, and serves viewport/region/search reads.
 
-`api/graph.py` hosts the routes above plus request/response models
-(`GraphPrepareJob`, `GraphPrepareStatus`, `GraphPrepareResponse`,
-`GraphRegionQuery`, `GraphRegionResponse`) and helpers
-(`ensure_graph_edge_distances`, `effective_lod_level`,
-`prepare_response_from_result`, and the `get_prepare_job_registry` singleton).
-`store.py` backs `/region` with `read_region` (returning a `RegionReadResult`
-that adds `aggregated_metadata` to the viewport read shape).
+### `repository`
+
+Persistence implementations live behind job and layout repository modules:
+
+- `repository/jobs/local.py`: `PrepareJobRegistry` tracks local background
+  prepare `Future`s so `/prepare` can submit and clients can poll.
+- `repository/jobs/postgres.py`: Postgres durable prepare-job control plane. It
+  applies `sql/postgres/create-schema.sql` explicitly, records a schema checksum,
+  handles duplicate submission coalescing, `FOR UPDATE SKIP LOCKED` worker
+  claiming, worker leases/heartbeats, and ready/failed snapshots.
+- `repository/layout/sqlite_layout_repository.py`: local SQLite artifact store.
+- `repository/layout/postgres_layout_repository.py`: production/distributed
+  artifact store. It mirrors the SQLite artifact tables in Postgres so API
+  replicas and external workers share one database, not a filesystem volume.
+
+### `http`
+
+`http/graph/router.py` hosts the FastAPI routes, while
+`http/graph/schemas.py` and `http/graph/responses.py` define the HTTP contract.
+The router delegates application behavior to `services/graph_service.py`.
 
 ## Client Modules
 
@@ -206,21 +219,23 @@ flowchart TD
   end
 
   subgraph Server
-    SRV["api/graph.py"]
-    WORK["prepared_layout/worker.py<br/>(ThreadPoolExecutor)"]
-    JOBS["prepared_layout/jobs.py<br/>(PrepareJobRegistry)"]
-    ING["prepared_layout/ingest.py"]
-    LAY["prepared_layout/layout.py"]
-    STORE["prepared_layout/store.py (SQLite)"]
+    SRV["http/graph/router.py"]
+    SVC["services/graph_service.py"]
+    WORK["pipeline/worker.py<br/>(ThreadPoolExecutor)"]
+    JOBS["repository/jobs/local.py<br/>(PrepareJobRegistry)"]
+    ING["pipeline/ingest.py"]
+    LAY["pipeline/layout.py"]
+    STORE["repository/layout/*<br/>(SQLite local, Postgres distributed)"]
     DATA["data/normalizer.py + parsers.py"]
 
-    SRV --> DATA
-    SRV --> JOBS
+    SRV --> SVC
+    SVC --> DATA
+    SVC --> JOBS
     JOBS --> WORK
     WORK --> ING
     WORK --> LAY
     WORK --> STORE
-    SRV --> STORE
+    SVC --> STORE
   end
 
   APIC -->|"POST /api/graph/prepare"| SRV
@@ -246,7 +261,7 @@ sequenceDiagram
   participant WB as GraphWorkbench
   participant API as GraphClient
   participant Srv as Server (graph)
-  participant Store as SQLite Store
+  participant Store as Layout Store
   participant GV as GraphViewer
 
   WB->>API: prepareGraph(NormalizeRequest)
@@ -301,9 +316,11 @@ all-present-or-all-absent.
 
 `dataset_id`, `layout_version`, echoed `lod_level`, `zoom`, `layout_status`,
 `truncated`, `total_node_count`, `nodes` (`GraphViewportNode`), `edges`
-(`GraphViewportEdge`), `metadata_schema`. A cluster representative carries
-`is_representative = true` and `member_count > 1`. Rerouted boundary edges carry
-`is_meta = true` and `bundled_edge_count`.
+(`GraphViewportEdge`), `global_bounds`, `metadata_schema`. `global_bounds` is
+the full prepared layout's coordinate frame and stays stable across bounded
+viewport reads. A cluster representative carries `is_representative = true` and
+`member_count > 1`. Rerouted boundary edges carry `is_meta = true` and
+`bundled_edge_count`.
 
 ## Correctness Invariants
 
@@ -326,14 +343,14 @@ all-present-or-all-absent.
 
 **Prepare-time (once):** normalize; select up to 16 distance thresholds; build
 Union-Find components per threshold; run `sfdp` global layout; compute cluster
-positions/bounds and per-tier quotient edges; persist to SQLite.
+positions/bounds and per-tier quotient edges; persist to the configured layout
+store.
 
 **Interaction-time (per viewport):** resolve `lod_level` from zoom/hint; run one
 of four `read_viewport` paths (bounds-indexed representative or ready-node read,
 overview read, or `cluster_id` expansion); attach metadata; return a
-`max_nodes`-bounded slice. Viewport reads use SQLite indexes on cluster bounds
-(`idx_prepared_clusters_bounds`) and node positions (`idx_node_positions_xy`),
-so cost tracks the returned slice, not total dataset size.
+`max_nodes`-bounded slice. Viewport reads use database indexes on cluster bounds
+and node positions, so cost tracks the returned slice, not total dataset size.
 
 ## Future Work
 

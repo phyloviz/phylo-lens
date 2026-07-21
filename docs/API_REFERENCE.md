@@ -5,7 +5,7 @@ Field-level reference for the PhyloLens HTTP API. For the system map see
 [`flow.md`](./flow.md); for internal models see [`DATA_MODEL.md`](./DATA_MODEL.md).
 
 All routes live under the prefix **`/api/graph`** (`ROUTER_PREFIX`,
-`api/graph.py`). Request/response models are Pydantic (server) mirrored by
+`http/graph/router.py`). Request/response models are Pydantic (server) mirrored by
 TypeScript interfaces in `code/client/src/api/graphClient.ts`. Responses use
 `response_model_exclude_none=True`, so `null`-valued optional fields are omitted
 from the JSON.
@@ -65,6 +65,7 @@ Error bodies follow FastAPI's `{"detail": ...}` convention (`api/errors.py`):
 | Code | When | `detail` shape |
 |---|---|---|
 | `400` | Parse failure (malformed Newick) | `str` (message) |
+| `429` | Active prepare-job limit reached | `str` (message) |
 | `404` | Unknown `job_id`, or dataset/layout not found | `str` (message) |
 | `422` | Domain validation (e.g. missing distances) | `{"errors": [str, ...]}` |
 | `422` | Request-schema validation (Pydantic) | `{"errors": [ {loc,msg,type}, ... ]}` |
@@ -192,6 +193,7 @@ curl --location --request POST 'http://localhost:8000/api/graph/viewport' \
   "total_node_count": 5,
   "nodes": [ { "id": "A", "cluster_id": "c0", "x": 12.3, "y": 45.6, "layout_status": "ready", "member_count": 1 } ],
   "edges": [ { "id": "A->N", "source": "A", "target": "N", "distance": 1.0 } ],
+  "global_bounds": { "min_x": -120.0, "max_x": 120.0, "min_y": -80.0, "max_y": 80.0 },
   "metadata_schema": []
 }
 ```
@@ -290,7 +292,11 @@ shape minus `lod_level`/`zoom`, plus `aggregated_metadata`):
 `dataset_id` · `layout_version` · `lod_level: int\|null` · `zoom: float` ·
 `layout_status` · `truncated: bool` · `total_node_count: int` ·
 `nodes: GraphViewportNode[]` · `edges: GraphViewportEdge[]` ·
-`metadata_schema: GraphMetadataField[]`
+`global_bounds: GraphLayoutBounds | null` · `metadata_schema: GraphMetadataField[]`
+
+**`GraphLayoutBounds`:** `min_x` · `max_x` · `min_y` · `max_y`. These are the
+stable full-layout coordinate bounds, not just the current visible slice; clients
+use them to keep the camera coordinate frame fixed while panning.
 
 **`GraphViewportNode`:** `id` · `cluster_id` · `x` · `y` · `layout_status` ·
 `member_count: int ≥ 1` (default 1) · `is_representative: bool` (default false) ·

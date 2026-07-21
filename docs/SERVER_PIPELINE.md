@@ -4,8 +4,8 @@
 queryable layout. This is the only expensive server operation; everything at
 interaction time is a bounded read (see
 [`LOD_AND_CLUSTERING.md`](./LOD_AND_CLUSTERING.md)). The orchestration lives in
-`PreparedLayoutWorker.prepare_dataset` (`prepared_layout/worker.py`), driven by
-`prepare_graph` (`api/graph.py`).
+`PreparedLayoutWorker.prepare_dataset` (`pipeline/worker.py`), driven by
+`prepare_graph` (`http/graph/router.py`).
 
 Because the force-directed layout can run for a long time on large trees, prepare
 is **asynchronous**: `POST /prepare` validates input synchronously, submits the
@@ -23,7 +23,7 @@ flowchart TD
   ING --> CL["clusters at up to 16 thresholds"]
   CL --> LAY["compute_prepared_layouts<br/>(layout.py, sfdp)"]
   CL --> PE["compute_prepared_edges<br/>(worker.py, per-tier quotient edges)"]
-  LAY --> PERSIST["PreparedLayoutStore<br/>(SQLite persist)"]
+  LAY --> PERSIST["Layout store<br/>(SQLite local / Postgres distributed)"]
   PE --> PERSIST
   PERSIST --> RESP["GraphPrepareResponse<br/>(lod_tier_count, layout_status)<br/>returned via GET /prepare/{job_id}"]
 ```
@@ -147,10 +147,15 @@ edges without rewalking the topology.
 
 ## Step 5 — Persist and Respond
 
-`PreparedLayoutWorker` clears any prior rows for the dataset, then writes
-clusters, cluster members, graph edges, prepared edges, node positions, node and
-cluster metadata, and the schema into SQLite (see the schema in
-[`DATA_MODEL.md`](./DATA_MODEL.md)). When the poll observes the job as `ready`,
+`PreparedLayoutWorker` writes each content-derived `layout_version` as
+`refining`, replacing only prior rows for that same version. Existing ready
+versions for the dataset remain readable while the new layout is materialized.
+After clusters, cluster members, graph edges, prepared edges, node positions,
+node and cluster metadata, and the schema have all been persisted, the worker
+publishes the layout by updating the dataset row to `ready` or `degraded` (see
+the schema in [`DATA_MODEL.md`](./DATA_MODEL.md)). Latest-layout reads only
+consider published (`ready`/`degraded`) versions. When the poll observes the job
+as `ready`,
 `prepare_response_from_result` computes
 `lod_tier_count = max(len(distinct non-None thresholds), 1)` — the same
 enumeration `compute_prepared_edges` uses — and builds the
@@ -187,7 +192,12 @@ sequenceDiagram
   normalize/distance warnings are handed to `PrepareJobRegistry.submit`, which
   runs `PreparedLayoutWorker.submit_prepare_dataset` on a single-worker
   `ThreadPoolExecutor` and returns a `job_id`. The route responds `202 Accepted`
-  with `GraphPrepareJob { job_id, status: "pending", dataset_id }`.
+  with `GraphPrepareJob { job_id, status: "pending", dataset_id }`. The registry
+  coalesces submissions with the same `(dataset_id, layout_version)` while a job
+  is pending, and reuses the successful completed job in-process, so duplicate
+  prepares do not enqueue duplicate layout work. Deployments may set
+  `PHYLO_LENS_MAX_ACTIVE_PREPARE_JOBS` to cap distinct queued/running jobs in the
+  process; once the cap is reached, new distinct prepares return `429`.
 - **Poll (`prepare_graph_status`).** `GET /prepare/{job_id}` reads
   `PrepareJobRegistry.snapshot`, which inspects the `Future`: still running →
   `pending`; raised → `failed` with the error string; done → `ready` with the
@@ -198,6 +208,39 @@ sequenceDiagram
   `@lru_cache(maxsize=1)` singleton built from the prepared-layout store. The
   FastAPI `lifespan` handler calls `registry.shutdown()` to drain the executor on
   app shutdown.
+
+## Distributed Job Control Plane
+
+The default runtime still uses the in-process `PrepareJobRegistry` above for
+local and single-node deployments. `repository/jobs/postgres.py` introduces the
+Postgres-backed durable control plane for distributed deployments, with schema
+defined by `sql/postgres/create-schema.sql`.
+`phylo_lens_schema_version` records the applied schema checksum:
+
+- `prepare_jobs` stores `job_id`, `dataset_id`, `layout_version`, normalized
+  dataset payload, warnings, status, result/error, worker id, and lease expiry.
+- Duplicate submissions are coalesced with a partial unique index on
+  `(dataset_id, layout_version)` while status is `queued`, `running`, or `ready`.
+- Workers claim queued jobs, or expired running jobs, with
+  `FOR UPDATE SKIP LOCKED`, then renew ownership with heartbeats.
+- Successful workers mark jobs `ready` with a result payload; failed workers mark
+  jobs `failed` with an error string.
+
+This splits durable distributed execution from local development without forcing
+local mode to require Postgres. Set `PHYLO_LENS_PREPARE_JOB_BACKEND=postgres` on
+API replicas to submit and poll durable jobs after running
+`phylo-lens-init-postgres`. API replicas and workers assert that the schema is
+current at startup; they do not apply DDL implicitly. Run
+`phylo-lens-prepare-worker` to claim jobs, execute the same
+`PreparedLayoutWorker.prepare_dataset` pipeline, persist layout artifacts through
+`PostgresPreparedLayoutStore`, and write the serialized `GraphPrepareResponse`
+back to Postgres. The worker renews its lease while long-running layout
+computation is active and checks ownership before publishing layout artifacts.
+
+In Postgres mode, Postgres is both the job control plane and the prepared-layout
+artifact store. API replicas and workers therefore share one database rather
+than coordinating through a filesystem volume. `PHYLO_LENS_DATA_DIR` and
+`PHYLO_LENS_PREPARED_LAYOUT_STORE_DIR` apply only to local SQLite mode.
 
 ## Determinism
 
