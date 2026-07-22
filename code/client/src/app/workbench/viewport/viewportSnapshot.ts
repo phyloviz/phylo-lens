@@ -205,10 +205,7 @@ function resolveViewportVisuals(
     return null;
   }
 
-  const metadataSchema =
-    responseMetadataSchema.length > 0
-      ? responseMetadataSchema
-      : settings?.metadataSchema ?? [];
+  const metadataSchema = responseMetadataSchema.length > 0 ? responseMetadataSchema : (settings?.metadataSchema ?? []);
   const colorField = resolveColorField(metadataSchema, mapping.colorField);
   const sizeField = mapping.size?.field ?? mapping.sizeField ?? resolveDefaultSizeField(viewportHasProfileCount(nodes));
   const scale = mapping.size?.scale ?? SIZE_SCALE_LINEAR;

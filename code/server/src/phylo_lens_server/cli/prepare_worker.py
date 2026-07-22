@@ -107,7 +107,9 @@ def run_postgres_prepare_worker(
                     raise PrepareJobLeaseLostError(ERR_JOB_LEASE_LOST)
                 jobs_completed += 1
             except (PrepareJobLeaseLostError, LayoutPublicationAbortedError):
-                logger.warning("prepare worker lost ownership job_id=%s", claimed.job_id)
+                logger.warning(
+                    "prepare worker lost ownership job_id=%s", claimed.job_id
+                )
                 jobs_completed += 1
             except Exception as error:  # pragma: no cover - defensive worker loop
                 logger.exception("prepare worker failed job_id=%s", claimed.job_id)

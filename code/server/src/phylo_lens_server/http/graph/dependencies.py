@@ -11,7 +11,9 @@ from phylo_lens_server.repository.jobs.local import PrepareJobRegistry
 from phylo_lens_server.repository.layout.postgres_layout_repository import (
     PostgresPreparedLayoutStore,
 )
-from phylo_lens_server.repository.layout.sqlite_layout_repository import PreparedLayoutStore
+from phylo_lens_server.repository.layout.sqlite_layout_repository import (
+    PreparedLayoutStore,
+)
 from phylo_lens_server.pipeline.worker import PreparedLayoutWorker
 
 

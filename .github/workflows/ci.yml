@@ -41,6 +41,7 @@ jobs:
               - '.github/workflows/ci.yml'
             server:
               - 'code/server/src/**'
+              - 'code/server/sql/**'
               - 'code/server/tests/**'
               - 'code/server/pyproject.toml'
               - 'docs/API_REFERENCE.md'
@@ -55,6 +56,7 @@ jobs:
               - 'code/server/.dockerignore'
               - 'code/server/compose.yaml'
               - 'code/server/scripts/container-smoke.sh'
+              - 'code/server/sql/**'
               - 'code/server/src/**'
               - 'code/server/pyproject.toml'
               - '.github/workflows/ci.yml'
@@ -161,7 +163,7 @@ jobs:
 
       - name: Install fixture dependencies
         working-directory: examples/public-library-host
-        run: npm ci
+        run: npm install
 
       - name: Build fixture
         working-directory: examples/public-library-host
@@ -177,6 +179,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -185,6 +192,7 @@ jobs:
         with:
           context: code/server
           load: true
+          platforms: linux/arm64
           tags: phylo-lens-service:ci
           cache-from: type=gha
           cache-to: type=gha,mode=max

@@ -142,8 +142,7 @@ class PostgresPrepareJobStore:
                     return
                 if applied_checksum is not None:
                     raise RuntimeError(
-                        "Postgres schema checksum mismatch for "
-                        f"{schema.version}."
+                        f"Postgres schema checksum mismatch for {schema.version}."
                     )
                 for statement in sql_statements(schema.sql):
                     connection.execute(statement)

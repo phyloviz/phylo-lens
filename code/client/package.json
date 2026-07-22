@@ -28,8 +28,8 @@
     "build:lib": "vite build --config vite.lib.config.ts && tsc -p tsconfig.lib.json",
     "test": "vitest run",
     "prepublishOnly": "npm run build:lib",
-    "format": "prettier --write \"src/**/*.{ts,tsx,js,json,css}\"",
-    "format:check": "prettier --check \"src/**/*.{ts,tsx,js,json,css}\""
+    "format": "prettier --write \"src/**/*.{ts,tsx,js,json,css}\" \"tests/**/*.{ts,tsx,js,json,css}\" \"*.{js,json,html}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,js,json,css}\" \"tests/**/*.{ts,tsx,js,json,css}\" \"*.{js,json,html}\""
   },
   "dependencies": {
     "@sigma/node-border": "^3.0.0",

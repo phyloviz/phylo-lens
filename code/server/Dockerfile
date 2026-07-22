@@ -27,6 +27,7 @@ RUN apk add --no-cache graphviz python3 py3-pip \
 
 COPY pyproject.toml README.md ./
 COPY src ./src
+COPY sql ./sql
 
 RUN pip install --no-cache-dir .
 

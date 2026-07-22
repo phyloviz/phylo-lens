@@ -28,7 +28,9 @@ from phylo_lens_server.repository.jobs.local import (
     PrepareJobRegistry,
     PrepareJobSnapshot,
 )
-from phylo_lens_server.repository.layout.sqlite_layout_repository import PreparedLayoutStore
+from phylo_lens_server.repository.layout.sqlite_layout_repository import (
+    PreparedLayoutStore,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +54,9 @@ def prepare_graph_job(
     )
 
 
-def prepare_graph_status(job_id: str, registry: PrepareJobRegistry) -> GraphPrepareStatus:
+def prepare_graph_status(
+    job_id: str, registry: PrepareJobRegistry
+) -> GraphPrepareStatus:
     snapshot = registry.snapshot(job_id)
     if snapshot is None:
         raise KeyError(job_id)
@@ -86,7 +90,9 @@ def read_graph_viewport(
     query: GraphViewportQuery,
     store: PreparedLayoutStore,
 ) -> GraphViewportResponse:
-    layout_version = resolve_layout_version(store, query.dataset_id, query.layout_version)
+    layout_version = resolve_layout_version(
+        store, query.dataset_id, query.layout_version
+    )
     lod_level = effective_lod_level(query)
 
     read_started = perf_counter()
@@ -135,7 +141,9 @@ def read_graph_region(
     query: GraphRegionQuery,
     store: PreparedLayoutStore,
 ) -> GraphRegionResponse:
-    layout_version = resolve_layout_version(store, query.dataset_id, query.layout_version)
+    layout_version = resolve_layout_version(
+        store, query.dataset_id, query.layout_version
+    )
     result = store.read_region(
         dataset_id=query.dataset_id,
         layout_version=layout_version,
@@ -152,7 +160,9 @@ def search_graph_nodes(
     query: GraphSearchQuery,
     store: PreparedLayoutStore,
 ) -> GraphSearchResponse:
-    layout_version = resolve_layout_version(store, query.dataset_id, query.layout_version)
+    layout_version = resolve_layout_version(
+        store, query.dataset_id, query.layout_version
+    )
     result = store.search_nodes(
         dataset_id=query.dataset_id,
         layout_version=layout_version,

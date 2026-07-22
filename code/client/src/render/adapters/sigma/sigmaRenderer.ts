@@ -695,12 +695,7 @@ function graphBoundsEqual(left: GraphBounds | null, right: GraphBounds | null): 
   if (!left || !right) {
     return false;
   }
-  return (
-    left.minX === right.minX &&
-    left.maxX === right.maxX &&
-    left.minY === right.minY &&
-    left.maxY === right.maxY
-  );
+  return left.minX === right.minX && left.maxX === right.maxX && left.minY === right.minY && left.maxY === right.maxY;
 }
 
 function applyClusterTriangleRotations(graph: Graph, edges: PositionedGraph["edges"]): void {

@@ -380,9 +380,7 @@ def _merge_parsed_forest(graphs: list[ParsedGraph]) -> ParsedGraph:
             else:
                 remap[node_id] = f"c{component_index}_{node_id}"
         nodes.extend(remap[node_id] for node_id in graph.nodes)
-        explicit_node_ids.update(
-            remap[node_id] for node_id in graph.explicit_node_ids
-        )
+        explicit_node_ids.update(remap[node_id] for node_id in graph.explicit_node_ids)
         edges.extend(
             ParsedEdge(
                 source=remap[edge.source],

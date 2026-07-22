@@ -53,7 +53,9 @@ class PreparedLayoutWorker:
         layout_status: LayoutStatus = (
             cluster_layouts[0].status
             if cluster_layouts
-            else node_positions[0].status if node_positions else "ready"
+            else node_positions[0].status
+            if node_positions
+            else "ready"
         )
         ensure_should_continue(should_continue)
         self.store.publish_layout_version(

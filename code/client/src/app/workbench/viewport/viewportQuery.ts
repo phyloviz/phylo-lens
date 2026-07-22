@@ -89,8 +89,7 @@ export function semanticLodLevelForCameraRatioWithHysteresis(
     return naiveTier;
   }
   const boundaryTier = Math.min(currentLodLevel, naiveTier);
-  const boundary =
-    GRAPH_VIEWER_DETAIL_RATIO_THRESHOLD * Math.pow(lodRatioStepForTierCount(lodTierCount), boundaryTier);
+  const boundary = GRAPH_VIEWER_DETAIL_RATIO_THRESHOLD * Math.pow(lodRatioStepForTierCount(lodTierCount), boundaryTier);
   const inDeadBand =
     ratio > boundary - GRAPH_VIEWER_LOD_RATIO_HYSTERESIS && ratio < boundary + GRAPH_VIEWER_LOD_RATIO_HYSTERESIS;
   return inDeadBand ? currentLodLevel : naiveTier;

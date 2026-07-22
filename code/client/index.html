@@ -581,14 +581,12 @@
       <aside class="app-drawer">
         <p class="drawer-section-title">Dataset</p>
         <p>
-          Upload a weighted Newick tree (and, optionally, an ancillary table)
-          and submit. This demo drives the distance-threshold server pipeline
-          and Sigma-based slice rendering.
+          Upload a weighted Newick tree (and, optionally, an ancillary table) and submit. This demo drives the
+          distance-threshold server pipeline and Sigma-based slice rendering.
         </p>
         <p class="interaction-hint">
-          Semantic zoom: triangles are cluster proxies. <strong>Click</strong> a
-          triangle to expand it into its members; <strong>double-click</strong> a
-          triangle to collapse it back.
+          Semantic zoom: triangles are cluster proxies. <strong>Click</strong> a triangle to expand it into its members;
+          <strong>double-click</strong> a triangle to collapse it back.
         </p>
 
         <form id="render-form">
@@ -601,19 +599,13 @@
             Input Type
             <select id="source-format">
               <option value="newick" selected>Newick tree</option>
-              <option value="typing_data">
-                Typing data (MLST / cgMLST profiles)
-              </option>
+              <option value="typing_data">Typing data (MLST / cgMLST profiles)</option>
             </select>
           </label>
 
           <label>
             Typing Data (allelic profiles)
-            <input
-              id="typing-file-input"
-              type="file"
-              accept=".tsv,.csv,.txt,.tab"
-            />
+            <input id="typing-file-input" type="file" accept=".tsv,.csv,.txt,.tab" />
           </label>
 
           <label hidden>
@@ -623,29 +615,17 @@
 
           <label>
             Newick File (required)
-            <input
-              id="newick-file-input"
-              type="file"
-              accept=".nwk,.newick,.tree,.txt"
-            />
+            <input id="newick-file-input" type="file" accept=".nwk,.newick,.tree,.txt" />
           </label>
 
           <div class="wheel-controls">
             <label>
               Ancillary Table
-              <input
-                id="ancillary-file-input"
-                type="file"
-                accept=".csv,.tsv,.txt"
-              />
+              <input id="ancillary-file-input" type="file" accept=".csv,.tsv,.txt" />
             </label>
             <label>
               Join Column
-              <input
-                id="ancillary-join-column-input"
-                type="text"
-                value="isolate"
-              />
+              <input id="ancillary-join-column-input" type="text" value="isolate" />
             </label>
             <label>
               Table Format
@@ -669,20 +649,14 @@
             <label>
               LoD
               <span class="lod-playback">
-                <button id="lod-play-button" type="button" disabled>
-                  Play
-                </button>
-                <button id="lod-pause-button" type="button" disabled>
-                  Pause
-                </button>
+                <button id="lod-play-button" type="button" disabled>Play</button>
+                <button id="lod-pause-button" type="button" disabled>Pause</button>
               </span>
             </label>
             <label>
               Wheel Scope
               <select id="ancillary-mode">
-                <option value="global" selected>
-                  Global (all rendered nodes)
-                </option>
+                <option value="global" selected>Global (all rendered nodes)</option>
                 <option value="current">Current graph snapshot</option>
                 <option value="selected">Selected node only</option>
               </select>
@@ -695,11 +669,7 @@
             </label>
             <label>
               Size Field
-              <input
-                id="metadata-size-field"
-                type="text"
-                value="profile_count"
-              />
+              <input id="metadata-size-field" type="text" value="profile_count" />
             </label>
             <label>
               Size Scale
@@ -712,28 +682,17 @@
               Category Colors
               <span class="category-color-actions">
                 <button id="palette-load-button" type="button">Load</button>
-                <input
-                  id="palette-load-input"
-                  type="file"
-                  accept=".txt,.palette,.json,application/json,text/plain"
-                />
+                <input id="palette-load-input" type="file" accept=".txt,.palette,.json,application/json,text/plain" />
                 <button id="palette-save-button" type="button">Save</button>
               </span>
-              <span
-                id="palette-controls"
-                class="category-color-controls"
-              ></span>
+              <span id="palette-controls" class="category-color-controls"></span>
             </label>
             <label>
               Options
               <select id="display-options" multiple size="3">
                 <option value="node-labels" selected>Node labels</option>
-                <option value="edge-distance-labels">
-                  Edge distance labels
-                </option>
-                <option value="distance-weighted-edges">
-                  Distance-weighted edges
-                </option>
+                <option value="edge-distance-labels">Edge distance labels</option>
+                <option value="distance-weighted-edges">Distance-weighted edges</option>
               </select>
             </label>
             <label>
@@ -747,11 +706,7 @@
           <div class="search-controls">
             <label>
               Search
-              <input
-                id="search-input"
-                type="search"
-                placeholder="Node id or metadata"
-              />
+              <input id="search-input" type="search" placeholder="Node id or metadata" />
             </label>
             <button id="search-button" type="button">Search</button>
           </div>
@@ -759,13 +714,7 @@
 
           <label>
             Region selection
-            <button
-              id="region-select-toggle"
-              type="button"
-              aria-pressed="false"
-            >
-              Select region
-            </button>
+            <button id="region-select-toggle" type="button" aria-pressed="false">Select region</button>
           </label>
 
           <button type="submit">Normalize and Render</button>
