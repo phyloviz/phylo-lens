@@ -128,6 +128,6 @@ PY
 
 docker exec "$CONTAINER_NAME" sfdp -V
 docker exec "$CONTAINER_NAME" java -version
-docker exec "$CONTAINER_NAME" test -r /app.jar
-docker exec "$CONTAINER_NAME" sha256sum /app.jar
-docker exec "$CONTAINER_NAME" sh -c 'java -jar /app.jar 2>&1 | grep -q "No command has been specified"'
+docker exec "$CONTAINER_NAME" sh -c 'test -r "$PHYLO_LENS_PHYLOLIB_JAR"'
+docker exec "$CONTAINER_NAME" sh -c 'sha256sum "$PHYLO_LENS_PHYLOLIB_JAR"'
+docker exec "$CONTAINER_NAME" sh -c 'java -jar "$PHYLO_LENS_PHYLOLIB_JAR" 2>&1 | grep -q "No command has been specified"'

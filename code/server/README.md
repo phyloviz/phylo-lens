@@ -60,26 +60,26 @@ prepared layout data under `/data`. The image includes Python 3.12, the server
 package, FastAPI/uvicorn, SQLite from the Python standard library, Graphviz
 `sfdp`, and the PhyloLib Java runtime from the digest-pinned PhyloLib image.
 Production
-`typing_data` ingest runs `java -jar /app.jar` inside this service container; it
-does not need host Docker access.
+`typing_data` ingest runs `java -jar /app/phylolib.jar` inside this service
+container; it does not need host Docker access.
 
 Bundled PhyloLib runtime:
 
 - Java: Eclipse Temurin OpenJDK `21.0.11+10-LTS`.
 - PhyloLib source image:
-  `gonfrutuoso/phylolib@sha256:fddd67d0c00c1920c81b395155d13dfa99b546d6c7c47c6e92713e3a3fed834b`.
-- PhyloLib JAR path: `/app.jar`.
+  `phyloviz/phylolib@sha256:57265021d9e908a84d948780466303195b9e9e71adf1bc23bff2e8143a242522`.
+- PhyloLib JAR path: `/app/phylolib.jar`.
 - PhyloLib JAR SHA-256:
-  `36ae96903da88a2c41df6bdc266da0a2485f2278ecc473b60287c43e6163e70f`.
+  `ac8df04000f12f864cf60eb3e03871c6c2e80b00da52f90364a713e2dca49ebc`.
 
 Typing-data ingest uses a temporary working directory and runs:
 
 ```bash
-java -jar /app.jar distance hamming \
+java -jar /app/phylolib.jar distance hamming \
   --dataset=ml:/tmp/phylolib-.../profiles.txt \
   --out=symmetric:/tmp/phylolib-.../matrix.txt
 
-java -jar /app.jar algorithm goeburst \
+java -jar /app/phylolib.jar algorithm goeburst \
   --matrix=symmetric:/tmp/phylolib-.../matrix.txt \
   --out=newick:/tmp/phylolib-.../tree.nwk \
   --lvs=3
@@ -266,7 +266,7 @@ Environment variable:
   not permit cross-origin browser access unless explicitly configured. The
   service does not enable browser credentials/cookies.
 - `PHYLO_LENS_PHYLOLIB_JAR`: path to the bundled PhyloLib JAR for
-  `typing_data` ingest. The Docker image sets this to `/app.jar`.
+  `typing_data` ingest. The Docker image sets this to `/app/phylolib.jar`.
 - `PHYLO_LENS_PHYLOLIB_JAVA`: Java executable used with the PhyloLib JAR. The
   Docker image sets this to `/opt/java/openjdk/bin/java`.
 
