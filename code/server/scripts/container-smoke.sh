@@ -5,6 +5,7 @@ IMAGE_NAME="${IMAGE_NAME:-phylo-lens-service:local}"
 CONTAINER_NAME="${CONTAINER_NAME:-phylo-lens-service-smoke}"
 PORT="${PORT:-18080}"
 SKIP_BUILD="${SKIP_BUILD:-0}"
+DOCKER_PLATFORM="${DOCKER_PLATFORM:-}"
 export PORT
 
 cleanup() {
@@ -15,7 +16,14 @@ cleanup
 if [ "$SKIP_BUILD" != "1" ]; then
   docker build -t "$IMAGE_NAME" .
 fi
+
+docker_platform_args=()
+if [ -n "$DOCKER_PLATFORM" ]; then
+  docker_platform_args=(--platform "$DOCKER_PLATFORM")
+fi
+
 docker run -d \
+  "${docker_platform_args[@]}" \
   --name "$CONTAINER_NAME" \
   -p "${PORT}:8000" \
   -e PHYLO_LENS_DATA_DIR=/data \
@@ -32,6 +40,8 @@ import urllib.request
 
 port = os.environ.get("PORT", "8000")
 base_url = f"http://127.0.0.1:{port}"
+request_timeout_seconds = int(os.environ.get("SMOKE_REQUEST_TIMEOUT_SECONDS", "60"))
+poll_timeout_seconds = float(os.environ.get("SMOKE_POLL_TIMEOUT_SECONDS", "10"))
 
 for _ in range(60):
     try:
@@ -57,7 +67,7 @@ def prepare(payload):
         method="POST",
     )
     try:
-        response = urllib.request.urlopen(request, timeout=10)
+        response = urllib.request.urlopen(request, timeout=request_timeout_seconds)
     except urllib.error.HTTPError as error:
         body = error.read().decode("utf-8", errors="replace")
         raise SystemExit(
@@ -71,7 +81,7 @@ def prepare(payload):
 
     for _ in range(120):
         with urllib.request.urlopen(
-            f"{base_url}/api/graph/prepare/{job['job_id']}", timeout=5
+            f"{base_url}/api/graph/prepare/{job['job_id']}", timeout=poll_timeout_seconds
         ) as response:
             status = json.load(response)
         if status["status"] != "pending":
@@ -114,7 +124,7 @@ request = urllib.request.Request(
     headers={"Content-Type": "application/json"},
     method="POST",
 )
-with urllib.request.urlopen(request, timeout=10) as response:
+with urllib.request.urlopen(request, timeout=request_timeout_seconds) as response:
     viewport = json.load(response)
 
 if not viewport.get("nodes"):

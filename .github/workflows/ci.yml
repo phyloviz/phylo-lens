@@ -163,7 +163,7 @@ jobs:
 
       - name: Install fixture dependencies
         working-directory: examples/public-library-host
-        run: npm install
+        run: npm ci
 
       - name: Build fixture
         working-directory: examples/public-library-host
@@ -199,4 +199,4 @@ jobs:
 
       - name: Smoke test service image
         working-directory: code/server
-        run: SKIP_BUILD=1 IMAGE_NAME=phylo-lens-service:ci ./scripts/container-smoke.sh
+        run: DOCKER_PLATFORM=linux/arm64 SKIP_BUILD=1 IMAGE_NAME=phylo-lens-service:ci ./scripts/container-smoke.sh
