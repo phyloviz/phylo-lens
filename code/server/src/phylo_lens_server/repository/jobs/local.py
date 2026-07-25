@@ -103,10 +103,12 @@ class PrepareJobRegistry:
             self._job_ids_by_layout_key[layout_key] = job_id
 
         future.add_done_callback(
-            lambda completed, completed_job_id=job_id, completed_layout_key=layout_key: self._record_completed_job(
-                completed_job_id,
-                completed_layout_key,
-                completed,
+            lambda completed, completed_job_id=job_id, completed_layout_key=layout_key: (
+                self._record_completed_job(
+                    completed_job_id,
+                    completed_layout_key,
+                    completed,
+                )
             )
         )
         return job_id

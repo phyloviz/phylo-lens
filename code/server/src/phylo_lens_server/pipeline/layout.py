@@ -39,7 +39,9 @@ GRAPHVIZ_BASE_MAXITER = 600
 LAYOUT_DEGRADED_SFDP_MISSING = "sfdp_missing"
 LAYOUT_DEGRADED_SFDP_FAILED = "sfdp_failed"
 LAYOUT_DEGRADED_SFDP_INCOMPLETE = "sfdp_incomplete"
-ERR_GRAPHVIZ_SFDP_TIMEOUT = "Graphviz 'sfdp' timed out while computing the force-directed layout."
+ERR_GRAPHVIZ_SFDP_TIMEOUT = (
+    "Graphviz 'sfdp' timed out while computing the force-directed layout."
+)
 
 
 class GraphvizLayoutTimeoutError(RuntimeError):

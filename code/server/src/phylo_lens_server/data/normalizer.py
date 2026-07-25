@@ -176,9 +176,9 @@ def normalize_dataset(
         request.metadata_by_node_id,
         declared_metadata_types,
     )
-    ancillary_rows_by_node_id: dict[str, list[dict[str, str | float | bool | None]]] = (
-        {}
-    )
+    ancillary_rows_by_node_id: dict[
+        str, list[dict[str, str | float | bool | None]]
+    ] = {}
     if request.ancillary_data is not None:
         (
             ancillary_metadata,
