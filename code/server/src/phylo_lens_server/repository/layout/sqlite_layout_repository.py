@@ -4,22 +4,23 @@ from collections.abc import Callable
 from contextlib import AbstractContextManager
 from pathlib import Path
 
+from phylo_lens_server.database.sqlite import (
+    connect,
+    database_path_for_root,
+    initialize_schema,
+)
 from phylo_lens_server.pipeline.models import (
     ClusterLayout,
     LayoutBounds,
     LayoutStatus,
     NodeLayoutPosition,
-    PreparedLayoutArtifacts,
     PreparedEdge,
+    PreparedLayoutArtifacts,
     RegionReadResult,
     SearchReadResult,
     ViewportReadResult,
 )
-from phylo_lens_server.database.sqlite import (
-    database_path_for_root,
-    connect,
-    initialize_schema,
-)
+
 from . import node_search, region_reader, viewport_reader, writer
 
 

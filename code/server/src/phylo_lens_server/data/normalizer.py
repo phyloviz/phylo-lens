@@ -1,30 +1,16 @@
 from __future__ import annotations
 
 import csv
-from io import StringIO
-from math import isfinite
-from urllib.parse import quote
 import time
 from datetime import UTC, datetime
 from enum import StrEnum
+from io import StringIO
+from math import isfinite
 from typing import Literal
+from urllib.parse import quote
 
 from pydantic import BaseModel, Field
 
-from phylo_lens_server.domain.models import (
-    CanonicalDataset,
-    CanonicalEdge,
-    CanonicalNode,
-    DatasetSource,
-    MetadataField,
-)
-from phylo_lens_server.domain.metadata_keys import (
-    CATEGORY_COUNT_FIELD_PREFIX,
-    PROFILE_COUNT_FIELD,
-    is_internal_metadata_key,
-    public_metadata_schema_dataset,
-)
-from phylo_lens_server.domain.validators import validate_canonical_dataset
 from phylo_lens_server.data.parsers import (
     ParseError,
     parse_newick_forest,
@@ -34,6 +20,20 @@ from phylo_lens_server.data.phylolib import (
     TypingNormalizeError,
     typing_profiles_to_graph,
 )
+from phylo_lens_server.domain.metadata_keys import (
+    CATEGORY_COUNT_FIELD_PREFIX,
+    PROFILE_COUNT_FIELD,
+    is_internal_metadata_key,
+    public_metadata_schema_dataset,
+)
+from phylo_lens_server.domain.models import (
+    CanonicalDataset,
+    CanonicalEdge,
+    CanonicalNode,
+    DatasetSource,
+    MetadataField,
+)
+from phylo_lens_server.domain.validators import validate_canonical_dataset
 
 
 class NormalizeFormat(StrEnum):

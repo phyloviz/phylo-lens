@@ -4,9 +4,9 @@ from typing import Any
 
 import pytest
 
+from phylo_lens_server.data.normalizer import NormalizeRequest, normalize_dataset
 from phylo_lens_server.database import schema_files
 from phylo_lens_server.database.schema_files import schema_file_path
-from phylo_lens_server.data.normalizer import NormalizeRequest, normalize_dataset
 from phylo_lens_server.repository.jobs import postgres as job_store
 
 

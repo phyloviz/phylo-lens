@@ -1,29 +1,31 @@
 from __future__ import annotations
 
-from collections.abc import Callable
-from dataclasses import dataclass
 import logging
 import os
 import socket
 import threading
 import time
 import uuid
+from collections.abc import Callable
+from dataclasses import dataclass
 
 from phylo_lens_server.config.settings import (
     ENV_POSTGRES_DSN,
     postgres_dsn,
+)
+from phylo_lens_server.pipeline.worker import (
+    LayoutPublicationAbortedError,
+    PreparedLayoutWorker,
 )
 from phylo_lens_server.repository.jobs.postgres import (
     DEFAULT_LEASE_SECONDS,
     DurablePrepareJobStore,
     PostgresPrepareJobStore,
 )
+from phylo_lens_server.repository.jobs.result_payload import prepare_result_payload
 from phylo_lens_server.repository.layout.postgres_layout_repository import (
     PostgresPreparedLayoutStore,
 )
-from phylo_lens_server.pipeline.worker import PreparedLayoutWorker
-from phylo_lens_server.pipeline.worker import LayoutPublicationAbortedError
-from phylo_lens_server.repository.jobs.result_payload import prepare_result_payload
 
 logger = logging.getLogger(__name__)
 

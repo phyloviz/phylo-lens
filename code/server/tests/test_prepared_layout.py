@@ -1,40 +1,46 @@
-from concurrent.futures import Future
 import multiprocessing
 import shutil
 import subprocess
+from concurrent.futures import Future
 
 import pytest
 
+from phylo_lens_server.data.normalizer import NormalizeRequest, normalize_dataset
 from phylo_lens_server.domain.models import (
     CanonicalDataset,
     CanonicalEdge,
     MetadataField,
     MetadataType,
 )
-from phylo_lens_server.data.normalizer import NormalizeRequest, normalize_dataset
 from phylo_lens_server.pipeline.ingest import (
-    layout_version_for_dataset,
     PreparedLayoutIngestError,
+    layout_version_for_dataset,
     partition_for_threshold,
     prepare_layout_artifacts,
     representative_targets,
+)
+from phylo_lens_server.pipeline.layout import (
+    GLOBAL_TARGET_EDGE_LENGTH,
+    GRAPHVIZ_SFDP_COMMAND,
+    LAYOUT_DEGRADED_SFDP_MISSING,
+    GraphvizLayoutTimeoutError,
+    compute_prepared_layouts,
+    graphviz_dot_payload,
+    graphviz_sfdp_positions,
+    has_multiple_components,
+    normalize_global_positions,
+    parse_graphviz_plain_positions,
+)
+from phylo_lens_server.pipeline.models import PreparedLayoutResult
+from phylo_lens_server.pipeline.worker import (
+    PreparedLayoutWorker,
+    compute_prepared_edges,
 )
 from phylo_lens_server.repository.jobs.local import (
     PrepareJobRegistry,
     PrepareQueueFullError,
 )
-from phylo_lens_server.pipeline.layout import (
-    GLOBAL_TARGET_EDGE_LENGTH,
-    GRAPHVIZ_SFDP_COMMAND,
-    GraphvizLayoutTimeoutError,
-    LAYOUT_DEGRADED_SFDP_MISSING,
-    compute_prepared_layouts,
-    graphviz_sfdp_positions,
-    graphviz_dot_payload,
-    has_multiple_components,
-    normalize_global_positions,
-    parse_graphviz_plain_positions,
-)
+from phylo_lens_server.repository.jobs.result_payload import prepare_result_payload
 from phylo_lens_server.repository.layout.metadata_reader import (
     aggregate_cluster_metadata,
 )
@@ -42,12 +48,6 @@ from phylo_lens_server.repository.layout.sqlite_layout_repository import (
     PreparedLayoutStore,
 )
 from phylo_lens_server.services import graph_service
-from phylo_lens_server.pipeline.models import PreparedLayoutResult
-from phylo_lens_server.repository.jobs.result_payload import prepare_result_payload
-from phylo_lens_server.pipeline.worker import (
-    PreparedLayoutWorker,
-    compute_prepared_edges,
-)
 
 SFDP_AVAILABLE = shutil.which(GRAPHVIZ_SFDP_COMMAND) is not None
 EXPECTED_LAYOUT_STATUS = "ready" if SFDP_AVAILABLE else "degraded"
@@ -958,9 +958,8 @@ def test_prepare_job_registry_reserves_capacity_before_dataset_submission() -> N
     registry = PrepareJobRegistry(worker, max_active_jobs=1)
 
     with registry.reserve_capacity():
-        with pytest.raises(PrepareQueueFullError):
-            with registry.reserve_capacity():
-                pass
+        with pytest.raises(PrepareQueueFullError), registry.reserve_capacity():
+            pass
         job_id = registry.submit(_dataset(), reserved_capacity=True)
 
     assert registry.snapshot(job_id).status == "pending"
@@ -971,9 +970,8 @@ def test_prepare_job_registry_releases_capacity_reservation_on_failure() -> None
     worker = RecordingPrepareWorker()
     registry = PrepareJobRegistry(worker, max_active_jobs=1)
 
-    with pytest.raises(RuntimeError):
-        with registry.reserve_capacity():
-            raise RuntimeError("normalization failed")
+    with pytest.raises(RuntimeError), registry.reserve_capacity():
+        raise RuntimeError("normalization failed")
 
     with registry.reserve_capacity():
         pass
@@ -991,16 +989,15 @@ def test_prepare_graph_job_reserves_capacity_before_normalization(monkeypatch) -
 
     monkeypatch.setattr(graph_service, "normalize_dataset", fake_normalize)
 
-    with registry.reserve_capacity():
-        with pytest.raises(PrepareQueueFullError):
-            graph_service.prepare_graph_job(
-                NormalizeRequest(
-                    format=FORMAT_NEWICK,
-                    dataset_name="reserved",
-                    content=WEIGHTED_TREE,
-                ),
-                registry,
-            )
+    with registry.reserve_capacity(), pytest.raises(PrepareQueueFullError):
+        graph_service.prepare_graph_job(
+            NormalizeRequest(
+                format=FORMAT_NEWICK,
+                dataset_name="reserved",
+                content=WEIGHTED_TREE,
+            ),
+            registry,
+        )
 
     assert normalized is False
 

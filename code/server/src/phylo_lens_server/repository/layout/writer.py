@@ -1,25 +1,25 @@
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable, Iterator
-from contextlib import nullcontext
 import json
 import sqlite3
-from typing import Any, ContextManager
+from collections.abc import Callable, Iterable, Iterator
+from contextlib import AbstractContextManager, nullcontext
+from typing import Any
 
+from phylo_lens_server.database.sqlite import connect, table_exists
 from phylo_lens_server.domain.metadata_keys import is_internal_metadata_key
 from phylo_lens_server.pipeline.models import (
-    PreparedLayoutArtifacts,
-    PreparedEdge,
     ClusterLayout,
     NodeLayoutPosition,
+    PreparedEdge,
+    PreparedLayoutArtifacts,
 )
 from phylo_lens_server.repository.layout.metadata_reader import (
     aggregate_cluster_metadata_by_node_ids,
 )
-from phylo_lens_server.database.sqlite import connect, table_exists
 
 SQLRow = tuple[Any, ...]
-StageFactory = Callable[[str], ContextManager[None]]
+StageFactory = Callable[[str], AbstractContextManager[None]]
 
 BULK_INSERT_BATCH_SIZE = 5_000
 PRECOMPUTED_CLUSTER_METADATA_TIERS = 3
@@ -152,7 +152,7 @@ def save_artifacts(
 def _stage(
     stage_factory: StageFactory | None,
     name: str,
-) -> ContextManager[None]:
+) -> AbstractContextManager[None]:
     if stage_factory is None:
         return nullcontext()
     return stage_factory(name)

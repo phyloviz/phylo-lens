@@ -1,12 +1,11 @@
 from __future__ import annotations
 
+import json
 from collections.abc import Iterable
 from dataclasses import replace
-import json
 from typing import Any
 
 from phylo_lens_server.domain.metadata_keys import is_internal_metadata_key
-from phylo_lens_server.repository.jobs.postgres import import_psycopg
 from phylo_lens_server.pipeline.models import (
     ClusterLayout,
     LayoutBounds,
@@ -22,6 +21,7 @@ from phylo_lens_server.pipeline.models import (
     ViewportNode,
     ViewportReadResult,
 )
+from phylo_lens_server.repository.jobs.postgres import import_psycopg
 from phylo_lens_server.repository.layout import writer
 from phylo_lens_server.repository.layout.metadata_reader import (
     aggregate_cluster_metadata,
@@ -55,22 +55,20 @@ class PostgresPreparedLayoutStore:
         keys = [key for key in self._threshold_cache if key[0] == dataset_id]
         for key in keys:
             self._threshold_cache.pop(key, None)
-        with self._connect() as connection:
-            with connection.transaction():
-                for table in layout_tables():
-                    connection.execute(
-                        f"delete from {table} where dataset_id = %s", (dataset_id,)
-                    )
+        with self._connect() as connection, connection.transaction():
+            for table in layout_tables():
+                connection.execute(
+                    f"delete from {table} where dataset_id = %s", (dataset_id,)
+                )
 
     def clear_layout_version(self, dataset_id: str, layout_version: str) -> None:
         self._threshold_cache.pop((dataset_id, layout_version), None)
-        with self._connect() as connection:
-            with connection.transaction():
-                for table in layout_tables():
-                    connection.execute(
-                        f"delete from {table} where dataset_id = %s and layout_version = %s",
-                        (dataset_id, layout_version),
-                    )
+        with self._connect() as connection, connection.transaction():
+            for table in layout_tables():
+                connection.execute(
+                    f"delete from {table} where dataset_id = %s and layout_version = %s",
+                    (dataset_id, layout_version),
+                )
 
     def save_artifacts(
         self,
@@ -79,28 +77,28 @@ class PostgresPreparedLayoutStore:
         status: str = "refining",
         stage_factory=None,
     ) -> None:
-        with self._connect() as connection:
-            with connection.transaction():
-                with writer._stage(stage_factory, "persist_artifacts.datasets"):
-                    connection.execute(
-                        """
-                        insert into datasets(dataset_id, layout_version, status)
+        with (
+            self._connect() as connection,
+            connection.transaction(),
+            writer._stage(stage_factory, "persist_layouts.prepared_clusters"),
+        ):
+            connection.execute(
+                """
+                    insert into datasets(dataset_id, layout_version, status)
                         values (%s, %s, %s)
                         on conflict(dataset_id, layout_version) do update set
                             status = excluded.status
                         """,
-                        (
-                            artifacts.dataset.dataset_id,
-                            artifacts.layout_version,
-                            status,
-                        ),
-                    )
-                with writer._stage(
-                    stage_factory, "persist_artifacts.prepared_clusters"
-                ):
-                    execute_many_chunked(
-                        connection,
-                        """
+                (
+                    artifacts.dataset.dataset_id,
+                    artifacts.layout_version,
+                    status,
+                ),
+            )
+            with writer._stage(stage_factory, "persist_artifacts.prepared_clusters"):
+                execute_many_chunked(
+                    connection,
+                    """
                         insert into prepared_clusters(
                             dataset_id, layout_version, cluster_id, threshold,
                             representative_node_id, member_count, status
@@ -112,24 +110,24 @@ class PostgresPreparedLayoutStore:
                             member_count = excluded.member_count,
                             status = excluded.status
                         """,
-                        writer.prepared_cluster_rows(artifacts),
-                    )
-                with writer._stage(stage_factory, "persist_artifacts.cluster_members"):
-                    execute_many_chunked(
-                        connection,
-                        """
+                    writer.prepared_cluster_rows(artifacts),
+                )
+            with writer._stage(stage_factory, "persist_artifacts.cluster_members"):
+                execute_many_chunked(
+                    connection,
+                    """
                         insert into cluster_members(
                             dataset_id, layout_version, cluster_id, node_id
                         )
                         values (%s, %s, %s, %s)
                         on conflict do nothing
                         """,
-                        writer.cluster_member_rows(artifacts),
-                    )
-                with writer._stage(stage_factory, "persist_artifacts.graph_edges"):
-                    execute_many_chunked(
-                        connection,
-                        """
+                    writer.cluster_member_rows(artifacts),
+                )
+            with writer._stage(stage_factory, "persist_artifacts.graph_edges"):
+                execute_many_chunked(
+                    connection,
+                    """
                         insert into graph_edges(
                             dataset_id, layout_version, edge_id,
                             source_node_id, target_node_id, distance
@@ -140,11 +138,9 @@ class PostgresPreparedLayoutStore:
                             target_node_id = excluded.target_node_id,
                             distance = excluded.distance
                         """,
-                        writer.graph_edge_rows(artifacts),
-                    )
-                self._persist_metadata(
-                    connection, artifacts, stage_factory=stage_factory
+                    writer.graph_edge_rows(artifacts),
                 )
+            self._persist_metadata(connection, artifacts, stage_factory=stage_factory)
 
     def save_layouts(
         self,
@@ -153,12 +149,14 @@ class PostgresPreparedLayoutStore:
         *,
         stage_factory=None,
     ) -> None:
-        with self._connect() as connection:
-            with connection.transaction():
-                with writer._stage(stage_factory, "persist_layouts.prepared_clusters"):
-                    execute_many_chunked(
-                        connection,
-                        """
+        with (
+            self._connect() as connection,
+            connection.transaction(),
+            writer._stage(stage_factory, "persist_layouts.prepared_clusters"),
+        ):
+            execute_many_chunked(
+                connection,
+                """
                         insert into prepared_clusters(
                             dataset_id, layout_version, cluster_id, representative_node_id,
                             member_count, x, y, radius, min_x, max_x, min_y, max_y, status
@@ -176,34 +174,32 @@ class PostgresPreparedLayoutStore:
                             max_y = excluded.max_y,
                             status = excluded.status
                         """,
-                        writer.cluster_layout_rows(cluster_layouts),
-                    )
-                if node_positions:
-                    first = node_positions[0]
-                    with writer._stage(
-                        stage_factory, "persist_layouts.node_positions.clear_existing"
-                    ):
-                        connection.execute(
-                            """
+                writer.cluster_layout_rows(cluster_layouts),
+            )
+            if node_positions:
+                first = node_positions[0]
+                with writer._stage(
+                    stage_factory, "persist_layouts.node_positions.clear_existing"
+                ):
+                    connection.execute(
+                        """
                             delete from node_positions
                             where dataset_id = %s and layout_version = %s
                             """,
-                            (first.dataset_id, first.layout_version),
-                        )
-                with writer._stage(
-                    stage_factory, "persist_layouts.node_positions.rows"
-                ):
-                    execute_many_chunked(
-                        connection,
-                        """
+                        (first.dataset_id, first.layout_version),
+                    )
+            with writer._stage(stage_factory, "persist_layouts.node_positions.rows"):
+                execute_many_chunked(
+                    connection,
+                    """
                         insert into node_positions(
                             dataset_id, layout_version, cluster_id, node_id,
                             x, y, status
                         )
                         values (%s, %s, %s, %s, %s, %s, %s)
                         """,
-                        writer.node_position_rows(cluster_layouts, node_positions),
-                    )
+                    writer.node_position_rows(cluster_layouts, node_positions),
+                )
 
     def save_prepared_edges(
         self,
@@ -213,23 +209,20 @@ class PostgresPreparedLayoutStore:
     ) -> None:
         if not prepared_edges:
             return
-        with self._connect() as connection:
-            with connection.transaction():
-                first = prepared_edges[0]
-                with writer._stage(
-                    stage_factory, "persist_prepared_edges.clear_existing"
-                ):
-                    connection.execute(
-                        """
+        with self._connect() as connection, connection.transaction():
+            first = prepared_edges[0]
+            with writer._stage(stage_factory, "persist_prepared_edges.clear_existing"):
+                connection.execute(
+                    """
                         delete from prepared_edges
                         where dataset_id = %s and layout_version = %s
                         """,
-                        (first.dataset_id, first.layout_version),
-                    )
-                with writer._stage(stage_factory, "persist_prepared_edges.rows"):
-                    execute_many_chunked(
-                        connection,
-                        """
+                    (first.dataset_id, first.layout_version),
+                )
+            with writer._stage(stage_factory, "persist_prepared_edges.rows"):
+                execute_many_chunked(
+                    connection,
+                    """
                         insert into prepared_edges(
                             dataset_id, layout_version, lod_level, edge_id,
                             source_node_id, target_node_id, distance
@@ -241,8 +234,8 @@ class PostgresPreparedLayoutStore:
                             target_node_id = excluded.target_node_id,
                             distance = excluded.distance
                         """,
-                        writer.prepared_edge_rows(prepared_edges),
-                    )
+                    writer.prepared_edge_rows(prepared_edges),
+                )
 
     def publish_layout_version(
         self,
@@ -591,7 +584,7 @@ def load_metadata_rows(
           and layout_version = %s
           and {key_column} = any(%s)
         """,
-        (dataset_id, layout_version, list(sorted(keys))),
+        (dataset_id, layout_version, sorted(keys)),
     ).fetchall()
     return {row["row_key"]: json.loads(row["metadata_json"]) for row in rows}
 
@@ -618,18 +611,22 @@ def attach_node_metadata(
         cluster_ids=cluster_ids,
     )
     return tuple(
-        replace(
-            node,
-            metadata=cluster_metadata.get(node.cluster_id)
-            if node.is_representative
-            else node_metadata.get(node.node_id),
+        (
+            replace(
+                node,
+                metadata=(
+                    cluster_metadata.get(node.cluster_id)
+                    if node.is_representative
+                    else node_metadata.get(node.node_id)
+                ),
+            )
+            if (
+                cluster_metadata.get(node.cluster_id)
+                if node.is_representative
+                else node_metadata.get(node.node_id)
+            )
+            else node
         )
-        if (
-            cluster_metadata.get(node.cluster_id)
-            if node.is_representative
-            else node_metadata.get(node.node_id)
-        )
-        else node
         for node in nodes
     )
 
@@ -730,7 +727,7 @@ def load_cluster_members(
           and cluster_id = any(%s)
         order by cluster_id, node_id
         """,
-        (dataset_id, layout_version, list(sorted(cluster_ids))),
+        (dataset_id, layout_version, sorted(cluster_ids)),
     ).fetchall()
     grouped: dict[str, list[str]] = {}
     for row in rows:
@@ -1061,9 +1058,9 @@ def read_ready_nodes(
         """,
         (dataset_id, layout_version, *params, max_nodes),
     ).fetchall()
-    return tuple(viewport_leaf_node(row) for row in rows), int(
-        count_row["total_count"]
-    ) if count_row else 0
+    return tuple(viewport_leaf_node(row) for row in rows), (
+        int(count_row["total_count"]) if count_row else 0
+    )
 
 
 def read_cluster_member_nodes(
@@ -1091,9 +1088,9 @@ def read_cluster_member_nodes(
         """,
         (dataset_id, layout_version, cluster_id, focus_node_id, max_nodes),
     ).fetchall()
-    return tuple(viewport_leaf_node(row) for row in rows), int(
-        total_row["total_count"]
-    ) if total_row else 0
+    return tuple(viewport_leaf_node(row) for row in rows), (
+        int(total_row["total_count"]) if total_row else 0
+    )
 
 
 def read_expansion_meta_edges(
@@ -1124,8 +1121,8 @@ def read_expansion_meta_edges(
         (
             dataset_id,
             layout_version,
-            list(sorted(member_ids)),
-            list(sorted(member_ids)),
+            sorted(member_ids),
+            sorted(member_ids),
         ),
     ).fetchall()
     boundary = []
@@ -1202,7 +1199,7 @@ def representatives_for_nodes(
           and pc.x is not null
           and cm.node_id = any(%s)
         """,
-        (dataset_id, layout_version, threshold, list(sorted(node_ids))),
+        (dataset_id, layout_version, threshold, sorted(node_ids)),
     ).fetchall()
     return {
         row["node_id"]: ViewportNode(
@@ -1233,9 +1230,9 @@ def read_distinct_node_positions(connection, *, dataset_id, layout_version, max_
         """,
         (dataset_id, layout_version, max_nodes),
     ).fetchall()
-    return tuple(viewport_leaf_node(row) for row in rows), int(
-        total_row["total_count"]
-    ) if total_row else 0
+    return tuple(viewport_leaf_node(row) for row in rows), (
+        int(total_row["total_count"]) if total_row else 0
+    )
 
 
 def read_cluster_representatives(
@@ -1318,8 +1315,8 @@ def read_prepared_edges_for_nodes(
             dataset_id,
             layout_version,
             lod_level,
-            list(sorted(node_ids)),
-            list(sorted(node_ids)),
+            sorted(node_ids),
+            sorted(node_ids),
         ),
     ).fetchall()
     return tuple(viewport_edge(row) for row in rows)
@@ -1338,7 +1335,7 @@ def read_edges_for_nodes(connection, *, dataset_id, layout_version, node_ids):
           and target_node_id = any(%s)
         order by source_node_id, target_node_id, edge_id
         """,
-        (dataset_id, layout_version, list(sorted(node_ids)), list(sorted(node_ids))),
+        (dataset_id, layout_version, sorted(node_ids), sorted(node_ids)),
     ).fetchall()
     return tuple(viewport_edge(row) for row in rows)
 
@@ -1355,7 +1352,7 @@ def read_edges_touching_nodes(connection, *, dataset_id, layout_version, node_id
           and (source_node_id = any(%s) or target_node_id = any(%s))
         order by source_node_id, target_node_id, edge_id
         """,
-        (dataset_id, layout_version, list(sorted(node_ids)), list(sorted(node_ids))),
+        (dataset_id, layout_version, sorted(node_ids), sorted(node_ids)),
     ).fetchall()
     return tuple(viewport_edge(row) for row in rows)
 
@@ -1375,7 +1372,7 @@ def read_node_positions_by_ids(
         order by np.cluster_id, np.node_id
         limit %s
         """,
-        (dataset_id, layout_version, list(sorted(node_ids)), max_nodes),
+        (dataset_id, layout_version, sorted(node_ids), max_nodes),
     ).fetchall()
     return [viewport_leaf_node(row) for row in rows]
 
@@ -1412,9 +1409,11 @@ def search_nodes(connection_context, *, dataset_id, layout_version, query, limit
             score = (
                 SEARCH_SCORE_ID_EXACT
                 if lower_id == lowered
-                else SEARCH_SCORE_ID_PREFIX
-                if lower_id.startswith(lowered)
-                else SEARCH_SCORE_ID_SUBSTRING
+                else (
+                    SEARCH_SCORE_ID_PREFIX
+                    if lower_id.startswith(lowered)
+                    else SEARCH_SCORE_ID_SUBSTRING
+                )
             )
             record_match(best, node_id=node_id, score=score, matched_text=node_id)
         rows = connection.execute(
@@ -1515,4 +1514,4 @@ def min_distance(left: float | None, right: float | None) -> float | None:
         return right
     if right is None:
         return left
-    return left if left <= right else right
+    return min(left, right)

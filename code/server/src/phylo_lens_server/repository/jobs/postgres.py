@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import hashlib
 import json
-from typing import Any, Literal, Protocol
 import uuid
+from dataclasses import dataclass
+from typing import Any, Literal, Protocol
 
 from phylo_lens_server.database.schema_files import CREATE_SCHEMA_FILE, read_schema_sql
 from phylo_lens_server.domain.models import CanonicalDataset
@@ -14,8 +14,8 @@ from phylo_lens_server.repository.jobs.local import (
     JOB_STATUS_FAILED,
     JOB_STATUS_PENDING,
     JOB_STATUS_READY,
-    PrepareQueueFullError,
     PrepareJobSnapshot,
+    PrepareQueueFullError,
 )
 
 DurablePrepareJobStatus = Literal[
@@ -133,27 +133,26 @@ class PostgresPrepareJobStore:
         self._dsn = dsn
 
     def create_schema(self) -> None:
-        with self._connect() as connection:
-            with connection.transaction():
-                _ensure_schema_version_table(connection)
-                schema = postgres_schema()
-                applied_checksum = _read_schema_checksum(connection, schema.version)
-                if applied_checksum == schema.checksum:
-                    return
-                if applied_checksum is not None:
-                    raise RuntimeError(
-                        f"Postgres schema checksum mismatch for {schema.version}."
-                    )
-                for statement in sql_statements(schema.sql):
-                    connection.execute(statement)
-                connection.execute(
-                    f"""
+        with self._connect() as connection, connection.transaction():
+            _ensure_schema_version_table(connection)
+            schema = postgres_schema()
+            applied_checksum = _read_schema_checksum(connection, schema.version)
+            if applied_checksum == schema.checksum:
+                return
+            if applied_checksum is not None:
+                raise RuntimeError(
+                    f"Postgres schema checksum mismatch for {schema.version}."
+                )
+            for statement in sql_statements(schema.sql):
+                connection.execute(statement)
+            connection.execute(
+                f"""
                     insert into {POSTGRES_SCHEMA_VERSION_TABLE}(
                         version, checksum
                     ) values (%s, %s)
                     """,
-                    (schema.version, schema.checksum),
-                )
+                (schema.version, schema.checksum),
+            )
 
     def assert_schema_current(self) -> None:
         with self._connect() as connection:
@@ -177,20 +176,19 @@ class PostgresPrepareJobStore:
         payload = dataset.model_dump(mode="json")
         job_id = uuid.uuid4().hex
 
-        with self._connect() as connection:
-            with connection.transaction():
-                _lock_prepare_submit(connection)
-                reusable_job_id = _find_reusable_job_id(
-                    connection,
-                    dataset_id=dataset_id,
-                    layout_version=layout_version,
-                )
-                if reusable_job_id is not None:
-                    return reusable_job_id
-                if _is_at_active_job_limit(connection, max_active_jobs):
-                    raise PrepareQueueFullError(ERR_PREPARE_QUEUE_FULL)
-                insert_cursor = connection.execute(
-                    """
+        with self._connect() as connection, connection.transaction():
+            _lock_prepare_submit(connection)
+            reusable_job_id = _find_reusable_job_id(
+                connection,
+                dataset_id=dataset_id,
+                layout_version=layout_version,
+            )
+            if reusable_job_id is not None:
+                return reusable_job_id
+            if _is_at_active_job_limit(connection, max_active_jobs):
+                raise PrepareQueueFullError(ERR_PREPARE_QUEUE_FULL)
+            insert_cursor = connection.execute(
+                """
                     insert into prepare_jobs(
                         job_id, dataset_id, layout_version, status,
                         dataset_payload, warnings
@@ -199,25 +197,25 @@ class PostgresPrepareJobStore:
                     on conflict do nothing
                     returning job_id
                     """,
-                    (
-                        job_id,
-                        dataset_id,
-                        layout_version,
-                        DURABLE_STATUS_QUEUED,
-                        json.dumps(payload),
-                        json.dumps(list(warnings)),
-                    ),
+                (
+                    job_id,
+                    dataset_id,
+                    layout_version,
+                    DURABLE_STATUS_QUEUED,
+                    json.dumps(payload),
+                    json.dumps(list(warnings)),
+                ),
+            )
+            inserted = insert_cursor.fetchone()
+            if inserted is None:
+                reusable_after_race = _find_reusable_job_id(
+                    connection,
+                    dataset_id=dataset_id,
+                    layout_version=layout_version,
                 )
-                inserted = insert_cursor.fetchone()
-                if inserted is None:
-                    reusable_after_race = _find_reusable_job_id(
-                        connection,
-                        dataset_id=dataset_id,
-                        layout_version=layout_version,
-                    )
-                    if reusable_after_race is not None:
-                        return reusable_after_race
-                    raise RuntimeError(ERR_DURABLE_JOB_INSERT_CONFLICT)
+                if reusable_after_race is not None:
+                    return reusable_after_race
+                raise RuntimeError(ERR_DURABLE_JOB_INSERT_CONFLICT)
         return job_id
 
     def claim_next(
@@ -227,10 +225,9 @@ class PostgresPrepareJobStore:
         lease_seconds: int = DEFAULT_LEASE_SECONDS,
     ) -> ClaimedPrepareJob | None:
         validate_lease_seconds(lease_seconds)
-        with self._connect() as connection:
-            with connection.transaction():
-                row = connection.execute(
-                    """
+        with self._connect() as connection, connection.transaction():
+            row = connection.execute(
+                """
                     with candidate as (
                         select job_id
                         from prepare_jobs
@@ -251,14 +248,14 @@ class PostgresPrepareJobStore:
                     where job_id in (select job_id from candidate)
                     returning job_id, dataset_payload, warnings
                     """,
-                    (
-                        DURABLE_STATUS_QUEUED,
-                        DURABLE_STATUS_RUNNING,
-                        DURABLE_STATUS_RUNNING,
-                        worker_id,
-                        lease_seconds,
-                    ),
-                ).fetchone()
+                (
+                    DURABLE_STATUS_QUEUED,
+                    DURABLE_STATUS_RUNNING,
+                    DURABLE_STATUS_RUNNING,
+                    worker_id,
+                    lease_seconds,
+                ),
+            ).fetchone()
         if row is None:
             return None
         return ClaimedPrepareJob(

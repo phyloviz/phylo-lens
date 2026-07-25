@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from dataclasses import replace
 import json
 import re
 import sqlite3
+from dataclasses import replace
 
+from phylo_lens_server.database.sqlite import connect
 from phylo_lens_server.domain.metadata_keys import is_internal_metadata_key
 from phylo_lens_server.pipeline.models import SearchMatch, SearchReadResult
-from phylo_lens_server.database.sqlite import connect
 
 SEARCH_SCORE_ID_EXACT = 100
 SEARCH_SCORE_ID_PREFIX = 60

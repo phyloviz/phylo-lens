@@ -3,8 +3,8 @@ import logging
 from fastapi import HTTPException
 from pydantic import ValidationError
 
-from phylo_lens_server.domain.models import DomainValidationError
 from phylo_lens_server.data.parsers import ParseError
+from phylo_lens_server.domain.models import DomainValidationError
 
 STATUS_BAD_REQUEST = 400
 STATUS_NOT_FOUND = 404

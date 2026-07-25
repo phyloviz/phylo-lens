@@ -26,10 +26,10 @@ from phylo_lens_server.repository.jobs.local import (
     JOB_STATUS_READY,
     PrepareJobRegistry,
 )
+from phylo_lens_server.repository.jobs.result_payload import prepare_result_payload
 from phylo_lens_server.repository.layout.sqlite_layout_repository import (
     PreparedLayoutStore,
 )
-from phylo_lens_server.repository.jobs.result_payload import prepare_result_payload
 
 logger = logging.getLogger(__name__)
 

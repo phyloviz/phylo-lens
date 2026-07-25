@@ -1,8 +1,13 @@
 from __future__ import annotations
 
+from typing import Annotated
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import ValidationError
 
+from phylo_lens_server.data.normalizer import NormalizeRequest
+from phylo_lens_server.data.parsers import ParseError
+from phylo_lens_server.domain.models import DomainValidationError
 from phylo_lens_server.http.errors import (
     domain_validation_error_to_http,
     not_found_error,
@@ -24,12 +29,9 @@ from phylo_lens_server.http.graph.schemas import (
     GraphViewportQuery,
     GraphViewportResponse,
 )
-from phylo_lens_server.domain.models import DomainValidationError
-from phylo_lens_server.data.normalizer import NormalizeRequest
-from phylo_lens_server.data.parsers import ParseError
 from phylo_lens_server.repository.jobs.local import (
-    PrepareQueueFullError,
     PrepareJobRegistry,
+    PrepareQueueFullError,
 )
 from phylo_lens_server.repository.layout.sqlite_layout_repository import (
     PreparedLayoutStore,
@@ -55,7 +57,10 @@ router = APIRouter(prefix=ROUTER_PREFIX, tags=[ROUTER_TAG])
 )
 def prepare_graph(
     request: NormalizeRequest,
-    registry: PrepareJobRegistry = Depends(get_prepare_job_registry),
+    registry: Annotated[
+        PrepareJobRegistry,
+        Depends(get_prepare_job_registry),
+    ],
 ) -> GraphPrepareJob:
     try:
         return graph_service.prepare_graph_job(request, registry)
@@ -83,7 +88,10 @@ def prepare_graph(
 )
 def prepare_graph_status(
     job_id: str,
-    registry: PrepareJobRegistry = Depends(get_prepare_job_registry),
+    registry: Annotated[
+        PrepareJobRegistry,
+        Depends(get_prepare_job_registry),
+    ],
 ) -> GraphPrepareStatus:
     try:
         return graph_service.prepare_graph_status(job_id, registry)
@@ -98,7 +106,10 @@ def prepare_graph_status(
 )
 def read_graph_viewport(
     query: GraphViewportQuery,
-    store: PreparedLayoutStore = Depends(get_prepared_layout_store),
+    store: Annotated[
+        PreparedLayoutStore,
+        Depends(get_prepared_layout_store),
+    ],
 ) -> GraphViewportResponse:
     try:
         return graph_service.read_graph_viewport(query, store)
@@ -119,7 +130,10 @@ def read_graph_viewport(
 )
 def read_graph_region(
     query: GraphRegionQuery,
-    store: PreparedLayoutStore = Depends(get_prepared_layout_store),
+    store: Annotated[
+        PreparedLayoutStore,
+        Depends(get_prepared_layout_store),
+    ],
 ) -> GraphRegionResponse:
     try:
         return graph_service.read_graph_region(query, store)
@@ -140,7 +154,10 @@ def read_graph_region(
 )
 def search_graph_nodes(
     query: GraphSearchQuery,
-    store: PreparedLayoutStore = Depends(get_prepared_layout_store),
+    store: Annotated[
+        PreparedLayoutStore,
+        Depends(get_prepared_layout_store),
+    ],
 ) -> GraphSearchResponse:
     try:
         return graph_service.search_graph_nodes(query, store)

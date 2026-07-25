@@ -2,18 +2,17 @@ from __future__ import annotations
 
 import sqlite3
 
+from phylo_lens_server.database.sqlite import connect
 from phylo_lens_server.pipeline.models import (
     RegionReadResult,
     ViewportEdge,
 )
 from phylo_lens_server.repository.layout.metadata_reader import (
-    aggregate_render_metadata,
     aggregate_layout_status,
+    aggregate_render_metadata,
     attach_node_metadata,
     load_metadata_schema,
 )
-from phylo_lens_server.database.sqlite import connect
-
 from phylo_lens_server.repository.layout.viewport_reader import (
     read_ready_nodes,
 )

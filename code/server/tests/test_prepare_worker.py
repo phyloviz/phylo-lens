@@ -3,9 +3,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from phylo_lens_server.data.normalizer import NormalizeRequest, normalize_dataset
 from phylo_lens_server.cli.prepare_worker import run_postgres_prepare_worker
+from phylo_lens_server.data.normalizer import NormalizeRequest, normalize_dataset
 from phylo_lens_server.domain.models import CanonicalDataset
+from phylo_lens_server.pipeline.worker import PreparedLayoutWorker
 from phylo_lens_server.repository.jobs.postgres import (
     ClaimedPrepareJob,
     DurablePrepareJob,
@@ -14,7 +15,6 @@ from phylo_lens_server.repository.jobs.result_payload import prepare_result_payl
 from phylo_lens_server.repository.layout.sqlite_layout_repository import (
     PreparedLayoutStore,
 )
-from phylo_lens_server.pipeline.worker import PreparedLayoutWorker
 
 
 @dataclass

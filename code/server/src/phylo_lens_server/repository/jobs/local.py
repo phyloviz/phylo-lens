@@ -1,12 +1,12 @@
 from __future__ import annotations
 
+import threading
+import uuid
+from collections.abc import Generator
 from concurrent.futures import Future
 from contextlib import contextmanager
 from dataclasses import dataclass
-from collections.abc import Generator
-import threading
 from typing import Any, Literal, Protocol
-import uuid
 
 from phylo_lens_server.domain.models import CanonicalDataset
 from phylo_lens_server.pipeline.ingest import layout_version_for_dataset

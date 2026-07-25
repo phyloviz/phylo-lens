@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from hashlib import sha256
 import json
+from hashlib import sha256
 
 from phylo_lens_server.domain.models import CanonicalDataset, CanonicalEdge
 from phylo_lens_server.pipeline.clustering import (
-    ClusterIndex,
     MAX_CLUSTER_THRESHOLDS,
+    ClusterIndex,
     components_by_threshold,
     partition_for_threshold,
     prepared_cluster,
@@ -145,11 +145,11 @@ def layout_version_for_dataset(dataset: CanonicalDataset) -> str:
 
 
 __all__ = [
-    "PreparedLayoutIngestError",
     "LAYOUT_PIPELINE_VERSION",
-    "prepare_layout_artifacts",
-    "selected_distance_thresholds",
+    "PreparedLayoutIngestError",
     "layout_version_for_dataset",
     "partition_for_threshold",
+    "prepare_layout_artifacts",
     "representative_targets",
+    "selected_distance_thresholds",
 ]

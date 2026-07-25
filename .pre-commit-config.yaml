@@ -1,9 +1,9 @@
 repos:
   - repo: local
     hooks:
-      - id: server-ruff-fix-and-format
+      - id: server-ruff-check-format
         name: server ruff check and format
-        entry: sh code/server/scripts/pre-commit.sh
+        entry: sh -c 'cd code/server && python -m ruff check --fix src tests && python -m ruff format src tests'
         language: system
         pass_filenames: false
         always_run: true

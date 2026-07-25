@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sqlite3
 
+from phylo_lens_server.database.sqlite import connect
 from phylo_lens_server.pipeline.models import (
     LayoutBounds,
     ViewportEdge,
@@ -13,7 +14,6 @@ from phylo_lens_server.repository.layout.metadata_reader import (
     attach_node_metadata,
     load_metadata_schema,
 )
-from phylo_lens_server.database.sqlite import connect
 
 
 def has_bounds(
@@ -956,4 +956,4 @@ def _min_distance(left: float | None, right: float | None) -> float | None:
         return right
     if right is None:
         return left
-    return left if left <= right else right
+    return min(left, right)

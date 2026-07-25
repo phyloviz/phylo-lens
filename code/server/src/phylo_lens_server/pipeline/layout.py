@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import logging
-from math import cos, hypot, log2, pi, sin
-from random import Random
 import shlex
 import shutil
-from statistics import median
 import subprocess
+from math import cos, hypot, log2, pi, sin
+from random import Random
+from statistics import median
 
 from phylo_lens_server.config.settings import graphviz_sfdp_timeout_seconds
 from phylo_lens_server.domain.models import CanonicalDataset, CanonicalEdge

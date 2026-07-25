@@ -1,11 +1,11 @@
-from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
 import logging
 import os
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
+import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-import uvicorn
 
 from phylo_lens_server.http.graph.dependencies import (
     shutdown_prepare_job_registry_if_started,
