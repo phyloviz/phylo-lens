@@ -128,24 +128,13 @@ def normalize_dataset(
     )
 
     match request.format:
-        # A raw Newick upload may be a single tree or a ``;``-separated forest
-        # (e.g. precomputed goeBURST output, which is routinely disconnected).
-        # parse_newick_forest handles both, merging components into one
-        # disconnected graph so everything downstream is unchanged.
         case NormalizeFormat.NEWICK:
             parsed = parse_newick_forest(request.content)
-
-        # Typing data (MLST/cgMLST allelic profiles) is converted to a graph by
-        # the bundled PhyloLib JAR. goeBURST may emit a forest (one tree per
-        # connected component); typing_profiles_to_graph merges these into a
-        # single disconnected ParsedGraph so everything downstream is unchanged.
         case NormalizeFormat.TYPING_DATA:
             try:
                 parsed = typing_profiles_to_graph(request.content)
             except TypingNormalizeError as error:
                 raise ParseError(str(error)) from error
-
-        # If a invalid format is provided, raise a ParseError which will be handled by the caller to return a 400 response.
         case _:
             raise ParseError(ERR_UNSUPPORTED_FORMAT.format(format_name=request.format))
 
@@ -187,9 +176,9 @@ def normalize_dataset(
         request.metadata_by_node_id,
         declared_metadata_types,
     )
-    ancillary_rows_by_node_id: dict[
-        str, list[dict[str, str | float | bool | None]]
-    ] = {}
+    ancillary_rows_by_node_id: dict[str, list[dict[str, str | float | bool | None]]] = (
+        {}
+    )
     if request.ancillary_data is not None:
         (
             ancillary_metadata,
@@ -205,7 +194,10 @@ def normalize_dataset(
             ),
             declared_schema=request.metadata_schema,
         )
-        metadata_by_node_id = {**metadata_by_node_id, **ancillary_metadata}
+        metadata_by_node_id = _merge_node_metadata(
+            metadata_by_node_id,
+            ancillary_metadata,
+        )
         warnings.extend(ancillary_warnings)
 
     metadata_schema = _merge_metadata_schema(
@@ -244,9 +236,11 @@ def normalize_dataset(
     )
 
     return NormalizeResult(
-        dataset=dataset
-        if expose_internal_schema
-        else public_metadata_schema_dataset(dataset),
+        dataset=(
+            dataset
+            if expose_internal_schema
+            else public_metadata_schema_dataset(dataset)
+        ),
         stats=stats,
         warnings=warnings,
     )
@@ -356,6 +350,19 @@ def _reject_reserved_metadata_keys(
     for metadata in metadata_by_node_id.values():
         for key in metadata:
             _reject_reserved_metadata_key(key)
+
+
+def _merge_node_metadata(
+    explicit_metadata: dict[str, dict[str, str | float | bool | None]],
+    ancillary_metadata: dict[str, dict[str, str | float | bool | None]],
+) -> dict[str, dict[str, str | float | bool | None]]:
+    """Merge metadata per node and field, preserving direct caller values."""
+    merged = {
+        node_id: dict(metadata) for node_id, metadata in ancillary_metadata.items()
+    }
+    for node_id, metadata in explicit_metadata.items():
+        merged[node_id] = {**merged.get(node_id, {}), **metadata}
+    return merged
 
 
 def _reject_reserved_ancillary_headers(headers: list[str], join_column: str) -> None:
@@ -592,9 +599,11 @@ def _coerce_metadata_by_declared_schema(
 
     return {
         node_id: {
-            key: _coerce_metadata_value_by_type(value, declared_types[key])
-            if key in declared_types
-            else value
+            key: (
+                _coerce_metadata_value_by_type(value, declared_types[key])
+                if key in declared_types
+                else value
+            )
             for key, value in metadata.items()
         }
         for node_id, metadata in metadata_by_node_id.items()

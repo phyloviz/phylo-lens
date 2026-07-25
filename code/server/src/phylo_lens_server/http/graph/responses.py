@@ -15,10 +15,6 @@ from phylo_lens_server.pipeline.models import (
     SearchReadResult,
     ViewportReadResult,
 )
-from phylo_lens_server.services.prepare_response import (
-    layout_degraded_warning as layout_degraded_warning,
-    prepare_response_from_result as prepare_response_from_result,
-)
 
 
 def graph_viewport_response_from_result(

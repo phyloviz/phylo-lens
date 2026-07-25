@@ -6,6 +6,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+from phylo_lens_server.config.settings import phylolib_timeout_seconds
 from phylo_lens_server.data.parsers import (
     WARN_NEWICK_FOREST,
     ParsedGraph,
@@ -39,6 +40,8 @@ TREE_FILENAME = "tree.nwk"
 TYPING_PHYLOLIB_RUNTIME_MISSING = "phylolib_runtime_missing"
 TYPING_PHYLOLIB_DISTANCE_FAILED = "phylolib_distance_failed"
 TYPING_PHYLOLIB_ALGORITHM_FAILED = "phylolib_algorithm_failed"
+TYPING_PHYLOLIB_DISTANCE_TIMEOUT = "phylolib_distance_timeout"
+TYPING_PHYLOLIB_ALGORITHM_TIMEOUT = "phylolib_algorithm_timeout"
 TYPING_PHYLOLIB_EMPTY_TREE = "phylolib_empty_tree"
 
 ERR_TYPING_PHYLOLIB_RUNTIME_MISSING = (
@@ -50,6 +53,12 @@ ERR_TYPING_DISTANCE_FAILED = (
 )
 ERR_TYPING_ALGORITHM_FAILED = (
     "PhyloLib failed to build a tree from the distance matrix."
+)
+ERR_TYPING_DISTANCE_TIMEOUT = (
+    "PhyloLib timed out while computing a distance matrix from the typing profiles."
+)
+ERR_TYPING_ALGORITHM_TIMEOUT = (
+    "PhyloLib timed out while building a tree from the distance matrix."
 )
 ERR_TYPING_EMPTY_TREE = "PhyloLib produced an empty Newick tree."
 
@@ -93,7 +102,12 @@ def _java_command() -> str:
 
 
 def _run_phylolib_cli(
-    args: list[str], *, failure_reason: str, failure_message: str
+    args: list[str],
+    *,
+    failure_reason: str,
+    failure_message: str,
+    timeout_reason: str,
+    timeout_message: str,
 ) -> None:
     """Run one PhyloLib CLI subcommand through the configured local JAR."""
     jar_path = _configured_phylolib_jar()
@@ -109,6 +123,8 @@ def _run_phylolib_cli(
         step=args[0] if args else "?",
         failure_reason=failure_reason,
         failure_message=failure_message,
+        timeout_reason=timeout_reason,
+        timeout_message=timeout_message,
     )
 
 
@@ -118,9 +134,24 @@ def _run_command(
     step: str,
     failure_reason: str,
     failure_message: str,
+    timeout_reason: str,
+    timeout_message: str,
 ) -> None:
     try:
-        subprocess.run(command, capture_output=True, text=True, check=True)
+        subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=phylolib_timeout_seconds(),
+        )
+    except subprocess.TimeoutExpired as error:
+        logger.warning(
+            "PhyloLib step %s timed out after %.1f seconds.",
+            step,
+            phylolib_timeout_seconds(),
+        )
+        raise TypingNormalizeError(timeout_message, reason=timeout_reason) from error
     except (OSError, subprocess.CalledProcessError) as error:
         stderr = getattr(error, "stderr", "") or ""
         logger.warning(
@@ -130,10 +161,6 @@ def _run_command(
             stderr.strip(),
         )
         raise TypingNormalizeError(failure_message, reason=failure_reason) from error
-
-
-def _phylolib_path(files_dir: Path, filename: str) -> str:
-    return str(files_dir / filename)
 
 
 def typing_profiles_to_newick(
@@ -155,8 +182,8 @@ def typing_profiles_to_newick(
         files_dir = Path(tmp)
         (files_dir / PROFILES_FILENAME).write_text(profiles, encoding="utf-8")
 
-        profiles_path = _phylolib_path(files_dir, PROFILES_FILENAME)
-        matrix_path = _phylolib_path(files_dir, MATRIX_FILENAME)
+        profiles_path = str(files_dir / PROFILES_FILENAME)
+        matrix_path = str(files_dir / MATRIX_FILENAME)
         tree_path = files_dir / TREE_FILENAME
         distance_in = f"{DATASET_FORMAT_ML}:{profiles_path}"
         matrix_ref = f"{MATRIX_FORMAT_SYMMETRIC}:{matrix_path}"
@@ -169,6 +196,8 @@ def typing_profiles_to_newick(
             ],
             failure_reason=TYPING_PHYLOLIB_DISTANCE_FAILED,
             failure_message=ERR_TYPING_DISTANCE_FAILED,
+            timeout_reason=TYPING_PHYLOLIB_DISTANCE_TIMEOUT,
+            timeout_message=ERR_TYPING_DISTANCE_TIMEOUT,
         )
 
         tree_ref = f"{TREE_FORMAT_NEWICK}:{tree_path}"
@@ -182,6 +211,8 @@ def typing_profiles_to_newick(
             ],
             failure_reason=TYPING_PHYLOLIB_ALGORITHM_FAILED,
             failure_message=ERR_TYPING_ALGORITHM_FAILED,
+            timeout_reason=TYPING_PHYLOLIB_ALGORITHM_TIMEOUT,
+            timeout_message=ERR_TYPING_ALGORITHM_TIMEOUT,
         )
 
         newick = (

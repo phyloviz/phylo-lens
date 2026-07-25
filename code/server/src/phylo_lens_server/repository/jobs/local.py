@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from concurrent.futures import Future
+from contextlib import contextmanager
 from dataclasses import dataclass
+from collections.abc import Generator
 import threading
 from typing import Any, Literal, Protocol
 import uuid
@@ -9,12 +11,14 @@ import uuid
 from phylo_lens_server.domain.models import CanonicalDataset
 from phylo_lens_server.pipeline.ingest import layout_version_for_dataset
 from phylo_lens_server.pipeline.models import PreparedLayoutResult
+from phylo_lens_server.repository.jobs.result_payload import prepare_result_payload
 
 PrepareJobStatus = Literal["pending", "ready", "failed"]
 
 JOB_STATUS_PENDING: PrepareJobStatus = "pending"
 JOB_STATUS_READY: PrepareJobStatus = "ready"
 JOB_STATUS_FAILED: PrepareJobStatus = "failed"
+
 ERR_JOB_CANCELLED = "Layout preparation was cancelled."
 ERR_PREPARE_QUEUE_FULL = "Too many graph prepare jobs are already queued or running."
 
@@ -72,20 +76,24 @@ class PrepareJobRegistry:
         self._max_active_jobs = max_active_jobs
         self._lock = threading.Lock()
         self._futures: dict[str, Future[PreparedLayoutResult]] = {}
+        self._completed_jobs: dict[str, PrepareJobSnapshot] = {}
         self._warnings: dict[str, tuple[str, ...]] = {}
         self._job_ids_by_layout_key: dict[PrepareLayoutKey, str] = {}
+        self._active_reservations = 0
 
     def submit(
         self,
         dataset: CanonicalDataset,
         warnings: tuple[str, ...] = (),
+        *,
+        reserved_capacity: bool = False,
     ) -> str:
         layout_key = prepare_layout_key(dataset)
         with self._lock:
             reusable_job_id = self._reusable_job_id_locked(layout_key)
             if reusable_job_id is not None:
                 return reusable_job_id
-            if self._is_at_active_job_limit_locked():
+            if not reserved_capacity and self._is_at_active_job_limit_locked():
                 raise PrepareQueueFullError(ERR_PREPARE_QUEUE_FULL)
 
             job_id = uuid.uuid4().hex
@@ -93,10 +101,33 @@ class PrepareJobRegistry:
             self._futures[job_id] = future
             self._warnings[job_id] = warnings
             self._job_ids_by_layout_key[layout_key] = job_id
+
+        future.add_done_callback(
+            lambda completed, completed_job_id=job_id, completed_layout_key=layout_key: self._record_completed_job(
+                completed_job_id,
+                completed_layout_key,
+                completed,
+            )
+        )
         return job_id
+
+    @contextmanager
+    def reserve_capacity(self) -> Generator[None]:
+        with self._lock:
+            if self._is_at_active_job_limit_locked():
+                raise PrepareQueueFullError(ERR_PREPARE_QUEUE_FULL)
+            self._active_reservations += 1
+        try:
+            yield
+        finally:
+            with self._lock:
+                self._active_reservations -= 1
 
     def snapshot(self, job_id: str) -> PrepareJobSnapshot | None:
         with self._lock:
+            completed = self._completed_jobs.get(job_id)
+            if completed is not None:
+                return completed
             future = self._futures.get(job_id)
             warnings = self._warnings.get(job_id, ())
         if future is None:
@@ -138,6 +169,9 @@ class PrepareJobRegistry:
             return None
         future = self._futures.get(job_id)
         if future is None:
+            completed = self._completed_jobs.get(job_id)
+            if completed is not None and completed.status == JOB_STATUS_READY:
+                return job_id
             self._job_ids_by_layout_key.pop(layout_key, None)
             return None
         if is_reusable_future(future):
@@ -150,7 +184,50 @@ class PrepareJobRegistry:
         if self._max_active_jobs is None:
             return False
         active_jobs = sum(1 for future in self._futures.values() if not future.done())
+        active_jobs += self._active_reservations
         return active_jobs >= self._max_active_jobs
+
+    def _record_completed_job(
+        self,
+        job_id: str,
+        layout_key: PrepareLayoutKey,
+        future: Future[PreparedLayoutResult],
+    ) -> None:
+        with self._lock:
+            warnings = self._warnings.get(job_id, ())
+
+        snapshot: PrepareJobSnapshot
+        if future.cancelled():
+            snapshot = PrepareJobSnapshot(
+                job_id=job_id,
+                status=JOB_STATUS_FAILED,
+                error=ERR_JOB_CANCELLED,
+                warnings=warnings,
+            )
+        else:
+            error = future.exception()
+            if error is not None:
+                snapshot = PrepareJobSnapshot(
+                    job_id=job_id,
+                    status=JOB_STATUS_FAILED,
+                    error=str(error) or type(error).__name__,
+                    warnings=warnings,
+                )
+            else:
+                result = future.result()
+                snapshot = PrepareJobSnapshot(
+                    job_id=job_id,
+                    status=JOB_STATUS_READY,
+                    result_payload=prepare_result_payload(result, warnings),
+                    warnings=warnings,
+                )
+
+        with self._lock:
+            self._futures.pop(job_id, None)
+            self._warnings.pop(job_id, None)
+            self._completed_jobs[job_id] = snapshot
+            if snapshot.status != JOB_STATUS_READY:
+                self._job_ids_by_layout_key.pop(layout_key, None)
 
 
 def prepare_layout_key(dataset: CanonicalDataset) -> PrepareLayoutKey:

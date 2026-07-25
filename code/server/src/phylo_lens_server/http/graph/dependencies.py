@@ -48,18 +48,3 @@ def shutdown_prepare_job_registry_if_started() -> None:
     if get_prepare_job_registry.cache_info().currsize == 0:
         return
     get_prepare_job_registry().shutdown()
-
-
-DEFAULT_PREPARED_LAYOUT_STORE_DIR = settings.DEFAULT_PREPARED_LAYOUT_STORE_DIR
-ENV_DATA_DIR = settings.ENV_DATA_DIR
-ENV_MAX_ACTIVE_PREPARE_JOBS = settings.ENV_MAX_ACTIVE_PREPARE_JOBS
-ENV_POSTGRES_DSN = settings.ENV_POSTGRES_DSN
-ENV_PREPARE_JOB_BACKEND = settings.ENV_PREPARE_JOB_BACKEND
-ENV_PREPARED_LAYOUT_STORE_DIR = settings.ENV_PREPARED_LAYOUT_STORE_DIR
-PREPARE_JOB_BACKEND_LOCAL = settings.PREPARE_JOB_BACKEND_LOCAL
-PREPARE_JOB_BACKEND_POSTGRES = settings.PREPARE_JOB_BACKEND_POSTGRES
-PREPARED_LAYOUT_SUBDIR = settings.PREPARED_LAYOUT_SUBDIR
-max_active_prepare_jobs = settings.max_active_prepare_jobs
-postgres_dsn = settings.postgres_dsn
-prepare_job_backend = settings.prepare_job_backend
-prepared_layout_store_dir = settings.prepared_layout_store_dir

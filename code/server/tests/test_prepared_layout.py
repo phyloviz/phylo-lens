@@ -1,5 +1,7 @@
 from concurrent.futures import Future
+import multiprocessing
 import shutil
+import subprocess
 
 import pytest
 
@@ -11,6 +13,7 @@ from phylo_lens_server.domain.models import (
 )
 from phylo_lens_server.data.normalizer import NormalizeRequest, normalize_dataset
 from phylo_lens_server.pipeline.ingest import (
+    layout_version_for_dataset,
     PreparedLayoutIngestError,
     partition_for_threshold,
     prepare_layout_artifacts,
@@ -23,6 +26,7 @@ from phylo_lens_server.repository.jobs.local import (
 from phylo_lens_server.pipeline.layout import (
     GLOBAL_TARGET_EDGE_LENGTH,
     GRAPHVIZ_SFDP_COMMAND,
+    GraphvizLayoutTimeoutError,
     LAYOUT_DEGRADED_SFDP_MISSING,
     compute_prepared_layouts,
     graphviz_sfdp_positions,
@@ -31,11 +35,13 @@ from phylo_lens_server.pipeline.layout import (
     normalize_global_positions,
     parse_graphviz_plain_positions,
 )
-from phylo_lens_server.repository.layout import (
-    PreparedLayoutStore,
+from phylo_lens_server.repository.layout.metadata_reader import (
     aggregate_cluster_metadata,
 )
+from phylo_lens_server.repository.layout.sqlite_layout_repository import PreparedLayoutStore
+from phylo_lens_server.services import graph_service
 from phylo_lens_server.pipeline.models import PreparedLayoutResult
+from phylo_lens_server.repository.jobs.result_payload import prepare_result_payload
 from phylo_lens_server.pipeline.worker import (
     PreparedLayoutWorker,
     compute_prepared_edges,
@@ -439,7 +445,7 @@ def test_graphviz_plain_parser_handles_quoted_node_ids() -> None:
     assert positions == {"a b": (0.5, 1.25), "c-d": (2.0, 3.5)}
 
 
-def test_graphviz_sfdp_positions_does_not_apply_wall_clock_timeout(monkeypatch) -> None:
+def test_graphviz_sfdp_positions_applies_configured_timeout(monkeypatch) -> None:
     calls: list[dict[str, object]] = []
 
     class Completed:
@@ -462,6 +468,7 @@ def test_graphviz_sfdp_positions_does_not_apply_wall_clock_timeout(monkeypatch) 
         "phylo_lens_server.pipeline.layout.subprocess.run",
         fake_run,
     )
+    monkeypatch.setenv("PHYLO_LENS_GRAPHVIZ_SFDP_TIMEOUT_SECONDS", "8.5")
 
     positions, reason = graphviz_sfdp_positions(
         ("a", "b"),
@@ -470,7 +477,28 @@ def test_graphviz_sfdp_positions_does_not_apply_wall_clock_timeout(monkeypatch) 
 
     assert reason is None
     assert positions == {"a": (0.0, 0.0), "b": (1.0, 0.0)}
-    assert "timeout" not in calls[0]
+    assert calls[0]["timeout"] == 8.5
+
+
+def test_graphviz_sfdp_positions_timeout_fails_layout_job(monkeypatch) -> None:
+    def fake_run(command, **kwargs):
+        raise subprocess.TimeoutExpired(cmd=command, timeout=kwargs["timeout"])
+
+    monkeypatch.setattr(
+        "phylo_lens_server.pipeline.layout.shutil.which",
+        lambda command: "/usr/bin/sfdp",
+    )
+    monkeypatch.setattr(
+        "phylo_lens_server.pipeline.layout.subprocess.run",
+        fake_run,
+    )
+    monkeypatch.setenv("PHYLO_LENS_GRAPHVIZ_SFDP_TIMEOUT_SECONDS", "1")
+
+    with pytest.raises(GraphvizLayoutTimeoutError):
+        graphviz_sfdp_positions(
+            ("a", "b"),
+            (CanonicalEdge(id="e1", source="a", target="b", distance=1.0),),
+        )
 
 
 def test_prepared_layout_worker_persists_ready_cluster_and_node_positions(
@@ -604,6 +632,103 @@ def _prepared_result(dataset: CanonicalDataset) -> PreparedLayoutResult:
     return PreparedLayoutResult(artifacts=prepare_layout_artifacts(dataset))
 
 
+class ImmediatelyCompletedPrepareWorker:
+    def submit_prepare_dataset(
+        self,
+        dataset: CanonicalDataset,
+    ) -> Future[PreparedLayoutResult]:
+        future: Future[PreparedLayoutResult] = Future()
+        future.set_result(_prepared_result(dataset))
+        return future
+
+    def shutdown(self) -> None:
+        pass
+
+
+class ImmediatelyFailedPrepareWorker:
+    def submit_prepare_dataset(
+        self,
+        dataset: CanonicalDataset,
+    ) -> Future[PreparedLayoutResult]:
+        future: Future[PreparedLayoutResult] = Future()
+        future.set_exception(RuntimeError("layout failed immediately"))
+        return future
+
+    def shutdown(self) -> None:
+        pass
+
+
+def _run_immediate_future_registry_case(kind: str, queue) -> None:
+    dataset = _dataset().model_copy(update={"dataset_id": f"immediate-{kind}"})
+    worker = (
+        ImmediatelyCompletedPrepareWorker()
+        if kind == "ready"
+        else ImmediatelyFailedPrepareWorker()
+    )
+    registry = PrepareJobRegistry(worker, max_active_jobs=1)
+
+    with registry.reserve_capacity():
+        job_id = registry.submit(
+            dataset,
+            ("submitted warning",),
+            reserved_capacity=True,
+        )
+        active_inside_reservation = registry._active_reservations
+        snapshot_inside_reservation = registry.snapshot(job_id)
+
+    snapshot_after_reservation = registry.snapshot(job_id)
+    queue.put(
+        {
+            "active_inside_reservation": active_inside_reservation,
+            "active_after_reservation": registry._active_reservations,
+            "job_id": job_id,
+            "status_inside_reservation": (
+                None
+                if snapshot_inside_reservation is None
+                else snapshot_inside_reservation.status
+            ),
+            "status_after_reservation": (
+                None
+                if snapshot_after_reservation is None
+                else snapshot_after_reservation.status
+            ),
+            "result_retained": (
+                None
+                if snapshot_after_reservation is None
+                else snapshot_after_reservation.result is not None
+            ),
+            "result_payload": (
+                None
+                if snapshot_after_reservation is None
+                else snapshot_after_reservation.result_payload
+            ),
+            "error": (
+                None
+                if snapshot_after_reservation is None
+                else snapshot_after_reservation.error
+            ),
+        }
+    )
+
+
+def _immediate_future_registry_case(kind: str) -> dict:
+    context = multiprocessing.get_context("fork")
+    queue = context.Queue()
+    process = context.Process(
+        target=_run_immediate_future_registry_case,
+        args=(kind, queue),
+    )
+    process.start()
+    process.join(3)
+    if process.is_alive():
+        process.terminate()
+        process.join(1)
+        pytest.fail("PrepareJobRegistry.submit() deadlocked for completed Future.")
+    assert process.exitcode == 0
+    assert not queue.empty()
+    return queue.get_nowait()
+
+
 def test_prepare_job_registry_coalesces_duplicate_in_flight_layouts() -> None:
     worker = RecordingPrepareWorker()
     registry = PrepareJobRegistry(worker)
@@ -613,6 +738,33 @@ def test_prepare_job_registry_coalesces_duplicate_in_flight_layouts() -> None:
 
     assert second_job_id == first_job_id
     assert len(worker.submitted_datasets) == 1
+
+
+def test_prepare_job_registry_accepts_already_completed_future() -> None:
+    result = _immediate_future_registry_case("ready")
+
+    assert result["job_id"]
+    assert result["active_inside_reservation"] == 1
+    assert result["active_after_reservation"] == 0
+    assert result["status_inside_reservation"] == "ready"
+    assert result["status_after_reservation"] == "ready"
+    assert result["result_retained"] is False
+    assert result["result_payload"] is not None
+    assert result["result_payload"]["dataset_id"] == "immediate-ready"
+    assert "submitted warning" in result["result_payload"]["warnings"]
+
+
+def test_prepare_job_registry_accepts_already_failed_future() -> None:
+    result = _immediate_future_registry_case("failed")
+
+    assert result["job_id"]
+    assert result["active_inside_reservation"] == 1
+    assert result["active_after_reservation"] == 0
+    assert result["status_inside_reservation"] == "failed"
+    assert result["status_after_reservation"] == "failed"
+    assert result["result_retained"] is False
+    assert result["result_payload"] is None
+    assert "layout failed immediately" in result["error"]
 
 
 def test_prepare_job_registry_reuses_completed_successful_layout_jobs() -> None:
@@ -626,6 +778,29 @@ def test_prepare_job_registry_reuses_completed_successful_layout_jobs() -> None:
 
     assert second_job_id == first_job_id
     assert len(worker.submitted_datasets) == 1
+
+
+def test_prepare_job_registry_drops_completed_future_result_after_payload_capture() -> (
+    None
+):
+    worker = RecordingPrepareWorker()
+    registry = PrepareJobRegistry(worker)
+    dataset = _dataset()
+
+    job_id = registry.submit(dataset, ("submitted warning",))
+    worker.futures[0].set_result(_prepared_result(dataset))
+    snapshot = registry.snapshot(job_id)
+    duplicate_job_id = registry.submit(dataset)
+
+    assert duplicate_job_id == job_id
+    assert snapshot is not None
+    assert snapshot.status == "ready"
+    assert snapshot.result is None
+    assert snapshot.result_payload == prepare_result_payload(
+        _prepared_result(dataset),
+        ("submitted warning",),
+    )
+    assert job_id not in registry._futures
 
 
 def test_prepare_job_registry_retries_failed_layout_jobs() -> None:
@@ -658,6 +833,98 @@ def test_prepare_job_registry_does_not_coalesce_changed_dataset_content() -> Non
     assert len(worker.submitted_datasets) == 2
 
 
+def test_layout_version_changes_when_metadata_value_changes() -> None:
+    dataset = _dataset()
+    portugal = dataset.model_copy(
+        update={
+            "metadata_schema": [
+                MetadataField(key="country", type=MetadataType.STRING),
+            ],
+            "metadata_by_node_id": {"a": {"country": "PT"}},
+        }
+    )
+    spain = dataset.model_copy(
+        update={
+            "metadata_schema": [
+                MetadataField(key="country", type=MetadataType.STRING),
+            ],
+            "metadata_by_node_id": {"a": {"country": "ES"}},
+        }
+    )
+
+    assert layout_version_for_dataset(portugal) != layout_version_for_dataset(spain)
+
+
+def test_layout_version_changes_when_metadata_field_is_added_or_removed() -> None:
+    dataset = _dataset().model_copy(
+        update={
+            "metadata_schema": [
+                MetadataField(key="country", type=MetadataType.STRING),
+            ],
+            "metadata_by_node_id": {"a": {"country": "PT"}},
+        }
+    )
+    with_added_field = dataset.model_copy(
+        update={
+            "metadata_schema": [
+                MetadataField(key="country", type=MetadataType.STRING),
+                MetadataField(key="source", type=MetadataType.STRING),
+            ],
+            "metadata_by_node_id": {"a": {"country": "PT", "source": "blood"}},
+        }
+    )
+
+    assert layout_version_for_dataset(dataset) != layout_version_for_dataset(
+        with_added_field
+    )
+
+
+def test_layout_version_is_stable_for_same_metadata_with_different_dict_order() -> None:
+    dataset = _dataset()
+    first = dataset.model_copy(
+        update={
+            "metadata_schema": [
+                MetadataField(key="source", type=MetadataType.STRING),
+                MetadataField(key="country", type=MetadataType.STRING),
+            ],
+            "metadata_by_node_id": {
+                "a": {"country": "PT", "source": "blood"},
+                "b": {"source": "csf", "country": "ES"},
+            },
+        }
+    )
+    second = dataset.model_copy(
+        update={
+            "metadata_schema": [
+                MetadataField(key="country", type=MetadataType.STRING),
+                MetadataField(key="source", type=MetadataType.STRING),
+            ],
+            "metadata_by_node_id": {
+                "b": {"country": "ES", "source": "csf"},
+                "a": {"source": "blood", "country": "PT"},
+            },
+        }
+    )
+
+    assert layout_version_for_dataset(first) == layout_version_for_dataset(second)
+
+
+def test_layout_version_reuses_independently_normalized_identical_requests() -> None:
+    request = NormalizeRequest(
+        format=FORMAT_NEWICK,
+        dataset_name="reuse-tree",
+        content=WEIGHTED_TREE,
+        metadata_schema=[{"key": "country", "type": "string"}],
+        metadata_by_node_id={"a": {"country": "PT"}},
+    )
+
+    first = normalize_dataset(request).dataset
+    second = normalize_dataset(request).dataset
+
+    assert first.source.generated_at != second.source.generated_at
+    assert layout_version_for_dataset(first) == layout_version_for_dataset(second)
+
+
 def test_prepare_job_registry_rejects_new_work_at_active_limit() -> None:
     worker = RecordingPrepareWorker()
     registry = PrepareJobRegistry(
@@ -678,6 +945,58 @@ def test_prepare_job_registry_rejects_new_work_at_active_limit() -> None:
     with pytest.raises(PrepareQueueFullError):
         registry.submit(second_dataset)
     assert len(worker.submitted_datasets) == 1
+
+
+def test_prepare_job_registry_reserves_capacity_before_dataset_submission() -> None:
+    worker = RecordingPrepareWorker()
+    registry = PrepareJobRegistry(worker, max_active_jobs=1)
+
+    with registry.reserve_capacity():
+        with pytest.raises(PrepareQueueFullError):
+            with registry.reserve_capacity():
+                pass
+        job_id = registry.submit(_dataset(), reserved_capacity=True)
+
+    assert registry.snapshot(job_id).status == "pending"
+    assert len(worker.submitted_datasets) == 1
+
+
+def test_prepare_job_registry_releases_capacity_reservation_on_failure() -> None:
+    worker = RecordingPrepareWorker()
+    registry = PrepareJobRegistry(worker, max_active_jobs=1)
+
+    with pytest.raises(RuntimeError):
+        with registry.reserve_capacity():
+            raise RuntimeError("normalization failed")
+
+    with registry.reserve_capacity():
+        pass
+
+
+def test_prepare_graph_job_reserves_capacity_before_normalization(monkeypatch) -> None:
+    worker = RecordingPrepareWorker()
+    registry = PrepareJobRegistry(worker, max_active_jobs=1)
+    normalized = False
+
+    def fake_normalize(*args, **kwargs):
+        nonlocal normalized
+        normalized = True
+        raise AssertionError("normalization should not run when capacity is full")
+
+    monkeypatch.setattr(graph_service, "normalize_dataset", fake_normalize)
+
+    with registry.reserve_capacity():
+        with pytest.raises(PrepareQueueFullError):
+            graph_service.prepare_graph_job(
+                NormalizeRequest(
+                    format=FORMAT_NEWICK,
+                    dataset_name="reserved",
+                    content=WEIGHTED_TREE,
+                ),
+                registry,
+            )
+
+    assert normalized is False
 
 
 def test_prepare_job_registry_allows_new_work_after_active_job_completes() -> None:

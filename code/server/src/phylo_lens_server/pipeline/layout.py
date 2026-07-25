@@ -8,6 +8,7 @@ import shutil
 from statistics import median
 import subprocess
 
+from phylo_lens_server.config.settings import graphviz_sfdp_timeout_seconds
 from phylo_lens_server.domain.models import CanonicalDataset, CanonicalEdge
 from phylo_lens_server.pipeline.models import (
     ClusterLayout,
@@ -38,6 +39,11 @@ GRAPHVIZ_BASE_MAXITER = 600
 LAYOUT_DEGRADED_SFDP_MISSING = "sfdp_missing"
 LAYOUT_DEGRADED_SFDP_FAILED = "sfdp_failed"
 LAYOUT_DEGRADED_SFDP_INCOMPLETE = "sfdp_incomplete"
+ERR_GRAPHVIZ_SFDP_TIMEOUT = "Graphviz 'sfdp' timed out while computing the force-directed layout."
+
+
+class GraphvizLayoutTimeoutError(RuntimeError):
+    """Raised when Graphviz exceeds the configured layout wall-time budget."""
 
 
 def compute_prepared_layouts(
@@ -164,7 +170,15 @@ def graphviz_sfdp_positions(
             text=True,
             capture_output=True,
             check=True,
+            timeout=graphviz_sfdp_timeout_seconds(),
         )
+    except subprocess.TimeoutExpired as error:
+        logger.warning(
+            "Graphviz '%s' timed out after %.1f seconds.",
+            GRAPHVIZ_SFDP_COMMAND,
+            graphviz_sfdp_timeout_seconds(),
+        )
+        raise GraphvizLayoutTimeoutError(ERR_GRAPHVIZ_SFDP_TIMEOUT) from error
     except (OSError, subprocess.CalledProcessError) as error:
         logger.warning(
             "Graphviz '%s' layout failed (%s); falling back to a circular layout.",

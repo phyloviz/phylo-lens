@@ -5,11 +5,15 @@ from typing import Any
 
 from phylo_lens_server.data.normalizer import NormalizeRequest, normalize_dataset
 from phylo_lens_server.cli.prepare_worker import run_postgres_prepare_worker
+from phylo_lens_server.domain.models import CanonicalDataset
 from phylo_lens_server.repository.jobs.postgres import (
     ClaimedPrepareJob,
     DurablePrepareJob,
 )
-from phylo_lens_server.repository.layout import PreparedLayoutStore
+from phylo_lens_server.repository.jobs.result_payload import prepare_result_payload
+from phylo_lens_server.repository.layout.sqlite_layout_repository import (
+    PreparedLayoutStore,
+)
 from phylo_lens_server.pipeline.worker import PreparedLayoutWorker
 
 
@@ -58,14 +62,18 @@ class FakeDurablePrepareJobStore:
         return None
 
 
-def test_postgres_prepare_worker_claims_prepares_and_marks_ready(tmp_path) -> None:
-    dataset = normalize_dataset(
+def _dataset(dataset_name: str = "worker-tree") -> CanonicalDataset:
+    return normalize_dataset(
         NormalizeRequest(
             format="newick",
-            dataset_name="worker-tree",
+            dataset_name=dataset_name,
             content="(a:1,b:1)root;",
         )
     ).dataset
+
+
+def test_postgres_prepare_worker_claims_prepares_and_marks_ready(tmp_path) -> None:
+    dataset = _dataset()
     job_store = FakeDurablePrepareJobStore(
         ClaimedPrepareJob(job_id="job-1", dataset=dataset, warnings=("note",))
     )
@@ -83,19 +91,18 @@ def test_postgres_prepare_worker_claims_prepares_and_marks_ready(tmp_path) -> No
     assert job_store.schema_asserted is True
     assert job_store.failed_error is None
     assert job_store.ready_result is not None
-    assert job_store.ready_result["dataset_id"] == "worker-tree"
-    assert job_store.ready_result["warnings"][:1] == ["note"]
+    expected_result = PreparedLayoutWorker(
+        PreparedLayoutStore(tmp_path / "expected_layout")
+    ).prepare_dataset(dataset)
+    assert job_store.ready_result == prepare_result_payload(
+        expected_result,
+        ("note",),
+    )
     assert layout_store.latest_layout_version("worker-tree")
 
 
 def test_postgres_prepare_worker_does_not_fail_job_after_lease_loss(tmp_path) -> None:
-    dataset = normalize_dataset(
-        NormalizeRequest(
-            format="newick",
-            dataset_name="lost-lease-tree",
-            content="(a:1,b:1)root;",
-        )
-    ).dataset
+    dataset = _dataset("lost-lease-tree")
     job_store = FakeDurablePrepareJobStore(
         ClaimedPrepareJob(job_id="job-1", dataset=dataset, warnings=()),
         heartbeat_result=False,

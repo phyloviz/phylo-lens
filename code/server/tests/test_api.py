@@ -4,14 +4,14 @@ from time import sleep
 import pytest
 from fastapi.testclient import TestClient
 
-from phylo_lens_server.http.graph import (
+from phylo_lens_server.http.graph.dependencies import (
     get_prepare_job_registry,
     get_prepared_layout_store,
 )
 from phylo_lens_server.main import app
 from phylo_lens_server.repository.jobs.local import PrepareJobRegistry
 from phylo_lens_server.pipeline.layout import GRAPHVIZ_SFDP_COMMAND
-from phylo_lens_server.repository.layout import PreparedLayoutStore
+from phylo_lens_server.repository.layout.sqlite_layout_repository import PreparedLayoutStore
 from phylo_lens_server.pipeline.worker import PreparedLayoutWorker
 from phylo_lens_server.data.normalizer import NormalizeRequest, normalize_dataset
 from phylo_lens_server.utils.versions import API_VERSION, service_version

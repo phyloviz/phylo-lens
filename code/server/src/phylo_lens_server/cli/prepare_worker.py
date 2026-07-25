@@ -23,7 +23,7 @@ from phylo_lens_server.repository.layout.postgres_layout_repository import (
 )
 from phylo_lens_server.pipeline.worker import PreparedLayoutWorker
 from phylo_lens_server.pipeline.worker import LayoutPublicationAbortedError
-from phylo_lens_server.services.prepare_response import prepare_response_from_result
+from phylo_lens_server.repository.jobs.result_payload import prepare_result_payload
 
 logger = logging.getLogger(__name__)
 
@@ -93,15 +93,11 @@ def run_postgres_prepare_worker(
                     claimed.dataset,
                     should_continue=lease_monitor.assert_owned,
                 )
-                response = prepare_response_from_result(
-                    claimed.dataset.dataset_id,
-                    result,
-                    claimed.warnings,
-                )
+                result_payload = prepare_result_payload(result, claimed.warnings)
                 marked = job_store.mark_ready(
                     job_id=claimed.job_id,
                     worker_id=worker_id,
-                    result=response.model_dump(mode="json"),
+                    result=result_payload,
                 )
                 if not marked:
                     raise PrepareJobLeaseLostError(ERR_JOB_LEASE_LOST)

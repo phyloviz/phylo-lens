@@ -9,7 +9,6 @@ from phylo_lens_server.http.graph.responses import (
     graph_region_response_from_result,
     graph_search_response_from_result,
     graph_viewport_response_from_result,
-    prepare_response_from_result,
 )
 from phylo_lens_server.http.graph.schemas import (
     GraphPrepareJob,
@@ -26,11 +25,11 @@ from phylo_lens_server.repository.jobs.local import (
     JOB_STATUS_FAILED,
     JOB_STATUS_READY,
     PrepareJobRegistry,
-    PrepareJobSnapshot,
 )
 from phylo_lens_server.repository.layout.sqlite_layout_repository import (
     PreparedLayoutStore,
 )
+from phylo_lens_server.repository.jobs.result_payload import prepare_result_payload
 
 logger = logging.getLogger(__name__)
 
@@ -43,10 +42,22 @@ def prepare_graph_job(
     request: NormalizeRequest,
     registry: PrepareJobRegistry,
 ) -> GraphPrepareJob:
-    normalized = normalize_dataset(request, expose_internal_schema=True)
-    dataset, distance_warnings = ensure_graph_edge_distances(normalized.dataset)
-    submit_warnings = (*normalized.warnings, *distance_warnings)
-    job_id = registry.submit(dataset, submit_warnings)
+    reservation = getattr(registry, "reserve_capacity", None)
+    if callable(reservation):
+        with reservation():
+            normalized = normalize_dataset(request, expose_internal_schema=True)
+            dataset, distance_warnings = ensure_graph_edge_distances(normalized.dataset)
+            submit_warnings = (*normalized.warnings, *distance_warnings)
+            job_id = registry.submit(
+                dataset,
+                submit_warnings,
+                reserved_capacity=True,
+            )
+    else:
+        normalized = normalize_dataset(request, expose_internal_schema=True)
+        dataset, distance_warnings = ensure_graph_edge_distances(normalized.dataset)
+        submit_warnings = (*normalized.warnings, *distance_warnings)
+        job_id = registry.submit(dataset, submit_warnings)
     return GraphPrepareJob(
         job_id=job_id,
         status="pending",
@@ -71,10 +82,8 @@ def prepare_graph_status(
         return GraphPrepareStatus(
             job_id=snapshot.job_id,
             status=snapshot.status,
-            result=prepare_response_from_result(
-                _dataset_id_for_snapshot(snapshot),
-                snapshot.result,
-                snapshot.warnings,
+            result=GraphPrepareResponse.model_validate(
+                prepare_result_payload(snapshot.result, snapshot.warnings)
             ),
         )
     if snapshot.status == JOB_STATUS_FAILED:
@@ -213,8 +222,3 @@ def resolve_layout_version(
     if resolved is None:
         raise PreparedLayoutNotFoundError(dataset_id)
     return resolved
-
-
-def _dataset_id_for_snapshot(snapshot: PrepareJobSnapshot) -> str:
-    assert snapshot.result is not None
-    return snapshot.result.artifacts.dataset.dataset_id

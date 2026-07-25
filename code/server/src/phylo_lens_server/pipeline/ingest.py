@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from hashlib import sha1
+from hashlib import sha256
+import json
 
 from phylo_lens_server.domain.models import CanonicalDataset, CanonicalEdge
 from phylo_lens_server.pipeline.clustering import (
@@ -18,6 +19,7 @@ from phylo_lens_server.pipeline.models import PreparedLayoutArtifacts
 
 ERR_EMPTY_DATASET = "Prepared layout requires at least one node."
 ERR_MISSING_DISTANCE = "Prepared layout requires every edge to carry a distance value."
+LAYOUT_PIPELINE_VERSION = "layout-pipeline-v1"
 
 
 class PreparedLayoutIngestError(ValueError):
@@ -105,21 +107,46 @@ def selected_distance_thresholds(
 
 
 def layout_version_for_dataset(dataset: CanonicalDataset) -> str:
-    payload = "|".join(
-        [
-            dataset.dataset_id,
-            ",".join(sorted(node.id for node in dataset.nodes)),
-            ",".join(
-                f"{edge.source}>{edge.target}:{edge.distance}"
-                for edge in sorted(dataset.edges, key=lambda edge: edge.id)
-            ),
-        ]
+    payload = {
+        "pipeline_version": LAYOUT_PIPELINE_VERSION,
+        "dataset_id": dataset.dataset_id,
+        "nodes": [
+            node.model_dump(mode="json", exclude_none=True)
+            for node in sorted(dataset.nodes, key=lambda node: node.id)
+        ],
+        "edges": [
+            edge.model_dump(mode="json", exclude_none=True)
+            for edge in sorted(
+                dataset.edges,
+                key=lambda edge: (edge.id, edge.source, edge.target, edge.distance),
+            )
+        ],
+        "metadata_schema": [
+            field.model_dump(mode="json")
+            for field in sorted(
+                dataset.metadata_schema,
+                key=lambda field: (field.key, field.type.value),
+            )
+        ],
+        "metadata_by_node_id": dataset.metadata_by_node_id,
+        "ancillary_rows_by_node_id": dataset.ancillary_rows_by_node_id,
+        "source": {
+            "format": dataset.source.format.value,
+            "provenance": dataset.source.provenance,
+        },
+    }
+    canonical = json.dumps(
+        payload,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
     )
-    return sha1(payload.encode("utf-8")).hexdigest()[:16]
+    return sha256(canonical.encode("utf-8")).hexdigest()[:16]
 
 
 __all__ = [
     "PreparedLayoutIngestError",
+    "LAYOUT_PIPELINE_VERSION",
     "prepare_layout_artifacts",
     "selected_distance_thresholds",
     "layout_version_for_dataset",

@@ -174,6 +174,39 @@ def test_normalize_ancillary_data_aggregates_multiple_rows_per_node() -> None:
     assert result.warnings == []
 
 
+def test_normalize_ancillary_data_merges_per_field_and_preserves_explicit_metadata() -> (
+    None
+):
+    result = normalize_dataset(
+        NormalizeRequest(
+            format=FORMAT_NEWICK,
+            dataset_name=DATASET_DETERMINISTIC,
+            content="(ST1:0.1,ST2:0.2);",
+            metadata_schema=[
+                {"key": "country", "type": "string"},
+                {"key": "host", "type": "string"},
+            ],
+            metadata_by_node_id={
+                "st1": {"country": "Explicit Portugal", "host": "human"},
+            },
+            ancillary_data={
+                "format": "tsv",
+                "join_column": "ST",
+                "content": "ST\tcountry\tsource\nST1\tAncillary Spain\tblood\n",
+            },
+        )
+    )
+
+    assert result.dataset.metadata_by_node_id["st1"] == {
+        "country": "Explicit Portugal",
+        "host": "human",
+        "source": "blood",
+        "profile_count": 1,
+        "__category_count__country__value__Ancillary%20Spain": 1,
+        "__category_count__source__value__blood": 1,
+    }
+
+
 def test_normalize_hides_derived_fields_from_public_schema() -> None:
     """Confirm generated metadata values do not leak into public schema fields."""
     result = normalize_dataset(
@@ -611,6 +644,28 @@ def test_typing_profiles_to_newick_stage_failure_raises(monkeypatch, tmp_path) -
         phylolib.typing_profiles_to_newick(TYPING_PROFILES)
 
     assert excinfo.value.reason == phylolib.TYPING_PHYLOLIB_DISTANCE_FAILED
+
+
+def test_typing_profiles_to_newick_stage_timeout_raises_typed_error(
+    monkeypatch, tmp_path
+) -> None:
+    jar_path = tmp_path / "phylolib.jar"
+    jar_path.write_text("fake jar", encoding="utf-8")
+    monkeypatch.setenv(phylolib.ENV_PHYLOLIB_JAR, str(jar_path))
+    monkeypatch.setenv("PHYLO_LENS_PHYLOLIB_TIMEOUT_SECONDS", "7.5")
+    timeouts: list[float] = []
+
+    def fake_run(command, **kwargs):
+        timeouts.append(kwargs["timeout"])
+        raise phylolib.subprocess.TimeoutExpired(cmd=command, timeout=kwargs["timeout"])
+
+    monkeypatch.setattr(phylolib.subprocess, "run", fake_run)
+
+    with pytest.raises(phylolib.TypingNormalizeError) as excinfo:
+        phylolib.typing_profiles_to_newick(TYPING_PROFILES)
+
+    assert excinfo.value.reason == phylolib.TYPING_PHYLOLIB_DISTANCE_TIMEOUT
+    assert timeouts == [7.5]
 
 
 TYPING_FOREST_NEWICK = "(B:1.0)A;(D:1.0)C;"
