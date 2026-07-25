@@ -2,5 +2,5 @@
 set -x
 
 cd "$(dirname "$0")/.."
-ruff check --fix src
-ruff format src
+ruff check --fix src tests
+ruff format src tests

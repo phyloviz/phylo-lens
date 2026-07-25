@@ -9,7 +9,8 @@ def test_prepared_layout_store_dir_defaults_to_system_temp(monkeypatch) -> None:
     monkeypatch.delenv(settings.ENV_PREPARED_LAYOUT_STORE_DIR, raising=False)
 
     assert (
-        settings.prepared_layout_store_dir() == settings.DEFAULT_PREPARED_LAYOUT_STORE_DIR
+        settings.prepared_layout_store_dir()
+        == settings.DEFAULT_PREPARED_LAYOUT_STORE_DIR
     )
 
 
@@ -20,7 +21,8 @@ def test_data_dir_places_prepared_layouts_below_data_root(
     monkeypatch.delenv(settings.ENV_PREPARED_LAYOUT_STORE_DIR, raising=False)
 
     assert (
-        settings.prepared_layout_store_dir() == tmp_path / settings.PREPARED_LAYOUT_SUBDIR
+        settings.prepared_layout_store_dir()
+        == tmp_path / settings.PREPARED_LAYOUT_SUBDIR
     )
 
 
@@ -63,8 +65,7 @@ def test_subprocess_timeouts_default_to_conservative_values(monkeypatch) -> None
         == settings.DEFAULT_GRAPHVIZ_SFDP_TIMEOUT_SECONDS
     )
     assert (
-        settings.phylolib_timeout_seconds()
-        == settings.DEFAULT_PHYLOLIB_TIMEOUT_SECONDS
+        settings.phylolib_timeout_seconds() == settings.DEFAULT_PHYLOLIB_TIMEOUT_SECONDS
     )
 
 
@@ -98,9 +99,7 @@ def test_prepare_job_backend_defaults_to_local(monkeypatch) -> None:
 def test_prepare_job_backend_reads_configured_value(monkeypatch) -> None:
     monkeypatch.setenv(settings.ENV_PREPARE_JOB_BACKEND, "postgres")
 
-    assert (
-        settings.prepare_job_backend() == settings.PREPARE_JOB_BACKEND_POSTGRES
-    )
+    assert settings.prepare_job_backend() == settings.PREPARE_JOB_BACKEND_POSTGRES
 
 
 def test_postgres_dsn_requires_value(monkeypatch) -> None:

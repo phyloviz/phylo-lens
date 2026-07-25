@@ -66,7 +66,10 @@ def test_postgres_schema_defines_durable_job_controls() -> None:
 def test_schema_roots_include_installed_target_layout() -> None:
     roots = schema_files.schema_roots()
 
-    assert roots[1] == schema_files.Path(schema_files.__file__).resolve().parents[2] / "sql"
+    assert (
+        roots[1]
+        == schema_files.Path(schema_files.__file__).resolve().parents[2] / "sql"
+    )
 
 
 def test_postgres_claim_query_uses_skip_locked() -> None:

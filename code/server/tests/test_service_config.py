@@ -58,7 +58,9 @@ def test_configured_multiple_cors_origins(monkeypatch) -> None:
     denied = cors_preflight(client, "https://other.example.org")
 
     assert allowed.status_code == 200
-    assert allowed.headers["access-control-allow-origin"] == "https://phyloviz.example.org"
+    assert (
+        allowed.headers["access-control-allow-origin"] == "https://phyloviz.example.org"
+    )
     assert denied.status_code == 400
     assert "access-control-allow-origin" not in denied.headers
 

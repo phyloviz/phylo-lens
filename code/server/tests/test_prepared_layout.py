@@ -38,7 +38,9 @@ from phylo_lens_server.pipeline.layout import (
 from phylo_lens_server.repository.layout.metadata_reader import (
     aggregate_cluster_metadata,
 )
-from phylo_lens_server.repository.layout.sqlite_layout_repository import PreparedLayoutStore
+from phylo_lens_server.repository.layout.sqlite_layout_repository import (
+    PreparedLayoutStore,
+)
 from phylo_lens_server.services import graph_service
 from phylo_lens_server.pipeline.models import PreparedLayoutResult
 from phylo_lens_server.repository.jobs.result_payload import prepare_result_payload
@@ -549,7 +551,9 @@ def test_prepared_layout_worker_keeps_previous_ready_version_until_replaced(
     first = worker.prepare_dataset(first_dataset)
     second = worker.prepare_dataset(second_dataset)
 
-    assert store.latest_layout_version("replace-tree") == second.artifacts.layout_version
+    assert (
+        store.latest_layout_version("replace-tree") == second.artifacts.layout_version
+    )
     previous_positions = store.load_node_positions(
         first.artifacts.dataset.dataset_id,
         first.artifacts.layout_version,
@@ -593,7 +597,9 @@ def test_latest_layout_version_ignores_refining_layouts(tmp_path) -> None:
         layout_version=refining_artifacts.layout_version,
         status="degraded",
     )
-    assert store.latest_layout_version("publish-tree") == refining_artifacts.layout_version
+    assert (
+        store.latest_layout_version("publish-tree") == refining_artifacts.layout_version
+    )
 
 
 def test_prepared_layout_worker_can_run_on_background_thread(tmp_path) -> None:
@@ -1116,7 +1122,9 @@ def test_viewport_cluster_members_carry_public_node_metadata(tmp_path) -> None:
     assert schema_keys == {"region", "score", "flag"}
 
 
-def test_viewport_cluster_members_prioritize_focused_node_when_limited(tmp_path) -> None:
+def test_viewport_cluster_members_prioritize_focused_node_when_limited(
+    tmp_path,
+) -> None:
     store = PreparedLayoutStore(tmp_path)
     worker = PreparedLayoutWorker(store)
     result = worker.prepare_dataset(_dataset_with_metadata())

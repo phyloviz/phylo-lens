@@ -674,7 +674,9 @@ TYPING_FOREST_NEWICK = "(B:1.0)A;(D:1.0)C;"
 def test_typing_profiles_to_graph_merges_forest(monkeypatch) -> None:
     """A goeBURST forest is kept as one disconnected graph, no ST dropped."""
     monkeypatch.setattr(
-        phylolib, "typing_profiles_to_newick", lambda profiles, **kwargs: TYPING_FOREST_NEWICK
+        phylolib,
+        "typing_profiles_to_newick",
+        lambda profiles, **kwargs: TYPING_FOREST_NEWICK,
     )
 
     graph = phylolib.typing_profiles_to_graph(TYPING_PROFILES)
@@ -687,7 +689,9 @@ def test_typing_profiles_to_graph_merges_forest(monkeypatch) -> None:
     assert any("disconnected components" in warning for warning in graph.warnings)
 
 
-def test_typing_profiles_to_graph_single_tree_has_no_forest_warning(monkeypatch) -> None:
+def test_typing_profiles_to_graph_single_tree_has_no_forest_warning(
+    monkeypatch,
+) -> None:
     """A single connected component passes through without a forest warning."""
     monkeypatch.setattr(
         phylolib, "typing_profiles_to_newick", lambda profiles, **kwargs: TYPING_NEWICK

@@ -7,7 +7,7 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
-        files: ^code/server/src/
+        files: ^code/server/(src|tests)/
       - id: client-format-lint-build
         name: client format, lint, and build
         entry: sh -c 'cd code/client && npm run format:check && npm run lint && npm run build'
