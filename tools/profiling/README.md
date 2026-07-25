@@ -1,115 +1,135 @@
-# PhyloLens Profiling Workbench
+# Server profiling workbench
 
-This folder is for development-time profiling, not final thesis evaluation.
-The goal is to make performance work repeatable enough to trust while staying
-lightweight enough to run during normal development.
+`tools/profiling` provides repeatable development-time measurements for server
+hot paths. It is intended for regression diagnosis and algorithm exploration.
+It is not the final thesis evaluation protocol.
 
-Final evaluation scripts can later reuse the same metric names and dataset
-families, but should live in a separate `evaluation/` folder with fixed
-datasets, fixed machines, repeated trials, and statistical reporting.
+The final `eval/` workflow should fix datasets, machines, software versions,
+repetitions, statistical analysis, and reporting independently from this
+workbench.
 
-## What This Measures
+## Scope
 
-`server_profile.py` profiles the server/library path without HTTP or browser
-noise:
+`server_profile.py` calls server modules directly, without HTTP or browser cost.
+It measures:
 
-- synthetic dataset generation
-- LoD artifact construction
-- base layout materialization
-- prepared edge construction
-- SQLite persistence/index preparation
-- viewport reads across LoD tiers and bounds
-- region reads
-- node search
-- SQLite query plans for the hot spatial-ish reads
+- synthetic dataset generation;
+- distance-tier and LoD artifact construction;
+- global layout materialization;
+- prepared-edge construction;
+- SQLite persistence and indexes;
+- viewport reads across tiers and bounds;
+- region reads;
+- node search;
+- serialized payload size;
+- SQLite query plans for selected hot reads.
 
-It writes newline-delimited JSON (`.jsonl`) so results can be inspected with
-standard tools, imported into notebooks, or compared in CI-style regression
-checks.
+This separation is useful when a regression must be attributed to preparation,
+persistence, or query execution rather than network or renderer behavior.
 
-## Folder Structure
+## Structure
 
 ```text
 tools/profiling/
   README.md
-  server_profile.py              # CLI entry point for server profiling
-  compare_profiles.py            # CLI entry point for baseline/current compares
+  server_profile.py
+  compare_profiles.py
   phylo_profile/
-    datasets.py                  # synthetic dataset families
-    metrics.py                   # JSONL sink and timing/memory recorder
-    server_runner.py             # prepare/layout/store/query profiling flow
-    sqlite_inspection.py         # bounds, store-size, and query-plan helpers
-    serialization.py             # payload-size serialization helpers
-    comparison.py                # profile aggregation and comparison logic
-    paths.py                     # checkout-local import bootstrap
+    comparison.py
+    datasets.py
+    metrics.py
+    paths.py
+    serialization.py
+    server_runner.py
+    sqlite_inspection.py
   results/
-    .gitignore                   # generated profiles stay local
+    .gitignore
 ```
 
-Keep CLI scripts thin. New measurement behavior should usually land in
-`phylo_profile/`, with the entry points only parsing flags and calling the
-library code.
+Entry-point scripts should remain thin. Dataset generation, measurement, and
+comparison behavior belongs in `phylo_profile/`.
 
-## Quick Start
+## Prerequisites
 
-From the repository root:
+Install the server development environment first:
 
 ```bash
-rtk python3 tools/profiling/server_profile.py --sizes 1000 5000 --shape balanced
+cd code/server
+python -m pip install -e '.[test,dev]'
+cd ../..
 ```
 
-Write results to a stable location:
+Graphviz must be available when profiling the production layout path.
+
+## Basic run
 
 ```bash
-rtk python3 tools/profiling/server_profile.py \
+python3 tools/profiling/server_profile.py \
+  --sizes 1000 5000 \
+  --shape balanced
+```
+
+A repeated run with explicit output:
+
+```bash
+python3 tools/profiling/server_profile.py \
   --sizes 1000 5000 10000 \
   --shape balanced \
   --metadata-fields 8 \
   --warmups 1 \
   --repetitions 5 \
   --viewport-fractions 0.05 0.20 1.0 \
-  --output tools/profiling/results/server_profile.jsonl
+  --output tools/profiling/results/server-profile.jsonl
 ```
 
-Capture a CPU profile for one run:
+Use `--lod-levels -1` to address the finest available tier. Other values are
+explicit server LoD indexes.
+
+## CPU profiling
 
 ```bash
-rtk python3 tools/profiling/server_profile.py \
+python3 tools/profiling/server_profile.py \
   --sizes 10000 \
   --shape balanced \
-  --cprofile tools/profiling/results/server_profile_10k.pstats
+  --cprofile tools/profiling/results/server-profile-10k.pstats
 ```
 
-Compare two runs:
+The command writes a `pstats` file and prints the top cumulative-time entries.
+
+## Comparing two profiles
 
 ```bash
-rtk python3 tools/profiling/compare_profiles.py \
+python3 tools/profiling/compare_profiles.py \
   tools/profiling/results/baseline.jsonl \
   tools/profiling/results/current.jsonl \
   --fail-ratio 1.20
 ```
 
-The comparison script reports median stage-time ratios for matching scenarios.
-It is intentionally simple: it helps catch obvious development regressions
-without pretending to replace a final benchmark protocol.
+The comparison groups matching stage events and reports median durations. With
+`--fail-ratio`, the command exits non-zero when a shared stage exceeds the
+specified ratio.
 
-Use `--warmups` to absorb one-time import/cache effects and `--repetitions` to
-generate multiple samples per scenario. The comparison tool groups matching
-stage events and compares medians.
+This is a regression signal, not a statistical conclusion. Review sample counts,
+absolute duration, node/edge counts, payloads, and query plans before attributing
+a performance change.
 
-## Output Format
+## Output format
 
-Each line is one metric event. The common fields are:
+Each JSONL line is one metric event. Common fields include:
 
-- `run_id`: shared UUID for one script invocation
-- `timestamp_utc`: UTC timestamp
-- `event`: metric kind, for example `stage`, `viewport`, `region`, `search`,
-  `query_plan`, or `summary`
-- `shape`, `target_nodes`, `actual_nodes`, `actual_edges`
-- `duration_ms`: wall-clock duration for timed events
-- `peak_kib_delta`: peak traced allocation delta when `tracemalloc` is enabled
+| Field | Meaning |
+| --- | --- |
+| `run_id` | UUID shared by one invocation |
+| `timestamp_utc` | Event timestamp |
+| `event` | `stage`, `viewport`, `region`, `search`, `query_plan`, or `summary` |
+| `shape` | Synthetic graph family |
+| `target_nodes` | Requested synthetic size |
+| `actual_nodes`, `actual_edges` | Generated graph size |
+| `repetition` | Recorded repetition number |
+| `duration_ms` | Wall-clock duration for timed events |
+| `peak_kib_delta` | Traced allocation delta when available |
 
-Examples:
+Example:
 
 ```json
 {"event":"stage","stage":"prepare_lod_artifacts","duration_ms":42.1}
@@ -117,59 +137,34 @@ Examples:
 {"event":"query_plan","query":"ready_nodes_bounds","detail":["SEARCH np USING INDEX ..."]}
 ```
 
-## Development Use
+Generated profiles remain under `tools/profiling/results/` and are ignored by
+Git.
 
-Use this before changing algorithms or storage:
+## Recommended development workflow
 
-1. Run a baseline profile and save the JSONL file.
-2. Make the code change.
-3. Run the same command again.
-4. Compare stage timings, viewport timings, node/edge counts, payload size, and
-   query plans.
+1. run a baseline with fixed arguments;
+2. record the current commit and environment separately;
+3. make one algorithmic or storage change;
+4. rerun the exact command;
+5. compare stage medians, memory, payloads, node/edge counts, and query plans;
+6. confirm suspicious results with additional repetitions and a profiler.
 
-For repeated local checks, use the same command and write to different files:
+Do not optimize only for total time. A change can move cost between layout,
+metadata attachment, persistence, and viewport reads while leaving one aggregate
+number apparently unchanged.
 
-```bash
-rtk python3 tools/profiling/server_profile.py \
-  --sizes 1000 5000 \
-  --shape balanced \
-  --warmups 1 \
-  --repetitions 5 \
-  --output tools/profiling/results/baseline.jsonl
+## Relationship to thesis evaluation
 
-rtk python3 tools/profiling/server_profile.py \
-  --sizes 1000 5000 \
-  --shape balanced \
-  --warmups 1 \
-  --repetitions 5 \
-  --output tools/profiling/results/current.jsonl
-```
+The metric vocabulary can inform the final evaluation, but final experiments
+should add:
 
-The important question is not only "is total time lower?" It is also "which
-stage moved?" A regression in metadata attachment, prepared edge reads, or
-SQLite persistence can otherwise hide inside an apparently simple viewport
-change.
+- real phylogenetic and typing datasets;
+- controlled hardware and software versions;
+- browser/network measurements;
+- fixed warm-up and repetition policy;
+- confidence intervals or other justified statistical summaries;
+- explicit failure and timeout criteria;
+- automatic figure and table generation.
 
-## Relation To Thesis RQs
-
-This maps naturally to the final evaluation plan:
-
-- **RQ1 - Server-side scalability:** use stage events for preprocessing,
-  layout, LoD creation, persistence/indexing, output size, and memory.
-- **RQ2 - Client-side scalability:** add a browser harness later around visible
-  nodes, visible edges, visible triangles, rendered primitives, memory, and
-  initial visualization latency.
-- **RQ3 - Triangle aggregation ablation:** run the same datasets and viewport
-  sequences with LoD disabled versus enabled with triangle representatives.
-- **RQ4 - Interactive exploration:** use a browser/Playwright harness with
-  scripted pan, zoom, region selection, and expand/collapse sequences, measuring
-  request latency, client sync time, render time, long tasks, and frame rate.
-
-## Notes
-
-- This folder intentionally has no extra runtime dependencies.
-- The script uses direct Python calls rather than HTTP so server algorithmic
-  cost is visible.
-- SQLite B-tree coordinate indexes are profiled as implemented today. If an
-  R-Tree or PostGIS backend is added later, keep the same metrics and compare
-  backend variants rather than changing the measurement vocabulary.
+Do not cite development-profile results as final evidence unless they were
+produced under the documented evaluation protocol.

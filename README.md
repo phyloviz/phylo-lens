@@ -1,140 +1,198 @@
 # PhyloLens
 
-PhyloLens is a scalable phylogenetic visualization system that re-imagines the
-PHYLOViZ desktop experience as a **server-precomputed, semantic-zoom** web tool.
-A dataset is prepared once — parsed, normalized, clustered into a distance
-threshold hierarchy, and laid out — then the client renders only the slice of
-the graph visible in the current camera viewport at the current zoom tier. The
-browser never holds the full topology of a large tree.
+PhyloLens is an embeddable browser visualization library and companion API
+service for interactive exploration of large phylogenetic trees and
+typing-derived graphs.
 
-The runtime contract is `O(visible slice)`: precomputation absorbs the expensive
-global work, and every interaction is a cheap bounded read.
+The browser package owns rendering and interaction. The service owns input
+normalization, PhyloLib-based typing-data processing, Graphviz layout
+computation, level-of-detail (LoD) materialization, persistence, and bounded
+viewport queries. Host applications integrate the library through one public
+entry point and deploy the service independently.
 
-## Repository Layout
+```text
+host application
+    │
+    ├── @phyloviz/phylo-lens
+    │      rendering, camera state, semantic zoom, local metadata filters
+    │
+    └── PhyloLens API service
+           normalization, PhyloLib, layout, LoD, persistence, viewport reads
+```
 
-| Path | What it is |
-| --- | --- |
-| [`code/server`](code/server/README.md) | **PhyloLens API service** — FastAPI service for normalization, threshold clustering, `sfdp` layout precompute, and bounded viewport/region reads. Local mode uses SQLite; distributed production mode uses Postgres for jobs and prepared-layout artifacts. Distributed as a Docker runtime. |
-| [`code/client`](code/client/README.md) | **Browser library** — TypeScript/Sigma.js renderer with server-driven level-of-detail, metadata-driven coloring/sizing, and box-select region isolation. Packaged as `@phyloviz/phylo-lens`. |
-| [`docs`](docs/README.md) | Maintained technical documentation (architecture, data model, pipeline, LoD, rendering, API reference). |
-| [`examples`](examples/README.md) | Small input datasets for local runs and tests. |
+PhyloLens is designed to avoid transferring and rendering the complete prepared
+graph for every interaction. The client requests the graph subset required for
+the current viewport and semantic-zoom tier. The limits of that design are
+measured in the thesis evaluation; the documentation does not make unsupported
+performance claims.
 
-## How It Works
+## Distribution units
+
+| Artefact | Identifier | Responsibility |
+| --- | --- | --- |
+| Browser library | `@phyloviz/phylo-lens` | Public TypeScript API, Sigma renderer, interaction and viewport synchronization |
+| API service | `ghcr.io/phyloviz/phylo-lens-service` | Normalization, layout preparation, LoD construction, persistence and graph queries |
+| HTTP contract | API version `1` | Compatibility boundary between the browser library and the service |
+
+The npm package version, Python service version, and Docker image tag use the
+same release version. The API contract version is independent and changes only
+when the HTTP contract becomes incompatible.
+
+## Supported input
+
+PhyloLens currently accepts:
+
+- **Newick trees or forests**, including branch lengths, quoted labels,
+  comments, labeled internal nodes, and multiple `;`-terminated components;
+- **MLST/cgMLST allelic-profile matrices**, processed with PhyloLib using
+  Hamming distance and goeBURST;
+- **CSV or TSV ancillary metadata**, joined to explicitly labeled nodes or
+  typing-profile identifiers.
+
+See [Input formats](docs/INPUT_FORMATS.md) for the exact contracts and
+normalization rules.
+
+## Runtime lifecycle
 
 ```mermaid
 sequenceDiagram
-  participant C as Client (Sigma.js)
-  participant S as Server (FastAPI)
-  participant W as Layout worker
-  participant DB as Layout store
+  participant H as Host application
+  participant L as Browser library
+  participant A as API service
+  participant W as Prepare worker
+  participant D as Layout store
 
-  C->>S: POST /api/graph/prepare (Newick)
-  S->>S: normalize + validate (sync)
-  S->>W: submit layout job
-  S-->>C: 202 { job_id }
-  W->>W: threshold clustering + sfdp layout
-  W->>DB: persist (dataset_id, layout_version)
+  H->>L: view.load(input)
+  L->>A: GET /health
+  A-->>L: api_version = 1
+  L->>A: POST /api/graph/prepare
+  A->>W: submit preparation job
+  A-->>L: 202 { job_id }
 
-  loop poll until ready
-    C->>S: GET /api/graph/prepare/{job_id}
-    S-->>C: { status } (pending → ready + result)
+  loop until ready or failed
+    L->>A: GET /api/graph/prepare/{job_id}
+    W->>D: publish prepared layout
+    A-->>L: pending | ready | failed
   end
 
-  loop each camera change
-    C->>S: POST /api/graph/viewport (bounds + zoom)
-    S->>DB: read LoD tier slice
-    S-->>C: bounded { nodes, edges, metadata }
-  end
+  L->>A: POST /api/graph/viewport
+  A->>D: bounded LoD read
+  A-->>L: nodes, edges, metadata, global bounds
+  L-->>H: load() resolves after the first snapshot is applied
 
-  opt box select
-    C->>S: POST /api/graph/region (bounds)
-    S-->>C: subgraph + aggregated_metadata
+  loop camera movement
+    L->>A: POST /api/graph/viewport
+    A-->>L: next viewport slice
   end
 ```
 
-1. **`POST /api/graph/prepare`** normalizes and validates the dataset
-   synchronously, then submits a background layout job (returns `202`).
-2. The server builds a deterministic distance-threshold hierarchy (Union-Find
-   over weighted edges, up to 16 tiers) and computes force-directed positions
-  (Graphviz `sfdp`), persisting the result keyed by
-   `(dataset_id, layout_version)`.
-3. The client **polls `GET /api/graph/prepare/{job_id}`** until the layout is
-   `ready`, then maps camera zoom to a LoD tier and calls
-   **`POST /api/graph/viewport`** for each camera change to pull a bounded slice.
-4. **`POST /api/graph/region`** serves an on-demand box-select read with
-   aggregated metadata for a hand-drawn selection.
+## Quick start
 
-See [`docs/ARCHITECTURE_SPEC.md`](docs/ARCHITECTURE_SPEC.md) for the system map
-and [`docs/API_REFERENCE.md`](docs/API_REFERENCE.md) for the field-level API
-reference with runnable examples.
-
-## Quick Start
-
-**Backend** (see [`code/server/README.md`](code/server/README.md)):
+### 1. Run the API service
 
 ```bash
-cd code/server
-pip install -e '.[test,dev]'
-uvicorn phylo_lens_server.main:app --reload   # serves http://localhost:8000
-```
-
-Or run the containerized PhyloLens API service:
-
-```bash
-cd code/server
-docker build -t ghcr.io/phyloviz/phylo-lens-service:0.1.0 .
 docker run --rm \
   -p 8000:8000 \
-  -e PHYLO_LENS_CORS_ORIGINS=http://localhost:3000,http://localhost:5173 \
+  -e PHYLO_LENS_CORS_ORIGINS=http://localhost:5173 \
   -v phylo-lens-data:/data \
   ghcr.io/phyloviz/phylo-lens-service:0.1.0
 ```
 
-**Frontend** (see [`code/client/README.md`](code/client/README.md)):
+Verify the service:
 
 ```bash
-cd code/client
-npm ci
-npm run dev                                    # serves http://localhost:3000
+curl http://localhost:8000/health
 ```
 
-The local dev server proxies same-origin `/health` and `/api/...` requests to
-`http://localhost:8000` by default. If the backend runs elsewhere, set:
+```json
+{
+  "status": "ok",
+  "service_version": "0.1.0",
+  "api_version": "1"
+}
+```
+
+### 2. Install the browser library
 
 ```bash
-VITE_PHYLO_LENS_PROXY_TARGET=http://127.0.0.1:8001 npm run dev
+npm install @phyloviz/phylo-lens
 ```
-
-Host applications install `@phyloviz/phylo-lens` and pass the deployed service
-URI or same-origin proxy prefix as `apiUrl`:
 
 ```ts
-createPhyloLensView({ container, apiUrl: "" });
+import { createPhyloLensView } from "@phyloviz/phylo-lens";
+
+const container = document.getElementById("graph-root");
+if (!(container instanceof HTMLElement)) {
+  throw new Error("Missing graph container.");
+}
+
+const view = createPhyloLensView({
+  container,
+  apiUrl: "http://localhost:8000",
+});
+
+await view.load({
+  content: "(A:1,(B:2,C:4)N:3)R;",
+  name: "example-tree",
+  sourceFormat: "newick",
+});
+
+// Release renderer resources when the host removes the view.
+view.dispose();
 ```
 
-The browser package validates the service `api_version` from `/health` before
-submitting a graph preparation job. For production, prefer a same-origin reverse
-proxy such as `apiUrl: "/phylo-lens/api"` when possible; direct cross-origin API
-access requires `PHYLO_LENS_CORS_ORIGINS` to include the host application origin.
+`load()` resolves after preparation completes, the first viewport response is
+received, and the first graph snapshot is applied to the renderer. It rejects
+when the service is unavailable, the API contract is incompatible, preparation
+fails, or the initial viewport cannot be loaded.
 
-**Validation:**
+For production, a same-origin reverse proxy is usually simpler than direct
+cross-origin access. See [Server deployment](code/server/README.md#browser-integration).
+
+## Repository layout
+
+| Path | Contents |
+| --- | --- |
+| [`code/client`](code/client/README.md) | Browser package and reference demo |
+| [`code/server`](code/server/README.md) | FastAPI service, workers, persistence and Docker image |
+| [`docs`](docs/README.md) | Architecture, contracts, pipeline and operational documentation |
+| [`examples`](examples/README.md) | Input fixtures and external package-consumer fixture |
+| [`scripts`](scripts) | Release-version and packed-package validation scripts |
+
+## Development validation
 
 ```bash
-cd code/server && pytest -q
-cd ../client   && npm run build && npm test
+cd code/server
+python -m pip install -e '.[test,dev]'
+ruff check src tests
+ruff format --check src tests
+pytest -q
+
+cd ../client
+npm ci
+npm run format:check
+npm run lint
+npm test
+npm run build
+npm run build:lib
 ```
+
+The GitHub Actions workflow additionally builds the packed npm tarball in an
+external host fixture and smoke-tests the Docker service on `linux/amd64` and
+`linux/arm64`.
 
 ## Documentation
 
-Start at [`docs/README.md`](docs/README.md) for the full reading guide. Key entry
-points:
+Start with the [documentation index](docs/README.md).
 
-- [Architecture](docs/ARCHITECTURE_SPEC.md) — the whole system at a glance
-- [API Reference](docs/API_REFERENCE.md) — HTTP routes, models, errors, examples
-- [Server pipeline](docs/SERVER_PIPELINE.md) — how a dataset becomes a layout
-- [LoD and clustering](docs/LOD_AND_CLUSTERING.md) — how zoom maps to detail
-- [Client rendering](docs/CLIENT_RENDERING.md) — rendering, coloring, and
-  consuming the client as a library
-- [Release and CI](docs/RELEASE.md) — workflows, publication, and versioning
-- [Backend README](code/server/README.md) · [Frontend README](code/client/README.md)
-  · [Examples](examples/README.md)
+- [Architecture](docs/ARCHITECTURE_SPEC.md)
+- [Runtime flow](docs/flow.md)
+- [Input formats](docs/INPUT_FORMATS.md)
+- [HTTP API reference](docs/API_REFERENCE.md)
+- [Data model and persistence](docs/DATA_MODEL.md)
+- [Server preparation pipeline](docs/SERVER_PIPELINE.md)
+- [LoD and clustering](docs/LOD_AND_CLUSTERING.md)
+- [Client rendering](docs/CLIENT_RENDERING.md)
+- [Cluster interaction](docs/EXPAND_COLLAPSE.md)
+- [CI and release process](docs/RELEASE.md)
+- [Known limitations and future work](docs/BACKLOG.md)

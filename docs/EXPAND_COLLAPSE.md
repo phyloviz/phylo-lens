@@ -1,112 +1,148 @@
-# Cluster Expand / Collapse
+# Cluster expansion and collapse
 
-Interactive expand and collapse of distance-based clusters, faithful to PHYLOViZ
-clade navigation and to branch-length correctness. This describes **shipped**
-behavior (Phase 1). It borrows the meta-edge model from the
-`cytoscape.js-expand-collapse` extension, adapted to PhyloLens' server-side,
-threshold-driven architecture.
+Semantic zoom replaces groups of canonical nodes with representatives. Cluster
+expansion allows a user to inspect one group without switching the complete
+viewport to the finest LoD tier.
 
-See [`LOD_AND_CLUSTERING.md`](./LOD_AND_CLUSTERING.md) for how clusters and
-representatives are built, and [`CLIENT_RENDERING.md`](./CLIENT_RENDERING.md) for
-the triangle rule and rendering.
+Expansion combines a server read with client-side graph patching. Collapse is a
+local restoration of the representative state captured before expansion.
 
-## Goals
+## Interaction model
 
-1. Let a user expand a clade into its members and collapse it back as an
-   explicit interaction — a **single click** expands a representative, a
-   **double-click** collapses it — independent of zooming.
-2. Keep a collapsed clade **visibly connected** to the rest of the tree by
-   rerouting its boundary edges to the neighboring representatives (meta-edges).
-   A collapsed clade that dropped its external connections would be misleading.
-3. Preserve branch-length fidelity: meta-edge distances stay server-computed.
-4. Add no server round-trip when collapsing an already-expanded cluster.
+Current Sigma interaction:
 
-## Interaction
+- **single click** on an expandable representative: expand the cluster;
+- **double click** on an expanded cluster member or representative context:
+  collapse the cached expansion.
 
-```mermaid
-sequenceDiagram
-  participant U as User
-  participant GV as GraphViewer
-  participant API as GraphClient
-  participant Srv as Server
+Host applications may also invoke the internal workbench navigation path, but the
+package-root public API does not currently expose arbitrary cluster identifiers.
 
-  U->>GV: single-click representative (triangle)
-  GV->>GV: isExpandableRepresentative? snapshot proxy + incident edges
-  GV->>API: readViewport(cluster_id, lod_level=null)
-  API->>Srv: POST /api/graph/viewport
-  Srv-->>GV: members + rerouted meta-edges + neighbor reps
-  GV->>GV: sync into graph, cache snapshot (camera left untouched)
+## Expandability
 
-  U->>GV: double-click representative
-  GV->>GV: collapseCluster() — restore proxy from cache (no server call)
+A visible node is expandable when it represents more than one canonical member.
+The response fields used by the client are:
+
+```text
+is_representative = true
+member_count > 1
+cluster_id = prepared cluster identifier
 ```
 
-## Server: Meta-Edge Rerouting
+Ordinary finest-detail nodes are not expanded.
 
-When a viewport read carries a `cluster_id`, `read_viewport` expands that
-cluster into its member nodes (ignoring bounds, so the whole cluster returns) and
-calls `_read_expansion_meta_edges` (`store.py`). Member internal edges come back
-directly; the members' edges to the rest of the tree would otherwise reference
-off-slice nodes, so they are **rerouted**:
+## Expansion request
 
-1. Look up the expanded cluster's `threshold`.
-2. Read every `graph_edges` row touching a member node, then keep only genuine
-   **boundary edges** (exactly one endpoint inside the cluster).
-3. Resolve each outside endpoint to the representative of the cluster it belongs
-   to **at the same threshold** (`_representatives_for_nodes`) — the nearest
-   visible representative. This is a precomputed partition lookup, not a runtime
-   tree walk, so it is order-independent by construction.
-4. **Bundle** boundary edges by `(inside member, neighbor representative)`,
-   keeping the **minimum** boundary distance, and set `bundled_edge_count`.
-5. Emit each bundle as a `ViewportEdge` with `is_meta = true`, and surface the
-   distinct neighbor representatives as nodes so every meta-edge references a
-   returned node.
+The viewport controller issues:
 
-The minimum distance is read phylogenetically as "closest approach into the
-clade" — how related the outside taxon is to the collapsed group.
+```json
+{
+  "dataset_id": "example",
+  "layout_version": "...",
+  "cluster_id": "distance_cluster_...",
+  "focus_node_id": null,
+  "lod_level": null,
+  "max_nodes": 5000
+}
+```
 
-`GraphViewportEdge` carries the optional `is_meta` and `bundled_edge_count`
-fields; ordinary edges leave them `None`.
+`cluster_id` selects the explicit expansion path. Normal camera bounds and LoD
+selection are not used.
 
-## Client: Stateful Collapse (`app/workbench/viewport/viewportSyncController.ts`)
+An optional `focus_node_id` can request a member-centered patch during navigation.
 
-The client keeps the expansion reversible without a server round-trip:
+## Server expansion result
 
-- **`handleNodeClick` / `expandCluster`** — on single-click of an expandable representative
-  (`isExpandableRepresentative`), it **snapshots the proxy** first
-  (`captureClusterSnapshot`: the representative node's attributes plus its
-  incident edges, shallow-copied since Graphology returns live references), then
-  queries `cluster_id` with `lod_level = null`, syncs the members in, records the
-  returned member IDs, and stores the snapshot in `expandedClusterCache` keyed by
-  cluster ID. The members are added **in place** — the camera is left untouched
-  so the surrounding graph stays visible and the user can keep expanding
-  additional clusters up to the node budget without the view snapping to a single
-  expanded region.
-- **`handleNodeDoubleClick` → `collapseCluster`** — on double-click, it
-  drops the cached member nodes, re-adds the representative node from the
-  snapshot, and restores the snapshot's incident edges — **no server call**. It
-  clears the cache entry and the `expandedClusterIds` membership.
+The repository resolves the prepared cluster and returns:
 
-`SigmaViewportLike` models both `clickNode` and `doubleClickNode` so the two
-gestures are distinct.
+1. all member nodes at their global finest-detail positions;
+2. original internal edges whose endpoints are both members;
+3. neighbouring representatives required to preserve external connectivity;
+4. meta-edges that summarize boundary connections.
 
-## Correctness Invariants
+### Meta-edges
 
-- Every returned edge, including meta-edges, references a returned visible node
-  (members, the expanded representative, or a surfaced neighbor representative).
-- One meta-edge per `(inside member, neighbor representative)` pair after
-  bundling; `bundled_edge_count` records how many boundary edges folded in.
-- Meta-edge distance is the server-computed minimum boundary distance; the client
-  never fabricates a distance.
-- Expand then collapse returns the proxy to its prior attributes and incident
-  edges from cache.
-- Aggregation rules (mode categorical/boolean, mean numeric) and internal-key
-  filtering (`profile_count`, `__category_count__*`) are unchanged.
+A boundary meta-edge connects a returned member or expansion context to a
+neighbouring representative. It carries:
 
-## Later Phases (not yet shipped)
+```text
+is_meta = true
+bundled_edge_count = number of original boundary edges represented
+```
 
-- **Meta-edge bundling styling** — thicker/annotated edges driven by
-  `bundled_edge_count`.
-- **Undo/redo history** — capture pre-expand positions and restore them verbatim
-  on collapse (pixel-identical return), following the Cytoscape
-  `undoRedoUtilities` pattern.
+Meta-edges are visual connectivity summaries. They are not added to the
+canonical graph or persisted as new biological relationships.
+
+## Client patch application
+
+Before requesting expansion, the controller captures:
+
+- a clone of the representative node;
+- its currently visible incident edges;
+- the cluster identifier.
+
+When the response arrives, the client converts it to a positioned graph and
+merges it into the current snapshot. Existing nodes and edges with the same
+identifier are replaced deterministically.
+
+The current camera is preserved unless the expansion was requested with an
+explicit fit operation.
+
+## Collapse
+
+Collapse uses the cached pre-expansion snapshot:
+
+1. remove all cached cluster members;
+2. remove expansion edges touching those members;
+3. restore the representative;
+4. restore captured incident edges whose endpoints remain present;
+5. deduplicate edges by identifier;
+6. apply the restored graph to Sigma.
+
+Collapse does not issue an HTTP request. It restores the coarse representation
+that existed when the cluster was expanded.
+
+## Concurrent viewport requests
+
+Expansion shares the viewport controller request sequence with camera reads.
+Only the newest request may commit a graph patch. A late expansion response is
+ignored if a newer viewport or expansion request has superseded it.
+
+Unmounting or disposing the view also invalidates pending expansion results.
+
+## Interaction with semantic zoom
+
+An expanded cluster is a client-side patch over the current viewport. A later
+camera-driven snapshot may replace that graph and therefore remove the expansion.
+Expansion is not a persistent server-side state and is not encoded in the next
+ordinary viewport query.
+
+This behavior keeps the HTTP contract stateless. A future persistent-expansion
+model would need to carry expanded cluster identifiers in viewport requests and
+is outside the current contract.
+
+## Metadata behavior
+
+The collapsed representative carries aggregated cluster metadata. Expanded
+members carry individual public node metadata. The user therefore moves from a
+summary record to the underlying member records without changing the canonical
+metadata store.
+
+## Limitations
+
+- The package-root API does not currently expose programmatic expand/collapse
+  methods.
+- Expanded state is not preserved across ordinary viewport replacement.
+- Collapse relies on the client snapshot captured at expansion time.
+- A very large cluster may return more nodes than an ordinary bounded viewport;
+  expansion should be treated as an explicit detail operation.
+
+## Correctness invariants
+
+- Every expansion edge references a returned node.
+- Canonical internal edges are preserved between returned members.
+- External connectivity is represented by neighbouring representatives and
+  meta-edges.
+- Collapse restores the original representative rather than synthesizing a new
+  node.
+- Meta-edges never become canonical or prepared source edges.

@@ -1,243 +1,280 @@
-# Client Rendering
+# Client rendering and viewport synchronization
 
-The client renders with Sigma.js over a Graphology graph. The workbench prepares
-a dataset and starts a viewport-sync loop; `ViewportSyncController` keeps the
-rendered graph snapshot in step with the camera by pulling viewport slices from
-the server and handing renderer-neutral snapshots to Sigma. This document covers
-the viewport lifecycle, node/edge attribute derivation, the triangle rule,
-PHYLOViZ + value-based coloring, pie programs, and region (box) selection.
+The PhyloLens browser package converts prepared viewport responses into an
+interactive Sigma visualization. It does not compute global topology or layout.
+All rendered positions originate from the API service.
 
-For how zoom picks a tier, see [`LOD_AND_CLUSTERING.md`](./LOD_AND_CLUSTERING.md);
-for expand/collapse, see [`EXPAND_COLLAPSE.md`](./EXPAND_COLLAPSE.md).
-
-## Viewport Lifecycle (`app/workbench/viewport/viewportSyncController.ts`)
-
-`ViewportSyncController` is constructed by the workbench after `prepareGraph`.
-Key options: `datasetId`, `layoutVersion`, `client` (`GraphClient`),
-`renderer` (`GraphRenderer`), `maxNodes`, and `lodTierCount` (from the prepare
-response, normalized to `>= 1`).
-
-```mermaid
-flowchart TD
-  MOUNT["mount()"] --> BIND["bind camera + click handlers"]
-  BIND --> INIT["scheduleViewportRefresh(0)"]
-  INIT --> LOAD["loadViewport() (forceGlobal → tier 0)"]
-  LOAD --> READ["client.readViewport(query)"]
-  READ --> SNAP["graphSnapshotFromViewportResponse"]
-  SNAP --> APPLY["renderer.applyGraphSnapshot"]
-  APPLY --> HOOK["onGraphSynced()"]
-  APPLY --> FIT["renderer.fitGraphSnapshot (first load)"]
-
-  CAM["camera 'updated'"] --> SCHED["scheduleViewportRefreshForCamera()"]
-  SCHED --> LOAD
+```text
+camera state
+  → semantic LoD selection
+  → viewport request
+  → runtime response validation
+  → renderer-neutral graph snapshot
+  → Graphology update
+  → Sigma refresh
 ```
 
-- **`mount()` / `unmount()`** bind and unbind camera/click handlers, manage
-  timers, and bump a request sequence so stale in-flight responses are dropped.
-- **`scheduleViewportRefreshForCamera()`** short-circuits when paused
-  (`getPaused()`) or when a small tree is already fully loaded, detects a LoD
-  tier change, and schedules a refresh — `60ms` for tier changes, `120ms` for
-  same-tier pans. At tier 0 a same-tier pan is skipped (the overview carries no
-  bounds); at finer tiers a same-tier pan schedules a bounded refetch so panning
-  reveals new nodes (see [`LOD_AND_CLUSTERING.md`](./LOD_AND_CLUSTERING.md)).
-- **`loadViewport()`** builds the query (`buildGraphViewportQuery`), records
-  `lastRequestedLodLevel` (the hysteresis anchor), reads the slice, converts it
-  to a renderer-neutral `PositionedGraph`, and applies it through the renderer.
-  On the first tier-0 load it fits the camera.
-- Sigma owns only adapter concerns: applying graph snapshots to Graphology,
-  rebuilding pie programs when needed, and fitting the camera on request.
+## Client boundaries
 
-`lodTierCount` and `lastRequestedLodLevel` are threaded into
-`buildGraphViewportQuery`, which calls
-`semanticLodLevelForCameraRatioWithHysteresis` to pick the tier and expands the
-query bounds by `GRAPH_VIEWER_VIEWPORT_PADDING_RATIO = 0.5` for tiers > 0.
+The client is divided into three responsibilities:
 
-## Snapshot Application (`app/workbench/viewport/viewportSnapshot.ts`)
+- **workbench** — owns the loaded dataset, filters, navigation, and lifecycle;
+- **viewport controller** — converts camera and cluster interactions into API
+  reads;
+- **renderer adapter** — owns Sigma, Graphology, DOM events, and visual
+  application.
 
-- **`graphSnapshotFromViewportResponse(response, settings?)`** filters nodes by
-  any active metadata filter (`matchesFilterState`), resolves visual-mapping
-  palette when active, derives node/edge attributes, and returns a
-  renderer-neutral `PositionedGraph`.
-- **`SigmaRenderer.applyGraphSnapshot(graph)`** replaces the adapter-owned
-  Graphology graph from that snapshot, reapplies highlighting and pie programs,
-  then refreshes Sigma once for the completed snapshot.
+The renderer does not issue HTTP requests. The viewport controller does not
+expose Sigma or Graphology objects to the workbench. This boundary allows the
+public package API to remain independent of the rendering implementation.
 
-## The Triangle Rule
+## Load lifecycle
 
-A node renders as a **triangle** (cluster proxy) when it represents more than one
-underlying node. In `buildGraphViewportNodeAttributes`:
+`PhyloLensView.load()` follows this sequence:
 
-```typescript
-const isRepresentative = node.member_count > 1;
-// ...
-type: isRepresentative ? SIGMA_NODE_TYPE_TRIANGLE : undefined; // else "circle"
-```
+1. validate API compatibility through `GET /health`;
+2. submit `POST /api/graph/prepare`;
+3. poll the prepare job;
+4. create a viewport controller for the published layout;
+5. request the initial viewport;
+6. convert the response to a positioned graph;
+7. apply the snapshot to the renderer;
+8. resolve the public promise.
 
-`isExpandableRepresentative` uses the same idea for click-to-expand eligibility
-(`type === "triangle"`, `is_cluster_proxy === true`, or `member_count > 1`).
+`load()` therefore means that initial graph data has been applied to Sigma's
+underlying graph. It does not guarantee that a browser animation frame or a
+camera-fit animation has completed.
 
-Node size grows with cluster size but is capped:
-`nodeSizeForMemberCount(n) = min(6, 3.5 + log2(n) * 0.55)` for representatives,
-while leaves stay at size `3`, so even a huge cluster remains clickable without
-dominating the canvas. Leaf labels remain available whenever node labels are
-enabled; Sigma's own rendered-size threshold controls when they become visible.
+A monotonically increasing load generation ensures that only the latest load may
+commit state. An older request may continue at the transport level, but its
+result is ignored. `dispose()` invalidates pending generations and unmounts the
+controller and renderer.
 
-## Node Coloring
+## Service compatibility
 
-Color precedence in the viewport snapshot node-attribute builder (highest
-first):
+Compatibility is checked once per graph-client instance and cached only after a
+successful response. A failed check is retried on the next load.
 
-1. **Active visual mapping, when the node has a value for the color field** — an
-   explicit user choice. Color comes from a graph-wide, frequency-ranked map
-   (see [Value Color Unification](#value-color-unification) below), not a hash.
-2. **Representative tone** — cluster proxies (triangles) use
-   `GRAPH_VIEWER_REPRESENTATIVE_COLOR = "#b45309"` (amber/brown), so they read
-   as aggregates rather than leaf nodes.
-3. **PHYLOViZ role color** — leaf/member nodes fall through to
-   `deriveViewportNodeColor(node)`. A node with **no value** for the active color
-   field also lands here: it keeps its role color rather than being painted a
-   palette slot it does not belong to (which could collide with a real value).
+The client compares the service `api_version` against
+`SUPPORTED_PHYLO_LENS_API_VERSION`. It does not require equal npm and service
+implementation versions.
 
-### Value Color Unification (`render/mapping/colorMapping.ts`)
+Public errors distinguish:
 
-Node fills, on-node pie slices, and the ancillary wheel share **one** color
-source so a clicked node always matches its wheel slice.
-`buildValueColorMap(values, palette)` counts each value across the graph, ranks
-them most-frequent-first (ties broken by label ascending), and assigns
-`palette[0]`, `palette[1]`, … in order; values past the palette collapse to a
-stable grey "Others". `DEFAULT_COLOR_PALETTE` carries 12 visually distinct hues,
-so the top-12 legend has no repeats. The wheel builders
-(`ancillaryWheel.ts` → `resolvePieSliceColors`) rank the same way, per field, and
-honor live palette / category-color overrides forwarded from the shell so a
-color edit repaints tree and wheel together.
+- unavailable service;
+- malformed service-information response;
+- incompatible API contract.
 
-### PHYLOViZ role colors (`deriveViewportNodeColor`)
+## Initial viewport
 
-Roles are read from node metadata under any of the genuine PHYLOViZ role aliases
-`phyloviz_role`, `st_role`, `node_role`, `role` (via `firstAttributeValue`),
-normalized by `normalizeRoleValue` (lowercases, collapses separators, maps
-`founder`/`sub_founder`/`subgroup`/`common_node` aliases). The generic
-`category` and `type` field names are **not** role keys: the server's
-`aggregate_cluster_metadata` stores a mode value under whatever fields a dataset
-happens to carry, so treating them as roles mis-tinted ordinary nodes green.
-Resolution order:
+For a graph above the small-tree threshold, the first request forces LoD level
+`0` without viewport bounds. This provides a global overview before camera-driven
+reads begin.
 
-| Condition                               | Color constant                         | Hex       | Meaning        |
-| --------------------------------------- | -------------------------------------- | --------- | -------------- |
-| `selected` / `is_selected` truthy       | `PHYLOVIZ_NODE_SELECTED_COLOR`         | `#dc2626` | red — selected |
-| role `group_founder` (or founder flags) | `PHYLOVIZ_NODE_GROUP_FOUNDER_COLOR`    | `#86efac` | light green    |
-| role `subgroup_founder` (or flags)      | `PHYLOVIZ_NODE_SUBGROUP_FOUNDER_COLOR` | `#15803d` | dark green     |
-| otherwise                               | `PHYLOVIZ_NODE_COMMON_COLOR`           | `#93c5fd` | blue — common  |
+For a known small graph, the client requests the finest tier globally. The
+browser currently classifies graphs with at most 6,000 prepared nodes as small.
 
-`GRAPH_VIEWER_NODE_COLOR` equals `PHYLOVIZ_NODE_COMMON_COLOR`, so a node with
-no role stays the common blue. These hex codes mirror the original PHYLOViZ
-goeBURST conventions. Edges use `GRAPH_VIEWER_EDGE_COLOR = "#94a3b8"`;
-edge-tiebreak color constants for goeBURST link rules also live in
-`sigmaRendering.constants.ts`.
+After applying the initial snapshot, the renderer may fit the camera to the graph.
+Camera events generated by programmatic fitting are temporarily suppressed to
+avoid an immediate redundant viewport query.
 
-## Camera Fit (`render/adapters/sigma/viewport/graphViewportFit.ts`)
+## Camera synchronization
 
-- **`fitSigmaToGraphSnapshot`** — after the first tier-0 load, fits the
-  overview into view after `GRAPH_VIEWER_INITIAL_FIT_DELAY_MS = 50ms` with a
-  `300ms` animation and `GRAPH_VIEWER_FIT_PADDING_RATIO = 1.15` padding.
-- **`fitSigmaToClusterGraph`** — frames a set of opened members with
-  `GRAPH_VIEWER_CLUSTER_FIT_PADDING_RATIO = 1.35` over a `350ms` animation.
-  The helper remains available, but the click-to-expand flow no longer calls it:
-  expansion adds members in place and leaves the camera untouched so the
-  surrounding graph stays visible (see [`EXPAND_COLLAPSE.md`](./EXPAND_COLLAPSE.md)).
+The Sigma adapter reports:
 
-## Pie Mapping and Programs
+- camera ratio;
+- world-coordinate viewport bounds.
 
-Pie mapping is split by responsibility:
+The viewport controller maps this state to:
 
-- `render/mapping/pieMapping.ts` is the public facade that builds node pie
-  attributes from metadata.
-- `render/mapping/pieCategoryCounts.ts` parses and combines categorical-count
-  metadata.
-- `render/mapping/pieColors.ts` detects active slice keys and resolves slice
-  colours.
-- `render/adapters/sigma/programs/sigmaPiePrograms.ts` adapts those slice keys
-  into Sigma node programs.
+- display zoom;
+- semantic LoD level;
+- padded query bounds;
+- node budget.
 
-After each snapshot application, `SigmaRenderer` runs `syncPieProgramsFromGraph`,
-which detects the pie-slice keys present in the live graph and rebuilds the
-Sigma instance only when the program signature changed. Camera and node handlers
-are rebound inside the adapter rebuild. When pie charts are disabled the work is
-skipped.
+Camera-triggered reads are debounced. Tier changes use a shorter delay than
+ordinary movement. Viewport bounds are expanded by 50% to prefetch the area
+around the visible screen.
 
-## Region Selection (`render/adapters/sigma/interaction/sigmaBoxSelectController.ts`)
+A sequence number invalidates stale viewport responses. Only the most recent
+request may replace the current snapshot.
 
-Holding **Shift** and dragging draws a selection box over the canvas (or plain
-drag when region-select mode is toggled on via
-`setRegionSelectModeEnabled`). `sigmaBoxSelectController.ts` tracks the drag,
-suppresses camera panning while a box is active, converts the screen rectangle
-into graph-space bounds, and hands them to the workbench. The workbench issues a
-`readRegion` call (`POST /api/graph/region`), which returns the isolated
-subgraph inside the box plus `aggregated_metadata` (mode for
-categorical/boolean, mean for numeric). `app/shell/region/regionPanelView.ts`
-renders that result as a region-selection summary with its own ancillary wheel,
-reusing the same value-color map as the tree. A new dataset or re-render clears
-the active selection. Region reads are always finest-detail (no `zoom`/
-`lod_level`), independent of the semantic-zoom loop.
+## Snapshot conversion
 
-## Consuming the Client as a Library
+A `GraphViewportResponse` is converted into a renderer-neutral `PositionedGraph`.
 
-The client ships as an installable package (`@phyloviz/phylo-lens`), not just the
-demo app. A host application such as PHYLOViZ mounts the renderer as a component
-and never has to touch the HTTP contract itself — the workbench drives the whole
-prepare → poll → viewport loop internally. The default renderer's implementation
-packages (`sigma`, `graphology`, `graphology-layout-forceatlas2`,
-`@sigma/node-border`, `@sigma/node-piechart`) are normal dependencies, so
-ordinary hosts install only PhyloLens. They remain externalized from the library
-bundle so host bundlers resolve them from dependencies rather than receiving a
-large pre-bundled copy.
+### Nodes
 
-Build the package with `npm run build:lib`, which emits `dist/index.js` (ESM) via
-`vite.lib.config.ts` and `dist/types/**/*.d.ts` declarations via
-`tsconfig.lib.json`. The demo build (`npm run build`, `index.html`) is untouched.
+Each response node becomes a positioned node with:
 
-### Public facade
+- canonical or representative identifier;
+- global `x` and `y`;
+- cluster identifier;
+- layout status;
+- member count;
+- representative flag;
+- public metadata;
+- derived visual attributes.
 
-Host applications consume the package root through `createPhyloLensView`. The
-host provides a DOM container, the PhyloLens API service URI, and dataset content;
-transport, prepare polling, renderer selection, prepared dataset ids, layout
-versions, and viewport synchronization stay inside the library.
+Cluster representatives are distinguishable from individual nodes through
+`member_count` and `is_representative`.
 
-The lower transport, workbench, renderer, and shell modules remain internal
-implementation layers. The demo shell is a reference application, not the
-recommended integration API.
+### Edges
 
-### One-call `load`
+Each response edge preserves:
 
-```ts
-import { createPhyloLensView } from "@phyloviz/phylo-lens";
+- identifier;
+- source and target;
+- distance;
+- meta-edge flag;
+- bundled boundary-edge count.
 
-const container = document.getElementById("graph-root");
-if (!(container instanceof HTMLElement)) {
-  throw new Error("Missing graph container.");
-}
+The snapshot builder removes edges whose endpoints are absent from the final
+node set. The service normally includes required neighbours, but this final guard
+prevents invalid Graphology edges from reaching the renderer.
 
-const view = createPhyloLensView({
-  container,
-  apiUrl: "http://localhost:8000",
-});
+### Global bounds
 
-// Submits the tree, polls prepare to 'ready', starts the viewport-sync loop,
-// and paints into the container. The host never sees a job id or a poll.
-await view.load({
-  content: newickString,
-  name: "my-dataset",
-  metadataSchema,
-  metadataByNodeId,
-  visualMapping: { colorField: "region" }, // size defaults to profile_count
-});
+The response may include global prepared-layout bounds. These bounds support
+camera fitting and navigation independently of the current slice.
 
-// Later, on teardown:
-view.dispose();
-```
+## Applying a snapshot
 
-`load` accepts metadata, ancillary CSV/TSV joins, visual mapping, layout
-iterations, and LoD tuning. Colour defaults to the `region` field and size
-defaults to `profile_count` (falling back to branch `distance`), matching
-PHYLOViZ conventions. See [`API_REFERENCE.md`](./API_REFERENCE.md) for the
-underlying service contract.
+The Sigma adapter updates one owned Graphology graph. Snapshot application
+reconciles current and requested nodes and edges rather than creating a second
+independent rendering pipeline.
+
+The renderer is responsible for:
+
+- adding or updating visible nodes;
+- removing nodes no longer present;
+- adding or updating visible edges;
+- removing obsolete edges;
+- preserving current camera state unless an explicit fit is requested;
+- refreshing Sigma after graph mutation.
+
+Server positions remain authoritative. ForceAtlas2 motion is not used for the
+standard server-layout path.
+
+## Visual mappings
+
+The public `visualMapping` option configures metadata-driven node appearance.
+Mappings are evaluated against node or aggregated cluster metadata.
+
+Supported concepts include:
+
+- node color by categorical or numeric metadata;
+- node size by metadata or represented-member count;
+- labels;
+- categorical distribution wheels for aggregated profiles or clusters;
+- display options for ordinary nodes, representatives, and edges.
+
+The public TypeScript declarations are the source of truth for exact mapping
+fields. Unknown HTTP metadata fields are rejected by runtime guards before they
+reach the renderer.
+
+Visual mappings do not change topology, LoD membership, or server queries.
+Changing a mapping re-applies renderer attributes to the current graph.
+
+## Metadata filters
+
+Filters are applied locally to the currently loaded snapshot. The workbench
+maintains one filter state and uses a shared predicate for renderer updates.
+
+Filtering does not request a new server-side graph and does not alter cluster
+construction. At a coarse tier, a representative is evaluated using its
+aggregated cluster metadata. Results therefore reflect the visible LoD summary,
+not an implicit finest-detail query.
+
+## Search and focus
+
+Search is server-side because the current viewport may not contain the requested
+node. The service returns global coordinates for matches when available.
+
+Focusing a result can:
+
+1. request a bounded graph region around the global position;
+2. merge that patch with the current graph;
+3. centre the Sigma camera;
+4. highlight the target.
+
+Programmatic camera movement is temporarily excluded from ordinary viewport
+synchronization to avoid a redundant request during focus animation.
+
+## Region selection
+
+The renderer can expose a rectangular selection in world coordinates. The
+workbench sends that box to `/api/graph/region`, which always reads finest-detail
+nodes and returns aggregated metadata for the selection.
+
+Region selection is distinct from the normal semantic-zoom viewport:
+
+- it does not use an LoD level;
+- it does not replace the global graph hierarchy;
+- it is intended for inspecting members and metadata in a bounded area.
+
+## Cluster interaction
+
+A single click on an expandable representative requests cluster members. A
+double click collapses a previously expanded cluster from a client-side snapshot.
+
+The controller stores the representative and its incident coarse edges before
+expansion. On collapse, it removes members, restores the representative, and
+restores valid incident edges. See
+[Cluster interaction](./EXPAND_COLLAPSE.md).
+
+## Pausing LoD refresh
+
+The workbench can pause camera-triggered LoD refreshes, for example during an LoD
+playback or inspection operation. Camera movement may continue while paused.
+Resuming triggers an immediate reconciliation with the current camera state.
+
+This pause affects viewport synchronization only; it does not freeze Sigma
+interaction or alter the prepared layout.
+
+## Error behavior
+
+The initial viewport is part of `load()` and rejects the public promise when it
+fails. Later camera-driven or cluster-expansion failures are delivered through
+internal controller error handling and leave the last successfully applied graph
+visible.
+
+Stale or post-disposal responses are ignored rather than applied.
+
+## Node budgets and truncation
+
+The public load option `lod.maxNodes` configures the viewport request budget. The
+client default is 5,000. The API hard limit is 20,000.
+
+A truncated response is still renderable. It indicates that the returned slice
+is incomplete relative to the direct server selection. Host applications should
+not treat a truncated viewport as the full dataset.
+
+## Reserved public options
+
+The current public load type retains three fields for compatibility and future
+work:
+
+- `layout.forceIterations`;
+- `lod.lodHint`;
+- `lod.viewport`.
+
+They are not currently consumed by the production load path. Applications should
+not rely on them affecting layout or the initial query until that behavior is
+implemented and documented.
+
+## Rendering-related evaluation metrics
+
+Client evaluation should distinguish:
+
+- prepare/poll duration;
+- initial viewport network duration;
+- response validation and snapshot-conversion duration;
+- graph-application duration;
+- first browser paint after application;
+- optional camera-fit completion;
+- camera-to-request and request-to-render latency during interaction;
+- nodes and edges applied per snapshot.
+
+`load()` completion is a useful data-readiness boundary, but it is not by itself
+a browser first-paint measurement.

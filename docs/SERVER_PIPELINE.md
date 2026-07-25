@@ -1,250 +1,306 @@
-# Server Prepare Pipeline
+# Server preparation pipeline
 
-`POST /api/graph/prepare` turns raw input into a fully materialized,
-queryable layout. This is the only expensive server operation; everything at
-interaction time is a bounded read (see
-[`LOD_AND_CLUSTERING.md`](./LOD_AND_CLUSTERING.md)). The orchestration lives in
-`PreparedLayoutWorker.prepare_dataset` (`pipeline/worker.py`), driven by
-`prepare_graph` (`http/graph/router.py`).
+`POST /api/graph/prepare` converts raw input into an immutable, queryable layout
+version. Preparation is the only operation that requires the complete graph.
+Viewport, region, and search requests operate on persisted artifacts.
 
-Because the force-directed layout can run for a long time on large trees, prepare
-is **asynchronous**: `POST /prepare` validates input synchronously, submits the
-layout to a background worker, and returns `202 Accepted` with a `job_id`. The
-client polls `GET /prepare/{job_id}` until the job resolves. See
-[Async Job Flow](#async-job-flow) below.
-
-## Pipeline Overview
-
-```mermaid
-flowchart TD
-  REQ["NormalizeRequest"] --> NORM["normalize_dataset<br/>(data/normalizer.py)"]
-  NORM --> DIST["ensure_graph_edge_distances<br/>(fill missing distance = 1.0)"]
-  DIST --> ING["prepare_layout_artifacts<br/>(ingest.py)"]
-  ING --> CL["clusters at up to 16 thresholds"]
-  CL --> LAY["compute_prepared_layouts<br/>(layout.py, sfdp)"]
-  CL --> PE["compute_prepared_edges<br/>(worker.py, per-tier quotient edges)"]
-  LAY --> PERSIST["Layout store<br/>(SQLite local / Postgres distributed)"]
-  PE --> PERSIST
-  PERSIST --> RESP["GraphPrepareResponse<br/>(lod_tier_count, layout_status)<br/>returned via GET /prepare/{job_id}"]
+```text
+request validation
+  → capacity admission
+  → normalization
+  → layout identity
+  → distance-tier clustering
+  → global layout
+  → LoD edge materialization
+  → persistence
+  → publication
 ```
 
-Steps 2–5 run on a background worker; the diagram shows the full layout the poll
-returns once ready (see [Async Job Flow](#async-job-flow)).
+## 1. Request validation
 
-## Step 1 — Normalize
+FastAPI validates the `NormalizeRequest` contract before application logic runs.
+The request contains:
 
-`normalize_dataset(request, expose_internal_schema=True)` parses the source
-(Newick via `parse_newick`, which assigns deterministic node IDs of the form
-`{prefix}_{index}` and de-duplicates labels) and produces a `CanonicalDataset`
-with aligned per-node metadata and a metadata schema. `parse_newick` reads
-branch lengths as edge distances.
+- source format and content;
+- dataset name;
+- self-loop policy;
+- optional typed metadata;
+- optional ancillary CSV/TSV data.
 
-Two input formats are accepted (`NormalizeFormat`):
+Malformed HTTP payloads return `422`. Source-format and domain errors are mapped
+to the API errors described in [API reference](./API_REFERENCE.md).
 
-- **`newick`** — parsed directly by `parse_newick`.
-- **`typing_data`** — MLST/cgMLST allelic profiles. `data/phylolib.py` invokes
-  the bundled PhyloLib JAR directly in two stages against a temporary working
-  directory:
-  `distance hamming --dataset=ml:… --out=symmetric:…` then
-  `algorithm goeburst --matrix=symmetric:… --out=newick:… --lvs=3`.
-  `typing_profiles_to_graph` parses the result through the *same* `parse_newick`
-  path, so everything downstream is unchanged. goeBURST emits **one
-  `;`-terminated tree per connected component**, so the output is routinely a
-  *forest* (distant STs never join the MST). Each component is parsed
-  independently and merged into a single **disconnected** `ParsedGraph` (no
-  synthetic root; generated internal ids are namespaced per component to avoid
-  collisions, explicit ST labels are preserved), with a warning recording the
-  component count. Downstream clustering already partitions by connected
-  component and sfdp handles disconnected graphs, so the forest flows through
-  unchanged. Typing ingest requires the configured PhyloLib JAR to be readable;
-  when it is unavailable or a PhyloLib stage fails, normalization raises a `ParseError`
-  (surfaced as a `400`) — there is no meaningful tree fallback, unlike the
-  layout step's circular degrade.
+## 2. Job admission
 
-`ensure_graph_edge_distances` guarantees every edge carries a distance:
-missing values default to `1.0` and add a warning. Threshold clustering requires
-weighted edges, so this keeps unweighted inputs usable.
+### Local backend
 
-## Step 2 — Ingest and Cluster (`ingest.py`)
+The in-process `PrepareJobRegistry` enforces the configured active-job limit.
+Capacity is reserved **before normalization**, so typing-data requests cannot
+start expensive PhyloLib subprocesses outside the queue limit.
 
-`prepare_layout_artifacts(dataset, max_thresholds=MAX_CLUSTER_THRESHOLDS)` builds
-the cluster hierarchy:
+The reservation is released on every exit path. After normalization, the job is
+submitted with `reserved_capacity=True`; the registry then tracks the worker
+future.
 
-1. Sort nodes by ID for determinism.
-2. Select up to `MAX_CLUSTER_THRESHOLDS = 16` distance thresholds via
-   `selected_distance_thresholds` (details in
-   [`LOD_AND_CLUSTERING.md`](./LOD_AND_CLUSTERING.md)).
-3. Build clusters at each threshold via `distance_clusters`, which runs
-   Union-Find over edges sorted by distance and forms one `PreparedCluster` per
-   multi-node connected component (singletons are not clustered).
-4. Each cluster records a `representative_node_id` (via
-   `representative_by_centroid` — the member nearest the cluster's layout
-   centroid, not a distance medoid) and its `internal_edge_ids` /
-   `boundary_edge_ids`.
+The local registry may reuse an active or successful completed job with the same
+`(dataset_id, layout_version)`. Failed jobs are not reused.
 
-The result is a `PreparedLayoutArtifacts` (`dataset`, `layout_version`,
-`clusters`).
+Completed jobs retain a small response payload, not the complete
+`PreparedLayoutResult`, preventing prepared graphs from accumulating in memory.
 
-## Step 3 — Global Layout (`layout.py`)
+### PostgreSQL backend
 
-`compute_prepared_layouts` first computes one **global** node layout via
-`compute_global_node_positions`, then derives each cluster's representative
-position, `radius`, and `bounds` from its members' positions.
+The API inserts a durable prepare job. External workers claim jobs through
+PostgreSQL row locking and leases. The job payload and artifact store survive API
+process restarts.
 
-### Force-directed layout with Graphviz `sfdp`
+## 3. Normalization
 
-`graphviz_sfdp_positions` shells out to the `sfdp` binary (a multilevel
-force-directed layout, well suited to large graphs). Edge length passed to
-Graphviz is a ratio-preserving multiple of the per-graph **median** distance,
-clamped to `[GRAPHVIZ_MIN_EDGE_LENGTH = 0.5, GRAPHVIZ_MAX_EDGE_LENGTH = 12.0]`
-around `GRAPHVIZ_TARGET_EDGE_LENGTH = 2.5`, so long-branch outliers and
-zero-distance edges cannot destabilize the layout.
+`normalize_dataset` converts the selected source into a `CanonicalDataset`.
 
-Iteration count scales with node count for convergence quality on large graphs:
+### Newick path
 
-```python
-sfdp_maxiter(n) = round(n * log2(max(n, 2)))   # uncapped; more iters for big graphs
+```text
+Newick text
+  → parse one tree or forest
+  → canonical node identifiers
+  → canonical edges and branch distances
+  → metadata and ancillary join
+  → domain validation
 ```
 
-There is **no wall-clock timeout** on the `sfdp` subprocess: prepare runs on a
-background worker (see [Async Job Flow](#async-job-flow)), so a long layout no
-longer risks a dropped HTTP connection, and letting `sfdp` run to completion
-avoids discarding a good layout for the circular fallback. Cost is therefore
-bounded only by `sfdp_maxiter(n)` and the graph size.
+### Typing-data path
 
-### Graceful degrade
-
-If `sfdp` is missing, fails, or returns incomplete output, layout falls back to a
-deterministic circular `jittered_positions` layout and reports
-`layout_status = "degraded"` with a specific reason:
-
-| Constant | Meaning |
-| --- | --- |
-| `LAYOUT_DEGRADED_SFDP_MISSING` | `sfdp` binary not on PATH |
-| `LAYOUT_DEGRADED_SFDP_FAILED` | subprocess error |
-| `LAYOUT_DEGRADED_SFDP_INCOMPLETE` | fewer positions than nodes |
-
-The reason is threaded through `PreparedLayoutResult.layout_degraded_reason` and
-surfaced to the client as a truthful warning by `layout_degraded_warning`.
-Trivial graphs (0–1 nodes) skip layout and report `"ready"`.
-
-## Step 4 — Prepared Edges (`compute_prepared_edges`)
-
-For each LoD tier the server precomputes a **quotient edge list**: the original
-graph edges collapsed to their representatives at that tier. For each distinct
-threshold (enumerated coarse→fine as `lod_level`):
-
-1. Map every member node to its cluster's `representative_node_id`.
-2. For each graph edge, map both endpoints to representatives; skip if they
-   resolve to the same representative (edge is internal to the cluster).
-3. Otherwise emit a `PreparedEdge` keyed by `(lod_level, min_rep, max_rep)`,
-   keeping the **minimum-distance** edge when several original edges collapse to
-   the same representative pair. The synthetic id is
-   `quotient_edge:{lod_level}:{source}:{target}`.
-
-This is what lets a coarse viewport read return representative-to-representative
-edges without rewalking the topology.
-
-## Step 5 — Persist and Respond
-
-`PreparedLayoutWorker` writes each content-derived `layout_version` as
-`refining`, replacing only prior rows for that same version. Existing ready
-versions for the dataset remain readable while the new layout is materialized.
-After clusters, cluster members, graph edges, prepared edges, node positions,
-node and cluster metadata, and the schema have all been persisted, the worker
-publishes the layout by updating the dataset row to `ready` or `degraded` (see
-the schema in [`DATA_MODEL.md`](./DATA_MODEL.md)). Latest-layout reads only
-consider published (`ready`/`degraded`) versions. When the poll observes the job
-as `ready`,
-`prepare_response_from_result` computes
-`lod_tier_count = max(len(distinct non-None thresholds), 1)` — the same
-enumeration `compute_prepared_edges` uses — and builds the
-`GraphPrepareResponse` with the counts, `lod_tier_count`, `layout_status`, and
-accumulated warnings (submit-time normalize/distance warnings plus any
-layout-degrade warning).
-
-## Async Job Flow
-
-The layout above runs off the request thread. The registry and worker lifecycle:
-
-```mermaid
-sequenceDiagram
-  participant C as Client
-  participant API as prepare_graph
-  participant R as PrepareJobRegistry
-  participant W as PreparedLayoutWorker (ThreadPoolExecutor)
-
-  C->>API: POST /prepare (NormalizeRequest)
-  API->>API: normalize + ensure distances (sync, 4xx on bad input)
-  API->>R: submit(dataset, warnings)
-  R->>W: submit_prepare_dataset(dataset) -> Future
-  API-->>C: 202 { job_id, status: "pending" }
-  loop until resolved
-    C->>API: GET /prepare/{job_id}
-    API->>R: snapshot(job_id)
-    R-->>API: pending | ready(result) | failed(error)
-    API-->>C: { status, result? , error? }
-  end
+```text
+allelic-profile matrix
+  → PhyloLib Hamming distance
+  → PhyloLib goeBURST
+  → Newick tree or forest
+  → normal Newick canonicalization path
 ```
 
-- **Submit (`prepare_graph`).** Normalization and distance validation run
-  synchronously so malformed input fails fast with a `4xx`. The dataset plus the
-  normalize/distance warnings are handed to `PrepareJobRegistry.submit`, which
-  runs `PreparedLayoutWorker.submit_prepare_dataset` on a single-worker
-  `ThreadPoolExecutor` and returns a `job_id`. The route responds `202 Accepted`
-  with `GraphPrepareJob { job_id, status: "pending", dataset_id }`. The registry
-  coalesces submissions with the same `(dataset_id, layout_version)` while a job
-  is pending, and reuses the successful completed job in-process, so duplicate
-  prepares do not enqueue duplicate layout work. Deployments may set
-  `PHYLO_LENS_MAX_ACTIVE_PREPARE_JOBS` to cap distinct queued/running jobs in the
-  process; once the cap is reached, new distinct prepares return `429`.
-- **Poll (`prepare_graph_status`).** `GET /prepare/{job_id}` reads
-  `PrepareJobRegistry.snapshot`, which inspects the `Future`: still running →
-  `pending`; raised → `failed` with the error string; done → `ready` with the
-  full `GraphPrepareResponse` built by `prepare_response_from_result` (which
-  combines the submit-time warnings with any layout-degrade warning). Unknown
-  `job_id` → `404`.
-- **Registry lifecycle.** `get_prepare_job_registry` is an app-scoped
-  `@lru_cache(maxsize=1)` singleton built from the prepared-layout store. The
-  FastAPI `lifespan` handler calls `registry.shutdown()` to drain the executor on
-  app shutdown.
+Typing data and ancillary metadata are independent. PhyloLib constructs the
+relationship graph; PhyloLens joins isolate or profile attributes afterwards.
 
-## Distributed Job Control Plane
+### Distance completion
 
-The default runtime still uses the in-process `PrepareJobRegistry` above for
-local and single-node deployments. `repository/jobs/postgres.py` introduces the
-Postgres-backed durable control plane for distributed deployments, with schema
-defined by `sql/postgres/create-schema.sql`.
-`phylo_lens_schema_version` records the applied schema checksum:
+If the graph has edges and **none** carries a distance, the service assigns unit
+distance to all edges and emits a warning. If any distance exists, missing values
+are left visible to validation; preparation then rejects the partially weighted
+graph.
 
-- `prepare_jobs` stores `job_id`, `dataset_id`, `layout_version`, normalized
-  dataset payload, warnings, status, result/error, worker id, and lease expiry.
-- Duplicate submissions are coalesced with a partial unique index on
-  `(dataset_id, layout_version)` while status is `queued`, `running`, or `ready`.
-- Workers claim queued jobs, or expired running jobs, with
-  `FOR UPDATE SKIP LOCKED`, then renew ownership with heartbeats.
-- Successful workers mark jobs `ready` with a result payload; failed workers mark
-  jobs `failed` with an error string.
+### Metadata handling
 
-This splits durable distributed execution from local development without forcing
-local mode to require Postgres. Set `PHYLO_LENS_PREPARE_JOB_BACKEND=postgres` on
-API replicas to submit and poll durable jobs after running
-`phylo-lens-init-postgres`. API replicas and workers assert that the schema is
-current at startup; they do not apply DDL implicitly. Run
-`phylo-lens-prepare-worker` to claim jobs, execute the same
-`PreparedLayoutWorker.prepare_dataset` pipeline, persist layout artifacts through
-`PostgresPreparedLayoutStore`, and write the serialized `GraphPrepareResponse`
-back to Postgres. The worker renews its lease while long-running layout
-computation is active and checks ownership before publishing layout artifacts.
+Normalization:
 
-In Postgres mode, Postgres is both the job control plane and the prepared-layout
-artifact store. API replicas and workers therefore share one database rather
-than coordinating through a filesystem volume. `PHYLO_LENS_DATA_DIR` and
-`PHYLO_LENS_PREPARED_LAYOUT_STORE_DIR` apply only to local SQLite mode.
+- validates caller-supplied metadata types;
+- infers undeclared field types;
+- joins ancillary rows by exact or slug-normalized identifier;
+- aggregates multiple rows per node;
+- preserves direct metadata on field conflicts;
+- hides internal aggregation keys from public schemas.
 
-## Determinism
+The normalization result also records ingest and normalization durations for
+internal diagnostics. These values are not currently part of the public prepare
+response.
 
-Every step is deterministic: node/edge sorting, threshold selection, Union-Find
-components (order-independent), a fixed `LAYOUT_RANDOM_SEED = 23` for the
-fallback, and stable tie-breaks in edge collapse. The same input yields the same
-`layout_version` and the same materialized store.
+## 4. Dataset validation
+
+Domain validation checks structural invariants, including:
+
+- non-empty identifiers;
+- edge endpoints that exist in the node set;
+- self-loop policy;
+- metadata values compatible with the canonical schema;
+- no use of reserved metadata fields.
+
+Preparation adds two requirements:
+
+- at least one node;
+- a distance value on every edge.
+
+## 5. Layout identity
+
+`layout_version_for_dataset` computes a deterministic fingerprint from:
+
+- `LAYOUT_PIPELINE_VERSION`;
+- dataset identifier;
+- sorted nodes and edges;
+- distances;
+- metadata schema and values;
+- ancillary rows;
+- stable source semantics.
+
+The generated timestamp is excluded. Canonical JSON serialization makes the
+fingerprint independent of dictionary insertion order.
+
+This identity controls job reuse and artifact publication. A change to persisted
+metadata or layout-affecting pipeline semantics creates a new version.
+
+## 6. Distance-tier clustering
+
+The pipeline selects up to 16 distance thresholds. Threshold selection targets a
+progressive number of visible representatives instead of sampling edge distances
+uniformly.
+
+At each threshold, a union-find partition connects edges whose distance is less
+than or equal to the threshold. The complete edge list is sorted once and reused
+across thresholds.
+
+For every component, the pipeline records:
+
+- member nodes;
+- one deterministic representative;
+- internal edges;
+- boundary edges.
+
+The finest selected threshold is retained so the viewport reader can resolve the
+last LoD level to individual node positions.
+
+See [LoD and clustering](./LOD_AND_CLUSTERING.md) for the selection and query
+semantics.
+
+## 7. Artifact publication begins
+
+The worker clears an incomplete artifact set with the same identity, then writes
+the canonical dataset and cluster records with status `refining`.
+
+A `refining` version is not selected as the latest readable version. An earlier
+published layout therefore remains available while a new version is prepared.
+
+## 8. Prepared quotient edges
+
+For each non-finest threshold, the pipeline maps canonical edge endpoints to
+cluster representatives.
+
+Edges internal to one cluster disappear at that tier. Multiple canonical edges
+between the same pair of representatives collapse into one deterministic
+prepared edge. The retained distance is the smallest available distance for that
+representative pair.
+
+These quotient edges allow viewport reads to return a topologically consistent
+coarse graph without rebuilding it on every request.
+
+## 9. Global layout
+
+The layout stage computes one global position for each canonical node.
+
+### Source coordinates
+
+When every node already has `x` and `y`, those positions are used as the global
+layout input.
+
+### Graphviz `sfdp`
+
+Otherwise, PhyloLens invokes Graphviz `sfdp` with a generated undirected DOT
+graph.
+
+- Edge lengths use the ratio between each positive distance and the median
+  positive distance, subject to bounded minimum and maximum lengths.
+- Connected graphs use global overlap removal.
+- Disconnected forests use component packing to avoid a pathological global
+  overlap pass.
+- `maxiter` is derived from node count.
+- the subprocess is bounded by `PHYLO_LENS_GRAPHVIZ_SFDP_TIMEOUT_SECONDS`.
+
+Graphviz output is parsed from the `plain` format, centered, scaled to a target
+median edge length, and repaired deterministically if the result collapses onto
+one axis.
+
+### Degraded layout
+
+If `sfdp` is missing, exits unsuccessfully, or returns incomplete positions, the
+pipeline uses a deterministic circular fallback and publishes the version as
+`degraded` with a warning.
+
+A Graphviz timeout is treated as a preparation failure rather than silently
+continuing after an unbounded execution.
+
+## 10. Cluster and node layouts
+
+The global node coordinates are used to derive:
+
+- one `NodeLayoutPosition` per canonical node;
+- one `ClusterLayout` per prepared cluster.
+
+A cluster layout uses the global position of its representative and stores
+member-derived bounds and radius. The pipeline does not run a separate layout
+for each semantic-zoom tier; all tiers remain in one global coordinate system.
+
+## 11. Persistence
+
+The worker persists:
+
+1. canonical dataset and metadata;
+2. prepared clusters and membership;
+3. original graph edges;
+4. node positions;
+5. cluster layouts and aggregated metadata;
+6. per-tier prepared edges.
+
+SQLite and PostgreSQL implement the same repository contract. Bulk writes are
+chunked and grouped under transaction boundaries.
+
+## 12. Publication
+
+After all artifacts are stored, the worker publishes the dataset row as:
+
+- `ready`, when the Graphviz layout completed normally;
+- `degraded`, when a documented fallback layout was used.
+
+Only then can reads that omit `layout_version` resolve the new version.
+
+The worker returns a compact prepare result containing counts, LoD tier count,
+layout status, and combined warnings. Both local and PostgreSQL job paths use the
+same canonical payload builder.
+
+## 13. Failure and cancellation behavior
+
+A failed preparation records a terminal job error and does not publish the
+layout. Relevant cases include:
+
+- invalid Newick or typing data;
+- PhyloLib process failure or timeout;
+- missing edge distances in a partially weighted graph;
+- Graphviz timeout;
+- database error;
+- lost PostgreSQL lease before publication.
+
+PostgreSQL workers use lease ownership checks between publication phases. A
+worker that loses ownership aborts before publishing further artifacts.
+
+## 14. Interactive read path
+
+After publication, interactive requests do not repeat preparation. They resolve a
+layout version and execute bounded repository reads:
+
+```text
+viewport query
+  → LoD threshold
+  → bounds lookup
+  → visible nodes and required neighbours
+  → matching original or prepared edges
+  → metadata attachment
+  → HTTP response
+```
+
+Region selection always reads finest-detail nodes within the requested box.
+Search reads node identifiers and public metadata, ranks matches, and returns
+global positions for navigation.
+
+## Evaluation guidance
+
+Preparation measurements should separate at least:
+
+- source ingest and parsing;
+- PhyloLib distance calculation;
+- goeBURST;
+- canonical normalization;
+- cluster/LoD construction;
+- Graphviz layout;
+- persistence;
+- initial viewport read and serialization.
+
+A benchmark should use a clean process or explicitly control cache and persisted
+layout reuse. Reusing an identical `(dataset_id, layout_version)` measures cache
+behavior, not preparation throughput.

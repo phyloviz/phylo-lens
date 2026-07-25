@@ -1,161 +1,240 @@
-# Level of Detail and Clustering
+# Level of detail and distance clustering
 
-PhyloLens renders large trees with a **semantic zoom** model: the server exposes
-several precomputed *level-of-detail (LoD) tiers*, and the client requests
-whichever tier matches the current camera zoom. Zooming out shows fewer,
-coarser cluster representatives; zooming in reveals finer structure and
-eventually individual nodes. This document explains how tiers are built
-(server) and how zoom maps to a tier (client).
+PhyloLens uses a server-prepared level-of-detail (LoD) hierarchy to reduce the
+number of graph elements returned and rendered at broad views. The hierarchy is
+based on canonical edge distances and remains aligned to one global layout.
 
-There is no spatial R-tree. Bounds queries are served by ordinary SQLite indexes
-on the coordinate columns (see [`DATA_MODEL.md`](./DATA_MODEL.md)).
+LoD is a display and query mechanism. It does not alter the canonical topology or
+claim a new biological grouping model beyond the supplied distances.
 
-## Tiers Are Distance Thresholds
+## Terminology
 
-Clustering is single-linkage by branch-length distance. For a threshold `t`, two
-nodes are in the same cluster if they are connected by a path of edges each with
-`distance <= t`. Computed with Union-Find (`_UnionFind` in `ingest.py`, path
-compression + union by size), this is order-independent, so the partition at any
-threshold is deterministic.
+- **canonical node** — a node in the normalized input graph;
+- **distance threshold** — maximum edge distance admitted when computing
+  connected components;
+- **prepared cluster** — one connected component at one selected threshold;
+- **representative** — one canonical member used to display a prepared cluster;
+- **LoD level** — client/server index that selects a prepared threshold or the
+  finest-detail node table;
+- **quotient edge** — an edge between representatives at a coarse tier;
+- **cluster expansion** — an explicit request for all members of one cluster.
 
-Each **selected threshold is one LoD tier.** A large threshold merges most of the
-tree into a few big clusters (overview); a small threshold leaves many small
-clusters (detail).
+## Threshold clustering
 
-## Selecting Thresholds (`selected_distance_thresholds`)
+For a threshold `t`, PhyloLens considers canonical edges with:
 
-Up to `MAX_CLUSTER_THRESHOLDS = 16` thresholds are chosen so tiers are spaced
-usefully rather than arbitrarily:
-
-1. Take the unique edge distances, sorted descending.
-2. Compute the connected-component count at each distance
-   (`threshold_component_counts`).
-3. Ask `representative_targets(node_count, 16)` for anchor cluster counts
-   (coarse→fine): an **overview** count, a geometric-mean **medium** count, and
-   the **full** node count. Placing medium at the geometric mean of overview and
-   `node_count` splits the overview→detail jump evenly on a log scale, so one
-   zoom step never dumps the whole tree.
-   - Overview ≈ `sqrt(node_count) * SMALL_GRAPH_OVERVIEW_FACTOR`, clamped between
-     `MIN_OVERVIEW_REPRESENTATIVES` and `MAX_OVERVIEW_REPRESENTATIVES` for large
-     graphs.
-4. For each target count, pick the threshold whose component count best matches
-   (`threshold_for_representative_target`).
-5. Always include the finest threshold (the maximum distance).
-6. De-duplicate and return up to 16 thresholds, descending.
-
-`lod_tier_count` in `GraphPrepareResponse` is the count of distinct non-None
-thresholds actually produced — the number of tiers the client may zoom across.
-
-## Representatives
-
-Each cluster names one `representative_node_id`, chosen by
-`representative_by_centroid`. This is a **layout-centroid heuristic, not a
-distance medoid**: once members are positioned it picks the member closest to
-the cluster's spatial centroid (tie-broken by higher internal degree, then id)
-so the proxy sits visually in the middle of its cluster; before positions exist
-it falls back to the most internally connected member. It does not minimize
-summed genetic distance. The representative stands in for its cluster at coarser
-tiers and becomes the click target for expansion (see
-[`EXPAND_COLLAPSE.md`](./EXPAND_COLLAPSE.md)).
-
-## `lod_level` ↔ threshold
-
-`lod_level` is the wire representation of a tier: a **0-based index into the
-distinct thresholds ordered coarse→fine (descending distance).**
-
-`_threshold_for_lod_level` (`store.py`) is the single source of truth:
-
-```python
-# distinct non-NULL thresholds, ORDER BY threshold DESC   (coarse -> fine)
-index = min(max(lod_level, 0), len(rows) - 1)             # clamp into range
-threshold = rows[index]["threshold"]
-return None if threshold == min_threshold else threshold  # finest -> node positions
+```text
+edge.distance <= t
 ```
 
-So `lod_level = 0` is the coarsest tier; the highest index is finest. When the
-requested level lands on the minimum threshold, it returns `None` — meaning
-"render individual node positions", not representatives. This function has **no
-short-circuit** for `lod_level >= 1`: every level indexes into the real
-thresholds, which is what makes intermediate tiers work.
+Connected components of that subgraph form the partition for `t`.
 
-## Server Viewport Reads (`read_viewport`)
+With thresholds ordered from high to low:
 
-`read_viewport` chooses one of four mutually exclusive paths:
+- a high threshold generally produces fewer, larger components;
+- a lower threshold produces more, smaller components;
+- the minimum selected threshold resolves to finest detail.
 
-```mermaid
-flowchart TD
-  Q["read_viewport(...)"] --> C1{"cluster_id set?"}
-  C1 -->|yes| EXP["expand one cluster into its members<br/>+ reroute boundary edges (meta-edges)"]
-  C1 -->|no| C2{"lod_level == 0<br/>and no bounds?"}
-  C2 -->|yes| OV["overview: coarsest representatives<br/>(or distinct node positions)"]
-  C2 -->|no| C3{"threshold is None<br/>for this level?"}
-  C3 -->|yes| READY["finest detail: 'ready' node positions in bounds"]
-  C3 -->|no| REPS["cluster representatives at the level's threshold, in bounds"]
+The graph may be disconnected. Components from separate trees or goeBURST
+components remain independent at every threshold.
+
+## Threshold selection
+
+The pipeline selects at most 16 thresholds. It does not choose evenly spaced
+numeric distances because edge-distance distributions are often highly skewed.
+Instead, it targets a progressive number of representatives.
+
+The broadest target is derived from graph size:
+
+- for graphs up to 300 nodes, approximately `7 × sqrt(node_count)`, capped by
+  the node count;
+- for larger graphs, the target is bounded between 300 and 800 representatives.
+
+Subsequent targets grow toward the canonical node count. Growth uses the smaller
+of:
+
+- a geometric progression toward the full graph;
+- a maximum factor of 2.5 over the previous target.
+
+For each target, the selected distance is the threshold whose component count is
+closest without falling below the target when possible. Duplicate thresholds are
+removed. The minimum edge distance is always included as the finest selected
+threshold.
+
+This policy adapts the number of tiers to topology and distance distribution. A
+dataset with few unique distances may expose fewer tiers.
+
+## Deterministic cluster identity
+
+A prepared cluster identifier includes:
+
+- the distance threshold;
+- the first sorted member identifier;
+- a short SHA-1 digest of the sorted member identifiers.
+
+Cluster identity is deterministic for the same canonical graph and threshold.
+It is internal to one prepared layout and should not be used as an external
+biological identifier.
+
+## Representative selection
+
+The representative is always a canonical member of the cluster.
+
+When canonical nodes carry coordinates, PhyloLens selects the member closest to
+the member centroid. Ties prefer higher internal degree, then identifier order.
+
+When coordinates are absent during cluster preparation, selection prefers:
+
+1. highest internal degree within the cluster;
+2. lexicographically smallest node identifier.
+
+Graphviz positions are computed later. Therefore, in the normal Newick and
+typing-data path, the representative is an internally well-connected member, not
+the node nearest the final `sfdp` centroid.
+
+## Cluster records
+
+Each prepared cluster stores:
+
+- members;
+- representative;
+- internal original edges;
+- boundary original edges;
+- threshold;
+- member count;
+- representative position;
+- member-derived bounds and radius;
+- aggregated public metadata.
+
+Internal and boundary edge lists support explicit expansion and connectivity
+preservation.
+
+## Quotient graph per tier
+
+For each coarse tier, canonical edge endpoints are mapped to representatives.
+
+- edges whose endpoints map to the same representative are internal and omitted;
+- edges between different representatives become prepared quotient edges;
+- duplicate representative pairs are collapsed deterministically;
+- the minimum available canonical distance is retained for each pair.
+
+The quotient graph is materialized during preparation. Viewport reads do not
+recompute cluster connectivity.
+
+## Server LoD level semantics
+
+The store loads distinct non-null thresholds in descending order. A requested
+`lod_level` is clamped to that list.
+
+The minimum threshold is treated as finest detail and maps to the
+`node_positions` table rather than cluster representatives. Consequently:
+
+```text
+lod_level 0            → broadest available prepared tier
+intermediate levels    → progressively finer representative tiers
+last available level   → individual canonical nodes
 ```
 
-Bounds filtering applies to the representative and ready-node paths; the
-`cluster_id` expansion path intentionally ignores bounds so an opened cluster
-always returns all its members. `max_nodes` caps the primary slice read; detail
-views may surface off-screen neighbor nodes so returned edges keep both
-endpoints, and cluster expansion may return all members of the opened cluster.
-The result carries `total_node_count` and `truncated`.
+When the graph has no meaningful coarse threshold, reads fall back to individual
+nodes.
 
-## Client: Mapping Zoom to a Tier (`app/workbench/viewport/viewportQuery.ts`)
+A request without `lod_level` uses server compatibility behavior:
 
-The client turns Sigma's camera `ratio` (smaller ratio = zoomed in) into a tier
-index using **geometric bands**. Boundary for tier `k`:
+- `zoom < 1` selects LoD level `0`;
+- otherwise it reads finest detail.
 
-```
-B_k = GRAPH_VIEWER_DETAIL_RATIO_THRESHOLD * GRAPH_VIEWER_LOD_RATIO_STEP^(k-1)
-    = 0.8 * 0.4^(k-1)
-```
+The browser library normally sends an explicit LoD level.
 
-`semanticLodLevelForCameraRatio(ratio, lodTierCount)`:
+## Browser semantic zoom
 
-- `ratio >= 0.8` → tier `0` (overview).
-- otherwise walk boundaries `0.8 * 0.4^k` downward, incrementing the tier each
-  time `ratio` is still below the boundary, clamped to `lodTierCount - 1`.
+The browser maps Sigma camera ratio to a LoD level. A larger camera ratio means
+a broader view; a smaller ratio means a closer view.
 
-So each finer tier needs ~2.5× more zoom-in than the previous one. Example with
-3 tiers: `ratio >= 0.8` → 0; `0.32 <= ratio < 0.8` → 1; `ratio < 0.32` → 2.
+Current defaults:
 
-### Hysteresis (anti-oscillation)
+| Setting | Value | Meaning |
+| --- | ---: | --- |
+| Broad-detail boundary | `0.8` | Ratios at or above this value use level `0` |
+| Standard tier ratio step | `0.4` | Boundary multiplier when fewer than 8 tiers exist |
+| Dense tier ratio step | `2/3` | Boundary multiplier when 8 or more tiers exist |
+| Tier-change hysteresis | `0.05` | Dead band around a boundary |
+| Camera debounce | `120 ms` | Standard viewport refresh delay |
+| LoD-change debounce | `60 ms` | Faster refresh when the semantic tier changes |
 
-`semanticLodLevelForCameraRatioWithHysteresis(ratio, lodTierCount, currentLodLevel)`
-wraps the band mapping with a symmetric dead-band of
-`GRAPH_VIEWER_LOD_RATIO_HYSTERESIS = 0.05` around the boundary being crossed.
-While the camera ratio sits inside `[boundary - 0.05, boundary + 0.05]`, the
-current tier is held instead of flipping. This stops small zoom wobble near a
-boundary from thrashing back and forth between two server queries.
+Hysteresis prevents rapid alternation between adjacent levels near a zoom
+boundary.
 
-`GraphViewer` passes the last requested tier as `currentLodLevel`, so the
-dead-band is always anchored on the tier currently on screen. A LoD-tier change
-refreshes after `GRAPH_VIEWER_LOD_CHANGE_DEBOUNCE_MS = 60ms`; same-tier pans
-after `DEFAULT_GRAPH_VIEWER_DEBOUNCE_MS = 120ms`.
+## Small-graph behavior
 
-### Pan-Driven Exploration
+The browser treats a prepared graph with at most 6,000 canonical nodes as small.
+It requests the finest tier and, once loaded, suppresses camera-driven viewport
+refreshes. This avoids unnecessary server queries when the complete graph fits
+within the intended renderer budget.
 
-Same-tier pan behavior depends on the tier:
+The public browser load path defaults to a viewport budget of 6,000 nodes, while
+the server HTTP default is 2,500 and the hard maximum is 20,000. The client may request a different
+budget through the public load options.
 
-- **Tier 0** carries no bounds — it is a fixed global overview, so a same-tier
-  pan would refetch the identical slice and is skipped.
-- **Tiers > 0** are bounds-driven, so a same-tier pan shifts the visible region
-  and schedules a debounced, bounded refetch that reveals the nodes the camera
-  moved onto. No refetch moves the camera, so exploration stays smooth, and the
-  debounce collapses a burst of pan events into a single query.
+The service can include neighbour nodes required to preserve edge endpoints, so
+the response node count can exceed the number selected directly by the viewport
+bounds.
 
-Trees at or below `GRAPH_VIEWER_SMALL_TREE_NODE_THRESHOLD = 2500` nodes are
-drawn once at tier 0 and never re-queried on camera movement (LoD-crossing zooms
-still transition). This threshold sits deliberately below the
-`DEFAULT_GRAPH_VIEWER_MAX_NODES = 5000` per-query node cap, so mid-size trees
-between the two values still use bounded pan-refetch instead of freezing on the
-overview.
+## Viewport bounds
 
-## Complexity
+For non-global coarse or intermediate reads, the client expands the camera bounds
+by 50% in each direction before querying. The padded region reduces visible
+loading at the screen edge during small camera movements.
 
-Tier construction is prepare-time: Union-Find is near-linear in edges per
-threshold, over up to 16 thresholds. Viewport reads are index-bounded SQLite
-queries whose primary slice tracks `max_nodes` rather than the total node count;
-edge-preserving neighbor nodes and cluster expansion can add nodes after that
-primary read. Benchmark the whole `read_viewport` call, not just the index
-lookup, since metadata attachment and edge assembly are part of the cost.
+The initial broad request omits bounds. Finest-tier requests for known small
+graphs also omit bounds.
+
+## Metadata at different levels
+
+Finest-detail nodes receive their public node metadata.
+
+Cluster representatives receive aggregated metadata:
+
+- numeric fields: mean of non-null member values;
+- categorical and boolean fields: mode with deterministic tie-breaking;
+- internal category counts remain available to the visual-mapping layer but are
+  not exposed as public metadata fields.
+
+A representative is therefore a visual summary of a set of members, not an
+ordinary sample record.
+
+## Truncation
+
+Every viewport request has `max_nodes`. The response reports:
+
+- `total_node_count`, the number of directly eligible nodes or representatives;
+- `truncated`, whether the direct selection exceeded the budget.
+
+Truncation is observable and should not be interpreted as a complete graph view.
+Host applications may adjust the budget, change zoom, or use explicit cluster
+expansion.
+
+## Explicit cluster expansion
+
+A viewport query with `cluster_id` bypasses normal tier selection and returns:
+
+- all cluster members at finest detail;
+- internal canonical edges;
+- neighbouring representatives needed for external connectivity;
+- server-generated meta-edges for bundled boundary connections.
+
+Expansion is described in [Cluster interaction](./EXPAND_COLLAPSE.md).
+
+## Evaluation considerations
+
+LoD evaluation should distinguish:
+
+- preparation cost of materializing thresholds and quotient edges;
+- response size per tier;
+- visible node and edge counts;
+- viewport query latency;
+- client snapshot-application latency;
+- stability around tier boundaries;
+- topology and metadata preserved by representative aggregation.
+
+The threshold policy is deterministic but heuristic. Its effectiveness should be
+supported by experimental results rather than described as optimal.

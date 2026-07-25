@@ -1,201 +1,270 @@
-# Data Model
+# Data model and persistence
 
-This document defines the data contracts that flow through PhyloLens and the
-storage schema that persists prepared layouts. It is the reference for
-[`ARCHITECTURE_SPEC.md`](./ARCHITECTURE_SPEC.md) and
-[`SERVER_PIPELINE.md`](./SERVER_PIPELINE.md).
+PhyloLens uses separate models for normalized input, prepared layout artifacts,
+and HTTP responses. This separation prevents source-format concerns from leaking
+into layout and rendering code.
 
-Three layers of models exist:
+```text
+raw Newick / typing profiles / metadata
+  → CanonicalDataset
+  → PreparedLayoutArtifacts
+  → persisted layout version
+  → viewport, region, and search responses
+```
 
-1. **Canonical models** — the normalized input (`domain/models.py`).
-2. **Prepared/layout models** — server-internal materialization records
-   (`pipeline/models.py`).
-3. **Viewport wire models** — the request/response types crossing the HTTP
-   boundary (`http/graph/router.py`, mirrored client-side in `api/graphClient.ts`).
+## Canonical domain model
 
-## 1. Canonical Models (`domain/models.py`)
+The canonical model is defined in `domain/models.py` and is the only graph shape
+accepted by the preparation pipeline.
 
 ### `CanonicalDataset`
 
-The correctness-first normalized representation produced by
-`normalize_dataset`. Input to prepare; never shipped whole to the browser.
-
-| Field | Type | Notes |
+| Field | Type | Meaning |
 | --- | --- | --- |
-| `dataset_id` | `str` | ≥1 char |
-| `nodes` | `list[CanonicalNode]` | graph nodes |
-| `edges` | `list[CanonicalEdge]` | graph edges |
-| `metadata_schema` | `list[MetadataField]` | field key + type |
-| `metadata_by_node_id` | `dict[str, dict]` | per-node metadata values |
-| `ancillary_rows_by_node_id` | `dict[str, list[dict]]` | multi-valued metadata |
-| `source` | `DatasetSource` | `format`, `generated_at`, `provenance` |
+| `dataset_id` | `str` | Caller-supplied dataset name and namespace |
+| `nodes` | `list[CanonicalNode]` | Canonical graph nodes |
+| `edges` | `list[CanonicalEdge]` | Canonical graph edges |
+| `metadata_schema` | `list[MetadataField]` | Public scalar metadata fields |
+| `metadata_by_node_id` | `dict[str, dict]` | Aggregated metadata for each node |
+| `ancillary_rows_by_node_id` | `dict[str, list[dict]]` | Original ancillary rows joined to each node |
+| `source` | `DatasetSource` | Source format, generation timestamp, and optional provenance |
 
 ### `CanonicalNode`
 
-`id` (≥1 char), optional `x`/`y`, optional topology hints (`cluster_id`,
-`is_cluster_proxy`, `is_cluster_skeleton`), optional metrics (`subtree_size`,
-`leaf_count`).
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | non-empty `str` | Stable canonical identifier |
+| `x`, `y` | `float | None` | Optional source-provided coordinates |
+| `cluster_id` | `str | None` | Optional topology hint |
+| `is_cluster_proxy` | `bool | None` | Optional source hint |
+| `is_cluster_skeleton` | `bool | None` | Optional source hint |
+| `subtree_size` | positive `int | None` | Optional structural metric |
+| `leaf_count` | positive `int | None` | Optional structural metric |
+
+Newick and typing-data normalization currently produce topology and identifiers;
+coordinates are normally assigned later by the layout pipeline.
 
 ### `CanonicalEdge`
 
-`id` (≥1 char), `source`, `target` (node IDs), `distance` (`float | None`, ≥0).
-Distances are the branch lengths used for threshold clustering; the prepare
-path requires them (`ensure_graph_edge_distances` fills missing distances
-with `1.0` and emits a warning).
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | non-empty `str` | Deterministic edge identifier |
+| `source` | non-empty `str` | Source node identifier |
+| `target` | non-empty `str` | Target node identifier |
+| `distance` | non-negative `float | None` | Branch or allelic distance |
 
-`DatasetSource.format` is `SourceFormat` — `"newick"` or `"typing_data"`.
+Every edge entering preparation must reference existing nodes and carry a finite,
+non-negative distance. Normalization assigns a uniform distance only when the
+entire input is unweighted; a partially weighted graph is rejected by the
+prepare pipeline.
 
-## 2. Metadata Rules
+### Metadata types
 
-### Internal-key filtering (`domain/metadata_keys.py`)
+`MetadataField.type` is one of:
 
-Two families of keys are internal and must never surface in public payloads:
-
-```python
-PROFILE_COUNT_FIELD = "profile_count"
-CATEGORY_COUNT_FIELD_PREFIX = "__category_count__"
-
-def is_internal_metadata_key(key: str) -> bool:
-    return key == PROFILE_COUNT_FIELD or key.startswith(CATEGORY_COUNT_FIELD_PREFIX)
+```text
+string | number | boolean | null
 ```
 
-They are filtered from `metadata_schema`, node metadata, and cluster metadata.
+Published metadata schemas exclude internal aggregation fields. Ancillary-row
+aggregation uses renderer-only fields for profile counts and category counts.
+Those fields may be attached to viewport node and representative metadata, but
+they are omitted from the schema, search matching, and region summary output.
 
-### Cluster metadata aggregation (`store.aggregate_cluster_metadata`)
+## Prepared layout model
 
-A cluster representative summarizes its members' metadata:
+Preparation converts a canonical dataset into immutable artifacts identified by
+`(dataset_id, layout_version)`.
 
-- **Numeric fields** (`"number"`): **mean** of non-null values.
-- **Categorical / boolean fields** (`"string"`, `"boolean"`): **mode** (most
-  common non-null value), with an alphabetical tie-break for determinism.
+### `PreparedLayoutArtifacts`
 
-## 3. Prepared / Layout Models (`pipeline/models.py`)
-
-`LayoutStatus = Literal["pending", "refining", "ready", "degraded", "failed"]`.
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `dataset` | `CanonicalDataset` | Normalized graph and metadata |
+| `layout_version` | `str` | Deterministic preparation fingerprint |
+| `clusters` | `tuple[PreparedCluster, ...]` | Clusters materialized across distance thresholds |
 
 ### `PreparedCluster`
 
-| Field | Type | Notes |
+| Field | Type | Meaning |
 | --- | --- | --- |
-| `cluster_id` | `str` | deterministic hash |
-| `threshold` | `float \| None` | distance threshold; `None` = finest detail |
-| `member_node_ids` | `tuple[str, ...]` | members |
-| `representative_node_id` | `str` | member nearest the cluster's layout centroid (not a distance medoid) |
-| `internal_edge_ids` | `tuple[str, ...]` | edges within the cluster |
-| `boundary_edge_ids` | `tuple[str, ...]` | edges crossing the boundary |
-| `member_count` | property | `len(member_node_ids)` |
+| `cluster_id` | `str` | Deterministic identifier derived from threshold and members |
+| `threshold` | `float | None` | Distance threshold associated with the cluster |
+| `member_node_ids` | `tuple[str, ...]` | Canonical member nodes |
+| `representative_node_id` | `str` | Member used as the visible representative |
+| `internal_edge_ids` | `tuple[str, ...]` | Original edges contained by the cluster |
+| `boundary_edge_ids` | `tuple[str, ...]` | Original edges crossing the cluster boundary |
 
-### `PreparedEdge`
+Representative selection is deterministic. When source coordinates are
+available, the representative is closest to the member centroid, with internal
+degree and identifier tie-breaks. Without source coordinates, the member with
+the highest internal degree is selected, then the lexicographically smallest
+identifier.
 
-Per-tier quotient edge: `dataset_id`, `layout_version`, `lod_level` (0-based),
-`edge_id`, `source`, `target` (representatives at that tier), `distance`.
+### Layout records
 
-### `ClusterLayout` / `NodeLayoutPosition`
+`ClusterLayout` stores one representative position and spatial extent for a
+cluster:
 
-`ClusterLayout` holds the representative position (`x`, `y`), `radius`, `bounds`
-(`min_x/max_x/min_y/max_y`), `member_count`, and `status`. `NodeLayoutPosition`
-holds one member's `x`, `y`, `cluster_id`, and `status` at finest detail.
+- `x`, `y`;
+- `radius`;
+- `bounds`;
+- `member_count`;
+- `status`.
 
-### Viewport read models
+`NodeLayoutPosition` stores the finest-detail coordinates of one canonical node.
+`PreparedEdge` stores one quotient edge for one LoD level.
 
-- `ViewportNode`: `node_id`, `cluster_id`, `x`, `y`, `layout_status`,
-  `member_count` (default 1), `is_representative` (default False), `metadata`.
-- `ViewportEdge`: `edge_id`, `source`, `target`, `distance`, `is_meta`
-  (default None), `bundled_edge_count` (default None).
-- `ViewportReadResult`: `nodes`, `edges`, `total_node_count`, `truncated`,
-  `layout_status`, `global_bounds`, `metadata_schema`.
-- `RegionReadResult`: the `ViewportReadResult` fields plus `aggregated_metadata`
-  (`dict[str, str | float | bool | None]`) — backs the `/region` box-select read
-  (see [§4 Region wire models](#region-wire-models-apigraphpy)).
+### Layout status
 
-## 4. Viewport Wire Models
+```text
+pending | refining | ready | degraded | failed
+```
 
-The API maps `ViewportNode`/`ViewportEdge` onto `GraphViewportNode`/
-`GraphViewportEdge` almost 1:1. See
-[`ARCHITECTURE_SPEC.md`](./ARCHITECTURE_SPEC.md#core-contracts) for the query and
-response field lists and [`CLIENT_RENDERING.md`](./CLIENT_RENDERING.md) for how
-the client interprets them.
+A successful Graphviz fallback publishes `degraded`; a fully computed layout
+publishes `ready`. `pending` and `refining` describe in-flight work. `failed` is
+a terminal job state and is not published as a readable layout version.
 
-### Region wire models (`http/graph/router.py`)
+## Read models
 
-The `/region` route (hand-drawn box select) uses its own request/response pair:
+Repository readers return server-internal result objects before HTTP mapping.
 
-- `GraphRegionQuery`: `dataset_id`, optional `layout_version`, required bounds
-  `xmin/xmax/ymin/ymax` (validated `xmax >= xmin`, `ymax >= ymin`), and
-  `max_nodes` (1–`HARD_MAX_VIEWPORT_NODES`). It carries no `zoom`/`lod_level` —
-  a region read is always finest-detail nodes inside the box.
-- `GraphRegionResponse`: the viewport response shape (`dataset_id`,
-  `layout_version`, `layout_status`, `truncated`, `total_node_count`, `nodes`,
-  `edges`, `metadata_schema`) **plus** `aggregated_metadata`
-  (`dict[str, str | float | bool | None]`) summarizing the selected nodes — mode
-  for categorical/boolean fields, mean for numeric. It is backed by
-  `store.read_region`, which returns a `RegionReadResult` (the `ViewportReadResult`
-  fields plus `aggregated_metadata`).
+### `ViewportNode`
 
-## 5. Prepared Layout Store Schema
+| Field | Meaning |
+| --- | --- |
+| `node_id` | Visible node or representative identifier |
+| `cluster_id` | Cluster represented by the node; finest-detail nodes retain their cluster association |
+| `x`, `y` | Global prepared-layout coordinates |
+| `layout_status` | Status of the published layout |
+| `member_count` | Number of canonical nodes represented; `1` at finest detail |
+| `is_representative` | Whether the node represents a multi-node cluster |
+| `metadata` | Node or cluster metadata visible to the caller |
 
-`PreparedLayoutStore` materializes every prepared artifact into a local SQLite
-database, while `PostgresPreparedLayoutStore` uses the same logical artifact
-tables in Postgres for distributed production deployments. All tables are keyed
-by `(dataset_id, layout_version)` so multiple datasets and layout versions can
-coexist. The store replaced the earlier in-memory JSON + STR R-tree model:
-bounds and position lookups are served by ordinary database indexes on the
-coordinate columns rather than a bespoke spatial index.
+### `ViewportEdge`
 
-Layout versions are published explicitly. A worker writes a new version with
-`datasets.status = "refining"` and flips it to `ready` or `degraded` only after
-all artifact tables have been populated. Reads that omit `layout_version` resolve
-only published versions, so an in-flight prepare cannot replace the previous
-ready layout with a partial one.
+Ordinary edges preserve original endpoints and distance. Meta-edges produced by
+cluster expansion additionally expose:
+
+- `is_meta = true`;
+- `bundled_edge_count`, the number of original boundary edges represented.
+
+### `ViewportReadResult`
+
+A viewport result includes:
+
+- visible nodes and edges;
+- `total_node_count` before the response budget is applied;
+- `truncated`;
+- `layout_status`;
+- global layout bounds;
+- public metadata schema.
+
+### `RegionReadResult`
+
+Region reads return finest-detail nodes within a rectangular selection and add
+`aggregated_metadata`:
+
+- numeric fields: arithmetic mean of non-null values;
+- categorical and boolean fields: mode, with deterministic tie-breaking.
+
+### Search results
+
+`SearchMatch` contains the canonical node identifier, score, matched text,
+cluster association, metadata, and global position when available. Search does
+not return generated union identifiers as user-facing matches.
+
+## Layout identity
+
+`layout_version` is a SHA-256-derived fingerprint of all persisted preparation
+inputs and `LAYOUT_PIPELINE_VERSION`.
+
+The fingerprint includes:
+
+- dataset identifier;
+- sorted node and edge records;
+- distances;
+- public metadata schema;
+- node metadata;
+- ancillary rows;
+- source format and stable provenance fields.
+
+The generated timestamp is excluded. JSON keys and collections are ordered
+canonically, so Python dictionary insertion order does not affect identity.
+Metadata changes therefore invalidate reuse even when topology remains the same.
+
+## Persistence model
+
+PhyloLens provides the same logical artifact model through SQLite and
+PostgreSQL.
+
+- **SQLite** supports the in-process service mode.
+- **PostgreSQL** supports durable job coordination and multiple API/worker
+  processes.
+
+All artifact tables are keyed by `(dataset_id, layout_version)`.
 
 ```mermaid
 erDiagram
-  datasets ||--o{ prepared_clusters : has
-  datasets ||--o{ prepared_edges : has
-  datasets ||--o{ graph_edges : has
-  datasets ||--o{ node_positions : has
-  datasets ||--o{ node_metadata : has
-  datasets ||--o{ cluster_metadata : has
-  datasets ||--o{ metadata_schema : has
-  prepared_clusters ||--o{ cluster_members : contains
+  datasets ||--o{ prepared_clusters : contains
+  datasets ||--o{ cluster_members : contains
+  datasets ||--o{ graph_edges : contains
+  datasets ||--o{ prepared_edges : contains
+  datasets ||--o{ node_positions : contains
+  datasets ||--o{ node_metadata : contains
+  datasets ||--o{ cluster_metadata : contains
+  datasets ||--o{ metadata_schema : contains
 ```
 
-The artifact tables are:
+| Table | Purpose |
+| --- | --- |
+| `datasets` | Publication status and timestamps for each layout version |
+| `prepared_clusters` | Cluster membership summary, representative, position, radius, and bounds per threshold |
+| `cluster_members` | Cluster-to-node membership |
+| `graph_edges` | Original canonical graph edges |
+| `prepared_edges` | Quotient edges per LoD level |
+| `node_positions` | Finest-detail global node coordinates |
+| `node_metadata` | Public node metadata encoded as JSON |
+| `cluster_metadata` | Aggregated public cluster metadata encoded as JSON |
+| `metadata_schema` | Field key and canonical scalar type |
 
-| Table | Purpose | Key columns |
-| --- | --- | --- |
-| `datasets` | one row per prepared `(dataset_id, layout_version)` | `status`, `created_at`, `updated_at` |
-| `prepared_clusters` | clusters at every threshold | `cluster_id`, `threshold`, `representative_node_id`, `member_count`, `x`, `y`, `radius`, `min_x/max_x/min_y/max_y`, `status` |
-| `cluster_members` | cluster → member node membership | `cluster_id`, `node_id` |
-| `graph_edges` | original graph edges | `edge_id`, `source_node_id`, `target_node_id`, `distance` |
-| `prepared_edges` | per-tier quotient edges | `lod_level`, `edge_id`, `source_node_id`, `target_node_id`, `distance` |
-| `node_positions` | finest-detail node coordinates | `cluster_id`, `node_id`, `x`, `y`, `status` |
-| `node_metadata` | per-node metadata as JSON | `node_id`, `metadata_json` |
-| `cluster_metadata` | aggregated cluster metadata as JSON | `cluster_id`, `metadata_json` |
-| `metadata_schema` | public field schema | `field_key`, `field_type` |
+PostgreSQL additionally stores durable prepare jobs and lease state in
+`prepare_jobs`.
 
-Postgres production mode also stores durable prepare jobs in `prepare_jobs`
-beside these artifact tables. Schema files live under
-`code/server/sql/{postgres,sqlite}/create-schema.sql`; the applied Postgres
-checksum is tracked by `phylo_lens_schema_version`.
+## Publication semantics
 
-Indexes that make viewport reads cheap:
+A worker publishes a layout transactionally at the application level:
 
-- `idx_prepared_clusters_bounds (dataset_id, layout_version, threshold, max_x, min_x, max_y, min_y)`
-  — bounds-overlap reads for cluster representatives at a selected LoD tier.
-- `idx_prepared_clusters_threshold (dataset_id, layout_version, threshold)`
-  — resolve a `lod_level` to its threshold and select that tier's clusters.
-- `idx_node_positions_xy (dataset_id, layout_version, x, y)`
-  — bounds reads for finest-detail "ready" nodes.
-- `idx_prepared_edges_endpoints`, `idx_graph_edges_endpoints`, and
-  `idx_graph_edges_target_endpoints` — edge lookups by endpoint at a given tier,
-  including reverse endpoint probes for expansion/boundary reads.
+1. clear any incomplete artifact set for the same identity;
+2. create the dataset row with status `refining`;
+3. persist canonical artifacts;
+4. persist node and cluster layouts;
+5. persist prepared quotient edges;
+6. change the dataset status to `ready` or `degraded`.
 
-**`threshold` semantics.** In `prepared_clusters`, `threshold` is `NULL` only
-where a cluster represents finest detail; otherwise it is one of the selected
-distance thresholds. `_threshold_for_lod_level` reads the distinct non-NULL
-thresholds `ORDER BY threshold DESC`, clamps `lod_level` into range, and returns
-`None` when the requested level lands on the minimum threshold (i.e. finest
-detail resolves to individual node positions rather than representatives). This
-is the single source of truth linking `lod_level` to a threshold — see
-[`LOD_AND_CLUSTERING.md`](./LOD_AND_CLUSTERING.md).
+Reads that omit `layout_version` resolve only the latest published version. A
+partially written `refining` version cannot replace an earlier readable layout.
+
+## Query indexes
+
+The schema uses ordinary database indexes rather than a separate spatial-index
+service. Important access patterns include:
+
+- cluster-bounds overlap at a selected threshold;
+- finest-detail node position bounds;
+- prepared-edge lookup by visible representatives;
+- original-edge lookup by node endpoints;
+- metadata and cluster-membership lookup by layout identity.
+
+The concrete SQLite and PostgreSQL schemas are maintained under
+`code/server/sql/`.
+
+## Contract boundaries
+
+The canonical and prepared models are internal Python contracts. Browser
+applications should depend only on:
+
+- the package-root TypeScript API;
+- the versioned HTTP schemas documented in [API reference](./API_REFERENCE.md).
+
+Database tables and internal dataclasses are not public compatibility contracts.

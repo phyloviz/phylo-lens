@@ -1,177 +1,209 @@
-# Backlog — Tuning & Scalability Follow-ups
+# Known limitations and future work
 
-Tracked items surfaced by the `task/gf/full_code_reorganization` audit. These are
-**tuning / optimization judgment calls**, not correctness bugs — the branch is
-green (server 57 passed, client 107 passed, `tsc` clean) without them.
+This document records current limitations that are relevant to users,
+deployment, or thesis evaluation. It is not a history of resolved implementation
+tasks.
 
-Each item is deferred deliberately because changing it trades off behavior that
-needs a product/perf decision, not a mechanical fix.
+Items are grouped by impact. They are not commitments to a specific release.
 
----
+## Evaluation-critical work
 
-## 1. Debounce / suppression tuning (perceived LoD responsiveness) — RESOLVED
+### Reproducible experimental harness
 
-**Area:** client viewport refresh timing.
+The core runtime is feature-frozen, but the thesis evaluation harness remains to
+be implemented under `eval/`.
 
-**Resolution:** lowered `DEFAULT_GRAPH_VIEWER_DEBOUNCE_MS` from 250 → 120ms
-(`app/workbench/viewport/viewportQuery.ts`) for snappier same-level panning. This is the only
-genuine perf knob: LoD-level changes already bypass the debounce and refresh
-immediately (`ViewportSyncController.scheduleViewportRefreshForCamera`),
-so zoom-across-threshold was never delayed.
+It should record:
 
-**Left unchanged (correctness guards, not perf padding):**
-- `sigmaDragController.ts:122,148,181` — `suppressViewChangesFor(250)` at drag
-  start/move/end. These stop a node-drag from being misread as a viewport pan
-  (which would fire a spurious server query). `suppressViewChangesFor` gates
-  `emitViewChange` (`sigmaRenderer.ts:481`).
-- `sigmaRenderer.ts:185` — `suppressViewChangesFor(450)` covers the programmatic
-  camera animation on node-focus centering; dropping it would let the recenter
-  emit a stray query and jump.
+- dataset identity and source;
+- commit and release version;
+- hardware and operating system;
+- browser and runtime versions;
+- repetitions, warm-up, timeout, and cache policy;
+- stage timings, memory, response sizes, and rendered-element counts;
+- raw results in a machine-readable format;
+- scripts that generate tables and figures.
 
-**Ruled out earlier:** the 4s ForceAtlas2 motion is **not** involved — gated by
-`isForceMotionLayout()` (`sigmaForceMotion.ts:100`); the LoD path uses
-`layout: "server"`, so force motion never runs during semantic zoom.
+The evaluation should distinguish full preparation from prepared-layout reuse.
 
----
+### Stage-level timing
 
-## 2. sfdp layout timeout risk on large trees (~12k+ nodes) — RESOLVED
+The server currently exposes selected internal timing through logs and
+normalization statistics, but it does not yet produce one complete structured
+record for every preparation stage. The evaluation harness should capture, with
+minimal measurement overhead:
 
-**Area:** server global layout.
+- parsing/input ingest;
+- PhyloLib distance calculation;
+- goeBURST;
+- canonical normalization;
+- cluster/LoD construction;
+- Graphviz layout;
+- persistence;
+- initial viewport read and serialization;
+- client snapshot conversion and application;
+- first browser paint.
 
-**Resolution:** `sfdp` confirmed as the right multilevel choice for 12k+ nodes
-(O(V log V)); the subprocess boundary, not the algorithm, was the liability.
-Hardened in `layout.py`:
-- `maxiter` is now node-count-aware (`sfdp_maxiter`), scaling up as
-  `round(n * log2(n))` so larger graphs get more convergence work.
-- The `sfdp` subprocess no longer has a wall-clock timeout; prepare runs on the
-  background worker, so a slow large-tree layout is allowed to finish instead of
-  degrading to the circular fallback.
-- The degrade is no longer silent: `compute_global_node_positions` returns a
-  reason (`sfdp_missing` / `sfdp_failed` / `sfdp_incomplete`)
-  threaded through `PreparedLayoutResult.layout_degraded_reason` to a truthful
-  client warning in the graph API.
-- Separately, the additive `2.5 + distance` edge length (which crushed branch
-  ratios) was replaced with ratio-preserving multiplicative scaling normalized
-  by the per-graph median distance, clamped to bound outliers.
+### Layout-parameter study
 
-**Follow-up (still open, needs decision):** pre-cluster before sfdp for N above
-a threshold as a further scalability lever. Requires benchmarking on a real
-large tree to pick the threshold.
+`Graphviz sfdp` iteration count and edge-length scaling are deterministic
+heuristics. Their cost and layout quality should be evaluated rather than
+presented as optimal. Any change to the pipeline policy requires a new
+`LAYOUT_PIPELINE_VERSION`.
 
----
+## Runtime limitations
 
-## 3. Per-threshold edge re-sort in clustering (`ingest.py`) — RESOLVED
+### PostgreSQL admission occurs after normalization
 
-**Area:** server clustering cost.
+The local backend reserves active-job capacity before Newick normalization or
+PhyloLib execution. The PostgreSQL job backend enforces its durable queue limit
+when the normalized canonical dataset is submitted.
 
-**Resolution:** the full edge list is now sorted once via `sort_edges_by_distance`
-(preserving the original `(distance, id)` tiebreak) and threaded into
-`partition_for_threshold()` through a new optional `sorted_edges` keyword. The
-`prepare_layout_artifacts` loop hoists that sort above the per-threshold loop, so
-the up-to-16 redundant `O(E log E)` sorts collapse to one.
+Consequently, concurrent typing-data requests to an API replica may perform
+PhyloLib work before PostgreSQL admission rejects excess jobs. A complete
+distributed solution would enqueue the raw request or reserve durable capacity
+before normalization.
 
-**Correctness preserved:** connected components are independent of union order, so
-the pre-sorted path is provably equivalent — verified byte-for-byte against the
-original per-threshold-sort path across branching and 200-node chain datasets over
-every selected threshold plus distance-spanning probes. The `<=` threshold filter
-and `partition_for_threshold`'s public signature are unchanged (default still
-sorts internally when no `sorted_edges` is supplied, keeping the direct test call
-in `test_prepared_layout.py` intact). Server suite: 57 passed.
+This does not affect correctness, but it can affect resource isolation under
+concurrent distributed load.
 
-**Note:** `threshold_component_counts()` and `distance_clusters()` each still sort
-once internally (a different `(distance, source, target)` tiebreak feeds their
-component-count/cluster-key logic). Those single sorts are not redundant and were
-left as-is; only the per-threshold repetition was the waste.
+### Superseded browser work is ignored, not fully cancelled
 
----
+The browser uses load generations and viewport request sequences so stale
+responses cannot commit renderer state. It does not currently propagate an
+`AbortSignal` through every fetch, poll delay, and server job.
 
-## 4. Typing-data input via Phylolib (MLST/cgMLST profiles) — IMPLEMENTED
+A superseded load may therefore continue consuming transport or server resources
+until it completes. Adding cooperative cancellation would reduce wasted work but
+requires an explicit job-cancellation contract for server-side preparation.
 
-**Status:** Implemented and **live-verified** against the bundled PhyloLib JAR.
-`data/phylolib.py` runs a two-stage subprocess (`distance hamming` →
-`algorithm goeburst --lvs=3`) through the configured Java runtime;
-`typing_profiles_to_graph` feeds the result through the existing `parse_newick`
-path and is wired into `normalize_dataset` via `NormalizeFormat.TYPING_DATA`.
-Requires the configured PhyloLib JAR to be readable; failures raise `ParseError`
-(400).
+### Completed local job metadata has no eviction policy
 
-Live verification (self-contained service image + full `prepare → poll →
-viewport`) confirmed the `ml:` profile layout (tab-separated, header row), Java
-JAR invocation, and flag behavior, and
-surfaced one real issue now handled: **goeBURST emits a forest** (one
-`;`-terminated tree per connected component) for typical typing data. The
-forest is parsed per-component and merged into a single **disconnected**
-`ParsedGraph` (no synthetic root), so no ST is dropped; clustering/sfdp tolerate
-disconnected components end-to-end. The original design notes below are retained
-for context.
+The local registry removes completed futures and full prepared results, but keeps
+small terminal snapshots and successful layout-key mappings for process-lifetime
+reuse. Very long-lived services receiving many distinct datasets may eventually
+benefit from TTL or LRU eviction.
 
-**Area:** server ingest — new input format.
+The current behavior is suitable for evaluation and bounded single-service
+usage; it should be monitored before indefinite multi-tenant deployment.
 
-**Motivation:** phylo-lens today only accepts **Newick**, i.e. data someone else
-already resolved into a tree. Typing data (MLST/cgMLST/wgMLST/SNP) is the field's
-native format and arrives as an **allelic profile matrix**, not a tree — so a user
-with a profile table cannot currently use phylo-lens at all. Accepting profiles
-directly makes the tool a consumer of the primary data format (PubMLST / Enterobase
-/ BIGSdb), not a downstream viewer. Scoped as a **core contribution**.
+### Partially weighted graphs are rejected
 
-**Tool:** [Phylolib](https://github.com/phyloviz/phylolib) — a phylogenetics
-algorithm CLI (part of the PHYLOViZ web-platform stack). Delivered as a **Docker
-image** (maintainer will publish images), so phylo-lens does **not** embed a JVM;
-it treats Phylolib as an external containerized tool, the same subprocess pattern
-`sfdp` already uses in `layout.py`.
+If all edges lack distance, PhyloLens assigns unit distance. If only some edges
+lack distance, preparation fails.
 
-Relevant CLI surface:
-```
-phylolib distance (hamming|grapetree|kimura) -d ml:<profiles>   # profiles -> distance matrix
-phylolib algorithm goeburst -o newick:<tree>                    # matrix -> Full MST as Newick
-```
+A future input policy could support an explicit missing-distance strategy, but it
+must not silently mix biological branch lengths with arbitrary fallback values.
 
-**Design — two-stage subprocess feeding the EXISTING Newick path:**
-```
-Profile matrix ──phylolib distance hamming (-d ml)──▶ distance matrix
-               ──phylolib algorithm goeburst -o newick─▶ Newick (+ allelic distances)
-                                                          │
-                                                          ▼
-                                       existing parse_newick → CanonicalDataset
-                                                          │
-                                                          ▼
-                     existing prepare / cluster / sfdp / LoD / color / wheel / region (UNCHANGED)
-```
-The **only** new server code is a thin `TypingProfile` normalizer path that shells
-out to the Phylolib container twice and hands the resulting Newick to
-`parse_newick`. Everything downstream operates on `CanonicalDataset`, so it is
-untouched. goeBURST produces a Full MST (a tree), so `-o newick` is lossless for
-the tree case.
+### Graphviz degradation is limited
 
-**Typing + Ancillary data — a join, not a format:** Phylolib's outputs
-(`newick|nexus|asymmetric|symmetric`) are all topology/distance formats; **none
-carry isolate/epidemiological metadata**, by design — Phylolib is an algorithm
-engine, not a metadata store. Ancillary data therefore does **not** flow through
-Phylolib. It joins to nodes by isolate `id` in phylo-lens's **existing metadata
-path** (exactly as the current Newick + auxiliary-CSV example already works). So
-Newick is the correct output; a "richer" format would not help the join.
+A missing, failed, or incomplete `sfdp` execution degrades to a circular layout.
+A timeout fails preparation. There is no secondary topology-aware layout engine.
 
-**Degrade posture:** typing-ingest is available only when the Phylolib container
-is reachable; the server still runs without it (mirrors the `sfdp` availability
-guard + observable degrade reason).
+### Typing-data algorithm parameters are fixed
 
-**Open implementation choices (defaults):** distance method default `hamming`
-(standard for allelic MLST; `grapetree` for cgMLST/wgMLST); goeBURST `lvs` default
-`3`; profile file contract (delimiter, id column, missing-allele token) to be
-defined and tested.
+The current public contract uses:
 
-**Optional future enrichment (NOT now):** also emit the `symmetric` distance
-matrix as a side artifact (Phylolib supports concatenated commands) to power a
-distance-matrix panel or client-side re-thresholding without recomputation. New
-feature, not required for typing-data ingest.
+- Hamming distance;
+- goeBURST;
+- `lvs = 3`.
 
----
+The API does not expose alternative PhyloLib distance methods or goeBURST
+parameters. Exposing them would change the reproducibility and fingerprint
+contract and should be designed explicitly.
 
-## Not in this list (already resolved on the branch)
+## Client limitations
 
-- **Filter-logic duplication** — viewport snapshot filtering now uses the single
-  `matchesFilterState` in `ancillary/filterEngine.ts`.
-- **Metadata / visual mappings / pies / filtering under LoD** — confirmed wired
-  and green.
-- **The "dome"** — fixed at the pipeline level (sfdp installed, stale store
-  cleared, topology-aware layout).
+### Reserved load fields are currently inactive
+
+The public TypeScript load type retains:
+
+- `layout.forceIterations`;
+- `lod.lodHint`;
+- `lod.viewport`.
+
+The production load path does not use them. They should either receive defined
+semantics in a future compatible release or be removed in the next intentional
+public-API breaking release.
+
+### Cluster expansion is not persistent
+
+Expanded members are a client-side patch. A subsequent ordinary viewport
+snapshot may replace the expansion. The server does not receive a set of expanded
+cluster identifiers with each viewport query.
+
+### No public programmatic expand/collapse API
+
+Cluster interaction is currently driven through renderer events and internal
+workbench methods. The package-root `PhyloLensView` exposes only `load()` and
+`dispose()`.
+
+A future host-control API may expose search, focus, expansion, filter, and mapping
+operations without exporting workbench or renderer internals.
+
+### `load()` is not a first-paint metric
+
+`load()` resolves after the first graph snapshot is applied to the renderer. It
+does not await the next browser animation frame or camera-fit animation. The
+evaluation must measure first paint separately.
+
+### Local filters operate on the visible snapshot
+
+Metadata filters do not execute against all persisted nodes. At coarse LoD, they
+operate on representative metadata; at fine LoD, they operate on visible node
+metadata. Server-side filtered graph queries would require a separate contract
+and index strategy.
+
+### Search is intentionally simple
+
+Search uses deterministic identifier and metadata matching with fixed scoring.
+It does not provide fuzzy matching, tokenization, stemming, or domain-specific
+ontology search.
+
+## Deployment and security limitations
+
+### No authentication or authorization
+
+The service has no user, tenant, or dataset-access model. Deployments that expose
+sensitive metadata must place PhyloLens behind an authenticated host application
+or gateway.
+
+### No TLS termination
+
+The FastAPI container serves HTTP. Production TLS should terminate at a reverse
+proxy, ingress, or platform load balancer.
+
+### No automatic retention management
+
+Prepared SQLite/PostgreSQL layout versions persist until removed by the operator.
+There is no built-in dataset deletion, retention period, quota, or garbage
+collection endpoint.
+
+### PostgreSQL schema migration is initialization-oriented
+
+The repository verifies an expected schema checksum and provides explicit schema
+initialization. It does not yet provide a multi-version migration framework.
+
+## Documentation and project governance
+
+Before broad external contribution, the repository should confirm:
+
+- an explicit open-source license file approved by the project owners;
+- contribution and code-of-conduct policy when external contributors are
+  expected;
+- release ownership and npm/GHCR recovery procedures shared beyond one person;
+- archival or mirroring policy for the INESC-ID GitLab repository.
+
+## Out of scope for the current thesis implementation
+
+The following are intentionally not part of the current core:
+
+- browser-side global layout;
+- Kubernetes manifests;
+- real-time collaborative state;
+- write/edit operations on phylogenetic data;
+- evolutionary inference from sequence alignments;
+- generic graph-database querying;
+- automatic biological interpretation of clusters;
+- a replacement for PhyloLib, Graphviz, or a dedicated phylogenetic inference
+  pipeline.
