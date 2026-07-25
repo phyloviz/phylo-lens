@@ -1,13 +1,12 @@
-FROM phyloviz/phylolib@sha256:57265021d9e908a84d948780466303195b9e9e71adf1bc23bff2e8143a242522
+FROM phyloviz/phylolib@sha256:f1cc154814efdf45cd38b3ae13e0434e74a7b6ee5ab0b31679e822841fbc5e17
 
 ARG VERSION=0.1.0
 
 LABEL org.opencontainers.image.title="PhyloLens API service" \
       org.opencontainers.image.description="Computational API service for PhyloLens prepared layouts and viewport reads" \
       org.opencontainers.image.version="${VERSION}" \
-      org.opencontainers.image.base.name="phyloviz/phylolib@sha256:57265021d9e908a84d948780466303195b9e9e71adf1bc23bff2e8143a242522" \
-      org.phylolens.phylolib.jar.path="/app/phylolib.jar" \
-      org.phylolens.phylolib.jar.sha256="ac8df04000f12f864cf60eb3e03871c6c2e80b00da52f90364a713e2dca49ebc"
+      org.opencontainers.image.base.name="phyloviz/phylolib@sha256:f1cc154814efdf45cd38b3ae13e0434e74a7b6ee5ab0b31679e822841fbc5e17" \
+      org.phylolens.phylolib.jar.path="/app/phylolib.jar"
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -29,7 +28,7 @@ COPY pyproject.toml README.md ./
 COPY src ./src
 COPY sql ./sql
 
-RUN pip install --no-cache-dir .
+RUN pip install --no-cache-dir '.[postgres]'
 
 RUN addgroup -S phylo-lens \
     && adduser -S -G phylo-lens -h /nonexistent -s /sbin/nologin phylo-lens \

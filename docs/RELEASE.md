@@ -20,11 +20,27 @@ and manual dispatch. It uses path-aware jobs:
 - server validation: install `.[test,dev]`, `ruff check`, server tests;
 - packed-package consumer: build the library, run `npm pack`, install the
   produced tarball in `examples/public-library-host`, build the fixture;
-- Docker service validation: build the service image with Buildx cache and run
-  `code/server/scripts/container-smoke.sh`.
+- Docker service validation: build and smoke `linux/amd64` and `linux/arm64`
+  as independent single-platform images with Buildx cache. CI loads only one
+  platform per matrix entry; `linux/arm64` uses QEMU on GitHub-hosted runners.
 
 Docker validation is skipped for client-only or documentation-only changes unless
 the workflow is run manually.
+
+## Service Architectures
+
+The published service image supports:
+
+- `linux/amd64`;
+- `linux/arm64`.
+
+PhyloLens builds from the `phyloviz/phylolib` source image pinned in
+`code/server/Dockerfile` by manifest-list digest, not by tag or architecture
+child digest. The Dockerfile is the canonical source for the pinned digest. The
+container smoke script is the executable source for the expected bundled JAR
+checksum; it verifies the JAR, Graphviz, Java, PhyloLib CLI startup,
+PostgreSQL-driver import, health, Newick prepare, and typing-data prepare for
+each tested platform.
 
 ## Creating a Release
 
@@ -41,7 +57,11 @@ the workflow is run manually.
    cd ../client && npm ci && npm run format:check && npm run lint && npm test
    npm run build && npm run build:lib && npm pack
    cd ../../examples/public-library-host && npm install && npm run build
-   cd ../../code/server && ./scripts/container-smoke.sh
+   cd ../../code/server
+   DOCKER_PLATFORM=linux/amd64 IMAGE_NAME=phylo-lens-service:local-amd64 \
+     CONTAINER_NAME=phylo-lens-service-smoke-amd64 ./scripts/container-smoke.sh
+   DOCKER_PLATFORM=linux/arm64 IMAGE_NAME=phylo-lens-service:local-arm64 \
+     CONTAINER_NAME=phylo-lens-service-smoke-arm64 ./scripts/container-smoke.sh
    ```
 
 4. Create and push the release tag:
@@ -78,9 +98,13 @@ Tags pushed for `vX.Y.Z`:
 - `X`;
 - `latest`.
 
-The workflow currently builds `linux/amd64` only. Do not enable multi-platform
-publication until the PhyloLib base image, Graphviz install, Java runtime, and
-container smoke test are verified for every target architecture.
+The workflow validates `linux/amd64` and `linux/arm64` as platform-specific
+images first. No public image is pushed before both architecture smoke tests
+pass. It then performs a separate Buildx publication with
+`platforms: linux/amd64,linux/arm64` and `push: true`, so GHCR receives one
+multi-platform manifest list carrying the existing version tags and OCI labels.
+This avoids relying on `load: true` for a multi-platform result, which the normal
+Docker image store cannot load in one operation.
 
 Use a protected `ghcr-production` GitHub environment for publication approval if
 the repository policy requires it.

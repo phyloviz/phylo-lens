@@ -6,7 +6,13 @@ CONTAINER_NAME="${CONTAINER_NAME:-phylo-lens-service-smoke}"
 PORT="${PORT:-18080}"
 SKIP_BUILD="${SKIP_BUILD:-0}"
 DOCKER_PLATFORM="${DOCKER_PLATFORM:-}"
+PHYLOLIB_JAR_SHA256_FILE="${PHYLOLIB_JAR_SHA256_FILE:-phylolib.jar.sha256}"
+PHYLOLIB_JAR_SHA256="${PHYLOLIB_JAR_SHA256:-}"
 export PORT
+
+if [ -z "$PHYLOLIB_JAR_SHA256" ]; then
+  PHYLOLIB_JAR_SHA256="$(tr -d '[:space:]' < "$PHYLOLIB_JAR_SHA256_FILE")"
+fi
 
 cleanup() {
   docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
@@ -14,20 +20,27 @@ cleanup() {
 
 cleanup
 if [ "$SKIP_BUILD" != "1" ]; then
-  docker build -t "$IMAGE_NAME" .
+  if [ -n "$DOCKER_PLATFORM" ]; then
+    docker build --platform "$DOCKER_PLATFORM" -t "$IMAGE_NAME" .
+  else
+    docker build -t "$IMAGE_NAME" .
+  fi
 fi
 
-docker_platform_args=()
 if [ -n "$DOCKER_PLATFORM" ]; then
-  docker_platform_args=(--platform "$DOCKER_PLATFORM")
+  docker run -d \
+    --platform "$DOCKER_PLATFORM" \
+    --name "$CONTAINER_NAME" \
+    -p "${PORT}:8000" \
+    -e PHYLO_LENS_DATA_DIR=/data \
+    "$IMAGE_NAME" >/dev/null
+else
+  docker run -d \
+    --name "$CONTAINER_NAME" \
+    -p "${PORT}:8000" \
+    -e PHYLO_LENS_DATA_DIR=/data \
+    "$IMAGE_NAME" >/dev/null
 fi
-
-docker run -d \
-  "${docker_platform_args[@]}" \
-  --name "$CONTAINER_NAME" \
-  -p "${PORT}:8000" \
-  -e PHYLO_LENS_DATA_DIR=/data \
-  "$IMAGE_NAME" >/dev/null
 
 trap cleanup EXIT
 
@@ -138,6 +151,7 @@ PY
 
 docker exec "$CONTAINER_NAME" sfdp -V
 docker exec "$CONTAINER_NAME" java -version
+docker exec "$CONTAINER_NAME" python -c 'import psycopg'
 docker exec "$CONTAINER_NAME" sh -c 'test -r "$PHYLO_LENS_PHYLOLIB_JAR"'
-docker exec "$CONTAINER_NAME" sh -c 'sha256sum "$PHYLO_LENS_PHYLOLIB_JAR"'
+docker exec "$CONTAINER_NAME" sh -c "echo '$PHYLOLIB_JAR_SHA256  '\$PHYLO_LENS_PHYLOLIB_JAR | sha256sum -c -"
 docker exec "$CONTAINER_NAME" sh -c 'java -jar "$PHYLO_LENS_PHYLOLIB_JAR" 2>&1 | grep -q "No command has been specified"'

@@ -55,6 +55,7 @@ jobs:
               - 'code/server/Dockerfile'
               - 'code/server/.dockerignore'
               - 'code/server/compose.yaml'
+              - 'code/server/phylolib.jar.sha256'
               - 'code/server/scripts/container-smoke.sh'
               - 'code/server/sql/**'
               - 'code/server/src/**'
@@ -170,16 +171,25 @@ jobs:
         run: npm run build
 
   docker-service:
-    name: Docker service validation
+    name: Docker service validation (${{ matrix.suffix }})
     needs: changes
     if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.docker == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            suffix: amd64
+          - platform: linux/arm64
+            suffix: arm64
     steps:
       - name: Checkout
         uses: actions/checkout@v6
 
       - name: Setup QEMU
+        if: matrix.suffix == 'arm64'
         uses: docker/setup-qemu-action@v4
         with:
           platforms: arm64
@@ -192,11 +202,15 @@ jobs:
         with:
           context: code/server
           load: true
-          platforms: linux/arm64
-          tags: phylo-lens-service:ci
+          platforms: ${{ matrix.platform }}
+          tags: phylo-lens-service:ci-${{ matrix.suffix }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
       - name: Smoke test service image
         working-directory: code/server
-        run: DOCKER_PLATFORM=linux/arm64 SKIP_BUILD=1 IMAGE_NAME=phylo-lens-service:ci ./scripts/container-smoke.sh
+        env:
+          DOCKER_PLATFORM: ${{ matrix.platform }}
+          IMAGE_NAME: phylo-lens-service:ci-${{ matrix.suffix }}
+          SKIP_BUILD: "1"
+        run: ./scripts/container-smoke.sh

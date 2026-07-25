@@ -26,7 +26,7 @@ jobs:
   publish:
     name: Publish service image
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 60
     environment: ghcr-production
     steps:
       - name: Resolve release tag
@@ -70,21 +70,35 @@ jobs:
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
 
-      - name: Build service image for validation
+      - name: Build service image for validation (linux/amd64)
+        uses: docker/build-push-action@v7
+        with:
+          context: code/server
+          load: true
+          platforms: linux/amd64
+          tags: phylo-lens-service:release-amd64
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Smoke test service image (linux/amd64)
+        working-directory: code/server
+        run: DOCKER_PLATFORM=linux/amd64 SKIP_BUILD=1 IMAGE_NAME=phylo-lens-service:release-amd64 ./scripts/container-smoke.sh
+
+      - name: Build service image for validation (linux/arm64)
         uses: docker/build-push-action@v7
         with:
           context: code/server
           load: true
           platforms: linux/arm64
-          tags: ${{ steps.meta.outputs.tags }}
+          tags: phylo-lens-service:release-arm64
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Smoke test exact image
+      - name: Smoke test service image (linux/arm64)
         working-directory: code/server
-        run: |
-          DOCKER_PLATFORM=linux/arm64 SKIP_BUILD=1 IMAGE_NAME="${IMAGE_NAME}:${{ steps.release.outputs.version }}" ./scripts/container-smoke.sh
+        run: DOCKER_PLATFORM=linux/arm64 SKIP_BUILD=1 IMAGE_NAME=phylo-lens-service:release-arm64 ./scripts/container-smoke.sh
 
       - name: Login to GHCR
         uses: docker/login-action@v3
@@ -93,11 +107,13 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Push image tags
-        run: |
-          while IFS= read -r tag; do
-            [ -n "$tag" ] || continue
-            docker push "$tag"
-          done <<'TAGS'
-          ${{ steps.meta.outputs.tags }}
-          TAGS
+      - name: Build and push multi-platform service image
+        uses: docker/build-push-action@v7
+        with:
+          context: code/server
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

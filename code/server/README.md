@@ -58,19 +58,17 @@ docker run --rm \
 The container listens on port `8000`, binds to `0.0.0.0`, and writes local-mode
 prepared layout data under `/data`. The image includes Python 3.12, the server
 package, FastAPI/uvicorn, SQLite from the Python standard library, Graphviz
-`sfdp`, and the PhyloLib Java runtime from the digest-pinned PhyloLib image.
+`sfdp`, the PostgreSQL driver (`psycopg`), and the PhyloLib Java runtime from
+the digest-pinned PhyloLib image.
 Production
 `typing_data` ingest runs `java -jar /app/phylolib.jar` inside this service
 container; it does not need host Docker access.
 
-Bundled PhyloLib runtime:
+The published service image supports `linux/amd64` and `linux/arm64`. See
+[Release and CI](../../docs/RELEASE.md) for platform validation and publication
+details.
 
-- Java: Eclipse Temurin OpenJDK `21.0.11+10-LTS`.
-- PhyloLib source image:
-  `phyloviz/phylolib@sha256:57265021d9e908a84d948780466303195b9e9e71adf1bc23bff2e8143a242522`.
-- PhyloLib JAR path: `/app/phylolib.jar`.
-- PhyloLib JAR SHA-256:
-  `ac8df04000f12f864cf60eb3e03871c6c2e80b00da52f90364a713e2dca49ebc`.
+The bundled PhyloLib JAR path is `/app/phylolib.jar`.
 
 Typing-data ingest uses a temporary working directory and runs:
 
@@ -243,8 +241,9 @@ Environment variable:
 - `PHYLO_LENS_MAX_ACTIVE_PREPARE_JOBS`: optional positive integer cap for new
   queued/running prepare jobs in this server process. Duplicate submissions for
   the same `(dataset_id, layout_version)` reuse the existing job and do not
-  consume extra capacity. When the cap is reached, new distinct prepare requests
-  return `429`.
+  consume extra capacity. Local mode reserves capacity before normalization, so
+  `typing_data` PhyloLib work cannot bypass this cap. When the cap is reached,
+  new distinct prepare requests return `429`.
 - `PHYLO_LENS_PREPARE_JOB_BACKEND`: `local` (default) uses the in-process
   background worker; `postgres` submits/polls durable jobs in Postgres and
   expects separate `phylo-lens-prepare-worker` processes to execute them.
@@ -269,6 +268,10 @@ Environment variable:
   `typing_data` ingest. The Docker image sets this to `/app/phylolib.jar`.
 - `PHYLO_LENS_PHYLOLIB_JAVA`: Java executable used with the PhyloLib JAR. The
   Docker image sets this to `/opt/java/openjdk/bin/java`.
+- `PHYLO_LENS_PHYLOLIB_TIMEOUT_SECONDS`: positive numeric timeout, in seconds,
+  for each PhyloLib Java subprocess. Default: `300`.
+- `PHYLO_LENS_GRAPHVIZ_SFDP_TIMEOUT_SECONDS`: positive numeric timeout, in
+  seconds, for each Graphviz `sfdp` layout subprocess. Default: `300`.
 
 When `PHYLO_LENS_PHYLOLIB_JAR` is unset or does not point to a readable file,
 `typing_data` ingest fails with a PhyloLib runtime error. The production image
