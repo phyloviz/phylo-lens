@@ -24,7 +24,7 @@ export interface NormalizeRequest {
   metadata_by_node_id?: Record<string, GraphMetadata>;
   ancillary_data?: {
     content: string;
-    join_column?: string;
+    join_column: string;
     format?: "auto" | "csv" | "tsv";
   };
 }

@@ -36,11 +36,14 @@ export type {
 
 export const DEFAULT_DATASET_NAME = "uploaded-dataset";
 export const DEFAULT_SEARCH_RESULT_LIMIT = 50;
+export const ERR_GRAPH_LOAD_SUPERSEDED = "Graph load was superseded by a newer load.";
 export { ERR_GRAPH_VIEWPORT_SYNC_REQUIRED, ERR_LOD_PLAYBACK_REQUIRES_LOD, ERR_NO_GRAPH_RENDERED };
 
 export function createGraphWorkbench(options: GraphWorkbenchOptions): GraphWorkbench {
   const state = createInitialWorkbenchState();
   let viewportSync: ViewportSyncController | null = null;
+  let loadGeneration = 0;
+  let disposed = false;
   const replaceViewportSync = (controller: ViewportSyncController | null) => {
     viewportSync?.unmount();
     viewportSync = controller;
@@ -79,8 +82,10 @@ export function createGraphWorkbench(options: GraphWorkbenchOptions): GraphWorkb
   }
 
   return {
-    renderNewick: (newick, datasetName, renderOptions) =>
-      renderNewick({
+    renderNewick: (newick, datasetName, renderOptions) => {
+      const generation = ++loadGeneration;
+      return renderNewick({
+        isCurrentLoad: () => !disposed && generation === loadGeneration,
         state,
         renderer,
         graphClient: options.graphClient,
@@ -88,7 +93,8 @@ export function createGraphWorkbench(options: GraphWorkbenchOptions): GraphWorkb
         newick,
         datasetName,
         options: renderOptions,
-      }),
+      });
+    },
 
     applyMetadataFilters: filters.applyMetadataFilters,
 
@@ -129,6 +135,8 @@ export function createGraphWorkbench(options: GraphWorkbenchOptions): GraphWorkb
     },
 
     dispose: () => {
+      disposed = true;
+      loadGeneration += 1;
       clearPendingViewRefresh(state);
       renderer.setViewChangeHandler?.(null);
       renderer.setNodeClickHandler?.(null);
@@ -146,6 +154,7 @@ interface RenderNewickArgs {
   renderer: GraphRenderer;
   graphClient: GraphClient;
   setViewportSync: (controller: ViewportSyncController | null) => void;
+  isCurrentLoad: () => boolean;
   newick: string;
   datasetName?: string;
   options?: RenderNewickOptions;
@@ -156,6 +165,7 @@ async function renderNewick({
   renderer,
   graphClient,
   setViewportSync,
+  isCurrentLoad,
   newick,
   datasetName = DEFAULT_DATASET_NAME,
   options = {},
@@ -178,6 +188,9 @@ async function renderNewick({
   }
 
   const preparedGraph = await graphClient.prepareGraph(request);
+  if (!isCurrentLoad()) {
+    throw new Error(ERR_GRAPH_LOAD_SUPERSEDED);
+  }
 
   state.preparedSession = {
     datasetId: preparedGraph.dataset_id,
@@ -225,8 +238,18 @@ async function renderNewick({
   setViewportSync(viewportSync);
   viewportSync.mount();
 
-  const placeholderGraph = createEmptyGraph();
-  state.currentGraph = placeholderGraph;
-  state.graphRenderedHandler?.(placeholderGraph);
-  return placeholderGraph;
+  try {
+    const graph = await viewportSync.waitForInitialViewport();
+    if (!isCurrentLoad()) {
+      throw new Error(ERR_GRAPH_LOAD_SUPERSEDED);
+    }
+    return graph;
+  } catch (error) {
+    if (!isCurrentLoad()) {
+      throw new Error(ERR_GRAPH_LOAD_SUPERSEDED);
+    }
+    setViewportSync(null);
+    state.currentGraph = createEmptyGraph();
+    throw error;
+  }
 }

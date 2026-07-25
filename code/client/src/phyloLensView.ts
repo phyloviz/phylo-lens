@@ -3,7 +3,12 @@ import { SOURCE_FORMAT_NEWICK, type MetadataField, type SourceFormat, type Viewp
 import rendererFactory from "./render/rendererFactory";
 import { RENDERER_KIND_SIGMA } from "./render/renderer.types";
 import type { VisualMappingOptions } from "./render/mapping/visualMapping";
-import { createGraphWorkbench, type GraphWorkbench, type RenderNewickOptions } from "./app/workbench/graphWorkbench";
+import {
+  createGraphWorkbench,
+  ERR_GRAPH_LOAD_SUPERSEDED,
+  type GraphWorkbench,
+  type RenderNewickOptions,
+} from "./app/workbench/graphWorkbench";
 
 export const ERR_PHYLO_LENS_VIEW_DISPOSED = "PhyloLens view has been disposed.";
 
@@ -21,7 +26,7 @@ export interface PhyloLensLoadOptions {
   ancillaryData?: {
     format: "auto" | "csv" | "tsv";
     content: string;
-    join_column?: string;
+    join_column: string;
   };
   visualMapping?: VisualMappingOptions;
   layout?: {
@@ -52,7 +57,14 @@ export function createPhyloLensView(options: PhyloLensViewOptions): PhyloLensVie
         ...loadOptions,
         sourceFormat,
       } satisfies RenderNewickOptions;
-      await workbench.renderNewick(content, name, renderOptions);
+      try {
+        await workbench.renderNewick(content, name, renderOptions);
+      } catch (error) {
+        if (disposed && error instanceof Error && error.message === ERR_GRAPH_LOAD_SUPERSEDED) {
+          throw new Error(ERR_PHYLO_LENS_VIEW_DISPOSED);
+        }
+        throw error;
+      }
     },
     dispose: () => {
       if (disposed) {

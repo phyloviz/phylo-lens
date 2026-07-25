@@ -21,6 +21,7 @@ vi.mock("../src/render/rendererFactory", () => ({
 }));
 
 vi.mock("../src/app/workbench/graphWorkbench", () => ({
+  ERR_GRAPH_LOAD_SUPERSEDED: "Graph load was superseded by a newer load.",
   createGraphWorkbench: vi.fn(() => ({
     renderNewick: mocks.renderNewick,
     dispose: mocks.dispose,
@@ -115,6 +116,26 @@ describe("createPhyloLensView", () => {
     await expect(view.load({ content: "(a:1)b;" })).rejects.toThrow("prepare failed");
     view.dispose();
 
+    expect(mocks.dispose).toHaveBeenCalledOnce();
+  });
+
+  it("rejects an in-flight load with the public disposed error after disposal", async () => {
+    let rejectLoad: (error: unknown) => void = () => undefined;
+    mocks.renderNewick.mockReturnValueOnce(
+      new Promise((_resolve, reject) => {
+        rejectLoad = reject;
+      }),
+    );
+    const view = createPhyloLensView({
+      container: document.createElement("div"),
+      apiUrl: "https://phylo-lens.example.test",
+    });
+
+    const load = view.load({ content: "(a:1)b;" });
+    view.dispose();
+    rejectLoad(new Error("Graph load was superseded by a newer load."));
+
+    await expect(load).rejects.toThrow(ERR_PHYLO_LENS_VIEW_DISPOSED);
     expect(mocks.dispose).toHaveBeenCalledOnce();
   });
 

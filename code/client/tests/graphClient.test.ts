@@ -5,6 +5,7 @@ import {
   ERR_GRAPH_PREPARE_FAILED,
   ERR_INVALID_GRAPH_PREPARE_JOB,
   ERR_INVALID_GRAPH_VIEWPORT_RESPONSE,
+  ERR_INVALID_NORMALIZE_REQUEST,
   ROUTE_GRAPH_PREPARE,
   ROUTE_GRAPH_SEARCH,
   ROUTE_GRAPH_VIEWPORT,
@@ -192,6 +193,27 @@ describe("graphClient", () => {
     expect(seen[2]).toBe(statusUrl);
     expect(seen[3]).toBe(statusUrl);
     expect(onPending).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects ancillary prepare requests that omit join_column before posting", async () => {
+    const fetchSpy = vi.fn(async () => makeJsonResponse(SERVICE_INFO_FIXTURE)) as unknown as typeof fetch;
+    const client = createGraphClient({ baseUrl: BASE_URL, fetchImpl: fetchSpy });
+
+    await expect(
+      client.prepareGraph(
+        {
+          format: SOURCE_FORMAT_NEWICK,
+          dataset_name: "tree",
+          content: "(A,B)Root;",
+          ancillary_data: {
+            content: "isolate\tcountry\nA\tPT\n",
+            format: "tsv",
+          },
+        } as never,
+        NO_SLEEP,
+      ),
+    ).rejects.toThrow(ERR_INVALID_NORMALIZE_REQUEST);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 
   it("caches a successful compatibility check across multiple prepares", async () => {

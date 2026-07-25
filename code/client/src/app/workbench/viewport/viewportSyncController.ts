@@ -40,6 +40,7 @@ export interface ViewportSyncRefreshOptions {
 }
 
 export const VIEWPORT_SYNC_INITIAL_FIT_DURATION_MS = 300;
+export const ERR_VIEWPORT_SYNC_UNMOUNTED = "Viewport sync was unmounted before the initial viewport loaded.";
 
 interface CachedIncidentEdge {
   id: string;
@@ -80,6 +81,11 @@ export class ViewportSyncController {
   private suppressCameraRefreshUntil = 0;
   private totalNodeCount: number | null = null;
   private currentGraph: PositionedGraph | null = null;
+  private initialViewportSettled = false;
+  private initialViewportAwaited = false;
+  private readonly initialViewportLoaded: Promise<PositionedGraph>;
+  private resolveInitialViewport: (graph: PositionedGraph) => void = () => undefined;
+  private rejectInitialViewport: (error: unknown) => void = () => undefined;
   private readonly expandedClusterIds = new Set<string>();
   private readonly expandedClusterCache = new Map<string, ExpandedClusterSnapshot>();
   private readonly viewportChanged = () => this.scheduleViewportRefreshForCamera();
@@ -99,6 +105,10 @@ export class ViewportSyncController {
     this.onError = options.onError;
     this.getRenderSettings = options.getRenderSettings;
     this.onGraphSynced = options.onGraphSynced;
+    this.initialViewportLoaded = new Promise<PositionedGraph>((resolve, reject) => {
+      this.resolveInitialViewport = resolve;
+      this.rejectInitialViewport = reject;
+    });
   }
 
   mount(): void {
@@ -125,6 +135,14 @@ export class ViewportSyncController {
       this.initialFitTimer = null;
     }
     this.requestSequence += 1;
+    if (this.initialViewportAwaited) {
+      this.rejectInitialViewportOnce(new Error(ERR_VIEWPORT_SYNC_UNMOUNTED));
+    }
+  }
+
+  waitForInitialViewport(): Promise<PositionedGraph> {
+    this.initialViewportAwaited = true;
+    return this.initialViewportLoaded;
   }
 
   refreshNow(options: ViewportSyncRefreshOptions = {}): void {
@@ -289,15 +307,38 @@ export class ViewportSyncController {
       if (!fitResponse && !this.loadedInitialViewport && (query.lod_level === 0 || finestTier)) {
         this.initialFitTimer = this.renderer.fitGraphSnapshot?.(graph) ?? null;
       }
+      const wasInitialViewport = !this.loadedInitialViewport;
       this.loadedInitialViewport = true;
       this.onGraphSynced?.(graph, response);
       this.onViewportLoaded?.(response);
+      if (wasInitialViewport) {
+        this.resolveInitialViewportOnce(graph);
+      }
     } catch (error) {
       if (!this.mounted || sequence !== this.requestSequence) {
         return;
       }
+      if (!this.loadedInitialViewport && this.initialViewportAwaited) {
+        this.rejectInitialViewportOnce(error);
+      }
       this.onError?.(error);
     }
+  }
+
+  private resolveInitialViewportOnce(graph: PositionedGraph): void {
+    if (this.initialViewportSettled) {
+      return;
+    }
+    this.initialViewportSettled = true;
+    this.resolveInitialViewport(graph);
+  }
+
+  private rejectInitialViewportOnce(error: unknown): void {
+    if (this.initialViewportSettled) {
+      return;
+    }
+    this.initialViewportSettled = true;
+    this.rejectInitialViewport(error);
   }
 
   private async loadCluster(

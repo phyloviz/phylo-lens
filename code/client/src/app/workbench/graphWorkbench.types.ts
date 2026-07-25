@@ -39,7 +39,7 @@ export interface RenderNewickOptions {
   ancillaryData?: {
     format: "auto" | "csv" | "tsv";
     content: string;
-    join_column?: string;
+    join_column: string;
   };
   visualMapping?: VisualMappingOptions;
   layout?: {

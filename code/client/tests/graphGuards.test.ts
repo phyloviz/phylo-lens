@@ -5,6 +5,7 @@ import {
   isGraphRegionResponse,
   isGraphSearchResponse,
   isGraphViewportResponse,
+  isNormalizeRequest,
 } from "../src/api/graphGuards";
 
 const VIEWPORT_FIXTURE = {
@@ -73,6 +74,33 @@ const SEARCH_FIXTURE = {
 } satisfies unknown;
 
 describe("graphGuards", () => {
+  it("requires ancillary join_column on normalize requests", () => {
+    expect(
+      isNormalizeRequest({
+        format: "newick",
+        dataset_name: "tree",
+        content: "(A,B)Root;",
+        ancillary_data: {
+          content: "isolate\tcountry\nA\tPT\n",
+          join_column: "isolate",
+          format: "tsv",
+        },
+      }),
+    ).toBe(true);
+
+    expect(
+      isNormalizeRequest({
+        format: "newick",
+        dataset_name: "tree",
+        content: "(A,B)Root;",
+        ancillary_data: {
+          content: "isolate\tcountry\nA\tPT\n",
+          format: "tsv",
+        },
+      }),
+    ).toBe(false);
+  });
+
   it("validates prepare responses", () => {
     expect(isGraphPrepareResponse(PREPARE_FIXTURE)).toBe(true);
     expect(isGraphPrepareResponse({ ...PREPARE_FIXTURE, node_count: "3" })).toBe(false);

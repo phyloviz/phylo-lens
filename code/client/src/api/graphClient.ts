@@ -6,6 +6,7 @@ import {
   isGraphRegionResponse,
   isGraphSearchResponse,
   isGraphViewportResponse,
+  isNormalizeRequest,
 } from "./graphGuards";
 import type {
   GraphPrepareResponse,
@@ -35,6 +36,7 @@ export const ERR_GRAPH_PREPARE_TIMED_OUT = "Graph layout preparation did not com
 export const ERR_INVALID_GRAPH_VIEWPORT_RESPONSE = "Invalid graph viewport response contract.";
 export const ERR_INVALID_GRAPH_REGION_RESPONSE = "Invalid graph region response contract.";
 export const ERR_INVALID_GRAPH_SEARCH_RESPONSE = "Invalid graph search response contract.";
+export const ERR_INVALID_NORMALIZE_REQUEST = "Invalid graph normalize request contract.";
 
 // Default polling intervals and timeouts
 export const DEFAULT_PREPARE_POLL_INTERVAL_MS = 1000;
@@ -92,6 +94,10 @@ export async function prepareGraph(
 }
 
 export async function submitPrepareGraph(http: HttpClient, request: NormalizeRequest) {
+  if (!isNormalizeRequest(request)) {
+    throw new Error(ERR_INVALID_NORMALIZE_REQUEST);
+  }
+
   const response = await http.post<NormalizeRequest, unknown>(ROUTE_GRAPH_PREPARE, request);
 
   if (!isGraphPrepareJob(response)) {

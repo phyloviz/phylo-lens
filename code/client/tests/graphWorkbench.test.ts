@@ -1,11 +1,197 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { createGraphWorkbench } from "../src/app/workbench/graphWorkbench";
+import { createGraphWorkbench, ERR_GRAPH_LOAD_SUPERSEDED } from "../src/app/workbench/graphWorkbench";
 import type { GraphClient } from "../src/api/graphClient";
-import type { GraphRenderer, RendererFactory } from "../src/render/renderer.types";
+import type { GraphPrepareResponse, GraphViewportResponse } from "../src/api/graphContracts";
+import type { GraphRenderer, RenderViewportSyncState, RendererFactory } from "../src/render/renderer.types";
 import type { PositionedGraph } from "../src/contracts/positioned";
 
+function deferred<T>() {
+  let resolve: (value: T) => void = () => undefined;
+  let reject: (error: unknown) => void = () => undefined;
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve;
+    reject = promiseReject;
+  });
+  return { promise, resolve, reject };
+}
+
+function prepareResponse(datasetId = "tree", layoutVersion = "layout-1"): GraphPrepareResponse {
+  return {
+    dataset_id: datasetId,
+    layout_version: layoutVersion,
+    node_count: 12_000,
+    edge_count: 11_999,
+    cluster_count: 400,
+    lod_tier_count: 4,
+    layout_status: "ready",
+    warnings: [],
+  };
+}
+
+function viewportResponse(datasetId = "tree", layoutVersion = "layout-1"): GraphViewportResponse {
+  return {
+    dataset_id: datasetId,
+    layout_version: layoutVersion,
+    lod_level: 0,
+    zoom: 1,
+    layout_status: "ready",
+    truncated: false,
+    total_node_count: 1,
+    metadata_schema: [],
+    nodes: [
+      {
+        id: datasetId,
+        cluster_id: datasetId,
+        x: 0,
+        y: 0,
+        layout_status: "ready",
+        member_count: 1,
+        is_representative: false,
+      },
+    ],
+    edges: [],
+  };
+}
+
+function createWorkbenchHarness(overrides: Partial<GraphClient> = {}) {
+  const viewportState: RenderViewportSyncState = {
+    bounds: { xmin: 0, xmax: 100, ymin: 0, ymax: 100 },
+    cameraRatio: 1,
+  };
+  const renderer: GraphRenderer = {
+    mount: vi.fn(),
+    unmount: vi.fn(),
+    render: vi.fn(),
+    focusNode: vi.fn(),
+    getViewportSyncState: vi.fn(() => viewportState),
+    applyGraphSnapshot: vi.fn(),
+    fitGraphSnapshot: vi.fn(() => null),
+    setViewChangeHandler: vi.fn(),
+    setNodeClickHandler: vi.fn(),
+    setNodeDoubleClickHandler: vi.fn(),
+  };
+  const rendererFactory: RendererFactory = {
+    createRenderer: vi.fn(() => renderer),
+  };
+  const graphClient = {
+    prepareGraph: vi.fn(async () => prepareResponse()),
+    readViewport: vi.fn(async () => viewportResponse()),
+    searchGraph: vi.fn(),
+    readRegion: vi.fn(),
+    ...overrides,
+  } as unknown as GraphClient;
+
+  return {
+    graphClient,
+    renderer,
+    workbench: createGraphWorkbench({
+      graphClient,
+      rendererFactory,
+      rendererKind: "sigma",
+      renderContext: { container: document.createElement("div") },
+    }),
+  };
+}
+
 describe("graphWorkbench navigation", () => {
+  it("resolves renderNewick only after prepare, first viewport, and renderer update", async () => {
+    const events: string[] = [];
+    const { renderer, workbench } = createWorkbenchHarness({
+      prepareGraph: vi.fn(async () => {
+        events.push("prepare");
+        return prepareResponse();
+      }),
+      readViewport: vi.fn(async () => {
+        events.push("viewport");
+        return viewportResponse();
+      }),
+    } as Partial<GraphClient>);
+    vi.mocked(renderer.applyGraphSnapshot).mockImplementation(() => {
+      events.push("renderer");
+    });
+
+    await workbench.renderNewick("(a:1,b:1)root;", "tree");
+    events.push("resolved");
+
+    expect(events).toEqual(["prepare", "viewport", "renderer", "resolved"]);
+  });
+
+  it("rejects renderNewick when the first viewport fails", async () => {
+    const { renderer, workbench } = createWorkbenchHarness({
+      readViewport: vi.fn(async () => {
+        throw new Error("viewport failed");
+      }),
+    } as Partial<GraphClient>);
+
+    await expect(workbench.renderNewick("(a:1,b:1)root;", "tree")).rejects.toThrow("viewport failed");
+    expect(renderer.applyGraphSnapshot).not.toHaveBeenCalled();
+  });
+
+  it("prevents an older overlapping load from replacing a newer graph", async () => {
+    vi.useFakeTimers();
+    const firstPrepare = deferred<GraphPrepareResponse>();
+    const secondPrepare = deferred<GraphPrepareResponse>();
+    const secondViewport = deferred<GraphViewportResponse>();
+    const { graphClient, renderer, workbench } = createWorkbenchHarness({
+      prepareGraph: vi.fn().mockReturnValueOnce(firstPrepare.promise).mockReturnValueOnce(secondPrepare.promise),
+      readViewport: vi.fn(() => secondViewport.promise),
+    } as Partial<GraphClient>);
+
+    try {
+      const firstLoad = workbench.renderNewick("(a:1)b;", "first");
+      const secondLoad = workbench.renderNewick("(c:1)d;", "second");
+
+      secondPrepare.resolve(prepareResponse("second-tree", "layout-2"));
+      await vi.advanceTimersByTimeAsync(0);
+      secondViewport.resolve(viewportResponse("second-tree", "layout-2"));
+      await secondLoad;
+      firstPrepare.resolve(prepareResponse("first-tree", "layout-1"));
+
+      await expect(firstLoad).rejects.toThrow(ERR_GRAPH_LOAD_SUPERSEDED);
+      expect(graphClient.readViewport).toHaveBeenCalledTimes(1);
+      expect(renderer.applyGraphSnapshot).toHaveBeenCalledWith(
+        expect.objectContaining({ nodes: [expect.objectContaining({ id: "second-tree" })] }) as PositionedGraph,
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("invalidates pending loads when disposed during prepare", async () => {
+    const prepare = deferred<GraphPrepareResponse>();
+    const { renderer, workbench } = createWorkbenchHarness({
+      prepareGraph: vi.fn(() => prepare.promise),
+    } as Partial<GraphClient>);
+
+    const load = workbench.renderNewick("(a:1)b;", "tree");
+    workbench.dispose();
+    prepare.resolve(prepareResponse());
+
+    await expect(load).rejects.toThrow(ERR_GRAPH_LOAD_SUPERSEDED);
+    expect(renderer.applyGraphSnapshot).not.toHaveBeenCalled();
+  });
+
+  it("invalidates pending loads when disposed during the initial viewport", async () => {
+    vi.useFakeTimers();
+    const viewport = deferred<GraphViewportResponse>();
+    const { renderer, workbench } = createWorkbenchHarness({
+      readViewport: vi.fn(() => viewport.promise),
+    } as Partial<GraphClient>);
+
+    try {
+      const load = workbench.renderNewick("(a:1)b;", "tree");
+      await vi.advanceTimersByTimeAsync(0);
+      workbench.dispose();
+      viewport.resolve(viewportResponse());
+
+      await expect(load).rejects.toThrow(ERR_GRAPH_LOAD_SUPERSEDED);
+      expect(renderer.applyGraphSnapshot).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("opens the matched cluster when search focus uses coordinates outside the current slice", async () => {
     const renderer: GraphRenderer = {
       mount: vi.fn(),
@@ -71,6 +257,7 @@ describe("graphWorkbench navigation", () => {
 
     await workbench.renderNewick("(a:1,b:1)root;", "tree");
     vi.mocked(renderer.focusNode).mockClear();
+    vi.mocked(graphClient.readViewport).mockClear();
     await workbench.focusNode("missing-node", { x: 42, y: 84, clusterId: "cluster-42" });
 
     expect(renderer.focusNode).toHaveBeenCalledWith("missing-node");
@@ -182,12 +369,14 @@ describe("graphWorkbench navigation", () => {
     });
 
     try {
-      await workbench.renderNewick("(a:1)b;", "first");
+      const firstLoad = workbench.renderNewick("(a:1)b;", "first");
       await vi.advanceTimersByTimeAsync(0);
+      await firstLoad;
       const firstHandler = viewHandlers.find((handler): handler is () => void => typeof handler === "function");
 
-      await workbench.renderNewick("(c:1)d;", "second");
+      const secondLoad = workbench.renderNewick("(c:1)d;", "second");
       await vi.advanceTimersByTimeAsync(0);
+      await secondLoad;
       vi.mocked(graphClient.readViewport).mockClear();
 
       firstHandler?.();
