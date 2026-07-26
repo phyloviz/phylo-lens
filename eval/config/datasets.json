@@ -1,0 +1,21 @@
+{
+  "schema_version": "1",
+  "datasets": [
+    {
+      "id": "small-balanced-newick",
+      "path": "examples/newick/small-balanced.newick",
+      "format": "newick",
+      "topology": "balanced",
+      "declared_node_count": 7,
+      "declared_edge_count": 6,
+      "description": "Small balanced Newick tree retained as a deterministic smoke fixture."
+    },
+    {
+      "id": "phyloviz-spneumoniae-newick",
+      "path": "examples/newick/phyloviz-spneumoniae.nwk",
+      "format": "newick",
+      "topology": "real phylogenetic tree",
+      "description": "Repository-provided Newick input; its source provenance is documented with the example."
+    }
+  ]
+}

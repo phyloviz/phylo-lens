@@ -1,0 +1,15 @@
+{
+  "schema_version": "1",
+  "experiments": [
+    {
+      "id": "rq1-direct-tree",
+      "research_question": "RQ1",
+      "pipeline": "direct-tree",
+      "dataset_ids": ["small-balanced-newick", "phyloviz-spneumoniae-newick"],
+      "warmup_repetitions": 1,
+      "measured_repetitions": 5,
+      "timeout_seconds": 300,
+      "persistence_backend": "sqlite"
+    }
+  ]
+}

@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://phyloviz.org/phylo-lens/eval/observation/v1",
+  "title": "PhyloLens evaluation observation v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "observation_id", "dataset_id", "warmup", "state", "failure_classification", "wall_time_seconds", "stage_durations_seconds", "warnings", "exit_status", "peak_rss_bytes"],
+  "properties": {
+    "schema_version": {"const": "1"},
+    "observation_id": {"type": "string", "minLength": 1},
+    "dataset_id": {"type": "string", "minLength": 1},
+    "warmup": {"type": "boolean"},
+    "state": {"enum": ["success", "failed"]},
+    "failure_classification": {"enum": ["none", "timeout", "oom", "runtime_error", "configuration_error"]},
+    "wall_time_seconds": {"type": ["number", "null"], "minimum": 0},
+    "stage_durations_seconds": {"type": "object", "additionalProperties": {"type": "number", "minimum": 0}},
+    "warnings": {"type": "array", "items": {"type": "string"}},
+    "exit_status": {"type": ["integer", "null"]},
+    "error": {"type": ["string", "null"]},
+    "peak_rss_bytes": {"type": ["integer", "null"], "minimum": 0},
+    "peak_rss_scope": {"enum": ["sampled_process_tree", "sampled_root_process"]},
+    "input_bytes": {"type": "integer", "minimum": 0},
+    "persisted_artifact_bytes": {"type": "integer", "minimum": 0},
+    "declared_node_count": {"type": ["integer", "null"], "minimum": 1},
+    "declared_edge_count": {"type": ["integer", "null"], "minimum": 0},
+    "observed_node_count": {"type": "integer", "minimum": 1},
+    "edge_count": {"type": "integer", "minimum": 0},
+    "lod_tier_count": {"type": "integer", "minimum": 1},
+    "cluster_count": {"type": "integer", "minimum": 0},
+    "layout_status": {"enum": ["ready", "degraded"]}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"state": {"const": "success"}}},
+      "then": {
+        "required": ["input_bytes", "persisted_artifact_bytes", "declared_node_count", "declared_edge_count", "observed_node_count", "edge_count", "lod_tier_count", "cluster_count", "layout_status"],
+        "properties": {"failure_classification": {"const": "none"}, "error": {"type": "null"}, "exit_status": {"const": 0}}
+      },
+      "else": {
+        "properties": {"failure_classification": {"not": {"const": "none"}}, "error": {"type": "string", "minLength": 1}}
+      }
+    }
+  ]
+}

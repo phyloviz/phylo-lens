@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://phyloviz.org/phylo-lens/eval/manifest/v1",
+  "title": "PhyloLens evaluation run manifest v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "experiment_id", "run_id", "timestamp_utc", "git", "environment", "dataset", "parameters", "state"],
+  "properties": {
+    "schema_version": {"const": "1"},
+    "experiment_id": {"type": "string", "minLength": 1},
+    "run_id": {"type": "string", "minLength": 1},
+    "timestamp_utc": {"type": "string", "format": "date-time"},
+    "git": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["commit", "dirty"],
+      "properties": {
+        "available": {"type": "boolean"},
+        "commit": {"type": ["string", "null"], "minLength": 1},
+        "dirty": {"type": "boolean"}
+      }
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operating_system", "cpu_model", "logical_cpu_count", "total_ram_bytes", "python_version", "java_version", "graphviz_version", "docker_version", "phylolens"],
+      "properties": {
+        "operating_system": {"type": "string", "minLength": 1},
+        "cpu_model": {"type": "string", "minLength": 1},
+        "logical_cpu_count": {"type": ["integer", "null"], "minimum": 1},
+        "total_ram_bytes": {"type": "integer", "minimum": 0},
+        "python_version": {"type": "string", "minLength": 1},
+        "java_version": {"type": ["string", "null"], "minLength": 1},
+        "graphviz_version": {"type": ["string", "null"], "minLength": 1},
+        "docker_version": {"type": ["string", "null"], "minLength": 1},
+        "phylolens": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["api_contract_version", "server_version"],
+          "properties": {
+            "api_contract_version": {"type": "string", "minLength": 1},
+            "server_version": {"type": "string", "minLength": 1}
+          }
+        }
+      }
+    },
+    "dataset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "path": {"type": "string", "minLength": 1},
+        "checksum_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "format": {"enum": ["newick", "typing_data"]},
+        "topology": {"enum": ["balanced", "caterpillar/highly unbalanced", "irregular synthetic", "real phylogenetic tree", "typing-derived MST/goeBURST structure"]},
+        "declared_node_count": {"type": ["integer", "null"], "minimum": 1},
+        "declared_edge_count": {"type": ["integer", "null"], "minimum": 0}
+      }
+    },
+    "dataset_ids": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+    "parameters": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["experiment_id", "dataset_ids", "warmup_repetitions", "measured_repetitions", "timeout_seconds", "persistence_backend"],
+      "properties": {
+        "experiment_id": {"type": "string", "minLength": 1},
+        "dataset_ids": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+        "warmup_repetitions": {"type": "integer", "minimum": 0},
+        "measured_repetitions": {"type": "integer", "minimum": 1},
+        "timeout_seconds": {"type": "number", "exclusiveMinimum": 0},
+        "persistence_backend": {"const": "sqlite"},
+        "peak_rss_sampling_interval_seconds": {"type": "number", "exclusiveMinimum": 0}
+      }
+    },
+    "state": {"enum": ["running", "completed", "failed"]}
+  }
+}

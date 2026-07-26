@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor
+from contextlib import AbstractContextManager, contextmanager
 
 from phylo_lens_server.domain.models import CanonicalDataset
 from phylo_lens_server.pipeline.ingest import prepare_layout_artifacts
@@ -16,6 +18,8 @@ from phylo_lens_server.repository.layout.sqlite_layout_repository import (
     PreparedLayoutStore,
 )
 
+logger = logging.getLogger(__name__)
+
 
 class PreparedLayoutWorker:
     """Background-friendly worker that prepares and persists layout artifacts."""
@@ -24,10 +28,12 @@ class PreparedLayoutWorker:
         self,
         store: PreparedLayoutStore,
         executor: ThreadPoolExecutor | None = None,
+        stage_factory: Callable[[str], AbstractContextManager[None]] | None = None,
     ) -> None:
         self.store = store
         self._executor = executor
         self._owns_executor = executor is None
+        self._stage_factory = stage_factory
 
     def prepare_dataset(
         self,
@@ -35,21 +41,36 @@ class PreparedLayoutWorker:
         *,
         should_continue: Callable[[], bool] | None = None,
     ) -> PreparedLayoutResult:
-        artifacts = prepare_layout_artifacts(dataset)
+        with self._stage("lod_construction"):
+            artifacts = prepare_layout_artifacts(dataset)
         ensure_should_continue(should_continue)
-        self.store.clear_layout_version(
-            artifacts.dataset.dataset_id,
-            artifacts.layout_version,
+        with self._stage("persistence.clear"):
+            self.store.clear_layout_version(
+                artifacts.dataset.dataset_id,
+                artifacts.layout_version,
+            )
+        self.store.save_artifacts(
+            artifacts,
+            status="refining",
+            stage_factory=self._stage,
         )
-        self.store.save_artifacts(artifacts, status="refining")
-        prepared_edges = compute_prepared_edges(artifacts)
-        cluster_layouts, node_positions, degraded_reason = compute_prepared_layouts(
-            artifacts
+        with self._stage("index_construction"):
+            prepared_edges = compute_prepared_edges(artifacts)
+        with self._stage("base_layout"):
+            cluster_layouts, node_positions, degraded_reason = compute_prepared_layouts(
+                artifacts
+            )
+        ensure_should_continue(should_continue)
+        self.store.save_layouts(
+            cluster_layouts,
+            node_positions,
+            stage_factory=self._stage,
         )
         ensure_should_continue(should_continue)
-        self.store.save_layouts(cluster_layouts, node_positions)
-        ensure_should_continue(should_continue)
-        self.store.save_prepared_edges(prepared_edges)
+        self.store.save_prepared_edges(
+            prepared_edges,
+            stage_factory=self._stage,
+        )
         layout_status: LayoutStatus = (
             cluster_layouts[0].status
             if cluster_layouts
@@ -58,11 +79,12 @@ class PreparedLayoutWorker:
             else "ready"
         )
         ensure_should_continue(should_continue)
-        self.store.publish_layout_version(
-            dataset_id=artifacts.dataset.dataset_id,
-            layout_version=artifacts.layout_version,
-            status=layout_status,
-        )
+        with self._stage("persistence.publish"):
+            self.store.publish_layout_version(
+                dataset_id=artifacts.dataset.dataset_id,
+                layout_version=artifacts.layout_version,
+                status=layout_status,
+            )
         return PreparedLayoutResult(
             artifacts=artifacts,
             cluster_layouts=cluster_layouts,
@@ -71,6 +93,43 @@ class PreparedLayoutWorker:
             layout_status=layout_status,
             layout_degraded_reason=degraded_reason,
         )
+
+    @contextmanager
+    def _stage(self, name: str):
+        """Run optional internal instrumentation without affecting preparation.
+
+        Evaluation callbacks are observational. Their factory, enter, and exit
+        failures are logged and ignored; exceptions from the preparation body
+        still propagate unchanged.
+        """
+        if self._stage_factory is None:
+            yield
+            return
+        try:
+            stage = self._stage_factory(name)
+            stage.__enter__()
+        except Exception:
+            logger.exception("Ignoring failed internal stage instrumentation: %s", name)
+            yield
+            return
+
+        body_error = None
+        try:
+            yield
+        except BaseException as error:
+            body_error = error
+            raise
+        finally:
+            try:
+                stage.__exit__(
+                    type(body_error) if body_error is not None else None,
+                    body_error,
+                    body_error.__traceback__ if body_error is not None else None,
+                )
+            except Exception:
+                logger.exception(
+                    "Ignoring failed internal stage instrumentation cleanup: %s", name
+                )
 
     @property
     def executor(self) -> ThreadPoolExecutor:
