@@ -329,6 +329,7 @@ export default function (options: UiShellOptions): UiShell {
         metadataByNodeId: ancillaryPayload.metadata_by_node_id,
         ancillaryData,
         visualMapping: palette.getCurrentVisualMapping(),
+        displayOptions: buildCurrentDisplayOptions(),
         lod: {
           maxNodes: getSelectedMaxNodes(),
         },

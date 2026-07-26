@@ -73,6 +73,9 @@ export class TriangleNodeProgram extends NodeCircleProgram {
 }
 
 export const drawTriangleNodeHover: NodeHoverDrawingFunction = (context, data) => {
+  // Sigma's graph-to-screen transform flips the vertical axis. Hover drawing
+  // receives screen-space coordinates, so invert the graph-space rotation to
+  // preserve the direction of the WebGL triangle.
   const rotation = -rotationOf(data);
 
   context.save();

@@ -76,4 +76,43 @@ describe("viewportSnapshot", () => {
 
     expect(graph.nodes[0]?.color).not.toBe("#93c5fd");
   });
+
+  it("applies display toggles to edge attributes in the first viewport snapshot", () => {
+    const graph = graphSnapshotFromViewportResponse(
+      viewportResponse([viewportNode("root"), viewportNode("leaf")], {
+        edges: [{ id: "root-leaf", source: "root", target: "leaf", distance: 4 }],
+      }),
+      {
+        displayOptions: {
+          nodeLabels: false,
+          edgeDistanceLabels: true,
+          distanceWeightedEdges: true,
+        },
+      },
+    );
+
+    expect(graph.nodes[0]?.attributes?.label).toBe("");
+    expect(graph.edges[0]?.attributes).toMatchObject({ label: "4", forceLabel: true });
+    expect(graph.edges[0]?.attributes?.size).toBeGreaterThan(1);
+  });
+
+  it("honors linear and logarithmic size scales for numeric metadata strings", () => {
+    const response = viewportResponse(
+      [
+        viewportNode("small", { metadata: { profile_count: "10" } }),
+        viewportNode("middle", { metadata: { profile_count: "100" } }),
+        viewportNode("large", { metadata: { profile_count: "1000" } }),
+      ],
+      { metadata_schema: [{ key: "profile_count", type: "number" }] },
+    );
+
+    const linear = graphSnapshotFromViewportResponse(response, {
+      visualMapping: { size: { field: "profile_count", scale: "linear" } },
+    });
+    const logarithmic = graphSnapshotFromViewportResponse(response, {
+      visualMapping: { size: { field: "profile_count", scale: "log" } },
+    });
+
+    expect(logarithmic.nodes[1]?.size ?? 0).toBeGreaterThan(linear.nodes[1]?.size ?? 0);
+  });
 });

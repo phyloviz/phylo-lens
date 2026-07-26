@@ -33,27 +33,26 @@ export function addPositionedNode(
   });
   const hasPieData = Object.values(pieAttributes).some((value) => value > 0);
   const isClusterProxy = node.attributes?.is_cluster_proxy === true;
-  const nodeType =
-    !unionNode && hasPieData && pieSliceKeys.length > 0
+  const nodeType = isClusterProxy
+    ? SIGMA_NODE_TYPE_TRIANGLE
+    : !unionNode && hasPieData && pieSliceKeys.length > 0
       ? SIGMA_NODE_TYPE_PIECHART
-      : isClusterProxy
-        ? SIGMA_NODE_TYPE_TRIANGLE
-        : SIGMA_NODE_TYPE_DEFAULT;
+      : SIGMA_NODE_TYPE_DEFAULT;
   const nodeSize = unionNode ? UNION_NODE_SIZE : (node.size ?? SIGMA_DEFAULT_NODE_SIZE);
 
   graph.addNode(node.id, {
     x: node.x,
     y: node.y,
     size: nodeSize,
-    label:
-      rendererOptions.label?.enabled === false || rendererOptions.display?.nodeLabels === false
-        ? ""
-        : deriveNodeLabel(node.id, node.attributes),
     ...(node.attributes ?? {}),
     ...pieAttributes,
     type: nodeType,
     color: deriveNodeColor(node),
     borderColor: undefined,
+    label:
+      rendererOptions.label?.enabled === false || rendererOptions.display?.nodeLabels === false
+        ? ""
+        : deriveNodeLabel(node.id, node.attributes),
     triangleRotation,
   });
 }
@@ -86,7 +85,10 @@ export function applyPieChartNodeTypes(graph: Graph, sliceKeys: readonly string[
       }
     });
 
-    if (!unionNode && hasPieData) {
+    // A cluster proxy is an interaction affordance; it must stay a triangle so
+    // its tip continues to identify the edge that expands the cluster. Pies
+    // remain available for ordinary nodes only.
+    if (!unionNode && attributes.is_cluster_proxy !== true && hasPieData) {
       graph.setNodeAttribute(nodeId, "type", SIGMA_NODE_TYPE_PIECHART);
     }
   });

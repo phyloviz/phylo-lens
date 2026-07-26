@@ -954,6 +954,42 @@ describe("uiShell", () => {
     shell.unmount();
   });
 
+  it("allows node labels to be disabled when no other display option is selected", () => {
+    document.body.innerHTML = `
+      <form id="render-form"></form>
+      <textarea id="newick-input"></textarea>
+      <select id="display-options" multiple>
+        <option value="node-labels" selected>Node labels</option>
+        <option value="edge-distance-labels">Edge distance labels</option>
+        <option value="distance-weighted-edges">Distance-weighted edges</option>
+      </select>
+      <div id="status"></div>
+    `;
+
+    const displayOptionsSelect = document.getElementById("display-options") as HTMLSelectElement;
+    const workbench = makeFakeWorkbench();
+    const shell = uiShell({
+      workbench,
+      elements: {
+        form: document.getElementById("render-form") as HTMLFormElement,
+        newickInput: document.getElementById("newick-input") as HTMLTextAreaElement,
+        displayOptionsSelect,
+        status: document.getElementById("status") as HTMLElement,
+      },
+    });
+
+    shell.mount();
+    displayOptionsSelect.options[0]!.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+
+    expect(displayOptionsSelect.options[0]!.selected).toBe(false);
+    expect(workbench.updateDisplayOptions).toHaveBeenLastCalledWith({
+      nodeLabels: false,
+      edgeDistanceLabels: false,
+      distanceWeightedEdges: false,
+    });
+    shell.unmount();
+  });
+
   it("toggles LoD playback controls for rendered LoD graphs", async () => {
     document.body.innerHTML = `
       <form id="render-form"></form>

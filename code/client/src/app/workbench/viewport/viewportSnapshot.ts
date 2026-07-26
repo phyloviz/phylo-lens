@@ -14,6 +14,7 @@ import {
   DEFAULT_COLOR_PALETTE,
   DEFAULT_PROFILE_COUNT_FIELD,
   deriveSize,
+  numericMetadataValue,
   resolveColorField,
   resolveDefaultSizeField,
   SIZE_SCALE_LINEAR,
@@ -239,8 +240,8 @@ function computeSizeFieldStats(
   let min = Number.POSITIVE_INFINITY;
   let max = Number.NEGATIVE_INFINITY;
   nodes.forEach((node) => {
-    const value = node.metadata?.[sizeField];
-    if (typeof value !== "number") {
+    const value = numericMetadataValue(node.metadata?.[sizeField]);
+    if (value === null) {
       return;
     }
     min = Math.min(min, value);

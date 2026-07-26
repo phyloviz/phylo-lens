@@ -199,6 +199,7 @@ async function renderNewick({
     metadataByNodeId: options.metadataByNodeId ?? {},
     ancillaryRowsByNodeId: {},
     visualMapping: options.visualMapping,
+    displayOptions: options.displayOptions,
     layoutWarnings: preparedGraph.warnings,
     layout: options.layout,
     lodTierCount: preparedGraph.lod_tier_count,

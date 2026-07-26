@@ -182,11 +182,27 @@ export function deriveSize(
   stats: { min: number; max: number } | undefined,
   scale: SizeScale,
 ): number {
-  if (typeof rawValue !== "number" || !stats) {
+  const value = numericMetadataValue(rawValue);
+  if (value === null || !stats) {
     return DEFAULT_NODE_SIZE;
   }
 
-  return scaleNumberToRange(rawValue, stats.min, stats.max, MIN_NODE_SIZE, MAX_NODE_SIZE, scale, DEFAULT_NODE_SIZE);
+  return scaleNumberToRange(value, stats.min, stats.max, MIN_NODE_SIZE, MAX_NODE_SIZE, scale, DEFAULT_NODE_SIZE);
+}
+
+// Metadata stored by older prepared layouts can retain numeric cells as JSON
+// strings. Treat finite numeric strings exactly like JSON numbers so changing
+// the scale remains effective across both payload shapes.
+export function numericMetadataValue(value: string | number | boolean | null | undefined): number | null {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : null;
+  }
+  if (typeof value !== "string" || value.trim() === "") {
+    return null;
+  }
+
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function deriveClusterProxySize(subtreeSize: unknown, leafCount: unknown, scale: SizeScale): number {

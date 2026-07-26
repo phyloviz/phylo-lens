@@ -42,6 +42,9 @@ export interface RenderNewickOptions {
     join_column: string;
   };
   visualMapping?: VisualMappingOptions;
+  // Seed presentation toggles with the render request. This keeps the first
+  // viewport snapshot consistent with selections made before loading a graph.
+  displayOptions?: GraphDisplayOptions;
   layout?: {
     forceIterations?: number;
   };
@@ -114,8 +117,7 @@ export interface PreparedDatasetSession {
   ancillaryRowsByNodeId: CanonicalDataset["ancillary_rows_by_node_id"];
   visualMapping?: VisualMappingOptions;
   // Presentation toggles applied during viewport sync (node labels, edge
-  // distance labels, distance-weighted edge thickness). Undefined until the
-  // user changes an option, at which point the sync honors the new values.
+  // distance labels, distance-weighted edge thickness).
   displayOptions?: GraphDisplayOptions;
   // Prepare-time warnings (e.g. a degraded force layout that fell back to a
   // topology-ignoring circular scatter), surfaced by the shell on every slice.

@@ -117,6 +117,34 @@ describe("graphWorkbench navigation", () => {
     expect(events).toEqual(["prepare", "viewport", "renderer", "resolved"]);
   });
 
+  it("keeps initial display options when constructing the viewport session", async () => {
+    const { renderer, workbench } = createWorkbenchHarness({
+      readViewport: vi.fn(async () => ({
+        ...viewportResponse(),
+        edges: [{ id: "tree-edge", source: "tree", target: "tree", distance: 3 }],
+      })),
+    } as Partial<GraphClient>);
+
+    await workbench.renderNewick("(a:1,b:1)root;", "tree", {
+      displayOptions: {
+        nodeLabels: false,
+        edgeDistanceLabels: true,
+        distanceWeightedEdges: true,
+      },
+    });
+
+    expect(renderer.applyGraphSnapshot).toHaveBeenCalledWith(
+      expect.objectContaining({
+        nodes: [expect.objectContaining({ attributes: expect.objectContaining({ label: "" }) })],
+        edges: [
+          expect.objectContaining({
+            attributes: expect.objectContaining({ label: "3", forceLabel: true, size: expect.any(Number) }),
+          }),
+        ],
+      }) as PositionedGraph,
+    );
+  });
+
   it("rejects renderNewick when the first viewport fails", async () => {
     const { renderer, workbench } = createWorkbenchHarness({
       readViewport: vi.fn(async () => {

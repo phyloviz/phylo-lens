@@ -1191,10 +1191,11 @@ describe("sigmaRenderer", () => {
 });
 
 describe("applyPieChartNodeTypes", () => {
-  it("fills slice keys and flips nodes with pie data to the piechart type", () => {
+  it("fills slice keys and preserves cluster proxy triangles", () => {
     const graph = new Graph();
     graph.addNode("cluster", {
       type: "triangle",
+      is_cluster_proxy: true,
       [`${PIE_ATTRIBUTE_PREFIX}region__value__eu`]: 3,
     });
     graph.addNode("leaf", {});
@@ -1202,9 +1203,9 @@ describe("applyPieChartNodeTypes", () => {
 
     applyPieChartNodeTypes(graph, sliceKeys);
 
-    // Cluster has positive pie data: type flips (overriding triangle) and the
-    // absent slice key is filled with 0 so the program can read it.
-    expect(graph.getNodeAttribute("cluster", "type")).toBe(SIGMA_NODE_TYPE_PIECHART);
+    // Cluster proxies remain triangles; the absent slice key is still filled
+    // so a later expansion can reuse the registered pie program.
+    expect(graph.getNodeAttribute("cluster", "type")).toBe("triangle");
     expect(graph.getNodeAttribute("cluster", `${PIE_ATTRIBUTE_PREFIX}region__value__us`)).toBe(0);
     // Leaf has no positive pie data: type is left untouched.
     expect(graph.getNodeAttribute("leaf", "type")).toBeUndefined();
