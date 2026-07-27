@@ -9,7 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 CLIENT_PACKAGE = ROOT / "code" / "client" / "package.json"
 SERVER_PROJECT = ROOT / "code" / "server" / "pyproject.toml"
-SERVER_VERSIONS = ROOT / "code" / "server" / "src" / "phylo_lens_server" / "versions.py"
+SERVER_VERSIONS = ROOT / "code" / "server" / "src" / "phylo_lens_server" / "utils" / "versions.py"
 
 
 def main() -> int:
