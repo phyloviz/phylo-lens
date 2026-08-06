@@ -1,4 +1,4 @@
-# RQ1 methodology
+# RQ1 and RQ2 methodology
 
 RQ1 asks how server-side preparation cost changes with input size and topology,
 and how cost is distributed across preparation stages. The direct-tree path is
@@ -82,3 +82,60 @@ Environment probes for Java, Graphviz, Docker, and Git each have a ten-second
 timeout. Missing or inaccessible tools are represented as `null`; Git records
 `available: false` when its commit cannot be read. These probes run before any
 result file is written.
+
+## RQ2: client-side visualization scalability
+
+RQ2 measures a private evaluation page importing the built public
+`@phyloviz/phylo-lens` entry. It does not expose Sigma, Graphology, workbench,
+or renderer internals, and production TypeScript APIs are unchanged. Synthetic
+fixtures record nodes, edges, aggregate triangles, total graphical primitives,
+seed, checksum, bounds, labels, metadata configuration, and API contract
+version. Labels remain a renderer setting, never a node count.
+
+The first-render metric starts at `t0` immediately before `view.load()`, records
+`t1` immediately after it resolves, and records `t2` on the second subsequent
+`requestAnimationFrame`. The thesis-facing value is
+`load_to_post_update_frame_ms = t2 - t0`; `t1 - t0` and `t2 - t1` are retained.
+This is a rendering opportunity, not physical monitor scanout. Canvas checks
+and screenshots occur after `t2` and are excluded from that timing.
+
+After bootstrap and before view creation, and again after first render plus the
+configured quiescence, the browser child asks CDP `Runtime.getHeapUsage` and
+records its `usedSize` as `js_heap_used_bytes` and `totalSize` as
+`js_heap_total_bytes`. Missing fields, CDP errors, embedder heap, and backing
+storage are explicitly `unavailable`, never zero. These are JavaScript-isolate
+heap measurements, not total browser memory; no garbage collection is forced.
+
+RSS uses an atomic structured handoff, not a comparison of browser and Python
+clocks. Node publishes `baseline`, waits for Python to sample and acknowledge
+the live Chromium process tree, then publishes `load_render` immediately before
+`view.load()`. `maximum_rss_bytes` is the maximum of only samples in that
+phase. After `t2`, quiescence, and the post-render heap snapshot, Node publishes
+`post_render` and waits for its acknowledged sample; it then publishes
+`frame_experiment` before input, screenshot, disposal, and cleanup. Thus
+`baseline_rss_bytes` excludes view creation/load/render,
+`post_render_rss_bytes` is after quiescence, and screenshot/frame/cleanup RSS
+cannot enter the initial-render peak. Python verifies the root PID is Chromium
+and sums only its live non-zombie descendants. `root_only` is an explicit
+fallback and remains usable for latency but never supplies process-tree RSS
+summary metrics. A missing required sample is `process_monitor_failure`, not a
+zero-byte value.
+
+Frame stability starts immediately before the fixed input and ends immediately
+after its final wheel event; it does not include deliberate idle time before or
+after movement. The stored input record contains the canvas-centre coordinates,
+drag deltas, step count, per-step and wheel waits, wheel deltas, viewport, and
+device scale factor. This is a fixed input sequence, not a claim of identical
+physical camera trajectories across machines. A repetition with fewer than its
+configured minimum frame samples is invalid as `insufficient_frame_samples`.
+Any replay graph/viewport response after the initial viewport invalidates the observation as
+`unexpected_viewport_request`; external network requests are aborted and marked
+invalid. Per-repetition median, quartiles, IQR, P95, maximum, and threshold
+counts/proportions are computed from that repetition's raw frames. Cross-run
+summaries use those per-repetition values and never pool frames.
+
+Every warm-up, successful, invalid, timeout, and failed repetition remains in
+raw JSONL. Summaries exclude warm-ups and report configured/success/invalid/
+failure/timeout counts plus median, P25, P75, IQR, minimum, and maximum. Final
+thesis runs should use headed Chromium on a recorded environment; CI uses only
+a tiny headless fixture and is not evidence of scalability or display quality.

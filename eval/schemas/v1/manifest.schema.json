@@ -69,10 +69,38 @@
         "warmup_repetitions": {"type": "integer", "minimum": 0},
         "measured_repetitions": {"type": "integer", "minimum": 1},
         "timeout_seconds": {"type": "number", "exclusiveMinimum": 0},
-        "persistence_backend": {"const": "sqlite"},
+        "persistence_backend": {"enum": ["sqlite", "browser"]},
         "peak_rss_sampling_interval_seconds": {"type": "number", "exclusiveMinimum": 0}
       }
     },
-    "state": {"enum": ["running", "completed", "failed"]}
-  }
+    "state": {"enum": ["running", "completed", "failed"]},
+    "rq2": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["client_package_version", "api_contract_version", "node_version", "playwright_version", "browser", "quiescence_ms", "animation_duration_ms", "frame_budget_ms", "minimum_frame_sample_count", "input", "rss_sampling_interval_seconds", "fixture_checksums", "observed_browser_versions", "browser_executables"],
+      "properties": {
+        "client_package_version": {"type": "string", "minLength": 1},
+        "api_contract_version": {"type": "string", "minLength": 1},
+        "node_version": {"type": ["string", "null"], "minLength": 1},
+        "playwright_version": {"type": ["string", "null"], "minLength": 1},
+        "browser": {"type": "object"},
+        "quiescence_ms": {"type": "number", "exclusiveMinimum": 0},
+        "animation_duration_ms": {"type": "number", "exclusiveMinimum": 0},
+        "frame_budget_ms": {"type": "number", "exclusiveMinimum": 0},
+        "minimum_frame_sample_count": {"type": "integer", "minimum": 1},
+        "input": {"type": "object"},
+        "rss_sampling_interval_seconds": {"type": "number", "exclusiveMinimum": 0},
+        "fixture_checksums": {"type": "array", "items": {"type": "string", "pattern": "^[a-f0-9]{64}$"}},
+        "observed_browser_versions": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "browser_executables": {"type": "array", "items": {"type": "string", "minLength": 1}}
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {"required": ["rq2"]},
+      "then": {"properties": {"parameters": {"properties": {"persistence_backend": {"const": "browser"}}}}},
+      "else": {"properties": {"parameters": {"properties": {"persistence_backend": {"const": "sqlite"}}}}}
+    }
+  ]
 }

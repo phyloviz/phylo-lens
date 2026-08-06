@@ -1,0 +1,17 @@
+{
+  "name": "phylo-lens-rq2-browser",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test tests/*.test.mjs",
+    "run": "node src/runner.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.55.0",
+    "@types/node": "24.6.0",
+    "typescript": "5.8.3",
+    "vite": "5.4.21"
+  }
+}

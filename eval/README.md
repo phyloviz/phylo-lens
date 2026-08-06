@@ -1,9 +1,8 @@
 # PhyloLens evaluation
 
-This directory contains the reproducible evaluation foundation and the first
-implemented thesis experiment: RQ1 server-side preparation scalability for the
-direct-tree pipeline. It does not contain browser, LoD-ablation, interaction,
-external-tool, or typing-profile benchmark results.
+This directory contains reproducible RQ1 server-side preparation and RQ2
+client-side visualization evaluation harnesses. It does not contain RQ3, RQ4,
+external-tool comparisons, or thesis-result claims.
 
 Install the server and evaluation dependencies in one Python environment, from
 the repository root:
@@ -40,3 +39,27 @@ The repository has no suitable typing-profile benchmark dataset. Consequently,
 this phase does not run or report typing-profile RQ1 results. A future dataset
 entry must identify a profile file, use `typing_data`, and document its source
 and goeBURST interpretation before that pipeline is enabled.
+
+## RQ2 client-side visualization scalability
+
+RQ2 uses synthetic graphical fixtures only; they are not biological or
+phylogenetic datasets. Python creates an isolated
+`eval/results/raw/rq2-client-pilot/<run-id>/` directory and invokes the bounded
+Node/Playwright child once per warm-up or measured repetition. Each repetition
+has its own request, Chromium runtime state, browser result, frame samples,
+request samples, replay log, screenshot, stdout, and stderr.
+
+Build both browser inputs, then run a small headless smoke:
+
+```bash
+(cd code/client && npm run build:lib)
+(cd eval/browser && npm ci && npx playwright install chromium && npm run build)
+PYTHONPATH=eval/src:code/server/src python -m phylo_lens_eval.rq2 \
+  --experiment rq2-client-pilot --warmups 0 --repetitions 1
+```
+
+Node stdout is exactly one final JSON record. Python owns manifests, schema
+validation, process-tree RSS sampling, raw JSONL observations, and summaries.
+The local replay server is an API contract fixture; its timings are diagnostics,
+not server-performance measurements. Headless smoke outputs are CI validation,
+not final thesis evidence.

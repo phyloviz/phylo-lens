@@ -109,6 +109,11 @@ def validate_observation(payload: dict) -> None:
     _validate_schema(payload, "observation.schema.json")
 
 
+def validate_rq2_observation(payload: dict) -> None:
+    """Validate an RQ2 browser observation without affecting RQ1's schema."""
+    _validate_schema(payload, "rq2-observation.schema.json")
+
+
 def classify_failure(returncode: int | None, timed_out: bool) -> str:
     if timed_out:
         return "timeout"

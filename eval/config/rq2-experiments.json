@@ -1,0 +1,44 @@
+{
+  "schema_version": "1",
+  "experiments": [
+    {
+      "id": "rq2-client-pilot",
+      "research_question": "RQ2",
+      "warmup_repetitions": 1,
+      "measured_repetitions": 2,
+      "timeout_seconds": 30,
+      "quiescence_ms": 100,
+      "animation_duration_ms": 250,
+      "frame_budget_ms": 16.7,
+      "minimum_frame_sample_count": 4,
+      "rss_sampling_interval_seconds": 0.02,
+      "input": {
+        "drag_dx": 36,
+        "drag_dy": 18,
+        "drag_steps": 6,
+        "step_delay_ms": 30,
+        "zoom_in_delta_y": -80,
+        "zoom_out_delta_y": 80,
+        "wheel_delay_ms": 35
+      },
+      "browser": {
+        "headless": true,
+        "viewport": {"width": 960, "height": 640},
+        "device_scale_factor": 1,
+        "locale": "en-US",
+        "timezone": "UTC",
+        "launch_args": []
+      },
+      "fixtures": [
+        {
+          "id": "pilot-mixed-24",
+          "node_count": 24,
+          "triangle_count": 6,
+          "seed": 17,
+          "labels_enabled": false,
+          "metadata_configuration": "none"
+        }
+      ]
+    }
+  ]
+}
