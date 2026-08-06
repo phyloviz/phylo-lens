@@ -223,7 +223,7 @@ class PreparedLayoutStore:
         max_nodes: int,
     ) -> RegionReadResult:
         return region_reader.read_region(
-            self._database_path,
+            connect(self._database_path),
             dataset_id=dataset_id,
             layout_version=layout_version,
             xmin=xmin,

@@ -28,7 +28,7 @@ const PREPARE_JOB_FIXTURE = {
 } satisfies unknown;
 const SERVICE_INFO_FIXTURE = {
   status: "ok",
-  service_version: "0.1.0",
+  service_version: "0.1.1",
   api_version: SUPPORTED_PHYLO_LENS_API_VERSION,
 } satisfies unknown;
 

@@ -1,6 +1,6 @@
 services:
   phylo-lens-service:
-    image: ghcr.io/phyloviz/phylo-lens-service:0.1.0
+    image: ghcr.io/phyloviz/phylo-lens-service:0.1.1
     build:
       context: .
     ports:

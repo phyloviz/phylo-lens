@@ -95,7 +95,7 @@ docker run --rm \
   -p 8000:8000 \
   -e PHYLO_LENS_CORS_ORIGINS=http://localhost:5173 \
   -v phylo-lens-data:/data \
-  ghcr.io/phyloviz/phylo-lens-service:0.1.0
+  ghcr.io/phyloviz/phylo-lens-service:0.1.1
 ```
 
 Verify the service:
@@ -107,7 +107,7 @@ curl http://localhost:8000/health
 ```json
 {
   "status": "ok",
-  "service_version": "0.1.0",
+  "service_version": "0.1.1",
   "api_version": "1"
 }
 ```

@@ -1,6 +1,6 @@
 FROM phyloviz/phylolib@sha256:f1cc154814efdf45cd38b3ae13e0434e74a7b6ee5ab0b31679e822841fbc5e17
 
-ARG VERSION=0.1.0
+ARG VERSION=0.1.1
 
 LABEL org.opencontainers.image.title="PhyloLens API service" \
       org.opencontainers.image.description="Computational API service for PhyloLens prepared layouts and viewport reads" \

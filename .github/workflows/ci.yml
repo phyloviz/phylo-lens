@@ -152,25 +152,8 @@ jobs:
             code/client/package-lock.json
             examples/public-library-host/package-lock.json
 
-      - name: Install client dependencies
-        working-directory: code/client
-        run: npm ci
-
-      - name: Build library
-        working-directory: code/client
-        run: npm run build:lib
-
-      - name: Pack library
-        working-directory: code/client
-        run: npm pack
-
-      - name: Install fixture dependencies
-        working-directory: examples/public-library-host
-        run: npm ci
-
-      - name: Build fixture
-        working-directory: examples/public-library-host
-        run: npm run build
+      - name: Build packed-package consumer
+        run: ./scripts/packed-package-consumer-smoke.sh
 
   docker-service:
     name: Docker service validation (${{ matrix.suffix }})

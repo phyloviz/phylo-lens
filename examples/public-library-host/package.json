@@ -6,7 +6,7 @@
     "build": "tsc -b && vite build"
   },
   "dependencies": {
-    "@phyloviz/phylo-lens": "file:../../code/client/phyloviz-phylo-lens-0.1.0.tgz"
+    "@phyloviz/phylo-lens": "file:../../code/client/phyloviz-phylo-lens-0.1.1.tgz"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^5.0.4",

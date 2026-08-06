@@ -22,9 +22,8 @@ from phylo_lens_server.pipeline.models import (
     ViewportReadResult,
 )
 from phylo_lens_server.repository.jobs.postgres import import_psycopg
-from phylo_lens_server.repository.layout import writer
+from phylo_lens_server.repository.layout import region_reader, writer
 from phylo_lens_server.repository.layout.metadata_reader import (
-    aggregate_cluster_metadata,
     aggregate_cluster_metadata_by_node_ids,
     aggregate_layout_status,
 )
@@ -371,51 +370,19 @@ class PostgresPreparedLayoutStore:
         ymax: float,
         max_nodes: int,
     ) -> RegionReadResult:
-        with self._connect() as connection:
-            ready_nodes, total_node_count = read_ready_nodes(
-                connection,
-                dataset_id=dataset_id,
-                layout_version=layout_version,
-                xmin=xmin,
-                xmax=xmax,
-                ymin=ymin,
-                ymax=ymax,
-                max_nodes=max_nodes,
-            )
-            nodes = tuple(ready_nodes)
-            node_ids = {node.node_id for node in nodes}
-            edges = read_edges_for_nodes(
-                connection,
-                dataset_id=dataset_id,
-                layout_version=layout_version,
-                node_ids=node_ids,
-            )
-            nodes = attach_node_metadata(
-                connection,
-                dataset_id=dataset_id,
-                layout_version=layout_version,
-                nodes=nodes,
-            )
-            metadata_schema = load_metadata_schema(
-                connection,
-                dataset_id=dataset_id,
-                layout_version=layout_version,
-            )
-        aggregated_metadata = aggregate_cluster_metadata(
-            [node.metadata or {} for node in nodes],
-            tuple((field.key, field.type) for field in metadata_schema),
-        )
-        layout_status = aggregate_layout_status({node.layout_status for node in nodes})
-        return RegionReadResult(
+        return region_reader.read_region(
+            self._connect(),
             dataset_id=dataset_id,
             layout_version=layout_version,
-            nodes=nodes,
-            edges=tuple(edges),
-            total_node_count=total_node_count,
-            truncated=total_node_count > len(nodes),
-            layout_status=layout_status,
-            metadata_schema=metadata_schema,
-            aggregated_metadata=aggregated_metadata,
+            xmin=xmin,
+            xmax=xmax,
+            ymin=ymin,
+            ymax=ymax,
+            max_nodes=max_nodes,
+            read_ready_nodes_fn=read_ready_nodes,
+            read_edges_for_nodes_fn=read_edges_for_nodes,
+            attach_node_metadata_fn=attach_node_metadata,
+            load_metadata_schema_fn=load_metadata_schema,
         )
 
     def search_nodes(
@@ -610,25 +577,15 @@ def attach_node_metadata(
         layout_version=layout_version,
         cluster_ids=cluster_ids,
     )
-    return tuple(
-        (
-            replace(
-                node,
-                metadata=(
-                    cluster_metadata.get(node.cluster_id)
-                    if node.is_representative
-                    else node_metadata.get(node.node_id)
-                ),
-            )
-            if (
-                cluster_metadata.get(node.cluster_id)
-                if node.is_representative
-                else node_metadata.get(node.node_id)
-            )
-            else node
+    enriched: list[ViewportNode] = []
+    for node in nodes:
+        metadata = (
+            cluster_metadata.get(node.cluster_id)
+            if node.is_representative
+            else node_metadata.get(node.node_id)
         )
-        for node in nodes
-    )
+        enriched.append(replace(node, metadata=metadata) if metadata else node)
+    return tuple(enriched)
 
 
 def load_cluster_metadata(
@@ -1378,8 +1335,8 @@ def read_node_positions_by_ids(
 
 
 def search_nodes(connection_context, *, dataset_id, layout_version, query, limit):
-    needle = query.strip()
-    if not needle:
+    normalized_query = query.strip()
+    if not normalized_query:
         return SearchReadResult(
             dataset_id=dataset_id,
             layout_version=layout_version,
@@ -1389,7 +1346,7 @@ def search_nodes(connection_context, *, dataset_id, layout_version, query, limit
         )
     with connection_context as connection:
         best: dict[str, SearchMatch] = {}
-        pattern = f"%{_escape_like(needle)}%"
+        pattern = f"%{_escape_like(normalized_query)}%"
         rows = connection.execute(
             """
             select distinct node_id
@@ -1400,18 +1357,18 @@ def search_nodes(connection_context, *, dataset_id, layout_version, query, limit
             """,
             (dataset_id, layout_version, pattern),
         ).fetchall()
-        lowered = needle.lower()
+        normalized_query_lower = normalized_query.lower()
         for row in rows:
             node_id = row["node_id"]
             if _is_union_node_id(node_id):
                 continue
-            lower_id = node_id.lower()
+            normalized_node_id = node_id.lower()
             score = (
                 SEARCH_SCORE_ID_EXACT
-                if lower_id == lowered
+                if normalized_node_id == normalized_query_lower
                 else (
                     SEARCH_SCORE_ID_PREFIX
-                    if lower_id.startswith(lowered)
+                    if normalized_node_id.startswith(normalized_query_lower)
                     else SEARCH_SCORE_ID_SUBSTRING
                 )
             )
@@ -1431,7 +1388,7 @@ def search_nodes(connection_context, *, dataset_id, layout_version, query, limit
             if _is_union_node_id(node_id):
                 continue
             matched_value = _first_matching_value(
-                json.loads(row["metadata_json"]), lowered
+                json.loads(row["metadata_json"]), normalized_query_lower
             )
             if matched_value is not None:
                 record_match(
@@ -1451,7 +1408,7 @@ def search_nodes(connection_context, *, dataset_id, layout_version, query, limit
     return SearchReadResult(
         dataset_id=dataset_id,
         layout_version=layout_version,
-        query=needle,
+        query=normalized_query,
         matches=tuple(
             replace(
                 match,

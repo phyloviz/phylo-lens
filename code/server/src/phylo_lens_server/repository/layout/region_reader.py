@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import sqlite3
 
-from phylo_lens_server.database.sqlite import connect
 from phylo_lens_server.pipeline.models import (
     RegionReadResult,
     ViewportEdge,
@@ -19,7 +18,7 @@ from phylo_lens_server.repository.layout.viewport_reader import (
 
 
 def read_region(
-    database_path,
+    connection_context,
     *,
     dataset_id: str,
     layout_version: str,
@@ -28,9 +27,16 @@ def read_region(
     ymin: float,
     ymax: float,
     max_nodes: int,
+    read_ready_nodes_fn=read_ready_nodes,
+    read_edges_for_nodes_fn=None,
+    attach_node_metadata_fn=attach_node_metadata,
+    load_metadata_schema_fn=load_metadata_schema,
 ) -> RegionReadResult:
-    with connect(database_path) as connection:
-        ready_nodes, total_node_count = read_ready_nodes(
+    if read_edges_for_nodes_fn is None:
+        read_edges_for_nodes_fn = _read_edges_for_nodes
+
+    with connection_context as connection:
+        ready_nodes, total_node_count = read_ready_nodes_fn(
             connection,
             dataset_id=dataset_id,
             layout_version=layout_version,
@@ -42,19 +48,19 @@ def read_region(
         )
         nodes = tuple(ready_nodes)
         node_ids = {node.node_id for node in nodes}
-        edges = _read_edges_for_nodes(
+        edges = read_edges_for_nodes_fn(
             connection,
             dataset_id=dataset_id,
             layout_version=layout_version,
             node_ids=node_ids,
         )
-        nodes = attach_node_metadata(
+        nodes = attach_node_metadata_fn(
             connection,
             dataset_id=dataset_id,
             layout_version=layout_version,
             nodes=nodes,
         )
-        metadata_schema = load_metadata_schema(
+        metadata_schema = load_metadata_schema_fn(
             connection,
             dataset_id=dataset_id,
             layout_version=layout_version,

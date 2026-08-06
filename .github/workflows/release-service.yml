@@ -78,6 +78,8 @@ jobs:
           platforms: linux/amd64
           tags: phylo-lens-service:release-amd64
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ steps.release.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -93,6 +95,8 @@ jobs:
           platforms: linux/arm64
           tags: phylo-lens-service:release-arm64
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ steps.release.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -115,5 +119,7 @@ jobs:
           platforms: linux/amd64,linux/arm64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ steps.release.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

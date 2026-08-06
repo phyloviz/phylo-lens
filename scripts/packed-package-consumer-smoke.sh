@@ -7,8 +7,14 @@ export npm_config_cache="${npm_config_cache:-${TMPDIR:-/tmp}/phylo-lens-npm-cach
 cd "$REPO_ROOT/code/client"
 npm ci
 npm run build:lib
-npm pack
 
-cd "$REPO_ROOT/examples/public-library-host"
+PACK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/phylo-lens-package.XXXXXX")"
+FIXTURE_DIR="$(mktemp -d "${TMPDIR:-/tmp}/phylo-lens-packed-consumer.XXXXXX")"
+trap 'rm -rf "$PACK_DIR" "$FIXTURE_DIR"' EXIT
+TARBALL_NAME="$(npm pack --pack-destination "$PACK_DIR" --json | node -p 'JSON.parse(require("node:fs").readFileSync(0, "utf8"))[0].filename')"
+cp -R "$REPO_ROOT/examples/public-library-host/." "$FIXTURE_DIR"
+
+cd "$FIXTURE_DIR"
+npm install --package-lock-only --ignore-scripts "$PACK_DIR/$TARBALL_NAME"
 npm ci
 npm run build
