@@ -144,6 +144,125 @@ describe("ViewportSyncController", () => {
     );
   });
 
+  it("leaves the normal snapshot lifecycle unchanged when no observer is installed", async () => {
+    const renderer = createRenderer();
+    const nextSnapshotSequence = vi.fn(() => 1);
+    const controller = new ViewportSyncController({
+      datasetId: "tree",
+      client: { readViewport: vi.fn(async () => viewportResponse()) },
+      renderer,
+      nextSnapshotSequence,
+    });
+
+    controller.mount();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(renderer.applyGraphSnapshot).toHaveBeenCalledOnce();
+    expect(nextSnapshotSequence).not.toHaveBeenCalled();
+  });
+
+  it("reports an O(1) post-application boundary before deferred immutable diagnostics", async () => {
+    const renderer = createRenderer();
+    renderer.getInteractiveAggregateTargets = vi.fn(() => [
+      { clusterId: "cluster-a", representedNodeCount: 3, clientX: 110, clientY: 90 },
+    ]);
+    const events: unknown[] = [];
+    const order: string[] = [];
+    vi.mocked(renderer.applyGraphSnapshot).mockImplementation((graph) => {
+      renderer.appliedGraphs.push(graph);
+      order.push("applied");
+    });
+    const controller = new ViewportSyncController({
+      datasetId: "tree",
+      layoutVersion: "layout-0",
+      client: { readViewport: vi.fn(async () => viewportResponse()) },
+      renderer,
+      snapshotObserver: (boundary, readDiagnostics) => {
+        order.push("observed");
+        expect(renderer.getInteractiveAggregateTargets).not.toHaveBeenCalled();
+        events.push({ boundary, diagnostics: readDiagnostics() });
+      },
+      nextSnapshotSequence: () => 7,
+    });
+
+    controller.mount();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(order).toEqual(["applied", "observed"]);
+    expect(events).toEqual([
+      expect.objectContaining({
+        boundary: {
+          sequence: 7,
+          reason: "initial_load",
+          datasetId: "tree",
+          layoutVersion: "layout-1",
+          clusterId: null,
+          visibleNodeCount: 2,
+          visibleEdgeCount: 1,
+          visiblePrimitiveCount: 3,
+        },
+        diagnostics: expect.objectContaining({
+          visibleAggregateTriangleCount: 1,
+          aggregateTargets: [
+            expect.objectContaining({
+              clusterId: "cluster-a",
+              representedNodeCount: 3,
+              clientX: 110,
+              clientY: 90,
+              structuralFingerprint: expect.any(String),
+            }),
+          ],
+        }),
+      }),
+    ]);
+    expect(Object.isFrozen((events[0] as { boundary: object }).boundary)).toBe(true);
+  });
+
+  it("isolates observer failures from the applied snapshot lifecycle", async () => {
+    const renderer = createRenderer();
+    const onGraphSynced = vi.fn();
+    const controller = new ViewportSyncController({
+      datasetId: "tree",
+      client: { readViewport: vi.fn(async () => viewportResponse()) },
+      renderer,
+      snapshotObserver: () => {
+        throw new Error("diagnostics failure");
+      },
+      nextSnapshotSequence: () => 1,
+      onGraphSynced,
+    });
+
+    controller.mount();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(renderer.applyGraphSnapshot).toHaveBeenCalledOnce();
+    expect(onGraphSynced).toHaveBeenCalledOnce();
+  });
+
+  it("isolates deferred diagnostics failures after the t3 boundary", async () => {
+    const renderer = createRenderer();
+    renderer.getInteractiveAggregateTargets = vi.fn(() => {
+      throw new Error("target diagnostics failure");
+    });
+    const onGraphSynced = vi.fn();
+    const diagnostics = vi.fn();
+    const controller = new ViewportSyncController({
+      datasetId: "tree",
+      client: { readViewport: vi.fn(async () => viewportResponse()) },
+      renderer,
+      snapshotObserver: (_boundary, readDiagnostics) => diagnostics(readDiagnostics()),
+      nextSnapshotSequence: () => 1,
+      onGraphSynced,
+    });
+
+    controller.mount();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(diagnostics).toHaveBeenCalledWith(null);
+    expect(renderer.applyGraphSnapshot).toHaveBeenCalledOnce();
+    expect(onGraphSynced).toHaveBeenCalledOnce();
+  });
+
   it("keeps very large cluster representatives visually bounded", async () => {
     const renderer = createRenderer();
     const readViewport = vi.fn(async () =>
@@ -376,6 +495,11 @@ describe("ViewportSyncController", () => {
         .sort(),
     ).toEqual(["a1", "a2", "cluster-a", "root"]);
 
+    readViewport.mockClear();
+    controller.handleNodeClick({ nodeId: "cluster-a", attributes: { cluster_id: "cluster-a" } });
+    await Promise.resolve();
+    expect(readViewport).not.toHaveBeenCalled();
+
     controller.handleNodeDoubleClick({ nodeId: "cluster-a", attributes: { cluster_id: "cluster-a" } });
 
     expect(
@@ -384,5 +508,86 @@ describe("ViewportSyncController", () => {
         ?.nodes.map((node) => node.id)
         .sort(),
     ).toEqual(["cluster-a", "root"]);
+  });
+
+  it("still expands a different eligible cluster immediately after another cluster is expanded", async () => {
+    const renderer = createRenderer();
+    const initial = viewportResponse({
+      nodes: [
+        ...viewportResponse().nodes,
+        {
+          id: "cluster-b",
+          cluster_id: "cluster-b",
+          x: -10,
+          y: 0,
+          layout_status: "ready",
+          member_count: 4,
+          is_representative: true,
+        },
+      ],
+      edges: [...viewportResponse().edges, { id: "root-cluster-b", source: "root", target: "cluster-b" }],
+    });
+    const readViewport = vi.fn(async (query: GraphViewportQuery) => (query.cluster_id ? clusterResponse() : initial));
+    const controller = new ViewportSyncController({
+      datasetId: "tree",
+      client: { readViewport },
+      renderer,
+    });
+
+    controller.mount();
+    await vi.advanceTimersByTimeAsync(0);
+    controller.handleNodeClick({
+      nodeId: "cluster-a",
+      attributes: { cluster_id: "cluster-a", member_count: 3 },
+    });
+    await Promise.resolve();
+    readViewport.mockClear();
+
+    controller.handleNodeClick({
+      nodeId: "cluster-b",
+      attributes: { cluster_id: "cluster-b", member_count: 4 },
+    });
+    await Promise.resolve();
+
+    expect(readViewport).toHaveBeenCalledOnce();
+    expect(readViewport).toHaveBeenCalledWith(expect.objectContaining({ cluster_id: "cluster-b" }));
+  });
+
+  it("labels viewport, expansion, and local collapse applications with monotonic sequences", async () => {
+    const renderer = createRenderer();
+    const events: Array<{ sequence: number; reason: string; clusterId: string | null }> = [];
+    let nextSequence = 0;
+    const readViewport = vi.fn(async (query: GraphViewportQuery) =>
+      query.cluster_id === "cluster-a" ? clusterResponse() : viewportResponse(),
+    );
+    const controller = new ViewportSyncController({
+      datasetId: "tree",
+      client: { readViewport },
+      renderer,
+      lodTierCount: 4,
+      snapshotObserver: (boundary) => events.push(boundary),
+      nextSnapshotSequence: () => ++nextSequence,
+    });
+
+    controller.mount();
+    await vi.advanceTimersByTimeAsync(0);
+    viewportState = { bounds: { xmin: 1, xmax: 2, ymin: 3, ymax: 4 }, cameraRatio: 0.1 };
+    renderer.emitViewChange();
+    await vi.advanceTimersByTimeAsync(60);
+    controller.handleNodeClick({
+      nodeId: "cluster-a",
+      attributes: renderer.appliedGraphs.at(-1)?.nodes.find((node) => node.id === "cluster-a")?.attributes,
+    });
+    await Promise.resolve();
+    controller.handleNodeDoubleClick({ nodeId: "cluster-a", attributes: { cluster_id: "cluster-a" } });
+
+    expect(events.map((event) => event.sequence)).toEqual([1, 2, 3, 4]);
+    expect(events.map((event) => event.reason)).toEqual([
+      "initial_load",
+      "viewport_sync",
+      "cluster_expand",
+      "cluster_collapse",
+    ]);
+    expect(events.at(-1)?.clusterId).toBe("cluster-a");
   });
 });

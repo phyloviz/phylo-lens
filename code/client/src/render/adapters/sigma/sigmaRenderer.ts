@@ -7,6 +7,7 @@ import type {
   GraphDisplayOptions,
   GraphRenderer,
   RenderContext,
+  RenderInteractiveAggregateTarget,
   RenderNodeClickState,
   RenderViewportBounds,
   RenderViewportSyncState,
@@ -296,6 +297,27 @@ export class SigmaRenderer implements GraphRenderer {
       restoreCameraState(this.sigma, cameraState);
     }
     this.updateEdgeLabelVisibility(this.readSemanticViewState());
+  }
+
+  getInteractiveAggregateTargets(): readonly RenderInteractiveAggregateTarget[] {
+    if (!this.graph || !this.sigma || !this.containerElement) return [];
+
+    const rect = this.containerElement.getBoundingClientRect();
+    const targets: RenderInteractiveAggregateTarget[] = [];
+    this.graph.forEachNode((nodeId, attributes) => {
+      if (!isInteractiveAggregate(attributes)) return;
+
+      const point = this.sigma?.graphToViewport({ x: Number(attributes.x), y: Number(attributes.y) });
+      if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) return;
+
+      targets.push({
+        clusterId: typeof attributes.cluster_id === "string" ? attributes.cluster_id : nodeId,
+        representedNodeCount: attributes.member_count as number,
+        clientX: rect.left + point.x,
+        clientY: rect.top + point.y,
+      });
+    });
+    return targets.sort((left, right) => left.clusterId.localeCompare(right.clusterId));
   }
 
   fitGraphSnapshot(
@@ -682,6 +704,14 @@ export class SigmaRenderer implements GraphRenderer {
 
 // Project the live graphology graph into the node-attribute views the pie
 // helpers consume, matching the shape produced by the legacy positioned graph.
+function isInteractiveAggregate(attributes: Record<string, unknown>): boolean {
+  return (
+    attributes.type === "triangle" ||
+    attributes.is_cluster_proxy === true ||
+    (typeof attributes.member_count === "number" && attributes.member_count > 1)
+  );
+}
+
 function graphNodeViews(graph: Graph): PieNodeView[] {
   return graph.mapNodes((_nodeId, attributes) => ({
     attributes: attributes as Record<string, unknown>,

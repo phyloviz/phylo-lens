@@ -163,7 +163,7 @@ jobs:
         run: ./scripts/packed-package-consumer-smoke.sh
 
   rq2-evaluation:
-    name: RQ2 evaluation smoke
+    name: Evaluation smokes (RQ2-RQ4)
     needs: changes
     if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.rq2_eval == 'true'
     runs-on: ubuntu-latest
@@ -211,6 +211,7 @@ jobs:
         env:
           RQ2_SMOKE: "1"
           RQ3_SMOKE: "1"
+          RQ4_SMOKE: "1"
         run: |
           python -m pip install --upgrade pip
           python -m pip install -e 'code/server[test]'

@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://phyloviz.org/phylo-lens/eval/rq4-observation/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "experiment_id", "run_id", "observation_id", "scenario_id", "operation", "repetition_index", "warmup", "status", "failure_kind", "clock_domain", "server_state_policy", "dataset_checksum_sha256", "prepared_layout_id", "browser", "initial_state", "target", "viewport_state", "observer", "observer_events", "request_trace", "operation_request_trace", "operation_network_requests", "timing", "primitive_counts", "frame_intervals_ms", "frame_statistics", "artifacts", "error"],
+  "properties": {
+    "schema_version": {"const": "1"},
+    "experiment_id": {"type": "string", "minLength": 1},
+    "run_id": {"type": "string", "minLength": 1},
+    "observation_id": {"type": "string", "minLength": 1},
+    "scenario_id": {"type": "string", "minLength": 1},
+    "operation": {"enum": ["viewport_navigation", "cluster_expand", "cluster_collapse"]},
+    "repetition_index": {"type": "integer", "minimum": 0},
+    "warmup": {"type": "boolean"},
+    "status": {"enum": ["success", "invalid", "timeout", "failure"]},
+    "failure_kind": {"type": "string", "minLength": 1},
+    "clock_domain": {"enum": ["browser_performance_now", null]},
+    "server_state_policy": {"const": "fresh_process_public_bootstrap_warm_session"},
+    "dataset_checksum_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "prepared_layout_id": {"type": ["string", "null"]},
+    "browser": {"type": "object"},
+    "initial_state": {"type": "object"},
+    "target": {"type": ["object", "null"]},
+    "viewport_state": {"type": ["object", "null"]},
+    "observer": {"type": "object", "additionalProperties": false, "required": ["before", "after", "expanded"], "properties": {"before": {"type": "object"}, "after": {"type": "object"}, "expanded": {"type": ["object", "null"]}}},
+    "observer_events": {"type": "array", "items": {"type": "object"}},
+    "request_trace": {"type": "array", "items": {"type": "object"}},
+    "operation_request_trace": {"type": "array", "items": {"type": "object"}},
+    "operation_network_requests": {"type": "array", "items": {"type": "object"}},
+    "timing": {"type": "object", "additionalProperties": false, "required": ["t0_ms", "t1_ms", "t2_ms", "t3_ms", "t4_ms", "input_to_request_ms", "api_round_trip_ms", "response_to_snapshot_applied_ms", "input_to_snapshot_applied_ms", "snapshot_applied_to_frame_ms", "end_to_end_latency_ms"], "properties": {"t0_ms": {"type": ["number", "null"], "minimum": 0}, "t1_ms": {"type": ["number", "null"], "minimum": 0}, "t2_ms": {"type": ["number", "null"], "minimum": 0}, "t3_ms": {"type": ["number", "null"], "minimum": 0}, "t4_ms": {"type": ["number", "null"], "minimum": 0}, "input_to_request_ms": {"$ref": "#/$defs/metric"}, "api_round_trip_ms": {"$ref": "#/$defs/metric"}, "response_to_snapshot_applied_ms": {"$ref": "#/$defs/metric"}, "input_to_snapshot_applied_ms": {"$ref": "#/$defs/metric"}, "snapshot_applied_to_frame_ms": {"$ref": "#/$defs/metric"}, "end_to_end_latency_ms": {"$ref": "#/$defs/metric"}}},
+    "primitive_counts": {"type": "object", "additionalProperties": false, "required": ["before", "after"], "properties": {"before": {"$ref": "#/$defs/primitives"}, "after": {"$ref": "#/$defs/primitives"}}},
+    "frame_intervals_ms": {"type": "array", "items": {"type": "number", "minimum": 0}},
+    "frame_statistics": {"type": "object"},
+    "artifacts": {"type": "object", "additionalProperties": false, "required": ["directory", "request", "browser_result", "server_stdout", "server_stderr", "browser_stdout", "browser_stderr", "screenshot"], "properties": {"directory": {"type": "string"}, "request": {"type": "string"}, "browser_result": {"type": "string"}, "server_stdout": {"type": "string"}, "server_stderr": {"type": "string"}, "browser_stdout": {"type": "string"}, "browser_stderr": {"type": "string"}, "screenshot": {"type": "string"}}},
+    "error": {"type": ["string", "null"]}
+  },
+  "$defs": {
+    "metric": {"type": "object", "additionalProperties": false, "required": ["state", "value_ms"], "properties": {"state": {"enum": ["available", "unavailable", "not_applicable"]}, "value_ms": {"type": ["number", "null"], "minimum": 0}}},
+    "primitives": {"type": "object", "additionalProperties": false, "required": ["visible_node_count", "visible_edge_count", "visible_primitive_count", "visible_aggregate_triangle_count"], "properties": {"visible_node_count": {"type": ["integer", "null"], "minimum": 0}, "visible_edge_count": {"type": ["integer", "null"], "minimum": 0}, "visible_primitive_count": {"type": ["integer", "null"], "minimum": 0}, "visible_aggregate_triangle_count": {"type": ["integer", "null"], "minimum": 0}}}
+  }
+}

@@ -293,6 +293,33 @@ describe("sigmaRenderer", () => {
     renderer.unmount();
   });
 
+  it("provides real Sigma-derived hit coordinates for interactive aggregate triangles", () => {
+    document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
+    graphToViewportPoint = (point) => ({ x: point.x + 100, y: point.y + 50 });
+
+    const renderer = new SigmaRenderer();
+    renderer.mount({ container: requireContainer() });
+    renderer.render({
+      nodes: [
+        {
+          id: "cluster-b",
+          x: 12,
+          y: 8,
+          attributes: { cluster_id: "cluster-b", member_count: 5, is_cluster_proxy: true, type: "triangle" },
+        },
+        { id: "leaf", x: 2, y: 3, attributes: { member_count: 1 } },
+      ],
+      edges: [],
+      viewMeta: { layout: "server", lodLevel: 0 },
+    });
+
+    expect(renderer.getInteractiveAggregateTargets()).toEqual([
+      { clusterId: "cluster-b", representedNodeCount: 5, clientX: 112, clientY: 58 },
+    ]);
+
+    renderer.unmount();
+  });
+
   it("keeps camera and node handlers bound after Sigma is rebuilt for pie programs", () => {
     document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
 

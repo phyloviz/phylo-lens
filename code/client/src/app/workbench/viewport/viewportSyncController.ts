@@ -3,6 +3,11 @@ import type { GraphViewportResponse } from "../../../api/graphContracts";
 import type { PositionedEdge, PositionedGraph, PositionedNode } from "../../../contracts/positioned";
 import type { GraphRenderer, RenderNodeClickState } from "../../../render/renderer.types";
 import {
+  notifySnapshotApplied,
+  type SnapshotApplicationReason,
+  type SnapshotAppliedObserver,
+} from "../internalSnapshotObserver";
+import {
   buildGraphViewportQuery,
   DEFAULT_GRAPH_VIEWER_DEBOUNCE_MS,
   DEFAULT_GRAPH_VIEWER_MAX_NODES,
@@ -32,6 +37,8 @@ export interface ViewportSyncControllerOptions {
   onError?: (error: unknown) => void;
   getRenderSettings?: () => ViewportSyncSettings;
   onGraphSynced?: (graph: PositionedGraph, response?: GraphViewportResponse) => void;
+  snapshotObserver?: SnapshotAppliedObserver;
+  nextSnapshotSequence?: () => number;
 }
 
 export interface ViewportSyncRefreshOptions {
@@ -70,6 +77,8 @@ export class ViewportSyncController {
   private readonly onError?: (error: unknown) => void;
   private readonly getRenderSettings?: () => ViewportSyncSettings;
   private readonly onGraphSynced?: (graph: PositionedGraph, response?: GraphViewportResponse) => void;
+  private readonly snapshotObserver?: SnapshotAppliedObserver;
+  private readonly nextSnapshotSequence?: () => number;
   private debounceTimer: ReturnType<typeof window.setTimeout> | null = null;
   private initialFitTimer: ReturnType<typeof window.setTimeout> | null = null;
   private requestSequence = 0;
@@ -105,6 +114,8 @@ export class ViewportSyncController {
     this.onError = options.onError;
     this.getRenderSettings = options.getRenderSettings;
     this.onGraphSynced = options.onGraphSynced;
+    this.snapshotObserver = options.snapshotObserver;
+    this.nextSnapshotSequence = options.nextSnapshotSequence;
     this.initialViewportLoaded = new Promise<PositionedGraph>((resolve, reject) => {
       this.resolveInitialViewport = resolve;
       this.rejectInitialViewport = reject;
@@ -161,6 +172,12 @@ export class ViewportSyncController {
       return;
     }
     const clusterId = typeof state.attributes?.cluster_id === "string" ? state.attributes.cluster_id : nodeId;
+    // Sigma emits a click before its double-click event. Once this cluster is
+    // expanded, that first click must not start a redundant server expansion
+    // before the following double-click restores the cached local snapshot.
+    if (this.expandedClusterIds.has(clusterId)) {
+      return;
+    }
     const snapshot = this.captureClusterSnapshot(nodeId);
     if (!snapshot) {
       return;
@@ -220,7 +237,7 @@ export class ViewportSyncController {
     };
     this.expandedClusterCache.delete(clusterId);
     this.expandedClusterIds.delete(clusterId);
-    this.applyGraph(this.currentGraph);
+    this.applyGraph(this.currentGraph, "cluster_collapse", clusterId);
     this.onGraphSynced?.(this.currentGraph);
   }
 
@@ -298,8 +315,9 @@ export class ViewportSyncController {
       this.layoutVersion = response.layout_version;
       this.totalNodeCount = response.total_node_count;
       const graph = graphSnapshotFromViewportResponse(response, this.getRenderSettings?.());
+      const wasInitialViewport = !this.loadedInitialViewport;
       this.currentGraph = graph;
-      this.applyGraph(graph);
+      this.applyGraph(graph, wasInitialViewport ? "initial_load" : "viewport_sync");
       if (fitResponse) {
         this.suppressCameraRefreshUntil = Date.now() + VIEWPORT_SYNC_INITIAL_FIT_DURATION_MS + this.debounceMs;
         this.initialFitTimer = this.renderer.fitGraphSnapshot?.(graph, { resetFirst: false }) ?? null;
@@ -307,7 +325,6 @@ export class ViewportSyncController {
       if (!fitResponse && !this.loadedInitialViewport && (query.lod_level === 0 || finestTier)) {
         this.initialFitTimer = this.renderer.fitGraphSnapshot?.(graph) ?? null;
       }
-      const wasInitialViewport = !this.loadedInitialViewport;
       this.loadedInitialViewport = true;
       this.onGraphSynced?.(graph, response);
       this.onViewportLoaded?.(response);
@@ -360,7 +377,7 @@ export class ViewportSyncController {
         this.expandedClusterCache.set(clusterId, snapshot);
         this.expandedClusterIds.add(clusterId);
       }
-      this.applyGraph(this.currentGraph);
+      this.applyGraph(this.currentGraph, "cluster_expand", clusterId);
       if (options.fitToResponse) {
         this.suppressCameraRefreshUntil = Date.now() + VIEWPORT_SYNC_INITIAL_FIT_DURATION_MS + this.debounceMs;
         this.initialFitTimer = this.renderer.fitGraphSnapshot?.(patch, { resetFirst: false }) ?? null;
@@ -408,11 +425,21 @@ export class ViewportSyncController {
     };
   }
 
-  private applyGraph(graph: PositionedGraph): void {
+  private applyGraph(graph: PositionedGraph, reason: SnapshotApplicationReason, clusterId: string | null = null): void {
     if (!this.renderer.applyGraphSnapshot) {
       throw new Error("Viewport sync requires a renderer that can apply graph snapshots.");
     }
     this.renderer.applyGraphSnapshot(graph);
+    notifySnapshotApplied({
+      observer: this.snapshotObserver,
+      sequence: this.snapshotObserver ? (this.nextSnapshotSequence?.() ?? 0) : 0,
+      reason,
+      datasetId: this.datasetId,
+      layoutVersion: this.layoutVersion,
+      clusterId,
+      graph,
+      renderer: this.renderer,
+    });
   }
 
   private currentLodLevel(): number | null {

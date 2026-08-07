@@ -36,6 +36,15 @@ export interface RenderNodeClickState {
   attributes?: Record<string, unknown>;
 }
 
+// Internal renderer-neutral diagnostics descriptor. It deliberately exposes
+// only real pointer hit coordinates, never renderer implementation objects.
+export interface RenderInteractiveAggregateTarget {
+  clusterId: string;
+  representedNodeCount: number;
+  clientX: number;
+  clientY: number;
+}
+
 export interface GraphDisplayOptions {
   nodeLabels?: boolean;
   edgeDistanceLabels?: boolean;
@@ -67,6 +76,8 @@ export interface GraphRenderer {
   getViewportSyncState?: () => RenderViewportSyncState | null;
 
   applyGraphSnapshot?: (graph: PositionedGraph) => void;
+
+  getInteractiveAggregateTargets?: () => readonly RenderInteractiveAggregateTarget[];
 
   fitGraphSnapshot?: (
     graph: PositionedGraph,

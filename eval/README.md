@@ -1,8 +1,42 @@
 # PhyloLens evaluation
 
-This directory contains reproducible RQ1 server-side preparation and RQ2
-client-side visualization evaluation harnesses. It does not contain RQ3, RQ4,
-external-tool comparisons, or thesis-result claims.
+This directory contains reproducible RQ1–RQ4 evaluation harnesses. It does not
+contain external-tool comparisons or thesis-result claims.
+
+RQ4 measures warm-session interactive responsiveness after the normal public
+client bootstrap. Every operation uses a fresh server/browser process but calls
+the public `PhyloLensView.load()` during unmeasured setup; preparation and first
+load therefore remain outside the RQ4 timing region and are covered by RQ1.
+
+## RQ4 interactive responsiveness
+
+RQ4 measures `viewport_navigation`, `cluster_expand`, and `cluster_collapse`
+after normal public bootstrap. Its server-state policy is
+`fresh_process_public_bootstrap_warm_session`: every repetition has a fresh
+server and browser, calls public `PhyloLensView.load()` during unmeasured setup,
+waits for the initial snapshot observer and configured quiescence, then records
+`t0` immediately before one real Playwright interaction. `t1` and `t2` are the
+first relevant request's browser `PerformanceResourceTiming` dispatch and
+response-end timestamps; `t3` is entry to the internal snapshot observer, and
+`t4` is the second subsequent animation frame. All five use the page's
+`performance.now()` clock domain. Collapse is client-local, so its HTTP
+components are explicitly `not_applicable`. The policy intentionally replaced the withdrawn pre-existing-
+layout startup rule because public `load()` intentionally prepares the graph.
+
+Build the public package and evaluation page, then run the deterministic pilot:
+
+```bash
+(cd code/client && npm run build:lib)
+(cd eval/browser && npm run build)
+PYTHONPATH=eval/src:code/server/src python -m phylo_lens_eval.rq4 \
+  --experiment rq4-interactive-pilot --warmups 0 --repetitions 1
+```
+
+The run retains fresh-process identity, input checksum, final layout identity
+observed after bootstrap, observer and request traces, raw rAF intervals, and
+per-repetition server/browser diagnostics. It is an implementation smoke/pilot,
+not a final thesis run or claim about startup, preparation, cold first use, WAN
+latency, or physical display scanout.
 
 Install the server and evaluation dependencies in one Python environment, from
 the repository root:

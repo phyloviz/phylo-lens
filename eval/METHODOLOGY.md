@@ -51,17 +51,17 @@ diagnostics; their recorded precision is therefore limited by that diagnostic.
 
 ## Metrics
 
-| Field | Definition |
-| --- | --- |
-| `wall_time_seconds` | Child monotonic elapsed time from direct-input normalization through artifact publication. |
-| `stage_durations_seconds` | Duration of each named internal pipeline boundary in seconds. |
-| `peak_rss_bytes` | Maximum sampled sum of RSS for the live child and recursively discovered live descendants. `peak_rss_scope` records a root-process fallback when process enumeration is unavailable. This is not an exact physical-memory high-water mark; short-lived peaks can occur between samples. |
-| `input_bytes` | Byte size of the source input file. |
-| `persisted_artifact_bytes` | Sum of `prepared_layout.sqlite3` and its `-wal` and `-shm` sidecars when present. Manifests, requests, logs, raw observations, summaries, and resolved configuration are outside the persistence directory and excluded. SQLite connections are closed after each repository operation; any remaining WAL/SHM files are counted rather than silently omitted. |
-| `declared_node_count`, `declared_edge_count` | Dataset-catalog counts, if declared by the dataset metadata. |
-| `observed_node_count`, `edge_count` | Counts in the normalized canonical dataset. A disagreement with declared counts preserves both values and emits a warning; it does not silently rewrite the catalog. |
-| `lod_tier_count`, `cluster_count` | Distinct selected thresholds and materialized clusters in the produced artifacts. |
-| `layout_status` | `ready` for Graphviz output or `degraded` when the service’s documented fallback is used. |
+| Field                                        | Definition                                                                                                                                                                                                                                                                                                                                                    |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `wall_time_seconds`                          | Child monotonic elapsed time from direct-input normalization through artifact publication.                                                                                                                                                                                                                                                                    |
+| `stage_durations_seconds`                    | Duration of each named internal pipeline boundary in seconds.                                                                                                                                                                                                                                                                                                 |
+| `peak_rss_bytes`                             | Maximum sampled sum of RSS for the live child and recursively discovered live descendants. `peak_rss_scope` records a root-process fallback when process enumeration is unavailable. This is not an exact physical-memory high-water mark; short-lived peaks can occur between samples.                                                                       |
+| `input_bytes`                                | Byte size of the source input file.                                                                                                                                                                                                                                                                                                                           |
+| `persisted_artifact_bytes`                   | Sum of `prepared_layout.sqlite3` and its `-wal` and `-shm` sidecars when present. Manifests, requests, logs, raw observations, summaries, and resolved configuration are outside the persistence directory and excluded. SQLite connections are closed after each repository operation; any remaining WAL/SHM files are counted rather than silently omitted. |
+| `declared_node_count`, `declared_edge_count` | Dataset-catalog counts, if declared by the dataset metadata.                                                                                                                                                                                                                                                                                                  |
+| `observed_node_count`, `edge_count`          | Counts in the normalized canonical dataset. A disagreement with declared counts preserves both values and emits a warning; it does not silently rewrite the catalog.                                                                                                                                                                                          |
+| `lod_tier_count`, `cluster_count`            | Distinct selected thresholds and materialized clusters in the produced artifacts.                                                                                                                                                                                                                                                                             |
+| `layout_status`                              | `ready` for Graphviz output or `degraded` when the service’s documented fallback is used.                                                                                                                                                                                                                                                                     |
 
 Observations retain warm-ups and failures. A timeout is `timeout`; a SIGKILL not
 initiated by the harness is classified as probable `oom`; other non-successful
@@ -160,3 +160,41 @@ Pair files retain metric-specific availability: for example, root-only RSS
 does not invalidate latency but does invalidate process-tree RSS comparison.
 These synthetic fixtures are not biological data, and the full-detail fixture
 is an experimental counterfactual rather than a production endpoint.
+
+## RQ4 preparation: internal snapshot-applied observer
+
+RQ4 will observe the `t3` boundary through a private, opt-in diagnostics
+observer attached to the specific view container before the view is created.
+The observer fires synchronously after a successful renderer snapshot
+application, before any subsequent frame measurement. It denotes renderer state
+application, not paint, monitor scanout, or animation completion. Its callback
+receives a constant-time immutable boundary first, so it can record `t3` before
+requesting deferred immutable diagnostics such as aggregate hit coordinates and
+the snapshot fingerprint. Measured callbacks retain that deferred reader until
+after `t4`, so diagnostic enumeration cannot extend the measured frame window.
+Neither stage exposes Sigma, Graphology, or other
+renderer objects. It is evaluation-only internal infrastructure, not a public
+library API or compatibility guarantee. Discovery, diagnostic construction, and
+callback failures are isolated so they cannot change normal client behavior.
+
+RQ4 uses `fresh_process_public_bootstrap_warm_session`: each repetition starts
+a new server and browser, then completes the normal public `load()` path before
+scenario setup and the measured input. It characterizes interaction after a
+visualization is loaded, not startup, preparation, cold first use, WAN latency,
+or physical display scanout. Server-backed operations use the first relevant
+viewport dispatch as `t1`, the final relevant response that produced the
+correlated snapshot as `t2`, the observer boundary as `t3`, and double-rAF as
+`t4`; local collapse has no HTTP timing components.
+
+The earlier pre-existing-layout-at-server-start condition is deliberately not
+used: `PhyloLensView.load()` is the normal public operation that prepares and
+publishes the graph. RQ4 therefore records the final published layout identity
+after that unmeasured bootstrap and verifies deterministic input/configuration
+produce equivalent identities across repetitions. No cache is artificially
+cleared between `load()` and the interaction; process-local cache warming from
+the same public bootstrap is the controlled warm-session state being measured.
+For local collapse, the structural check is target-scoped: the cached
+pre-expansion aggregate projection (aggregate id, represented-member count, and
+incident-edge fingerprint) must reappear after collapse, and the collapsed
+state must differ from the expanded snapshot. This matches production's merged
+snapshot semantics without relying on renderer implementation identity.

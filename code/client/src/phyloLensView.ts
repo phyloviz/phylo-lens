@@ -9,6 +9,8 @@ import {
   type GraphWorkbench,
   type RenderNewickOptions,
 } from "./app/workbench/graphWorkbench";
+import type { GraphWorkbenchOptions } from "./app/workbench/graphWorkbench.types";
+import { snapshotAppliedObserverForContainer } from "./app/workbench/internalSnapshotObserver";
 
 export const ERR_PHYLO_LENS_VIEW_DISPOSED = "PhyloLens view has been disposed.";
 
@@ -77,10 +79,12 @@ export function createPhyloLensView(options: PhyloLensViewOptions): PhyloLensVie
 }
 
 function createWorkbench({ container, apiUrl }: PhyloLensViewOptions): GraphWorkbench {
-  return createGraphWorkbench({
+  const options: GraphWorkbenchOptions = {
     graphClient: createGraphClient({ baseUrl: apiUrl }),
     rendererFactory: rendererFactory(),
     rendererKind: RENDERER_KIND_SIGMA,
     renderContext: { container },
-  });
+  };
+  const snapshotObserver = snapshotAppliedObserverForContainer(container);
+  return snapshotObserver ? createGraphWorkbench(options, snapshotObserver) : createGraphWorkbench(options);
 }

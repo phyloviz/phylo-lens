@@ -13,6 +13,20 @@ declare global {
       startFrameSampling: () => void;
       finishFrameSampling: () => number[];
       dispose: () => void;
+      rq4?: {
+        createView: (apiUrl: string) => void;
+        load: (
+          content: string,
+          name: string,
+          maxNodes: number,
+        ) => Promise<unknown>;
+        beginOperation: () => { t0: number; viewport: unknown };
+        observerEvents: () => unknown[];
+        observerEventsWithDiagnostics: () => unknown[];
+        requestTrace: () => unknown[];
+        operationRequestTrace: () => unknown[];
+        finishAtFrame: (sequence: number) => Promise<number>;
+      };
     };
   }
 }
@@ -20,6 +34,17 @@ declare global {
 let activeView: ReturnType<typeof createPhyloLensView> | undefined;
 let frameSampling:
   { samples: number[]; previous?: number; active: boolean } | undefined;
+const RQ4_OBSERVER_SYMBOL = Symbol.for(
+  "@phyloviz/phylo-lens.internal.snapshot-applied.v1",
+);
+const rq4ObserverEvents: Array<Record<string, unknown>> = [];
+const rq4DiagnosticReaders = new Map<
+  number,
+  () => Record<string, unknown> | null
+>();
+const rq4RequestTrace: Array<Record<string, unknown>> = [];
+let rq4FetchInstalled = false;
+let rq4OperationRequestStart = 0;
 
 window.phyloLensEvaluation = {
   createView: (apiUrl: string) => {
@@ -78,7 +103,154 @@ window.phyloLensEvaluation = {
     activeView = undefined;
   },
 };
+window.phyloLensEvaluation.rq4 = {
+  createView: (apiUrl) => {
+    if (activeView) throw new Error("Evaluation view is already active.");
+    installRq4FetchTrace();
+    rq4ObserverEvents.length = 0;
+    rq4DiagnosticReaders.clear();
+    rq4RequestTrace.length = 0;
+    rq4OperationRequestStart = 0;
+    (root as unknown as Record<symbol, unknown>)[RQ4_OBSERVER_SYMBOL] = (
+      boundary: Record<string, unknown>,
+      readDiagnostics: () => Record<string, unknown> | null,
+    ) => {
+      const timestamp = performance.now();
+      rq4ObserverEvents.push({ timestamp, boundary });
+      rq4DiagnosticReaders.set(boundary.sequence as number, readDiagnostics);
+    };
+    activeView = createPhyloLensView({ container: root, apiUrl });
+  },
+  load: async (content, name, maxNodes) => {
+    if (!activeView) throw new Error("Evaluation view was not created.");
+    await activeView.load({ content, name, lod: { maxNodes } });
+    const event = rq4ObserverEvents.at(-1);
+    return event ? observerEventWithDiagnostics(event) : null;
+  },
+  beginOperation: () => {
+    const viewport = latestSnapshotViewport();
+    const t0 = performance.now();
+    rq4OperationRequestStart = rq4RequestTrace.length;
+    if (frameSampling) {
+      frameSampling.samples = [];
+      frameSampling.previous = t0;
+    }
+    return { t0, viewport };
+  },
+  observerEvents: () =>
+    rq4ObserverEvents.map((event) => structuredClone(event)),
+  observerEventsWithDiagnostics: () =>
+    rq4ObserverEvents.map((event) => observerEventWithDiagnostics(event)),
+  requestTrace: () => requestTraceWithResourceTimings(rq4RequestTrace),
+  operationRequestTrace: () =>
+    requestTraceWithResourceTimings(
+      rq4RequestTrace.slice(rq4OperationRequestStart),
+    ),
+  finishAtFrame: async (sequence) => {
+    if (
+      !rq4ObserverEvents.some(
+        (event) =>
+          (event.boundary as Record<string, unknown>).sequence === sequence,
+      )
+    ) {
+      throw new Error("snapshot_application_timeout");
+    }
+    return doubleAnimationFrame();
+  },
+};
 document.documentElement.dataset.rq2Bootstrap = "ready";
+
+function installRq4FetchTrace(): void {
+  if (rq4FetchInstalled) return;
+  rq4FetchInstalled = true;
+  const originalFetch = window.fetch.bind(window);
+  window.fetch = (input, init) => {
+    const url =
+      typeof input === "string"
+        ? input
+        : input instanceof Request
+          ? input.url
+          : input.toString();
+    const method =
+      init?.method ?? (input instanceof Request ? input.method : "GET");
+    const record: Record<string, unknown> = {
+      url,
+      method,
+      fetchInvocationTimestamp: performance.now(),
+    };
+    if (typeof init?.body === "string") {
+      record.bodyText = init.body;
+    }
+    rq4RequestTrace.push(record);
+    return originalFetch(input, init);
+  };
+}
+
+function requestTraceWithResourceTimings(
+  records: readonly Record<string, unknown>[],
+): Record<string, unknown>[] {
+  const resources = performance
+    .getEntriesByType("resource")
+    .filter(
+      (entry): entry is PerformanceResourceTiming =>
+        entry.entryType === "resource",
+    );
+  const used = new Set<PerformanceResourceTiming>();
+  return records.map((record) => {
+    const invocation = record.fetchInvocationTimestamp;
+    const resource = resources.find(
+      (entry) =>
+        !used.has(entry) &&
+        entry.initiatorType === "fetch" &&
+        entry.name === record.url &&
+        typeof invocation === "number" &&
+        entry.startTime >= invocation - 1,
+    );
+    if (resource) used.add(resource);
+    const responseStatus = (
+      resource as PerformanceResourceTiming & { responseStatus?: unknown }
+    )?.responseStatus;
+    const { bodyText, ...safeRecord } = structuredClone(record);
+    let body: unknown = null;
+    if (typeof bodyText === "string") {
+      try {
+        body = JSON.parse(bodyText);
+      } catch {
+        body = null;
+      }
+    }
+    return {
+      ...safeRecord,
+      body,
+      clock: "browser_performance_now",
+      dispatchTimestamp: resource?.startTime ?? null,
+      responseTimestamp: resource?.responseEnd ?? null,
+      status: typeof responseStatus === "number" ? responseStatus : null,
+    };
+  });
+}
+
+function latestSnapshotViewport(): unknown {
+  const event = rq4ObserverEvents.at(-1);
+  const diagnostics = event
+    ? (observerEventWithDiagnostics(event).diagnostics as Record<
+        string,
+        unknown
+      > | null)
+    : null;
+  return diagnostics?.viewport ?? null;
+}
+
+function observerEventWithDiagnostics(
+  event: Record<string, unknown>,
+): Record<string, unknown> {
+  const boundary = event.boundary as Record<string, unknown>;
+  const reader = rq4DiagnosticReaders.get(boundary.sequence as number);
+  return {
+    ...structuredClone(event),
+    diagnostics: reader?.() ?? null,
+  };
+}
 
 function doubleAnimationFrame(): Promise<number> {
   return new Promise((resolve) =>

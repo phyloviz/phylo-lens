@@ -24,6 +24,7 @@ import {
 } from "./graphWorkbench.errors";
 import graphNavigation from "./graphNavigation";
 import { ViewportSyncController } from "./viewport/viewportSyncController";
+import type { SnapshotAppliedObserver } from "./internalSnapshotObserver";
 
 export { DEFAULT_VIEWPORT, DEFAULT_VIEW_SLICE_MAX_NODES } from "./viewportGraph";
 export type {
@@ -39,10 +40,14 @@ export const DEFAULT_SEARCH_RESULT_LIMIT = 50;
 export const ERR_GRAPH_LOAD_SUPERSEDED = "Graph load was superseded by a newer load.";
 export { ERR_GRAPH_VIEWPORT_SYNC_REQUIRED, ERR_LOD_PLAYBACK_REQUIRES_LOD, ERR_NO_GRAPH_RENDERED };
 
-export function createGraphWorkbench(options: GraphWorkbenchOptions): GraphWorkbench {
+export function createGraphWorkbench(
+  options: GraphWorkbenchOptions,
+  snapshotObserver?: SnapshotAppliedObserver,
+): GraphWorkbench {
   const state = createInitialWorkbenchState();
   let viewportSync: ViewportSyncController | null = null;
   let loadGeneration = 0;
+  let snapshotSequence = 0;
   let disposed = false;
   const replaceViewportSync = (controller: ViewportSyncController | null) => {
     viewportSync?.unmount();
@@ -93,6 +98,8 @@ export function createGraphWorkbench(options: GraphWorkbenchOptions): GraphWorkb
         newick,
         datasetName,
         options: renderOptions,
+        snapshotObserver,
+        nextSnapshotSequence: () => ++snapshotSequence,
       });
     },
 
@@ -158,6 +165,8 @@ interface RenderNewickArgs {
   newick: string;
   datasetName?: string;
   options?: RenderNewickOptions;
+  snapshotObserver?: SnapshotAppliedObserver;
+  nextSnapshotSequence: () => number;
 }
 
 async function renderNewick({
@@ -169,6 +178,8 @@ async function renderNewick({
   newick,
   datasetName = DEFAULT_DATASET_NAME,
   options = {},
+  snapshotObserver,
+  nextSnapshotSequence,
 }: RenderNewickArgs): Promise<PositionedGraph> {
   setViewportSync(null);
   resetWorkbenchState(state);
@@ -229,6 +240,8 @@ async function renderNewick({
       state.currentGraph = graph;
       state.graphRenderedHandler?.(graph);
     },
+    snapshotObserver,
+    nextSnapshotSequence,
     getRenderSettings: () => ({
       visualMapping: state.preparedSession?.visualMapping,
       filterState: state.activeFilters,

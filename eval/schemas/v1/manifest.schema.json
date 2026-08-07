@@ -94,6 +94,19 @@
         "observed_browser_versions": {"type": "array", "items": {"type": "string", "minLength": 1}},
         "browser_executables": {"type": "array", "items": {"type": "string", "minLength": 1}}
       }
+    },
+    "rq4": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["server_state_policy", "browser", "setup_quiescence_ms", "frame_budget_ms", "minimum_frame_sample_count", "scenario_ordering"],
+      "properties": {
+        "server_state_policy": {"const": "fresh_process_public_bootstrap_warm_session"},
+        "browser": {"type": "object"},
+        "setup_quiescence_ms": {"type": "number", "minimum": 0},
+        "frame_budget_ms": {"type": "number", "exclusiveMinimum": 0},
+        "minimum_frame_sample_count": {"type": "integer", "minimum": 1},
+        "scenario_ordering": {"type": "string", "minLength": 1}
+      }
     }
   },
   "allOf": [
