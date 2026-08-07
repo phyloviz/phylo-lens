@@ -1,0 +1,26 @@
+{
+  "schema_version": "1",
+  "experiments": [
+    {
+      "id": "rq3-triangle-pilot",
+      "research_question": "RQ3",
+      "warmup_repetitions": 0,
+      "measured_repetitions": 1,
+      "timeout_seconds": 30,
+      "quiescence_ms": 100,
+      "animation_duration_ms": 250,
+      "frame_budget_ms": 16.7,
+      "minimum_frame_sample_count": 4,
+      "rss_sampling_interval_seconds": 0.02,
+      "browser": {"headless": true, "viewport": {"width": 960, "height": 640}, "device_scale_factor": 1, "locale": "en-US", "timezone": "UTC", "launch_args": []},
+      "input": {"drag_dx": 36, "drag_dy": 18, "drag_steps": 6, "step_delay_ms": 30, "zoom_in_delta_y": -80, "zoom_out_delta_y": 80, "wheel_delay_ms": 35},
+      "synthetic_dataset": {"id": "rq3-synthetic-clusters", "node_count": 300, "seed": 31, "topology": "irregular synthetic"},
+      "camera_states": [
+        {"id": "overview", "center_x_fraction": 0.5, "center_y_fraction": 0.5, "scale": 1.0, "lod_level": 0},
+        {"id": "intermediate", "center_x_fraction": 0.5, "center_y_fraction": 0.5, "scale": 0.7, "lod_level": 0},
+        {"id": "detail", "center_x_fraction": 0.25, "center_y_fraction": 0.5, "scale": 0.4, "lod_level": 0}
+      ],
+      "labels_enabled": false
+    }
+  ]
+}

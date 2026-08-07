@@ -8,7 +8,6 @@ import time
 from pathlib import Path
 
 import psutil
-
 from phylo_lens_eval.common import (
     validate_manifest,
     validate_observation,

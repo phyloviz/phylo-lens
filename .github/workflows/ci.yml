@@ -192,6 +192,8 @@ jobs:
         run: |
           npm ci
           npx playwright install --with-deps chromium
+          npm run format:check
+          npm run lint
           npm test
           npm run typecheck
           npm run build
@@ -208,10 +210,12 @@ jobs:
       - name: Run RQ2 Python tests and smoke
         env:
           RQ2_SMOKE: "1"
+          RQ3_SMOKE: "1"
         run: |
           python -m pip install --upgrade pip
           python -m pip install -e 'code/server[test]'
-          python -m pip install -e 'eval[test]'
+          python -m pip install -e 'eval[test,dev]'
+          (cd eval && python -m ruff check src tests && python -m ruff format --check src tests)
           PYTHONPATH=eval/src:code/server/src python -m pytest -q eval/tests
 
   docker-service:

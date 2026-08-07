@@ -63,3 +63,17 @@ validation, process-tree RSS sampling, raw JSONL observations, and summaries.
 The local replay server is an API contract fixture; its timings are diagnostics,
 not server-performance measurements. Headless smoke outputs are CI validation,
 not final thesis evidence.
+
+## RQ3 paired triangle aggregation
+
+Run the tiny synthetic paired ablation after building the same browser inputs:
+
+```bash
+PYTHONPATH=eval/src:code/server/src python -m phylo_lens_eval.rq3 \
+  --experiment rq3-triangle-pilot --warmups 0 --repetitions 1
+```
+
+RQ3 reads only persisted prepared-layout data to expand selected triangle
+members into detail at their original coordinates. Its raw `pairs.jsonl` is the
+statistical unit; it records both condition observations, semantic-population
+validation, counterbalanced order, and pair-level reduction/difference metrics.

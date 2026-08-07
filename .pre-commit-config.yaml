@@ -15,3 +15,17 @@ repos:
         pass_filenames: false
         always_run: true
         files: ^(code/client|examples/public-library-host)/
+      - id: evaluation-ruff-check-format
+        name: evaluation ruff check and format
+        entry: sh -c 'cd eval && python -m ruff check --fix src tests && python -m ruff format src tests'
+        language: system
+        pass_filenames: false
+        always_run: true
+        files: ^eval/(src|tests)/
+      - id: evaluation-browser-format-lint-build
+        name: evaluation browser format, lint, and build
+        entry: sh -c 'cd code/client && npm run build:lib && cd ../../eval/browser && npm run format:check && npm run lint && npm run typecheck && npm run build'
+        language: system
+        pass_filenames: false
+        always_run: true
+        files: ^eval/browser/

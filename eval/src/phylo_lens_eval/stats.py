@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from math import floor
-from typing import Iterable
 
 
 def summarize_observations(observations: Iterable[dict]) -> dict:

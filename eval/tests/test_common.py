@@ -4,7 +4,6 @@ import json
 from pathlib import Path
 
 import pytest
-
 from phylo_lens_eval.common import (
     checksum_sha256,
     classify_failure,

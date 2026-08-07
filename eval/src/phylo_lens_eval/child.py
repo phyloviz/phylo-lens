@@ -33,7 +33,6 @@ class StageTimer(AbstractContextManager[None]):
 
     def __enter__(self) -> None:
         self.started = time.perf_counter()
-        return None
 
     def __exit__(self, *_args) -> None:
         self.durations[self.name] = self.durations.get(self.name, 0.0) + (

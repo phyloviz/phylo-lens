@@ -20,11 +20,11 @@ from pathlib import Path
 
 from . import SCHEMA_VERSION
 from .common import (
-    classify_failure,
+    RSS_SAMPLE_INTERVAL_SECONDS,
     checksum_sha256,
+    classify_failure,
     create_isolated_run_directory,
     new_run_id,
-    RSS_SAMPLE_INTERVAL_SECONDS,
     safe_filename,
     utc_now,
     validate_manifest,

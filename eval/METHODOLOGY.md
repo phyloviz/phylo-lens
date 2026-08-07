@@ -139,3 +139,24 @@ raw JSONL. Summaries exclude warm-ups and report configured/success/invalid/
 failure/timeout counts plus median, P25, P75, IQR, minimum, and maximum. Final
 thesis runs should use headed Chromium on a recorded environment; CI uses only
 a tiny headless fixture and is not evidence of scalability or display quality.
+
+## RQ3: paired triangle-aggregation ablation
+
+RQ3 compares `triangle_aggregation` with a full-detail counterfactual from the
+same prepared layout and camera request. It does not add a public LoD-off
+endpoint and does not prepare a second layout. The evaluation reader expands
+each selected aggregate through persisted `cluster_members`, reads its original
+coordinates from `node_positions`, and reads topology from `graph_edges`.
+Missing membership is an explicit expansion failure. The semantic invariant is
+the equality of the aggregate sum of `member_count` and the expanded detailed
+node population.
+
+Camera states are declarative world-bound requests (overview, intermediate,
+and detail in the pilot). Both fixtures are serialized with sorted compact JSON
+to obtain `payload_bytes_uncompressed`; primitives are nodes + edges + triangle
+proxies. Conditions run in deterministic counterbalanced order with fresh RQ2
+browser processes and reuse every RQ2 timing, heap, RSS, and frame metric.
+Pair files retain metric-specific availability: for example, root-only RSS
+does not invalidate latency but does invalidate process-tree RSS comparison.
+These synthetic fixtures are not biological data, and the full-detail fixture
+is an experimental counterfactual rather than a production endpoint.

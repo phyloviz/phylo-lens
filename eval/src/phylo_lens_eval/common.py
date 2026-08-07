@@ -114,6 +114,11 @@ def validate_rq2_observation(payload: dict) -> None:
     _validate_schema(payload, "rq2-observation.schema.json")
 
 
+def validate_rq3_pair(payload: dict) -> None:
+    """Validate a strict RQ3 paired-comparison artifact."""
+    _validate_schema(payload, "rq3-pair.schema.json")
+
+
 def classify_failure(returncode: int | None, timed_out: bool) -> str:
     if timed_out:
         return "timeout"

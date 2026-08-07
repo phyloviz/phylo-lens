@@ -19,11 +19,23 @@ export async function withTimeout(name, timeoutMs, operation) {
 export function classifyFailure(error, lastStage) {
   const message = String(error);
   if (message.includes("invalid_configuration")) return "invalid_configuration";
-  if (message.includes("replay API") || message.includes("replay health")) return "replay_contract_failure";
-  if (message.includes("empty_visual_output") || message.includes("invalid_visual_output")) return "empty_visual_output";
-  if (lastStage.startsWith("chromium_launch") || lastStage.startsWith("playwright_connect")) return "browser_launch_failure";
+  if (message.includes("replay API") || message.includes("replay health"))
+    return "replay_contract_failure";
+  if (
+    message.includes("empty_visual_output") ||
+    message.includes("invalid_visual_output")
+  )
+    return "empty_visual_output";
+  if (
+    lastStage.startsWith("chromium_launch") ||
+    lastStage.startsWith("playwright_connect")
+  )
+    return "browser_launch_failure";
   if (lastStage.startsWith("bootstrap")) return "bootstrap_failure";
-  if (lastStage.startsWith("view_load")) return error?.code === "STAGE_TIMEOUT" ? "render_timeout" : "client_load_failure";
+  if (lastStage.startsWith("view_load"))
+    return error?.code === "STAGE_TIMEOUT"
+      ? "render_timeout"
+      : "client_load_failure";
   if (lastStage === "load_start") return "client_load_failure";
   return "harness_protocol_failure";
 }
