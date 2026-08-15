@@ -125,7 +125,7 @@ window.phyloLensEvaluation.rq4 = {
     if (!activeView) throw new Error("Evaluation view was not created.");
     await activeView.load({ content, name, lod: { maxNodes } });
     const event = rq4ObserverEvents.at(-1);
-    return event ? observerEventWithDiagnostics(event) : null;
+    return event ? structuredClone(event) : null;
   },
   beginOperation: () => {
     const viewport = latestSnapshotViewport();

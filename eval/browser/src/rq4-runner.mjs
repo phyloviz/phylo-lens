@@ -112,7 +112,21 @@ async function run(control) {
   progress = { ...progress, initial };
   if (!initial?.boundary || initial.boundary.reason !== "initial_load")
     throw new Error("bootstrap_failure");
+
   await page.waitForTimeout(control.setup_quiescence_ms);
+
+  const settledObserverEvents = await page.evaluate(
+    () =>
+      window.phyloLensEvaluation?.rq4?.observerEventsWithDiagnostics() ?? [],
+  );
+
+  initial =
+    settledObserverEvents.find(
+      (item) => item.boundary?.sequence === initial.boundary.sequence,
+    ) ?? initial;
+
+  progress = { ...progress, initial };
+
   let target = null;
   let expanded = null;
   if (control.operation !== "viewport_navigation")
