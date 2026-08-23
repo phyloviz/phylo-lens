@@ -150,6 +150,7 @@ print("container smoke ok")
 PY
 
 docker exec "$CONTAINER_NAME" sfdp -V
+docker exec "$CONTAINER_NAME" /usr/local/bin/graphviz-capability-smoke
 docker exec "$CONTAINER_NAME" java -version
 docker exec "$CONTAINER_NAME" python -c 'import psycopg'
 docker exec "$CONTAINER_NAME" sh -c 'test -r "$PHYLO_LENS_PHYLOLIB_JAR"'

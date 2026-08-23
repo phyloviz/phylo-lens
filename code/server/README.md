@@ -52,7 +52,7 @@ curl http://localhost:8000/health
 ```json
 {
   "status": "ok",
-  "service_version": "0.1.1",
+  "service_version": "0.2.0",
   "api_version": "1"
 }
 ```
@@ -94,6 +94,12 @@ The Dockerfile pins the PhyloLib source image by multi-platform manifest digest.
 `phylolib.jar.sha256` is the executable source of truth for the expected bundled
 JAR checksum. CI builds and smoke-tests each architecture independently before a
 release publishes a combined manifest.
+
+The image builds the pinned upstream Graphviz 12.2.1 and GTS source releases;
+Alpine does not package GTS. `graphviz-capability-smoke` runs during image build
+and container CI, exercising PhyloLens' connected-graph `overlap=scale` path;
+it reports the Graphviz and GTS runtime versions and rejects missing
+triangulation support.
 
 ### Compose
 

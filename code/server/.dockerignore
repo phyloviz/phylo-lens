@@ -17,6 +17,8 @@ ENV/
 
 tests/
 scripts/
+!scripts/
+!scripts/graphviz-capability-smoke.sh
 
 .phylo_lens_store/
 phylo_lens_prepared_layout/

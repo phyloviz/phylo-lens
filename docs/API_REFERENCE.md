@@ -91,7 +91,7 @@ curl http://localhost:8000/health
 ```json
 {
   "status": "ok",
-  "service_version": "0.1.1",
+  "service_version": "0.2.0",
   "api_version": "1"
 }
 ```

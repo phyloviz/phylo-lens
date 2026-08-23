@@ -25,11 +25,13 @@ def main() -> int:
 
     client_version = json.loads(CLIENT_PACKAGE.read_text(encoding="utf-8"))["version"]
     server_version = tomllib.loads(SERVER_PROJECT.read_text(encoding="utf-8"))["project"]["version"]
+    service_version_fallback = read_service_version_fallback()
     api_version = read_api_version()
 
     mismatches = [
         ("client package", client_version),
         ("server package", server_version),
+        ("service version fallback", service_version_fallback),
     ]
     mismatches = [(name, version) for name, version in mismatches if version != release_version]
     if mismatches:
@@ -55,6 +57,17 @@ def read_api_version() -> str:
     )
     if match is None:
         raise RuntimeError(f"API_VERSION not found in {SERVER_VERSIONS}")
+    return match.group(1)
+
+
+def read_service_version_fallback() -> str:
+    match = re.search(
+        r'^SERVICE_VERSION_FALLBACK\s*=\s*["\']([^"\']+)["\']',
+        SERVER_VERSIONS.read_text(encoding="utf-8"),
+        re.MULTILINE,
+    )
+    if match is None:
+        raise RuntimeError(f"SERVICE_VERSION_FALLBACK not found in {SERVER_VERSIONS}")
     return match.group(1)
 
 
