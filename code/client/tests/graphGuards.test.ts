@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   isGraphPrepareResponse,
+  isGraphPrepareStatus,
   isGraphRegionResponse,
   isGraphSearchResponse,
   isGraphViewportResponse,
@@ -104,6 +105,22 @@ describe("graphGuards", () => {
   it("validates prepare responses", () => {
     expect(isGraphPrepareResponse(PREPARE_FIXTURE)).toBe(true);
     expect(isGraphPrepareResponse({ ...PREPARE_FIXTURE, node_count: "3" })).toBe(false);
+  });
+
+  it("accepts structured failed-prepare diagnostics", () => {
+    expect(
+      isGraphPrepareStatus({
+        job_id: "job-1",
+        status: "failed",
+        error: "sfdp exited",
+        error_details: {
+          algorithm: "sfdp",
+          stage: "global_layout",
+          exit_status: 17,
+          stderr: "bad input",
+        },
+      }),
+    ).toBe(true);
   });
 
   it("validates viewport responses", () => {

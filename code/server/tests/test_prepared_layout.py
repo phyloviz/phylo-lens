@@ -22,8 +22,7 @@ from phylo_lens_server.pipeline.ingest import (
 from phylo_lens_server.pipeline.layout import (
     GLOBAL_TARGET_EDGE_LENGTH,
     GRAPHVIZ_SFDP_COMMAND,
-    LAYOUT_DEGRADED_SFDP_MISSING,
-    GraphvizLayoutTimeoutError,
+    GraphvizLayoutError,
     compute_prepared_layouts,
     graphviz_dot_payload,
     graphviz_sfdp_positions,
@@ -50,7 +49,7 @@ from phylo_lens_server.repository.layout.sqlite_layout_repository import (
 from phylo_lens_server.services import graph_service
 
 SFDP_AVAILABLE = shutil.which(GRAPHVIZ_SFDP_COMMAND) is not None
-EXPECTED_LAYOUT_STATUS = "ready" if SFDP_AVAILABLE else "degraded"
+EXPECTED_LAYOUT_STATUS = "ready"
 
 FORMAT_NEWICK = "newick"
 DATASET_ID = "prepared-layout-tree"
@@ -229,16 +228,12 @@ def test_prepare_layout_artifacts_materializes_singletons_at_each_lod() -> None:
 
 @pytest.mark.skipif(
     not SFDP_AVAILABLE,
-    reason=(
-        "Force-directed spread requires the Graphviz 'sfdp' binary; without it "
-        "the layout falls back to a circular arrangement that cannot satisfy the "
-        "spread assertions."
-    ),
+    reason=("Force-directed spread requires the Graphviz 'sfdp' binary."),
 )
 def test_open_force_tree_layout_spreads_branching_tree_on_both_axes() -> None:
     dataset = _branching_dataset()
     artifacts = prepare_layout_artifacts(dataset)
-    cluster_layouts, _node_positions, _reason = compute_prepared_layouts(artifacts)
+    cluster_layouts, _node_positions = compute_prepared_layouts(artifacts)
     xs = [layout.x for layout in cluster_layouts]
     ys = [layout.y for layout in cluster_layouts]
     x_span = max(xs) - min(xs)
@@ -274,7 +269,7 @@ def test_normalized_graphviz_positions_repair_single_axis_collapse() -> None:
     assert min(x_span, y_span) > max(x_span, y_span) * 0.2
 
 
-def test_normalized_graphviz_positions_repair_point_collapse() -> None:
+def test_normalized_graphviz_positions_does_not_replace_point_collapse() -> None:
     positions = {
         "a": (0.0, 0.0),
         "b": (0.0, 0.0),
@@ -290,30 +285,32 @@ def test_normalized_graphviz_positions_repair_point_collapse() -> None:
     xs = [position[0] for position in normalized.values()]
     ys = [position[1] for position in normalized.values()]
 
-    assert max(xs) - min(xs) > 0.0
-    assert max(ys) - min(ys) > 0.0
+    assert max(xs) - min(xs) == 0.0
+    assert max(ys) - min(ys) == 0.0
 
 
-def test_layout_reports_degraded_status_when_sfdp_is_missing(monkeypatch) -> None:
+def test_layout_fails_when_sfdp_is_missing_without_circular_fallback(
+    monkeypatch,
+) -> None:
     monkeypatch.setattr(
         "phylo_lens_server.pipeline.layout.shutil.which",
         lambda command: None,
     )
 
     artifacts = prepare_layout_artifacts(_dataset())
-    cluster_layouts, node_positions, reason = compute_prepared_layouts(artifacts)
+    with pytest.raises(GraphvizLayoutError) as error:
+        compute_prepared_layouts(artifacts)
 
-    assert cluster_layouts
-    assert node_positions
-    assert all(layout.status == "degraded" for layout in cluster_layouts)
-    assert all(position.status == "degraded" for position in node_positions)
-    assert reason == LAYOUT_DEGRADED_SFDP_MISSING
+    assert error.value.diagnostics.algorithm == "sfdp"
+    assert (
+        error.value.diagnostics.detail == "The sfdp executable was not found on PATH."
+    )
 
 
 def test_tree_layout_scales_to_large_chains_quickly() -> None:
     dataset = _varied_chain_dataset(1_000)
     artifacts = prepare_layout_artifacts(dataset)
-    cluster_layouts, node_positions, _reason = compute_prepared_layouts(artifacts)
+    cluster_layouts, node_positions = compute_prepared_layouts(artifacts)
 
     assert cluster_layouts
     assert node_positions
@@ -322,7 +319,7 @@ def test_tree_layout_scales_to_large_chains_quickly() -> None:
 def test_ghost_layout_uses_global_coordinates_for_clusters_and_members() -> None:
     dataset = _dataset()
     artifacts = prepare_layout_artifacts(dataset)
-    cluster_layouts, node_positions, _reason = compute_prepared_layouts(artifacts)
+    cluster_layouts, node_positions = compute_prepared_layouts(artifacts)
     cluster_by_id = {cluster.cluster_id: cluster for cluster in artifacts.clusters}
     position_by_node = {position.node_id: position for position in node_positions}
 
@@ -447,7 +444,7 @@ def test_graphviz_plain_parser_handles_quoted_node_ids() -> None:
     assert positions == {"a b": (0.5, 1.25), "c-d": (2.0, 3.5)}
 
 
-def test_graphviz_sfdp_positions_applies_configured_timeout(monkeypatch) -> None:
+def test_graphviz_sfdp_positions_applies_only_an_explicit_timeout(monkeypatch) -> None:
     calls: list[dict[str, object]] = []
 
     class Completed:
@@ -472,14 +469,42 @@ def test_graphviz_sfdp_positions_applies_configured_timeout(monkeypatch) -> None
     )
     monkeypatch.setenv("PHYLO_LENS_GRAPHVIZ_SFDP_TIMEOUT_SECONDS", "8.5")
 
-    positions, reason = graphviz_sfdp_positions(
+    positions = graphviz_sfdp_positions(
         ("a", "b"),
         (CanonicalEdge(id="e1", source="a", target="b", distance=1.0),),
     )
 
-    assert reason is None
     assert positions == {"a": (0.0, 0.0), "b": (1.0, 0.0)}
     assert calls[0]["timeout"] == 8.5
+
+
+def test_graphviz_sfdp_positions_has_no_default_timeout(monkeypatch) -> None:
+    calls: list[dict[str, object]] = []
+
+    class Completed:
+        stdout = (
+            "graph 1 3 1\n"
+            'node "a" 0 0 0.1 0.1 "" solid ellipse black lightgrey\n'
+            'node "b" 1 0 0.1 0.1 "" solid ellipse black lightgrey\n'
+            "stop\n"
+        )
+
+    monkeypatch.setattr(
+        "phylo_lens_server.pipeline.layout.shutil.which",
+        lambda command: "/usr/bin/sfdp",
+    )
+    monkeypatch.setattr(
+        "phylo_lens_server.pipeline.layout.subprocess.run",
+        lambda *args, **kwargs: calls.append(kwargs) or Completed(),
+    )
+    monkeypatch.delenv("PHYLO_LENS_GRAPHVIZ_SFDP_TIMEOUT_SECONDS", raising=False)
+
+    graphviz_sfdp_positions(
+        ("a", "b"),
+        (CanonicalEdge(id="e1", source="a", target="b", distance=1.0),),
+    )
+
+    assert calls[0]["timeout"] is None
 
 
 def test_graphviz_sfdp_positions_timeout_fails_layout_job(monkeypatch) -> None:
@@ -496,11 +521,32 @@ def test_graphviz_sfdp_positions_timeout_fails_layout_job(monkeypatch) -> None:
     )
     monkeypatch.setenv("PHYLO_LENS_GRAPHVIZ_SFDP_TIMEOUT_SECONDS", "1")
 
-    with pytest.raises(GraphvizLayoutTimeoutError):
+    with pytest.raises(GraphvizLayoutError) as error:
         graphviz_sfdp_positions(
             ("a", "b"),
             (CanonicalEdge(id="e1", source="a", target="b", distance=1.0),),
         )
+    assert error.value.diagnostics.timeout_seconds == 1
+
+
+def test_graphviz_sfdp_nonzero_exit_fails_with_diagnostics(monkeypatch) -> None:
+    def fake_run(command, **kwargs):
+        raise subprocess.CalledProcessError(17, command, stderr="sfdp diagnostic")
+
+    monkeypatch.setattr(
+        "phylo_lens_server.pipeline.layout.shutil.which",
+        lambda command: "/usr/bin/sfdp",
+    )
+    monkeypatch.setattr("phylo_lens_server.pipeline.layout.subprocess.run", fake_run)
+
+    with pytest.raises(GraphvizLayoutError) as error:
+        graphviz_sfdp_positions(
+            ("a", "b"),
+            (CanonicalEdge(id="e1", source="a", target="b", distance=1.0),),
+        )
+
+    assert error.value.diagnostics.exit_status == 17
+    assert error.value.diagnostics.stderr == "sfdp diagnostic"
 
 
 def test_prepared_layout_worker_persists_ready_cluster_and_node_positions(

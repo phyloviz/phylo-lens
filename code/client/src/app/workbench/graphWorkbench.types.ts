@@ -68,6 +68,8 @@ export type GraphNodeClickedHandler = (state: RenderNodeClickState) => void;
 export interface GraphWorkbench {
   renderNewick: (newick: string, datasetName?: string, options?: RenderNewickOptions) => Promise<PositionedGraph>;
 
+  exportPng: () => Promise<Blob>;
+
   applyMetadataFilters: (filterState: MetadataFilterState) => PositionedGraph;
 
   clearMetadataFilters: () => PositionedGraph;
@@ -119,8 +121,7 @@ export interface PreparedDatasetSession {
   // Presentation toggles applied during viewport sync (node labels, edge
   // distance labels, distance-weighted edge thickness).
   displayOptions?: GraphDisplayOptions;
-  // Prepare-time warnings (e.g. a degraded force layout that fell back to a
-  // topology-ignoring circular scatter), surfaced by the shell on every slice.
+  // Prepare-time warnings, surfaced by the shell on every slice.
   layoutWarnings?: string[];
   layout?: RenderNewickOptions["layout"];
   // Total precomputed LoD tiers for the dataset (from the prepare response).

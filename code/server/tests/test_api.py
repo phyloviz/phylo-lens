@@ -19,7 +19,7 @@ from phylo_lens_server.repository.layout.sqlite_layout_repository import (
 from phylo_lens_server.utils.versions import API_VERSION, service_version
 
 SFDP_AVAILABLE = shutil.which(GRAPHVIZ_SFDP_COMMAND) is not None
-EXPECTED_LAYOUT_STATUS = "ready" if SFDP_AVAILABLE else "degraded"
+EXPECTED_LAYOUT_STATUS = "ready"
 
 ROUTE_HEALTH = "/health"
 ROUTE_GRAPH_PREPARE = "/api/graph/prepare"
@@ -212,7 +212,7 @@ def test_graph_search_missing_dataset_returns_not_found(client) -> None:
     assert response.status_code == STATUS_NOT_FOUND
 
 
-def test_graph_prepare_reports_degraded_status_when_sfdp_is_missing(
+def test_graph_prepare_fails_with_structured_diagnostics_when_sfdp_is_missing(
     client, monkeypatch
 ) -> None:
     monkeypatch.setattr(
@@ -229,10 +229,16 @@ def test_graph_prepare_reports_degraded_status_when_sfdp_is_missing(
         },
     )
 
-    assert status_body["status"] == "ready"
-    prepare_body = status_body["result"]
-    assert prepare_body["layout_status"] == "degraded"
-    assert any("sfdp" in warning for warning in prepare_body["warnings"])
+    assert status_body["status"] == "failed"
+    assert "sfdp" in status_body["error"]
+    assert status_body["error_details"] == {
+        "algorithm": "sfdp",
+        "stage": "global_layout",
+        "exit_status": None,
+        "timeout_seconds": None,
+        "stderr": None,
+        "detail": "The sfdp executable was not found on PATH.",
+    }
 
 
 def test_graph_viewport_lod_zero_without_bounds_falls_back_from_single_cluster(

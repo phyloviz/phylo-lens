@@ -168,9 +168,9 @@ describe("uiShell", () => {
     await shell.renderCurrentInput();
 
     // Still reports the render, but appends the degraded-layout warning so a
-    // topology-ignoring circular fallback is not mistaken for a real layout.
+    // legacy persisted layouts remain visibly marked for host applications.
     expect(status.textContent).toContain("Rendered");
-    expect(status.textContent).toContain("Degraded layout");
+    expect(status.textContent).toContain("earlier service version");
     shell.unmount();
   });
 

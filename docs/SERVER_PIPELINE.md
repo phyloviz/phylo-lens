@@ -201,20 +201,21 @@ graph.
 - Disconnected forests use component packing to avoid a pathological global
   overlap pass.
 - `maxiter` is derived from node count.
-- the subprocess is bounded by `PHYLO_LENS_GRAPHVIZ_SFDP_TIMEOUT_SECONDS`.
+- by default the subprocess has no wall-clock timeout; an operator can opt in
+  to `PHYLO_LENS_GRAPHVIZ_SFDP_TIMEOUT_SECONDS`.
 
-Graphviz output is parsed from the `plain` format, centered, scaled to a target
-median edge length, and repaired deterministically if the result collapses onto
-one axis.
+Graphviz output is parsed from the `plain` format, centered, and scaled to a
+target median edge length. A one-axis output receives deterministic separation;
+a complete point-collapsed `sfdp` result is retained as returned rather than
+silently replaced with another layout algorithm.
 
-### Degraded layout
+### Layout failures
 
-If `sfdp` is missing, exits unsuccessfully, or returns incomplete positions, the
-pipeline uses a deterministic circular fallback and publishes the version as
-`degraded` with a warning.
-
-A Graphviz timeout is treated as a preparation failure rather than silently
-continuing after an unbounded execution.
+If `sfdp` is missing, exits unsuccessfully, times out when an explicit timeout
+is configured, or returns incomplete positions, preparation fails and does not
+publish a layout version. The failed job reports structured diagnostics,
+including `algorithm`, `stage`, exit status, configured timeout, and stderr or
+error detail where available. Circular layout is not an implicit fallback.
 
 ## 10. Cluster and node layouts
 
@@ -243,10 +244,7 @@ chunked and grouped under transaction boundaries.
 
 ## 12. Publication
 
-After all artifacts are stored, the worker publishes the dataset row as:
-
-- `ready`, when the Graphviz layout completed normally;
-- `degraded`, when a documented fallback layout was used.
+After all artifacts are stored, the worker publishes the dataset row as `ready`.
 
 Only then can reads that omit `layout_version` resolve the new version.
 
@@ -262,7 +260,7 @@ layout. Relevant cases include:
 - invalid Newick or typing data;
 - PhyloLib process failure or timeout;
 - missing edge distances in a partially weighted graph;
-- Graphviz timeout;
+- Graphviz missing, non-zero, incomplete, or explicitly timed-out layout;
 - database error;
 - lost PostgreSQL lease before publication.
 

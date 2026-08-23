@@ -121,9 +121,10 @@ cluster:
 pending | refining | ready | degraded | failed
 ```
 
-A successful Graphviz fallback publishes `degraded`; a fully computed layout
-publishes `ready`. `pending` and `refining` describe in-flight work. `failed` is
-a terminal job state and is not published as a readable layout version.
+Current preparation publishes `ready` only. `degraded` is retained for layouts
+created by earlier service versions and is not produced as a Graphviz fallback.
+`pending` and `refining` describe in-flight work. `failed` is a terminal job
+state and is not published as a readable layout version.
 
 ## Read models
 

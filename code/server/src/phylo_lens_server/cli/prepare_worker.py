@@ -17,6 +17,7 @@ from phylo_lens_server.pipeline.worker import (
     LayoutPublicationAbortedError,
     PreparedLayoutWorker,
 )
+from phylo_lens_server.repository.jobs.local import error_details, error_message
 from phylo_lens_server.repository.jobs.postgres import (
     DEFAULT_LEASE_SECONDS,
     DurablePrepareJobStore,
@@ -114,7 +115,8 @@ def run_postgres_prepare_worker(
                 job_store.mark_failed(
                     job_id=claimed.job_id,
                     worker_id=worker_id,
-                    error=str(error) or type(error).__name__,
+                    error=error_message(error),
+                    error_details=error_details(error),
                 )
                 jobs_completed += 1
             finally:

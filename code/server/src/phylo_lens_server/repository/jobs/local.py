@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import threading
 import uuid
 from collections.abc import Generator
@@ -10,6 +11,7 @@ from typing import Any, Literal, Protocol
 
 from phylo_lens_server.domain.models import CanonicalDataset
 from phylo_lens_server.pipeline.ingest import layout_version_for_dataset
+from phylo_lens_server.pipeline.layout import GraphvizLayoutError
 from phylo_lens_server.pipeline.models import PreparedLayoutResult
 from phylo_lens_server.repository.jobs.result_payload import prepare_result_payload
 
@@ -53,6 +55,7 @@ class PrepareJobSnapshot:
     result: PreparedLayoutResult | None = None
     result_payload: dict[str, Any] | None = None
     error: str | None = None
+    error_details: dict[str, Any] | None = None
     warnings: tuple[str, ...] = ()
 
 
@@ -152,7 +155,8 @@ class PrepareJobRegistry:
             return PrepareJobSnapshot(
                 job_id=job_id,
                 status=JOB_STATUS_FAILED,
-                error=str(error) or type(error).__name__,
+                error=error_message(error),
+                error_details=error_details(error),
                 warnings=warnings,
             )
         return PrepareJobSnapshot(
@@ -212,7 +216,8 @@ class PrepareJobRegistry:
                 snapshot = PrepareJobSnapshot(
                     job_id=job_id,
                     status=JOB_STATUS_FAILED,
-                    error=str(error) or type(error).__name__,
+                    error=error_message(error),
+                    error_details=error_details(error),
                     warnings=warnings,
                 )
             else:
@@ -242,3 +247,33 @@ def is_reusable_future(future: Future[PreparedLayoutResult]) -> bool:
     if future.cancelled():
         return False
     return future.exception() is None
+
+
+def error_message(error: BaseException) -> str:
+    return str(error) or type(error).__name__
+
+
+def error_details(error: BaseException) -> dict[str, Any] | None:
+    if isinstance(error, GraphvizLayoutError):
+        return error.diagnostics.as_dict()
+    return None
+
+
+def serialize_failure(error: str, details: dict[str, Any] | None) -> str:
+    """Persist structured diagnostics in legacy text-only durable job storage."""
+    if details is None:
+        return error
+    return json.dumps({"message": error, "details": details}, sort_keys=True)
+
+
+def deserialize_failure(error: str | None) -> tuple[str | None, dict[str, Any] | None]:
+    if not error:
+        return error, None
+    try:
+        payload = json.loads(error)
+    except json.JSONDecodeError:
+        return error, None
+    if not isinstance(payload, dict) or not isinstance(payload.get("message"), str):
+        return error, None
+    details = payload.get("details")
+    return payload["message"], details if isinstance(details, dict) else None

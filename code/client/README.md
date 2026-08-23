@@ -54,12 +54,19 @@ view.dispose();
 `load()` resolves only after:
 
 1. the service reports a compatible API contract;
-2. preparation completes successfully;
+2. preparation completes successfully (including any expensive global `sfdp`
+   layout; the default wait is unlimited);
 3. the first viewport response is received;
 4. the first graph snapshot is applied to the renderer.
 
 A newer `load()` supersedes an older in-flight load. `dispose()` invalidates
 pending loads and releases renderer event handlers and resources.
+
+`exportPng()` returns a reusable `Blob` for the current visible view. It keeps
+the current camera, semantic-zoom materialization, and visible Sigma canvas
+layers; it does not trigger a browser download or change the view state. SVG is
+not currently exposed because faithfully reproducing Sigma's WebGL/custom-program
+rendering as vector geometry requires a separate vector renderer.
 
 ## Public package surface
 
@@ -113,6 +120,7 @@ or browser credentials.
 ```ts
 interface PhyloLensView {
   load(options: PhyloLensLoadOptions): Promise<void>;
+  exportPng(): Promise<Blob>;
   dispose(): void;
 }
 ```

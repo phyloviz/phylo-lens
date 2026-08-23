@@ -65,6 +65,16 @@ export interface GraphPrepareStatus {
   status: GraphPrepareJobStatus;
   result?: GraphPrepareResponse | null;
   error?: string | null;
+  error_details?: GraphPrepareErrorDetails | null;
+}
+
+export interface GraphPrepareErrorDetails {
+  algorithm: string;
+  stage: string;
+  exit_status?: number | null;
+  timeout_seconds?: number | null;
+  stderr?: string | null;
+  detail?: string | null;
 }
 
 export interface GraphViewportNode {

@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-import logging
 import shlex
 import shutil
 import subprocess
-from math import cos, hypot, log2, pi, sin
-from random import Random
+from dataclasses import dataclass
+from math import hypot, log2, pi, sin
 from statistics import median
 
 from phylo_lens_server.config.settings import graphviz_sfdp_timeout_seconds
@@ -18,9 +17,6 @@ from phylo_lens_server.pipeline.models import (
     PreparedLayoutArtifacts,
 )
 
-logger = logging.getLogger(__name__)
-
-LAYOUT_RANDOM_SEED = 23
 GLOBAL_TARGET_EDGE_LENGTH = 85.0
 GRAPHVIZ_SFDP_COMMAND = "sfdp"
 # Edge length passed to Graphviz is a ratio-preserving multiple of the
@@ -34,31 +30,46 @@ GRAPHVIZ_MAX_EDGE_LENGTH = 12.0
 # size; graphviz_sfdp_positions always passes sfdp_maxiter(node_count) instead.
 GRAPHVIZ_BASE_MAXITER = 600
 
-# Reasons a layout degraded to the circular fallback, surfaced to the API so
-# the client warning reflects the real cause instead of assuming a missing binary.
-LAYOUT_DEGRADED_SFDP_MISSING = "sfdp_missing"
-LAYOUT_DEGRADED_SFDP_FAILED = "sfdp_failed"
-LAYOUT_DEGRADED_SFDP_INCOMPLETE = "sfdp_incomplete"
-ERR_GRAPHVIZ_SFDP_TIMEOUT = (
-    "Graphviz 'sfdp' timed out while computing the force-directed layout."
-)
+
+@dataclass(frozen=True)
+class LayoutFailureDiagnostics:
+    """Structured details for a failed global-layout subprocess."""
+
+    algorithm: str
+    stage: str
+    exit_status: int | None = None
+    timeout_seconds: float | None = None
+    stderr: str | None = None
+    detail: str | None = None
+
+    def as_dict(self) -> dict[str, str | int | float | None]:
+        return {
+            "algorithm": self.algorithm,
+            "stage": self.stage,
+            "exit_status": self.exit_status,
+            "timeout_seconds": self.timeout_seconds,
+            "stderr": self.stderr,
+            "detail": self.detail,
+        }
 
 
-class GraphvizLayoutTimeoutError(RuntimeError):
-    """Raised when Graphviz exceeds the configured layout wall-time budget."""
+class GraphvizLayoutError(RuntimeError):
+    """Raised when the requested Graphviz ``sfdp`` layout cannot be produced."""
+
+    def __init__(self, message: str, diagnostics: LayoutFailureDiagnostics) -> None:
+        super().__init__(message)
+        self.diagnostics = diagnostics
 
 
 def compute_prepared_layouts(
     artifacts: PreparedLayoutArtifacts,
-) -> tuple[tuple[ClusterLayout, ...], tuple[NodeLayoutPosition, ...], str | None]:
+) -> tuple[tuple[ClusterLayout, ...], tuple[NodeLayoutPosition, ...]]:
     """Materialize every LOD as a projection of one Graphviz global layout.
 
-    Returns the cluster layouts, node positions, and a degrade reason (or
-    ``None`` when the force layout succeeded).
+    Returns the cluster layouts and node positions. ``sfdp`` errors propagate
+    and prevent publication; there is no implicit replacement layout.
     """
-    global_positions, layout_status, degraded_reason = compute_global_node_positions(
-        artifacts.dataset
-    )
+    global_positions, layout_status = compute_global_node_positions(artifacts.dataset)
 
     cluster_layouts: list[ClusterLayout] = []
     singleton_cluster_by_node_id: dict[str, str] = {}
@@ -107,39 +118,32 @@ def compute_prepared_layouts(
         if node_id in fallback_cluster_by_node_id
     )
 
-    return tuple(cluster_layouts), node_positions, degraded_reason
+    return tuple(cluster_layouts), node_positions
 
 
 def compute_global_node_positions(
     dataset: CanonicalDataset,
-) -> tuple[dict[str, tuple[float, float]], LayoutStatus, str | None]:
-    """Return the global node layout, a status, and a degrade reason (or None).
+) -> tuple[dict[str, tuple[float, float]], LayoutStatus]:
+    """Return global positions from the requested layout or raise explicitly.
 
-    A force-directed layout from Graphviz is reported as ``"ready"``. When the
-    ``sfdp`` binary is missing or fails, positions come from a
-    circular fallback that ignores tree topology, so the layout is reported as
-    ``"degraded"`` and the reason identifies which failure occurred. Trivial
-    graphs (zero or one node) need no force layout and are reported ``"ready"``.
+    Trivial graphs need no force layout. Every non-trivial graph uses ``sfdp``;
+    missing, failed, or incomplete output is a preparation failure.
     """
     node_ids = tuple(sorted(node.id for node in dataset.nodes))
     if not node_ids:
-        return {}, "ready", None
+        return {}, "ready"
     if len(node_ids) == 1:
-        return {node_ids[0]: (0.0, 0.0)}, "ready", None
+        return {node_ids[0]: (0.0, 0.0)}, "ready"
 
-    graphviz_positions, reason = graphviz_sfdp_positions(node_ids, tuple(dataset.edges))
-    if graphviz_positions is not None:
-        return (
-            normalize_global_positions(
-                graphviz_positions,
-                edge_indices(node_ids, dataset.edges),
-                GLOBAL_TARGET_EDGE_LENGTH,
-            ),
-            "ready",
-            None,
-        )
-
-    return jittered_positions(node_ids, GLOBAL_TARGET_EDGE_LENGTH), "degraded", reason
+    graphviz_positions = graphviz_sfdp_positions(node_ids, tuple(dataset.edges))
+    return (
+        normalize_global_positions(
+            graphviz_positions,
+            edge_indices(node_ids, dataset.edges),
+            GLOBAL_TARGET_EDGE_LENGTH,
+        ),
+        "ready",
+    )
 
 
 def sfdp_maxiter(node_count: int) -> int:
@@ -155,16 +159,19 @@ def sfdp_maxiter(node_count: int) -> int:
 def graphviz_sfdp_positions(
     node_ids: tuple[str, ...],
     edges: tuple[CanonicalEdge, ...],
-) -> tuple[dict[str, tuple[float, float]] | None, str | None]:
+) -> dict[str, tuple[float, float]]:
     if shutil.which(GRAPHVIZ_SFDP_COMMAND) is None:
-        logger.warning(
-            "Graphviz '%s' not found on PATH; falling back to a circular layout. "
-            "Install Graphviz to enable force-directed layouts.",
-            GRAPHVIZ_SFDP_COMMAND,
+        raise GraphvizLayoutError(
+            "Graphviz 'sfdp' is required for the requested global layout but was not found on PATH.",
+            LayoutFailureDiagnostics(
+                algorithm="sfdp",
+                stage="global_layout",
+                detail="The sfdp executable was not found on PATH.",
+            ),
         )
-        return None, LAYOUT_DEGRADED_SFDP_MISSING
 
     payload = graphviz_dot_payload(node_ids, edges, maxiter=sfdp_maxiter(len(node_ids)))
+    timeout_seconds = graphviz_sfdp_timeout_seconds()
     try:
         completed = subprocess.run(
             [GRAPHVIZ_SFDP_COMMAND, "-Tplain"],
@@ -172,34 +179,70 @@ def graphviz_sfdp_positions(
             text=True,
             capture_output=True,
             check=True,
-            timeout=graphviz_sfdp_timeout_seconds(),
+            timeout=timeout_seconds,
         )
     except subprocess.TimeoutExpired as error:
-        logger.warning(
-            "Graphviz '%s' timed out after %.1f seconds.",
-            GRAPHVIZ_SFDP_COMMAND,
-            graphviz_sfdp_timeout_seconds(),
-        )
-        raise GraphvizLayoutTimeoutError(ERR_GRAPHVIZ_SFDP_TIMEOUT) from error
-    except (OSError, subprocess.CalledProcessError) as error:
-        logger.warning(
-            "Graphviz '%s' layout failed (%s); falling back to a circular layout.",
-            GRAPHVIZ_SFDP_COMMAND,
-            type(error).__name__,
-        )
-        return None, LAYOUT_DEGRADED_SFDP_FAILED
+        raise GraphvizLayoutError(
+            "Graphviz 'sfdp' timed out while computing the force-directed layout.",
+            LayoutFailureDiagnostics(
+                algorithm="sfdp",
+                stage="global_layout",
+                timeout_seconds=timeout_seconds,
+                stderr=_error_stderr(error),
+                detail="The explicitly configured sfdp timeout elapsed.",
+            ),
+        ) from error
+    except subprocess.CalledProcessError as error:
+        raise GraphvizLayoutError(
+            f"Graphviz 'sfdp' exited with status {error.returncode} while computing the force-directed layout.",
+            LayoutFailureDiagnostics(
+                algorithm="sfdp",
+                stage="global_layout",
+                exit_status=error.returncode,
+                stderr=_error_stderr(error),
+                detail="The sfdp subprocess exited non-zero.",
+            ),
+        ) from error
+    except OSError as error:
+        raise GraphvizLayoutError(
+            "Graphviz 'sfdp' could not be started for the requested global layout.",
+            LayoutFailureDiagnostics(
+                algorithm="sfdp",
+                stage="global_layout",
+                detail=str(error),
+            ),
+        ) from error
 
-    positions = parse_graphviz_plain_positions(completed.stdout)
+    try:
+        positions = parse_graphviz_plain_positions(completed.stdout)
+    except ValueError as error:
+        raise GraphvizLayoutError(
+            "Graphviz 'sfdp' returned invalid force-directed layout output.",
+            LayoutFailureDiagnostics(
+                algorithm="sfdp",
+                stage="global_layout",
+                detail=str(error),
+            ),
+        ) from error
     if set(positions) != set(node_ids):
-        logger.warning(
-            "Graphviz '%s' returned positions for %d of %d nodes; "
-            "falling back to a circular layout.",
-            GRAPHVIZ_SFDP_COMMAND,
-            len(positions),
-            len(node_ids),
+        raise GraphvizLayoutError(
+            "Graphviz 'sfdp' returned an incomplete force-directed layout.",
+            LayoutFailureDiagnostics(
+                algorithm="sfdp",
+                stage="global_layout",
+                detail=(
+                    f"sfdp returned positions for {len(positions)} of {len(node_ids)} nodes."
+                ),
+            ),
         )
-        return None, LAYOUT_DEGRADED_SFDP_INCOMPLETE
-    return positions, None
+    return positions
+
+
+def _error_stderr(error: BaseException) -> str | None:
+    stderr = getattr(error, "stderr", None)
+    if isinstance(stderr, bytes):
+        stderr = stderr.decode(errors="replace")
+    return stderr.strip() if isinstance(stderr, str) and stderr.strip() else None
 
 
 def has_multiple_components(
@@ -381,7 +424,9 @@ def ensure_two_axis_spread(
     largest_span = max(x_span, y_span)
     smallest_span = min(x_span, y_span)
     if largest_span <= 0.0:
-        return circular_spread(positions, target_edge_length)
+        # The result is complete and sfdp exited successfully, so keep it as
+        # returned rather than silently replacing it with a circular layout.
+        return positions
     if smallest_span > largest_span * 0.2:
         return positions
 
@@ -397,36 +442,6 @@ def ensure_two_axis_spread(
         else:
             repaired[node_id] = (x, y + offset)
     return repaired
-
-
-def circular_spread(
-    positions: dict[str, tuple[float, float]],
-    target_edge_length: float,
-) -> dict[str, tuple[float, float]]:
-    center_x = sum(position[0] for position in positions.values()) / len(positions)
-    center_y = sum(position[1] for position in positions.values()) / len(positions)
-    ordered_ids = tuple(sorted(positions))
-    radius = max(target_edge_length, target_edge_length * len(ordered_ids) / pi)
-    return {
-        node_id: (
-            center_x + cos(2.0 * pi * index / len(ordered_ids)) * radius,
-            center_y + sin(2.0 * pi * index / len(ordered_ids)) * radius,
-        )
-        for index, node_id in enumerate(ordered_ids)
-    }
-
-
-def jittered_positions(
-    node_ids: tuple[str, ...],
-    scale: float,
-) -> dict[str, tuple[float, float]]:
-    random = Random(LAYOUT_RANDOM_SEED + len(node_ids))
-    positions: dict[str, tuple[float, float]] = {}
-    for index, node_id in enumerate(node_ids):
-        angle = 2.0 * pi * index / len(node_ids) + random.uniform(-0.35, 0.35)
-        radius = scale * random.uniform(0.75, 1.25)
-        positions[node_id] = (cos(angle) * radius, sin(angle) * radius)
-    return positions
 
 
 def cluster_radius(

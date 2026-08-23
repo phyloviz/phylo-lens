@@ -91,6 +91,7 @@ def prepare_graph_status(
             job_id=snapshot.job_id,
             status=snapshot.status,
             error=snapshot.error or "Layout preparation failed.",
+            error_details=snapshot.error_details,
         )
     return GraphPrepareStatus(job_id=snapshot.job_id, status=snapshot.status)
 

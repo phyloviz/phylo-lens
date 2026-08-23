@@ -82,16 +82,12 @@ def run_one_dataset(
             layout_maxiter=config.layout_maxiter,
         ):
             if LAYOUT_ACCEPTS_MAXITER:
-                cluster_layouts, node_positions, degraded_reason = (
-                    compute_prepared_layouts(
-                        artifacts,
-                        maxiter=config.layout_maxiter,
-                    )
+                cluster_layouts, node_positions = compute_prepared_layouts(
+                    artifacts,
+                    maxiter=config.layout_maxiter,
                 )
             else:
-                cluster_layouts, node_positions, degraded_reason = (
-                    compute_prepared_layouts(artifacts)
-                )
+                cluster_layouts, node_positions = compute_prepared_layouts(artifacts)
 
         with recorder.stage("persist_artifacts"):
             store.save_artifacts(
@@ -125,7 +121,6 @@ def run_one_dataset(
             prepared_edges=len(prepared_edges),
             node_positions=len(node_positions),
             cluster_layouts=len(cluster_layouts),
-            layout_degraded_reason=degraded_reason,
             sqlite_bytes=materialized_size_bytes(store.path),
         )
 

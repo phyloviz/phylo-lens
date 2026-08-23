@@ -43,12 +43,10 @@ export interface PositionedGraph {
     sliceEdgeCount?: number;
     zoom?: number;
     globalBounds?: PositionedGraphBounds;
-    // Server layout status for the current slice. "degraded" means the force
-    // layout fell back to a topology-ignoring circular scatter; the shell
-    // surfaces this so a distorted-looking first tier is explained rather than
-    // mistaken for a real topology change.
+    // Server layout status for the current slice. "degraded" is retained only
+    // for layouts created by earlier service versions.
     layoutStatus?: string;
-    // Human-readable warnings from the prepare step (e.g. the degrade reason).
+    // Human-readable warnings from the prepare step.
     layoutWarnings?: string[];
   };
 }

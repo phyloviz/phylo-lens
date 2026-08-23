@@ -164,8 +164,9 @@ PhyloLib may produce several `;`-terminated components. PhyloLens preserves them
 as one disconnected graph rather than introducing a synthetic root.
 
 Each PhyloLib subprocess is limited by
-`PHYLO_LENS_PHYLOLIB_TIMEOUT_SECONDS`. Graphviz is limited independently by
-`PHYLO_LENS_GRAPHVIZ_SFDP_TIMEOUT_SECONDS`.
+`PHYLO_LENS_PHYLOLIB_TIMEOUT_SECONDS`. Graphviz `sfdp` has no default
+wall-clock limit; `PHYLO_LENS_GRAPHVIZ_SFDP_TIMEOUT_SECONDS` is an opt-in
+operational limit.
 
 See [Input formats](../../docs/INPUT_FORMATS.md) for the full contract.
 
@@ -249,11 +250,14 @@ cookies are disabled. An empty origin list is the safe production default.
 | `PHYLO_LENS_PHYLOLIB_JAR` | unset in source execution | Readable PhyloLib JAR path. The image sets `/app/phylolib.jar`. |
 | `PHYLO_LENS_PHYLOLIB_JAVA` | `java` | Java executable. The image sets `/opt/java/openjdk/bin/java`. |
 | `PHYLO_LENS_PHYLOLIB_TIMEOUT_SECONDS` | `300` | Positive timeout for each PhyloLib subprocess. |
-| `PHYLO_LENS_GRAPHVIZ_SFDP_TIMEOUT_SECONDS` | `300` | Positive timeout for the Graphviz layout subprocess. |
+| `PHYLO_LENS_GRAPHVIZ_SFDP_TIMEOUT_SECONDS` | unset (unlimited) | Optional positive wall-clock timeout for the Graphviz `sfdp` layout subprocess. |
 
-A Graphviz timeout fails the preparation job. Missing, failed, or incomplete
-non-timeout Graphviz output degrades to the deterministic circular fallback and
-returns a warning.
+PhyloLens requests Graphviz `sfdp` for every non-trivial global layout and waits
+for it to complete by default; this work may be expensive. Missing, non-zero,
+timed-out, or incomplete `sfdp` executions fail preparation and return
+structured job diagnostics (`algorithm`, `stage`, exit status, configured
+timeout, and stderr/detail where available). Circular layout is not an implicit
+fallback.
 
 ### PostgreSQL worker
 

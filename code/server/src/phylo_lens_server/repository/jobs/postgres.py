@@ -16,6 +16,8 @@ from phylo_lens_server.repository.jobs.local import (
     JOB_STATUS_READY,
     PrepareJobSnapshot,
     PrepareQueueFullError,
+    deserialize_failure,
+    serialize_failure,
 )
 
 DurablePrepareJobStatus = Literal[
@@ -61,6 +63,7 @@ class DurablePrepareJob:
     status: DurablePrepareJobStatus
     warnings: tuple[str, ...] = ()
     error: str | None = None
+    error_details: dict[str, Any] | None = None
     result: dict[str, Any] | None = None
     worker_id: str | None = None
 
@@ -121,6 +124,7 @@ class DurablePrepareJobStore(Protocol):
         job_id: str,
         worker_id: str,
         error: str,
+        error_details: dict[str, Any] | None = None,
     ) -> bool: ...
 
     def snapshot(self, job_id: str) -> DurablePrepareJob | None: ...
@@ -322,6 +326,7 @@ class PostgresPrepareJobStore:
         job_id: str,
         worker_id: str,
         error: str,
+        error_details: dict[str, Any] | None = None,
     ) -> bool:
         with self._connect() as connection:
             row = connection.execute(
@@ -337,7 +342,7 @@ class PostgresPrepareJobStore:
                 """,
                 (
                     DURABLE_STATUS_FAILED,
-                    error,
+                    serialize_failure(error, error_details),
                     job_id,
                     worker_id,
                     DURABLE_STATUS_RUNNING,
@@ -412,6 +417,7 @@ class DurablePrepareJobRegistry:
             job_id=job.job_id,
             status=JOB_STATUS_FAILED,
             error=job.error or f"Prepare job ended with status '{job.status}'.",
+            error_details=job.error_details,
             warnings=job.warnings,
         )
 
@@ -420,13 +426,15 @@ class DurablePrepareJobRegistry:
 
 
 def durable_prepare_job_from_row(row: dict[str, Any]) -> DurablePrepareJob:
+    error, error_details = deserialize_failure(row["error"])
     return DurablePrepareJob(
         job_id=row["job_id"],
         dataset_id=row["dataset_id"],
         layout_version=row["layout_version"],
         status=row["status"],
         warnings=tuple(row["warnings"] or ()),
-        error=row["error"],
+        error=error,
+        error_details=error_details,
         result=row["result"],
         worker_id=row["worker_id"],
     )

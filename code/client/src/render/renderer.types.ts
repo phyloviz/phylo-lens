@@ -56,6 +56,10 @@ export interface GraphRenderer {
   unmount: () => void;
   render: (graph: PositionedGraph) => void;
 
+  // Return a PNG of the currently materialized renderer view. It must preserve
+  // the active camera and graph rather than fitting, reloading, or mutating it.
+  exportPng?: () => Promise<Blob>;
+
   setViewChangeHandler?: (handler: ((state: RenderViewportState) => void) | null) => void;
 
   setNodeClickHandler?: (handler: ((state: RenderNodeClickState) => void) | null) => void;

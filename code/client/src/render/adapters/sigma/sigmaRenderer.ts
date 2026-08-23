@@ -41,6 +41,7 @@ import {
   restoreCameraState,
 } from "./camera/sigmaCameraState";
 import { fitSigmaToGraphSnapshot } from "./viewport/graphViewportFit";
+import { exportCanvasLayersAsPng } from "../../export/canvasExport";
 
 export {
   SIGMA_DEFAULT_CAMERA_ZOOM,
@@ -217,6 +218,13 @@ export class SigmaRenderer implements GraphRenderer {
     if (this.sigma) {
       this.rebuildSigma(this.pieSliceKeys, this.lastRenderedGraph?.nodes ?? []);
     }
+  }
+
+  exportPng(): Promise<Blob> {
+    if (!this.containerElement) {
+      throw new Error(ERR_SIGMA_NOT_READY);
+    }
+    return exportCanvasLayersAsPng(this.containerElement.querySelectorAll("canvas"));
   }
 
   // Drop container and graph references when renderer is detached.

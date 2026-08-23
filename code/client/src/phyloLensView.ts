@@ -43,6 +43,7 @@ export interface PhyloLensLoadOptions {
 
 export interface PhyloLensView {
   load: (options: PhyloLensLoadOptions) => Promise<void>;
+  exportPng: () => Promise<Blob>;
   dispose: () => void;
 }
 
@@ -67,6 +68,12 @@ export function createPhyloLensView(options: PhyloLensViewOptions): PhyloLensVie
         }
         throw error;
       }
+    },
+    exportPng: () => {
+      if (disposed) {
+        throw new Error(ERR_PHYLO_LENS_VIEW_DISPOSED);
+      }
+      return workbench.exportPng();
     },
     dispose: () => {
       if (disposed) {

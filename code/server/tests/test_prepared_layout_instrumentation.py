@@ -50,4 +50,4 @@ def test_prepared_layout_worker_ignores_stage_callback_failures(tmp_path) -> Non
     result = PreparedLayoutWorker(
         PreparedLayoutStore(tmp_path / "instrumented"), stage_factory=broken_stage
     ).prepare_dataset(dataset)
-    assert result.layout_status in {"ready", "degraded"}
+    assert result.layout_status == "ready"

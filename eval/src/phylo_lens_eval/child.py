@@ -90,12 +90,7 @@ def main() -> None:
             ),
             "cluster_count": len(result.artifacts.clusters),
             "layout_status": result.layout_status,
-            "warnings": normalized.warnings
-            + distance_warnings
-            + count_warnings
-            + (
-                [result.layout_degraded_reason] if result.layout_degraded_reason else []
-            ),
+            "warnings": normalized.warnings + distance_warnings + count_warnings,
             "exit_status": 0,
             "error": None,
             "peak_rss_bytes": None,

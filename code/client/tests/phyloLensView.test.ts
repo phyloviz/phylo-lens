@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   prepareGraph: vi.fn(),
   renderNewick: vi.fn(),
+  exportPng: vi.fn(),
   dispose: vi.fn(),
   createRenderer: vi.fn(),
 }));
@@ -24,6 +25,7 @@ vi.mock("../src/app/workbench/graphWorkbench", () => ({
   ERR_GRAPH_LOAD_SUPERSEDED: "Graph load was superseded by a newer load.",
   createGraphWorkbench: vi.fn(() => ({
     renderNewick: mocks.renderNewick,
+    exportPng: mocks.exportPng,
     dispose: mocks.dispose,
   })),
 }));
@@ -36,6 +38,7 @@ describe("createPhyloLensView", () => {
   beforeEach(() => {
     mocks.prepareGraph.mockReset();
     mocks.renderNewick.mockReset();
+    mocks.exportPng.mockReset();
     mocks.dispose.mockReset();
     mocks.createRenderer.mockReset();
   });
@@ -106,6 +109,18 @@ describe("createPhyloLensView", () => {
     expect(mocks.dispose).toHaveBeenCalledOnce();
   });
 
+  it("exposes PNG export on the normal view API", async () => {
+    const png = new Blob(["png"], { type: "image/png" });
+    mocks.exportPng.mockResolvedValueOnce(png);
+    const view = createPhyloLensView({
+      container: document.createElement("div"),
+      apiUrl: "https://phylo-lens.example.test",
+    });
+
+    await expect(view.exportPng()).resolves.toBe(png);
+    expect(mocks.exportPng).toHaveBeenCalledOnce();
+  });
+
   it("allows dispose after a failed load", async () => {
     mocks.renderNewick.mockRejectedValueOnce(new Error("prepare failed"));
     const view = createPhyloLensView({
@@ -149,5 +164,15 @@ describe("createPhyloLensView", () => {
 
     await expect(view.load({ content: "(a:1)b;" })).rejects.toThrow(ERR_PHYLO_LENS_VIEW_DISPOSED);
     expect(mocks.renderNewick).not.toHaveBeenCalled();
+  });
+
+  it("rejects export after disposal with the public disposed error", () => {
+    const view = createPhyloLensView({
+      container: document.createElement("div"),
+      apiUrl: "https://phylo-lens.example.test",
+    });
+    view.dispose();
+
+    expect(() => view.exportPng()).toThrow(ERR_PHYLO_LENS_VIEW_DISPOSED);
   });
 });

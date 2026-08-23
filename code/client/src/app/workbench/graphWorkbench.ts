@@ -38,6 +38,7 @@ export type {
 export const DEFAULT_DATASET_NAME = "uploaded-dataset";
 export const DEFAULT_SEARCH_RESULT_LIMIT = 50;
 export const ERR_GRAPH_LOAD_SUPERSEDED = "Graph load was superseded by a newer load.";
+export const ERR_GRAPH_PNG_EXPORT_UNAVAILABLE = "PNG export is unavailable for this renderer.";
 export { ERR_GRAPH_VIEWPORT_SYNC_REQUIRED, ERR_LOD_PLAYBACK_REQUIRES_LOD, ERR_NO_GRAPH_RENDERED };
 
 export function createGraphWorkbench(
@@ -101,6 +102,13 @@ export function createGraphWorkbench(
         snapshotObserver,
         nextSnapshotSequence: () => ++snapshotSequence,
       });
+    },
+
+    exportPng: () => {
+      if (!renderer.exportPng) {
+        throw new Error(ERR_GRAPH_PNG_EXPORT_UNAVAILABLE);
+      }
+      return renderer.exportPng();
     },
 
     applyMetadataFilters: filters.applyMetadataFilters,

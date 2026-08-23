@@ -36,7 +36,7 @@ sequenceDiagram
   end
 
   P->>S: persist refining artifacts
-  P->>S: publish ready/degraded layout
+  P->>S: publish ready layout
 
   W->>C: read initial viewport
   C->>A: POST /api/graph/viewport
@@ -62,22 +62,20 @@ flowchart TD
   PersistBase[Persist refining artifacts]
   Edges[Build per-tier quotient edges]
   Layout[Graphviz sfdp global layout]
-  Fallback[Circular degraded fallback]
   PersistLayout[Persist node and cluster layouts]
-  Publish[Publish ready or degraded]
+  Publish[Publish ready]
 
   Request --> Admission --> Parse --> Canonical --> Fingerprint --> Cluster
   Cluster --> PersistBase
   Cluster --> Edges
   Cluster --> Layout
-  Layout -->|missing, failed, incomplete| Fallback
   Layout --> PersistLayout
-  Fallback --> PersistLayout
   Edges --> PersistLayout --> Publish
 ```
 
-A Graphviz timeout fails preparation. Missing, failed, or incomplete Graphviz
-output uses the documented degraded fallback.
+PhyloLens waits for Graphviz `sfdp` by default. A missing, non-zero, incomplete,
+or explicitly timed-out `sfdp` execution fails preparation; it is never silently
+replaced with a circular layout.
 
 ## Camera-driven viewport refresh
 

@@ -97,8 +97,8 @@ must not silently mix biological branch lengths with arbitrary fallback values.
 
 ### Graphviz degradation is limited
 
-A missing, failed, or incomplete `sfdp` execution degrades to a circular layout.
-A timeout fails preparation. There is no secondary topology-aware layout engine.
+A missing, failed, incomplete, or explicitly timed-out `sfdp` execution fails
+preparation. There is no implicit secondary layout engine.
 
 ### Typing-data algorithm parameters are fixed
 

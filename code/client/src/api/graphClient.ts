@@ -40,12 +40,14 @@ export const ERR_INVALID_NORMALIZE_REQUEST = "Invalid graph normalize request co
 
 // Default polling intervals and timeouts
 export const DEFAULT_PREPARE_POLL_INTERVAL_MS = 1000;
-export const DEFAULT_PREPARE_POLL_TIMEOUT_MS = 600_000;
+export const DEFAULT_PREPARE_POLL_TIMEOUT_MS: number | null = null;
 
 export interface PrepareGraphOptions {
   onPending?: (status: GraphPrepareStatus) => void;
   pollIntervalMs?: number;
-  pollTimeoutMs?: number;
+  // Optional host-side wait limit. The default is unlimited so a valid global
+  // `sfdp` preparation is not abandoned merely because it is expensive.
+  pollTimeoutMs?: number | null;
   sleep?: (ms: number) => Promise<void>;
 }
 
@@ -145,7 +147,7 @@ async function pollPrepareGraph(
   const intervalMs = options.pollIntervalMs ?? DEFAULT_PREPARE_POLL_INTERVAL_MS;
   const timeoutMs = options.pollTimeoutMs ?? DEFAULT_PREPARE_POLL_TIMEOUT_MS;
   const sleep = options.sleep ?? defaultSleep;
-  const deadline = Date.now() + timeoutMs;
+  const deadline = timeoutMs === null ? null : Date.now() + timeoutMs;
 
   for (;;) {
     const status = await getPrepareGraphStatus(http, jobId);
@@ -164,7 +166,7 @@ async function pollPrepareGraph(
 
     options.onPending?.(status);
 
-    if (Date.now() >= deadline) {
+    if (deadline !== null && Date.now() >= deadline) {
       throw new Error(ERR_GRAPH_PREPARE_TIMED_OUT);
     }
 

@@ -13,7 +13,7 @@ ENV_GRAPHVIZ_SFDP_TIMEOUT_SECONDS = "PHYLO_LENS_GRAPHVIZ_SFDP_TIMEOUT_SECONDS"
 ENV_PHYLOLIB_TIMEOUT_SECONDS = "PHYLO_LENS_PHYLOLIB_TIMEOUT_SECONDS"
 
 DEFAULT_PREPARED_LAYOUT_STORE_DIR = Path(gettempdir()) / "phylo_lens_prepared_layout"
-DEFAULT_GRAPHVIZ_SFDP_TIMEOUT_SECONDS = 300.0
+DEFAULT_GRAPHVIZ_SFDP_TIMEOUT_SECONDS: float | None = None
 DEFAULT_PHYLOLIB_TIMEOUT_SECONDS = 300.0
 PREPARED_LAYOUT_SUBDIR = "prepared_layout"
 PREPARE_JOB_BACKEND_LOCAL = "local"
@@ -53,8 +53,13 @@ def postgres_dsn() -> str:
     return value
 
 
-def graphviz_sfdp_timeout_seconds() -> float:
-    return _positive_float_env(
+def graphviz_sfdp_timeout_seconds() -> float | None:
+    """Return the opt-in Graphviz wall-clock timeout, if configured.
+
+    The global force-directed layout is part of preparation work, so its normal
+    default is to wait for Graphviz rather than killing a valid computation.
+    """
+    return _optional_positive_float_env(
         ENV_GRAPHVIZ_SFDP_TIMEOUT_SECONDS,
         DEFAULT_GRAPHVIZ_SFDP_TIMEOUT_SECONDS,
     )
@@ -68,6 +73,16 @@ def phylolib_timeout_seconds() -> float:
 
 
 def _positive_float_env(name: str, default: float) -> float:
+    raw_value = os.environ.get(name)
+    if raw_value is None or raw_value.strip() == "":
+        return default
+    value = float(raw_value)
+    if value <= 0:
+        raise ValueError(f"{name} must be greater than 0.")
+    return value
+
+
+def _optional_positive_float_env(name: str, default: float | None) -> float | None:
     raw_value = os.environ.get(name)
     if raw_value is None or raw_value.strip() == "":
         return default

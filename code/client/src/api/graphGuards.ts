@@ -65,7 +65,20 @@ export function isGraphPrepareStatus(value: unknown): value is GraphPrepareStatu
     isString(value.job_id) &&
     isGraphPrepareJobStatus(value.status) &&
     (value.result == null || isGraphPrepareResponse(value.result)) &&
-    isOptionalString(value.error)
+    isOptionalString(value.error) &&
+    (value.error_details == null || isGraphPrepareErrorDetails(value.error_details))
+  );
+}
+
+function isGraphPrepareErrorDetails(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    isString(value.algorithm) &&
+    isString(value.stage) &&
+    isOptionalFiniteNumber(value.exit_status) &&
+    isOptionalFiniteNumber(value.timeout_seconds) &&
+    isOptionalString(value.stderr) &&
+    isOptionalString(value.detail)
   );
 }
 

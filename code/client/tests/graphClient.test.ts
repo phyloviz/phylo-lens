@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   createGraphClient,
+  DEFAULT_PREPARE_POLL_TIMEOUT_MS,
   ERR_GRAPH_PREPARE_FAILED,
   ERR_INVALID_GRAPH_PREPARE_JOB,
   ERR_INVALID_GRAPH_VIEWPORT_RESPONSE,
@@ -35,6 +36,10 @@ const SERVICE_INFO_FIXTURE = {
 // No polling delay in tests: the client sleeps between polls, so inject a
 // no-op sleep to keep the suite fast.
 const NO_SLEEP = { sleep: async () => {} };
+
+it("has no default client-side preparation timeout", () => {
+  expect(DEFAULT_PREPARE_POLL_TIMEOUT_MS).toBeNull();
+});
 
 const VIEWPORT_FIXTURE = {
   dataset_id: "tree",

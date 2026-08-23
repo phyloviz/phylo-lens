@@ -32,6 +32,7 @@ class GraphPrepareStatus(BaseModel):
     status: str
     result: GraphPrepareResponse | None = None
     error: str | None = None
+    error_details: dict[str, str | int | float | None] | None = None
 
 
 class GraphViewportQuery(BaseModel):

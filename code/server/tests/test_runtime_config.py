@@ -56,14 +56,13 @@ def test_max_active_prepare_jobs_rejects_non_positive_integer(monkeypatch) -> No
     assert settings.ENV_MAX_ACTIVE_PREPARE_JOBS in str(exc_info.value)
 
 
-def test_subprocess_timeouts_default_to_conservative_values(monkeypatch) -> None:
+def test_sfdp_timeout_defaults_to_unlimited_while_phylolib_remains_bounded(
+    monkeypatch,
+) -> None:
     monkeypatch.delenv(settings.ENV_GRAPHVIZ_SFDP_TIMEOUT_SECONDS, raising=False)
     monkeypatch.delenv(settings.ENV_PHYLOLIB_TIMEOUT_SECONDS, raising=False)
 
-    assert (
-        settings.graphviz_sfdp_timeout_seconds()
-        == settings.DEFAULT_GRAPHVIZ_SFDP_TIMEOUT_SECONDS
-    )
+    assert settings.graphviz_sfdp_timeout_seconds() is None
     assert (
         settings.phylolib_timeout_seconds() == settings.DEFAULT_PHYLOLIB_TIMEOUT_SECONDS
     )

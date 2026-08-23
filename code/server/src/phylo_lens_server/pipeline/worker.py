@@ -57,9 +57,7 @@ class PreparedLayoutWorker:
         with self._stage("index_construction"):
             prepared_edges = compute_prepared_edges(artifacts)
         with self._stage("base_layout"):
-            cluster_layouts, node_positions, degraded_reason = compute_prepared_layouts(
-                artifacts
-            )
+            cluster_layouts, node_positions = compute_prepared_layouts(artifacts)
         ensure_should_continue(should_continue)
         self.store.save_layouts(
             cluster_layouts,
@@ -91,7 +89,6 @@ class PreparedLayoutWorker:
             node_positions=node_positions,
             prepared_edges=prepared_edges,
             layout_status=layout_status,
-            layout_degraded_reason=degraded_reason,
         )
 
     @contextmanager

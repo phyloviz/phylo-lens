@@ -239,9 +239,21 @@ Polls an asynchronous preparation job.
 {
   "job_id": "7b97d49d5ec848e2a59c30e344d836cb",
   "status": "failed",
-  "error": "Graphviz 'sfdp' timed out while computing the force-directed layout."
+  "error": "Graphviz 'sfdp' timed out while computing the force-directed layout.",
+  "error_details": {
+    "algorithm": "sfdp",
+    "stage": "global_layout",
+    "exit_status": null,
+    "timeout_seconds": 900,
+    "stderr": null,
+    "detail": "The explicitly configured sfdp timeout elapsed."
+  }
 }
 ```
+
+`error_details` is included for layout failures where available. It identifies
+the requested algorithm and failure stage, then preserves the subprocess exit
+status, explicit timeout, stderr, and error detail when those values exist.
 
 ### `GraphPrepareResponse`
 
@@ -253,8 +265,8 @@ Polls an asynchronous preparation job.
 | `edge_count` | non-negative `integer` | Canonical edge count |
 | `cluster_count` | non-negative `integer` | Number of materialized cluster records across tiers |
 | `lod_tier_count` | integer ≥ 1 | Number of semantic-zoom tiers |
-| `layout_status` | `LayoutStatus` | `ready` or `degraded` for a successful preparation |
-| `warnings` | `string[]` | Normalization, ancillary, distance, forest, or degraded-layout warnings |
+| `layout_status` | `LayoutStatus` | `ready` for a successful current preparation |
+| `warnings` | `string[]` | Normalization, ancillary, distance, or forest warnings |
 
 `LayoutStatus` is one of:
 
@@ -262,9 +274,9 @@ Polls an asynchronous preparation job.
 pending | refining | ready | degraded | failed
 ```
 
-A `degraded` layout is renderable but uses the deterministic circular fallback
-because Graphviz was unavailable, failed, or returned incomplete output. A
-Graphviz timeout fails the job instead of degrading.
+Current preparation publishes only `ready` layouts. `degraded` remains readable
+for layouts made by earlier service versions; it is not produced as a fallback
+by the current `sfdp` pipeline.
 
 ---
 

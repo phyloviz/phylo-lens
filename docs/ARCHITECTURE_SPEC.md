@@ -43,6 +43,7 @@ The public package surface is centered on:
 ```ts
 const view = createPhyloLensView({ container, apiUrl });
 await view.load(input);
+const png = await view.exportPng();
 view.dispose();
 ```
 
@@ -189,6 +190,12 @@ Characteristics:
 
 Only package-root exports are supported. Internal paths are not compatibility
 contracts.
+
+The public view can return a PNG `Blob` of its currently materialized canvas
+view. PNG export preserves the current camera and semantic-zoom slice by
+compositing the visible Sigma canvas layers. SVG is deliberately not exposed:
+the current renderer uses WebGL and custom programs, so a faithful vector export
+would require reconstructing that materialized rendering as vector geometry.
 
 ### HTTP boundary
 

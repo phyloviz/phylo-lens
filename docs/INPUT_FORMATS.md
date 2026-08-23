@@ -148,7 +148,7 @@ separate component.
 
 Each PhyloLib subprocess has a configurable timeout. A timeout, unreadable JAR,
 Java failure, malformed profile matrix, or invalid PhyloLib output fails the
-prepare request with a structured job error. Unlike Graphviz layout failures,
+prepare request with a structured job error. Like Graphviz layout failures,
 typing-data conversion has no circular-layout fallback because it is required to
 construct the topology itself.
 
