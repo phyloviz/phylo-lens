@@ -3,6 +3,27 @@
 This directory contains reproducible RQ1–RQ4 evaluation harnesses. It does not
 contain external-tool comparisons or thesis-result claims.
 
+## Final RQ1 released-OCI harness
+
+`phylo_lens_eval.rq1_final` is the immutable final RQ1 runner.  It is separate
+from the legacy local-import runner: final observations exclusively call the
+released public OCI service API and use the frozen 15-condition input matrix
+in `config/rq1-final-oci-v020.json`.  Run it only from a clean, committed
+evaluation checkout and a clean benchmark checkout at the approved Thesis
+commit:
+
+```bash
+PYTHONPATH=eval/src .venv/bin/python -m phylo_lens_eval.rq1_final \
+  --run-id thesis-final-rq1-v020-001 \
+  --thesis-root /Users/goncalofrutuoso/Developer/Thesis
+```
+
+The command refuses any other run ID, an existing raw-result directory, a
+dirty worktree, changed product source, input checksum mismatch, or a Thesis
+commit other than the recorded provenance.  It does not retry observations.
+After a completed campaign, generate deterministic derived artifacts and audit
+them from the raw directory with `phylo_lens_eval.rq1_final_audit`.
+
 RQ4 measures warm-session interactive responsiveness after the normal public
 client bootstrap. Every operation uses a fresh server/browser process but calls
 the public `PhyloLensView.load()` during unmeasured setup; preparation and first

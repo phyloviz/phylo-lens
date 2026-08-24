@@ -1,5 +1,40 @@
 # RQ1 and RQ2 methodology
 
+## Final released-OCI RQ1 protocol
+
+The definitive RQ1 campaign is distinct from the legacy direct-import runner
+documented below.  It is executed only by `phylo_lens_eval.rq1_final` using
+the released PhyloLens `v0.2.0` OCI service, pinned by index digest.  It uses
+the retained pilot Newick inputs, rather than generating inputs during the
+campaign: 5,000, 10,000, 25,000, 50,000, and 100,000 requested leaves, each
+with balanced, irregular (seed 2026), and caterpillar topology.  Requested
+leaves, actual parsed-node counts, topology, seed, byte size, and SHA-256 are
+all fixed in `config/rq1-final-oci-v020.json` and verified before execution.
+
+Every condition has one retained warm-up and five measured observations.  A
+fresh pinned service container and empty persistence directory are created for
+each observation.  Health and a pre-timing `sfdp`/GTS smoke are required;
+timing starts immediately before the public `POST /api/graph/prepare` request
+and ends when the fixed-100-ms public-status polling loop first observes
+`ready`.  The primary metric is `preparation_wall_ms = t_ready_observed - t0`.
+The startup bound is 30 seconds, the preparation deadline is 300 seconds from
+`t0`, and the outer watchdog is 345 seconds from service start.  These are
+experiment bounds: the product's SFDP timeout remains unset.
+
+Only `ready` layouts are successful.  Explicit preparation/layout failures,
+timeouts, non-ready/degraded layouts, and infrastructure failures are retained
+as raw observations without retry; all 90 matrix cells remain in the audit.
+The runner records public requests, every status poll, terminal status,
+service logs, persistence artifacts, runtime OCI platform identity/image
+labels, and environment provenance.
+
+Final memory evidence is a separate non-networked sidecar that shares the
+service PID namespace.  It begins before `t0`, samples the recursive service
+process tree every 20 ms, excludes itself and its descendants, and retains raw
+member-PID RSS samples.  Root-only RSS is explicitly unavailable, not
+equivalent evidence.  A successful final observation requires process-tree
+scope and observed `sfdp` descendant evidence; otherwise it is audit-invalid.
+
 RQ1 asks how server-side preparation cost changes with input size and topology,
 and how cost is distributed across preparation stages. The direct-tree path is
 measured as:
