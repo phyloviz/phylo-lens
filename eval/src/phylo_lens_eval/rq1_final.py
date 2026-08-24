@@ -12,6 +12,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import socket
 import subprocess
 import time
@@ -24,11 +25,18 @@ from .common import utc_now, write_json
 from .stats import summary
 
 CONFIG_NAME = "rq1-final-oci-v020.json"
-EXPECTED_RUN_ID = "thesis-final-rq1-v020-001"
+APPROVED_RUN_ID_PATTERN = re.compile(r"thesis-final-rq1-v020-[0-9]{3}")
 
 
 class FinalRQ1Error(RuntimeError):
     pass
+
+
+def _validate_run_id(run_id: str) -> None:
+    if not APPROVED_RUN_ID_PATTERN.fullmatch(run_id):
+        raise FinalRQ1Error(
+            "Final RQ1 run ID must match thesis-final-rq1-v020-[0-9]{3}."
+        )
 
 
 def repository_root() -> Path:
@@ -631,10 +639,7 @@ def _physical_memory_bytes() -> int | None:
 def run(args: argparse.Namespace) -> Path:
     root = repository_root()
     config = load_config(root)
-    if args.run_id != EXPECTED_RUN_ID:
-        raise FinalRQ1Error(
-            f"Final RQ1 requires the approved immutable run ID {EXPECTED_RUN_ID}."
-        )
+    _validate_run_id(args.run_id)
     thesis_root = (args.thesis_root or root.parent / "Thesis").resolve()
     state = preflight(root, config, thesis_root)
     run_dir = (
