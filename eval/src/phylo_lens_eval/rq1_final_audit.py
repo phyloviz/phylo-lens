@@ -10,13 +10,16 @@ from pathlib import Path
 from typing import Any
 
 from .rq1_final import (
-    EXPECTED_RUN_ID,
     FinalRQ1Error,
+    _validate_run_id,
     load_config,
     raw_summary,
     repository_root,
     verified_conditions,
 )
+
+EXPECTED_EVALUATION_HARNESS_COMMIT = "b97f98588e7398f60cc9b0637e8b8abf58b409d6"
+EXPECTED_THESIS_COMMIT = "5cfd264eee0bcb54f03ae27488ec9ddf4d5b2d75"
 
 
 def _rows(run_dir: Path) -> list[dict[str, Any]]:
@@ -33,12 +36,19 @@ def _rows(run_dir: Path) -> list[dict[str, Any]]:
 def audit(run_dir: Path, *, derived_dir: Path | None = None) -> dict[str, Any]:
     root, config = repository_root(), load_config()
     manifest = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
-    if (
-        manifest.get("run_id") != EXPECTED_RUN_ID
-        or manifest.get("state") != "completed"
-    ):
+    run_id = str(manifest.get("run_id", ""))
+    _validate_run_id(run_id)
+    if run_dir.name != run_id:
+        raise FinalRQ1Error(
+            "Final RQ1 manifest run ID does not match its raw directory."
+        )
+    if manifest.get("state") != "completed":
         raise FinalRQ1Error(
             "Selected directory is not the completed approved final RQ1 run."
+        )
+    if manifest.get("expected_raw_observations") != 90:
+        raise FinalRQ1Error(
+            "Final RQ1 manifest does not declare exactly 90 observations."
         )
     provenance = manifest.get("provenance", {})
     product = config["product"]
@@ -74,6 +84,31 @@ def audit(run_dir: Path, *, derived_dir: Path | None = None) -> dict[str, Any]:
     ):
         raise FinalRQ1Error(
             "Final RQ1 run was not launched from clean, product-preserving worktrees."
+        )
+    if provenance["evaluation_harness_commit"] != EXPECTED_EVALUATION_HARNESS_COMMIT:
+        raise FinalRQ1Error("Final RQ1 evaluation harness commit is not approved.")
+    if provenance["thesis_repository_commit"] != EXPECTED_THESIS_COMMIT:
+        raise FinalRQ1Error("Final RQ1 Thesis commit is not approved.")
+    expected_resolved = {
+        key: config[key]
+        for key in (
+            "id",
+            "warmup_repetitions",
+            "measured_repetitions",
+            "startup_timeout_seconds",
+            "preparation_timeout_seconds",
+            "outer_watchdog_seconds",
+            "poll_interval_ms",
+            "rss_sampling_interval_ms",
+            "product",
+        )
+    }
+    resolved = json.loads(
+        (run_dir / "resolved-config.json").read_text(encoding="utf-8")
+    )
+    if resolved != expected_resolved:
+        raise FinalRQ1Error(
+            "Final RQ1 resolved protocol differs from the frozen contract."
         )
     expected_conditions = {
         item["id"]: item for item in verified_conditions(root, config)
