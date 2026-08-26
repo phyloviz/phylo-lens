@@ -11,6 +11,26 @@ with balanced, irregular (seed 2026), and caterpillar topology.  Requested
 leaves, actual parsed-node counts, topology, seed, byte size, and SHA-256 are
 all fixed in `config/rq1-final-oci-v020.json` and verified before execution.
 
+## Final RQ3: persisted hierarchical LoD fidelity and reduction
+
+Final RQ3 asks: **How effectively does PhyloLens’s persisted hierarchical
+level-of-detail representation reduce the materialized graph across persisted
+LoD levels while preserving exact source-node membership, representative
+positions, and quotient connectivity?** It is a deterministic correctness and
+representation-reduction study, not a performance or browser benchmark.
+
+The evaluator independently parses the retained canonical Newick input and
+requires all 13,075 source IDs and 13,074 source edges. It prepares one frozen
+v0.2.0 SQLite layout, uses one exact padded full-world rectangle for all three
+persisted LoD levels, and never derives the expected source universe from a
+LoD response. For each level it checks exact membership partitioning,
+float-identity representative positions, full-detail source nodes/positions/
+edges, and the source-derived quotient edge set (including supporting source
+edge provenance). A semantic mismatch is retained as invalid evidence and
+makes the final raw-only audit fail. Reduction counts distinguish represented
+source nodes, materialized visual nodes, materialized edges, and triangle
+proxies; the three levels are ordered cases, not statistical repetitions.
+
 Every condition has one retained warm-up and five measured observations.  A
 fresh pinned service container and empty persistence directory are created for
 each observation.  Health and a pre-timing `sfdp`/GTS smoke are required;

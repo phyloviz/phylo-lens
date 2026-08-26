@@ -146,6 +146,32 @@ Run the tiny synthetic paired ablation after building the same browser inputs:
 ```bash
 PYTHONPATH=eval/src:code/server/src python -m phylo_lens_eval.rq3 \
   --experiment rq3-triangle-pilot --warmups 0 --repetitions 1
+
+## Final RQ3: persisted LoD fidelity and materialization reduction
+
+`phylo_lens_eval.rq3_final` is a deterministic structural study, not a browser
+or performance benchmark. It independently parses the frozen EnteroBase /
+Achtman-MLST-derived goeBURST input, prepares exactly one v0.2.0 SQLite layout,
+and validates persisted LoD levels 0, 1, and 2 over one padded full-world
+bound. It rejects a pre-existing raw run directory and records no retries.
+
+Run only from a clean, committed evaluation harness and only after the final
+run ID has been approved:
+
+```bash
+PYTHONPATH=eval/src:code/server/src python -m phylo_lens_eval.rq3_final \
+  --run-id thesis-final-rq3-v020-001
+```
+
+After a completed audit-passing final run, create deterministic derived
+artifacts without rereading or modifying the product:
+
+```bash
+PYTHONPATH=eval/src:code/server/src python -m phylo_lens_eval.rq3_final_audit generate \
+  --run-dir eval/results/raw/rq3-lod-final-v020/thesis-final-rq3-v020-001 \
+  --output-dir eval/results/derived/rq3-lod-final-v020/thesis-final-rq3-v020-001 \
+  --reporting-audit-commit <commit>
+```
 ```
 
 RQ3 reads only persisted prepared-layout data to expand selected triangle

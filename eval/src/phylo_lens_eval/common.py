@@ -124,6 +124,11 @@ def validate_rq3_pair(payload: dict) -> None:
     _validate_schema(payload, "rq3-pair.schema.json")
 
 
+def validate_rq3_final_observation(payload: dict) -> None:
+    """Validate one terminal deterministic final-RQ3 LoD case."""
+    _validate_schema(payload, "rq3-final-observation.schema.json")
+
+
 def validate_rq4_observation(payload: dict) -> None:
     _validate_schema(payload, "rq4-observation.schema.json")
 
