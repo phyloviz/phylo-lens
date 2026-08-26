@@ -181,7 +181,7 @@ a tiny headless fixture and is not evidence of scalability or display quality.
 
 The final RQ2 asks: **How does the PhyloLens browser client behave as the
 materialized visual working set grows, in terms of first-visualization latency,
-memory behaviour, and frame pacing?** It is deliberately a loopback-replay
+JavaScript heap usage, and frame pacing?** It is deliberately a loopback-replay
 microbenchmark, not a real-server viewport/LoD experiment. Replay removes
 preparation, database, layout, and viewport-selection cost; the public
 `createPhyloLensView` entry remains the client under test.
