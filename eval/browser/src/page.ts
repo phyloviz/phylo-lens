@@ -1,6 +1,7 @@
 // @ts-expect-error The browser bundle intentionally imports the built public
 // package entry; declarations are emitted separately by the package build.
 import { createPhyloLensView } from "../../../code/client/dist/index.js";
+import { armCaptureInput } from "./rq4-input-capture.mjs";
 
 const root = document.querySelector<HTMLElement>("#graph-root");
 if (!root) throw new Error("Missing graph root.");
@@ -26,7 +27,14 @@ declare global {
         requestTrace: () => unknown[];
         operationRequestTrace: () => unknown[];
         finishAtFrame: (sequence: number) => Promise<number>;
-        armInput: (eventType: "click" | "dblclick") => void;
+        armInput: (specification: {
+          eventType: "click" | "dblclick";
+          nativeEventType: "click" | "dblclick";
+          clickCount: number | null;
+          clientX: number;
+          clientY: number;
+          targetClusterId: string | null;
+        }) => void;
         inputEvent: () => unknown;
         baselineFrames: (count: number) => Promise<number[]>;
         gpuEvidence: () => unknown;
@@ -176,28 +184,19 @@ window.phyloLensEvaluation.rq4 = {
     }
     return doubleAnimationFrame();
   },
-  armInput: (eventType) => {
+  armInput: (specification) => {
     rq4OperationRequestStart = rq4RequestTrace.length;
     rq4InputEvent = null;
-    const capture = (event: Event) => {
-      if (event.type !== eventType || rq4InputEvent) return;
-      const mouse = event as MouseEvent;
-      const timestamp = performance.now();
+    armCaptureInput(document, root, specification, (captured) => {
       rq4InputEvent = {
-        eventType: event.type,
-        timestamp,
-        clientX: mouse.clientX,
-        clientY: mouse.clientY,
-        isTrusted: event.isTrusted,
+        ...captured,
         viewport: latestSnapshotViewport(),
       };
       if (frameSampling) {
         frameSampling.samples = [];
-        frameSampling.previous = timestamp;
+        frameSampling.previous = captured.timestamp;
       }
-      document.removeEventListener(eventType, capture, true);
-    };
-    document.addEventListener(eventType, capture, true);
+    });
   },
   inputEvent: () => (rq4InputEvent ? structuredClone(rq4InputEvent) : null),
   baselineFrames: async (count) => {

@@ -299,17 +299,25 @@ def validate_result(
         "viewport_sync" if operation == "viewport_navigation" else operation
     )
     expected_input = "click" if operation == "cluster_expand" else "dblclick"
+    expected_native_input = (
+        "click" if operation != "viewport_navigation" else "dblclick"
+    )
+    expected_click_count = 2 if expected_input == "dblclick" else 1
     if (
         result.get("clock_domain") != "browser_performance_now"
         or not isinstance(input_event, dict)
         or input_event.get("eventType") != expected_input
+        or input_event.get("nativeEventType") != expected_native_input
+        or input_event.get("clickCount") != expected_click_count
+        or input_event.get("capturePhase") is not True
+        or input_event.get("stage") != "graph-root"
         or not input_event.get("isTrusted")
         or _boundary(after).get("reason") != expected_reason
     ):
         return "validation_failure"
-    if (
-        operation != "viewport_navigation"
-        and _boundary(after).get("clusterId") != target["cluster_id"]
+    if operation != "viewport_navigation" and (
+        _boundary(after).get("clusterId") != target["cluster_id"]
+        or input_event.get("targetClusterId") != target["cluster_id"]
     ):
         return "validation_failure"
     t0, t_snapshot, t_settled = (

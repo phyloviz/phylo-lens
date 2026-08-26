@@ -190,9 +190,36 @@ async function run(control) {
   await page.evaluate(() => window.phyloLensEvaluation?.startFrameSampling());
   responseMetadata = [];
   collectResponses = true;
+  const inputSpecification =
+    control.operation === "cluster_collapse"
+      ? {
+          eventType: "dblclick",
+          nativeEventType: "click",
+          clickCount: 2,
+          clientX: target.clientX,
+          clientY: target.clientY,
+          targetClusterId: target.clusterId,
+        }
+      : control.operation === "cluster_expand"
+        ? {
+            eventType: "click",
+            nativeEventType: "click",
+            clickCount: 1,
+            clientX: target.clientX,
+            clientY: target.clientY,
+            targetClusterId: target.clusterId,
+          }
+        : {
+            eventType: "dblclick",
+            nativeEventType: "dblclick",
+            clickCount: 2,
+            clientX: canvas.x + control.input.client_x,
+            clientY: canvas.y + control.input.client_y,
+            targetClusterId: null,
+          };
   await page.evaluate(
-    (type) => window.phyloLensEvaluation?.rq4?.armInput(type),
-    control.operation === "cluster_expand" ? "click" : "dblclick",
+    (specification) => window.phyloLensEvaluation?.rq4?.armInput(specification),
+    inputSpecification,
   );
   if (control.operation === "viewport_navigation")
     await page.mouse.dblclick(

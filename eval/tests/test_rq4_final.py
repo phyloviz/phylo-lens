@@ -25,6 +25,14 @@ from phylo_lens_eval.rq4_final_audit import (
     _audit_execution_provenance,
 )
 
+PROTECTED_RQ4_EVIDENCE_SHA256 = {
+    "rq4-interactive-final-v020/thesis-final-rq4-v020-001/manifest.json": "11a07eba926cf22ea1eaf3a3999484f1ee6ec1ae96dde852589f8bad85931f76",
+    "rq4-interactive-final-v020/thesis-final-rq4-v020-001/observations.jsonl": "512a7452209ff0a33e33cd81dc17b125d4a705ca72c8bd8921c9fc5693ba376f",
+    "rq4-interactive-final-v020/thesis-final-rq4-v020-002/manifest.json": "3203b730805150670f4591839d67dc7d8cdc5554dc8cd6454dd8ba3e2fa1dc4e",
+    "rq4-interactive-final-v020/thesis-final-rq4-v020-002/observations.jsonl": "f84eda231ea7e933cebb8460bbb16c3bf318371d39facd50d92edf11b2fdf6f4",
+    "rq4-interactive-final-v020/thesis-final-rq4-v020-002/summary.json": "e6ba3c3a60d12e613408fce462fd2c454c9857c5fdfb0237a35d9e439ab646ea",
+}
+
 
 def _result(operation: str = "cluster_expand") -> dict:
     request = {
@@ -38,6 +46,13 @@ def _result(operation: str = "cluster_expand") -> dict:
         "input_event": {
             "timestamp": 1.0,
             "eventType": "click" if operation == "cluster_expand" else "dblclick",
+            "nativeEventType": "click"
+            if operation != "viewport_navigation"
+            else "dblclick",
+            "clickCount": 1 if operation == "cluster_expand" else 2,
+            "capturePhase": True,
+            "stage": "graph-root",
+            "targetClusterId": "target" if operation != "viewport_navigation" else None,
             "isTrusted": True,
         },
         "initial": {"diagnostics": {"snapshotFingerprint": "before"}},
@@ -123,6 +138,12 @@ def test_runtime_copy_starts_as_exact_byte_copy_without_writing_master(
     assert checksum_sha256(Path(master["path"])) == before
 
 
+def test_protected_rq4_v001_and_v002_raw_evidence_is_unchanged() -> None:
+    raw = repository_root() / "eval/results/raw"
+    for relative_path, expected_sha256 in PROTECTED_RQ4_EVIDENCE_SHA256.items():
+        assert checksum_sha256(raw / relative_path) == expected_sha256
+
+
 def test_existing_run_directory_is_refused_before_browser_execution(
     tmp_path: Path,
 ) -> None:
@@ -146,6 +167,42 @@ def test_server_timing_reconciles_and_event_t0_is_required() -> None:
     assert (
         validate_result("cluster_expand", {"cluster_id": "target"}, result)
         == "validation_failure"
+    )
+
+
+def test_capture_phase_second_click_precedes_synchronous_collapse_snapshot() -> None:
+    result = _result("cluster_collapse")
+    result["input_event"]["timestamp"] = 3.9
+    assert validate_result("cluster_collapse", {"cluster_id": "target"}, result) is None
+    result["input_event"]["timestamp"] = 4.1
+    assert (
+        validate_result("cluster_collapse", {"cluster_id": "target"}, result)
+        == "validation_failure"
+    )
+
+
+def test_capture_event_requires_expected_native_event_and_target_context() -> None:
+    result = _result("cluster_collapse")
+    result["input_event"]["nativeEventType"] = "dblclick"
+    assert (
+        validate_result("cluster_collapse", {"cluster_id": "target"}, result)
+        == "validation_failure"
+    )
+    result = _result("cluster_collapse")
+    result["input_event"]["targetClusterId"] = "wrong-target"
+    assert (
+        validate_result("cluster_collapse", {"cluster_id": "target"}, result)
+        == "validation_failure"
+    )
+
+
+def test_navigation_and_expand_capture_semantics_remain_unchanged() -> None:
+    assert (
+        validate_result("viewport_navigation", None, _result("viewport_navigation"))
+        is None
+    )
+    assert (
+        validate_result("cluster_expand", {"cluster_id": "target"}, _result()) is None
     )
 
 
