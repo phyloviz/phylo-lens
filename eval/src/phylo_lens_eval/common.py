@@ -114,6 +114,11 @@ def validate_rq2_observation(payload: dict) -> None:
     _validate_schema(payload, "rq2-observation.schema.json")
 
 
+def validate_rq2_final_observation(payload: dict) -> None:
+    """Validate one terminal final-RQ2 client-microbenchmark observation."""
+    _validate_schema(payload, "rq2-final-observation.schema.json")
+
+
 def validate_rq3_pair(payload: dict) -> None:
     """Validate a strict RQ3 paired-comparison artifact."""
     _validate_schema(payload, "rq3-pair.schema.json")

@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://phyloviz.org/phylo-lens/eval/rq2-final-observation/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "run_id", "experiment_id", "observation_id", "role", "repetition_index", "status", "failure_kind", "condition", "fixture", "browser", "gpu", "timing", "heap", "rss", "snapshot", "replay", "frame_statistics", "artifacts", "error"],
+  "properties": {
+    "schema_version": {"const": "1"},
+    "run_id": {"type": "string", "minLength": 1},
+    "experiment_id": {"const": "rq2-client-final-v020"},
+    "observation_id": {"type": "string", "minLength": 1},
+    "role": {"enum": ["warmup", "measured"]},
+    "repetition_index": {"type": "integer", "minimum": 0},
+    "status": {"enum": ["success", "failure", "timeout", "invalid"]},
+    "failure_kind": {"type": "string", "minLength": 1},
+    "condition": {"type": "object", "additionalProperties": false, "required": ["id", "family", "global_prepared_node_count", "max_nodes", "timeout_seconds"], "properties": {"id": {"type": "string"}, "family": {"enum": ["detail", "triangle_control"]}, "global_prepared_node_count": {"type": "integer", "exclusiveMinimum": 6000}, "max_nodes": {"const": 100000}, "timeout_seconds": {"const": 45}}},
+    "fixture": {"type": "object", "additionalProperties": false, "required": ["id", "sha256", "response_sha256", "node_count", "edge_count", "triangle_count", "expected_primitive_count", "labels_enabled", "mutated"], "properties": {"id": {"type": "string"}, "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}, "response_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}, "node_count": {"type": "integer", "minimum": 1}, "edge_count": {"type": "integer", "minimum": 0}, "triangle_count": {"type": "integer", "minimum": 0}, "expected_primitive_count": {"type": "integer", "minimum": 1}, "labels_enabled": {"type": "boolean"}, "mutated": {"const": false}}},
+    "browser": {"type": "object", "additionalProperties": false, "required": ["version", "executable_path", "playwright_version", "headless", "viewport", "device_scale_factor", "locale", "timezone", "fresh_process"], "properties": {"version": {"type": ["string", "null"]}, "executable_path": {"type": ["string", "null"]}, "playwright_version": {"type": ["string", "null"]}, "headless": {"const": false}, "viewport": {"type": "object", "additionalProperties": false, "required": ["width", "height"], "properties": {"width": {"const": 960}, "height": {"const": 640}}}, "device_scale_factor": {"const": 1}, "locale": {"const": "en-US"}, "timezone": {"const": "UTC"}, "fresh_process": {"const": true}}},
+    "gpu": {"type": "object", "additionalProperties": false, "required": ["hardware_accelerated", "webgl_vendor", "webgl_renderer", "backend", "evidence"], "properties": {"hardware_accelerated": {"type": "boolean"}, "webgl_vendor": {"type": ["string", "null"]}, "webgl_renderer": {"type": ["string", "null"]}, "backend": {"type": ["string", "null"]}, "evidence": {"type": ["string", "null"]}}},
+    "timing": {"type": "object", "additionalProperties": false, "required": ["t0_ms", "t1_ms", "t2_ms", "client_first_visualization_ms", "load_resolve_ms", "post_load_frame_ms"], "properties": {"t0_ms": {"type": ["number", "null"]}, "t1_ms": {"type": ["number", "null"]}, "t2_ms": {"type": ["number", "null"]}, "client_first_visualization_ms": {"type": ["number", "null"], "minimum": 0}, "load_resolve_ms": {"type": ["number", "null"], "minimum": 0}, "post_load_frame_ms": {"type": ["number", "null"], "minimum": 0}}},
+    "heap": {"type": "object"},
+    "rss": {"type": "object", "additionalProperties": false, "required": ["state", "scope", "sampling_interval_seconds", "baseline_rss_bytes", "post_t2_rss_bytes", "peak_rss_bytes", "diagnostic_root_rss_bytes"], "properties": {"state": {"enum": ["available", "unavailable"]}, "scope": {"enum": ["process_tree", "root_only", "unavailable"]}, "sampling_interval_seconds": {"type": "number", "exclusiveMinimum": 0}, "baseline_rss_bytes": {"type": ["integer", "null"], "minimum": 0}, "post_t2_rss_bytes": {"type": ["integer", "null"], "minimum": 0}, "peak_rss_bytes": {"type": ["integer", "null"], "minimum": 0}, "diagnostic_root_rss_bytes": {"type": ["integer", "null"], "minimum": 0}}},
+    "snapshot": {"type": "object", "additionalProperties": false, "required": ["sequence", "reason", "node_count", "edge_count", "primitive_count", "triangle_count", "fixture_congruent"], "properties": {"sequence": {"type": ["integer", "null"]}, "reason": {"type": ["string", "null"]}, "node_count": {"type": ["integer", "null"], "minimum": 0}, "edge_count": {"type": ["integer", "null"], "minimum": 0}, "primitive_count": {"type": ["integer", "null"], "minimum": 0}, "triangle_count": {"type": ["integer", "null"], "minimum": 0}, "fixture_congruent": {"type": "boolean"}}},
+    "replay": {"type": "object", "additionalProperties": false, "required": ["request_count", "viewport_request_count", "post_initial_viewport_request_count", "request_pattern_valid", "truncated", "response_cardinality_valid", "response_checksums"], "properties": {"request_count": {"type": "integer", "minimum": 0}, "viewport_request_count": {"type": "integer", "minimum": 0}, "post_initial_viewport_request_count": {"type": "integer", "minimum": 0}, "request_pattern_valid": {"type": "boolean"}, "truncated": {"type": "boolean"}, "response_cardinality_valid": {"type": "boolean"}, "response_checksums": {"type": "array", "items": {"type": "string", "pattern": "^[a-f0-9]{64}$"}}}},
+    "frame_statistics": {"type": "object"},
+    "artifacts": {"type": "object"},
+    "error": {"type": ["string", "null"]}
+  }
+}

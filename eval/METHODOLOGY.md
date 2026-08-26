@@ -120,6 +120,8 @@ result file is written.
 
 ## RQ2: client-side visualization scalability
 
+### Historical pilot
+
 RQ2 measures a private evaluation page importing the built public
 `@phyloviz/phylo-lens` entry. It does not expose Sigma, Graphology, workbench,
 or renderer internals, and production TypeScript APIs are unchanged. Synthetic
@@ -174,6 +176,34 @@ raw JSONL. Summaries exclude warm-ups and report configured/success/invalid/
 failure/timeout counts plus median, P25, P75, IQR, minimum, and maximum. Final
 thesis runs should use headed Chromium on a recorded environment; CI uses only
 a tiny headless fixture and is not evidence of scalability or display quality.
+
+### Final v0.2.0 isolated client microbenchmark
+
+The final RQ2 asks: **How does the PhyloLens browser client behave as the
+materialized visual working set grows, in terms of first-visualization latency,
+memory behaviour, and frame pacing?** It is deliberately a loopback-replay
+microbenchmark, not a real-server viewport/LoD experiment. Replay removes
+preparation, database, layout, and viewport-selection cost; the public
+`createPhyloLensView` entry remains the client under test.
+
+Every fixture advertises the same synthetic prepared global count of 100,000
+nodes, above the 6,000-node small-tree path, while its returned snapshot varies
+over the frozen seven-condition 999--39,999 primitive matrix. The public load
+uses evaluation-specific `maxNodes=100000`, and the replay response must be
+untruncated. Browser startup and deterministic replay-fixture generation are
+outside timing. The primary interval is `t2 - t0`, from immediately before
+`view.load()` through the second rAF after it resolves; it includes replay HTTP,
+DTO processing, snapshot application, renderer work, and those two rAFs.
+
+One retained warm-up and five fresh headed-Chromium measured observations run
+per condition. Warm-ups describe OS/filesystem warming rather than persistent
+browser/JIT state and never enter value summaries. The fixed post-load camera
+input is only a frame-pacing stress diagnostic; its raw rAF intervals are not
+interaction latency. GPU evidence must identify a hardware WebGL renderer and
+reject software/SwiftShader paths. Process-tree RSS is published only when the
+browser root and every recursively discovered live descendant are sampled;
+root-only RSS is retained as diagnostic evidence but unavailable for publication
+aggregate-memory statistics.
 
 ## RQ3: paired triangle-aggregation ablation
 

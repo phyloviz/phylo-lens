@@ -119,6 +119,26 @@ The local replay server is an API contract fixture; its timings are diagnostics,
 not server-performance measurements. Headless smoke outputs are CI validation,
 not final thesis evidence.
 
+The final isolated-client RQ2 is separate from that historical pilot. It uses
+the deterministic replay API with a fixed >6,000-node synthetic prepared
+metadata count and varies only the returned materialized fixture. It requires a
+caller-supplied immutable run ID, headed hardware-accelerated Chromium, and the
+frozen 7 × (1 warm-up + 5 measured) matrix:
+
+```bash
+PYTHONPATH=eval/src:code/server/src python -m phylo_lens_eval.rq2_final \
+  --run-id thesis-final-rq2-v020-001
+```
+
+Generate derived artifacts only after a completed audit-passing final run:
+
+```bash
+PYTHONPATH=eval/src:code/server/src python -m phylo_lens_eval.rq2_final_audit generate \
+  --run-dir eval/results/raw/rq2-client-final-v020/thesis-final-rq2-v020-001 \
+  --output-dir eval/results/derived/rq2-client-final-v020/thesis-final-rq2-v020-001 \
+  --reporting-audit-commit <commit>
+```
+
 ## RQ3 paired triangle aggregation
 
 Run the tiny synthetic paired ablation after building the same browser inputs:

@@ -27,6 +27,19 @@ declare global {
         operationRequestTrace: () => unknown[];
         finishAtFrame: (sequence: number) => Promise<number>;
       };
+      rq2Final?: {
+        createView: (apiUrl: string) => void;
+        load: (
+          content: string,
+          name: string,
+          maxNodes: number,
+        ) => Promise<unknown>;
+        latestSnapshot: () => unknown;
+        gpuEvidence: () => unknown;
+        startFrameSampling: () => void;
+        finishFrameSampling: () => number[];
+        dispose: () => void;
+      };
     };
   }
 }
@@ -45,6 +58,7 @@ const rq4DiagnosticReaders = new Map<
 const rq4RequestTrace: Array<Record<string, unknown>> = [];
 let rq4FetchInstalled = false;
 let rq4OperationRequestStart = 0;
+const rq2FinalSnapshots: Array<Record<string, unknown>> = [];
 
 window.phyloLensEvaluation = {
   createView: (apiUrl: string) => {
@@ -156,6 +170,62 @@ window.phyloLensEvaluation.rq4 = {
       throw new Error("snapshot_application_timeout");
     }
     return doubleAnimationFrame();
+  },
+};
+window.phyloLensEvaluation.rq2Final = {
+  createView: (apiUrl) => {
+    if (activeView) throw new Error("Evaluation view is already active.");
+    rq2FinalSnapshots.length = 0;
+    (root as unknown as Record<symbol, unknown>)[RQ4_OBSERVER_SYMBOL] = (
+      boundary: Record<string, unknown>,
+      readDiagnostics: () => Record<string, unknown> | null,
+    ) => {
+      const diagnostics = readDiagnostics();
+      rq2FinalSnapshots.push({
+        ...boundary,
+        triangleCount: diagnostics?.visibleAggregateTriangleCount ?? null,
+      });
+    };
+    activeView = createPhyloLensView({ container: root, apiUrl });
+  },
+  load: async (content, name, maxNodes) => {
+    if (!activeView) throw new Error("Evaluation view was not created.");
+    const t0 = performance.now();
+    await activeView.load({
+      content,
+      name,
+      lod: { maxNodes },
+      visualMapping: undefined,
+    });
+    const t1 = performance.now();
+    const t2 = await doubleAnimationFrame();
+    return { t0, t1, t2, snapshot: rq2FinalSnapshots.at(-1) ?? null };
+  },
+  latestSnapshot: () => structuredClone(rq2FinalSnapshots.at(-1) ?? null),
+  gpuEvidence: () => {
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("webgl2") ?? canvas.getContext("webgl");
+    if (!context) return { available: false, vendor: null, renderer: null };
+    const extension = context.getExtension("WEBGL_debug_renderer_info");
+    const vendor = extension
+      ? context.getParameter(extension.UNMASKED_VENDOR_WEBGL)
+      : context.getParameter(context.VENDOR);
+    const renderer = extension
+      ? context.getParameter(extension.UNMASKED_RENDERER_WEBGL)
+      : context.getParameter(context.RENDERER);
+    return {
+      available: true,
+      vendor: String(vendor),
+      renderer: String(renderer),
+    };
+  },
+  startFrameSampling: () => window.phyloLensEvaluation?.startFrameSampling(),
+  finishFrameSampling: () =>
+    window.phyloLensEvaluation?.finishFrameSampling() ?? [],
+  dispose: () => {
+    activeView?.dispose();
+    activeView = undefined;
+    delete (root as unknown as Record<symbol, unknown>)[RQ4_OBSERVER_SYMBOL];
   },
 };
 document.documentElement.dataset.rq2Bootstrap = "ready";
