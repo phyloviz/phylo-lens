@@ -22,6 +22,8 @@ from .rq4_final import (
 )
 from .stats import summary
 
+EXECUTION_HARNESS_COMMIT = "9fd7bbde9438f9170c10279b1635df8bff22e892"
+
 
 def _rows(run_dir: Path) -> list[dict[str, Any]]:
     return [
@@ -59,6 +61,12 @@ def _replay_result(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _audit_execution_provenance(manifest: dict[str, Any], errors: list[str]) -> None:
+    """The manifest's ordinary Git record is the execution provenance source."""
+    if manifest.get("git", {}).get("commit") != EXECUTION_HARNESS_COMMIT:
+        errors.append("execution_git_commit_mismatch")
+
+
 def audit(run_dir: Path, *, require_final: bool = True) -> dict[str, Any]:
     config, manifest, rows = (
         load_config(),
@@ -66,6 +74,7 @@ def audit(run_dir: Path, *, require_final: bool = True) -> dict[str, Any]:
         _rows(run_dir),
     )
     errors: list[str] = []
+    _audit_execution_provenance(manifest, errors)
     expected_count = (
         49 if require_final else manifest.get("expected_terminal_observations")
     )

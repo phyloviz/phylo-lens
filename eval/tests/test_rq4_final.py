@@ -20,6 +20,10 @@ from phylo_lens_eval.rq4_final import (
     summarize,
     validate_result,
 )
+from phylo_lens_eval.rq4_final_audit import (
+    EXECUTION_HARNESS_COMMIT,
+    _audit_execution_provenance,
+)
 
 
 def _result(operation: str = "cluster_expand") -> dict:
@@ -193,3 +197,11 @@ def test_summary_retains_failures_without_pseudo_replication() -> None:
 
 def test_metric_marks_collapse_http_as_not_applicable() -> None:
     assert _metric(None, None, False) == {"state": "not_applicable", "value_ms": None}
+
+
+def test_audit_requires_the_frozen_execution_harness_git_commit() -> None:
+    errors: list[str] = []
+    _audit_execution_provenance({"git": {"commit": EXECUTION_HARNESS_COMMIT}}, errors)
+    assert errors == []
+    _audit_execution_provenance({"git": {"commit": "different"}}, errors)
+    assert errors == ["execution_git_commit_mismatch"]
