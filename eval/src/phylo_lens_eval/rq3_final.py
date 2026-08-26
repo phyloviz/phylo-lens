@@ -11,7 +11,9 @@ import argparse
 import hashlib
 import json
 import math
+import os
 import re
+import shutil
 import sqlite3
 import subprocess
 from collections import defaultdict
@@ -23,13 +25,13 @@ from phylo_lens_server.data.normalizer import (
     NormalizeRequest,
     normalize_dataset,
 )
-from phylo_lens_server.pipeline.worker import PreparedLayoutWorker
 from phylo_lens_server.repository.layout.sqlite_layout_repository import (
     PreparedLayoutStore,
 )
 
 from . import SCHEMA_VERSION
 from .common import (
+    checksum_sha256,
     create_isolated_run_directory,
     utc_now,
     validate_rq3_final_observation,
@@ -250,11 +252,16 @@ def run(args: argparse.Namespace) -> Path:
         )
     results_root = (args.results_root or root / "eval/results/raw").resolve()
     run_dir = create_isolated_run_directory(results_root, EXPERIMENT_ID, args.run_id)
+    preparation_root = run_dir / ".preparation"
+    prepared = _build_layout_in_child(root, source, preparation_root)
     layout_root = run_dir / "prepared-layout"
-    store = PreparedLayoutStore(layout_root)
-    prepared = PreparedLayoutWorker(store).prepare_dataset(source["dataset"])
+    _seal_master(preparation_root / "prepared_layout.sqlite3", layout_root)
     layout = inspect_layout(
-        store.path, source, config, prepared.artifacts.layout_version
+        layout_root / "prepared_layout.sqlite3",
+        source,
+        config,
+        prepared["layout_version"],
+        require_sealed=True,
     )
     write_json(run_dir / "resolved-config.json", config)
     write_json(run_dir / "source.json", source_record(source))
@@ -265,7 +272,11 @@ def run(args: argparse.Namespace) -> Path:
     write_json(run_dir / "manifest.json", manifest)
     cases: list[dict[str, Any]] = []
     for level in selected_levels:
-        case = validate_level(store, source, layout, level, args.run_id, run_dir)
+        runtime_root = run_dir / "runtime-validation" / f"lod-level-{level}"
+        _copy_master_for_runtime(layout_root, runtime_root, layout["database_sha256"])
+        case = validate_level(
+            PreparedLayoutStore(runtime_root), source, layout, level, args.run_id, run_dir
+        )
         validate_rq3_final_observation(case)
         write_json(run_dir / "cases" / case["case_id"] / "observation.json", case)
         _append_jsonl(run_dir / "observations.jsonl", case)
@@ -280,8 +291,89 @@ def run(args: argparse.Namespace) -> Path:
     return run_dir
 
 
+def _build_layout_in_child(root: Path, source: dict[str, Any], root_path: Path) -> dict[str, Any]:
+    """Process exit is the explicit disposal boundary for product write handles."""
+    request = {
+        "dataset_id": source["dataset"].dataset_id,
+        "source_path": source["path"],
+        "persistence_dir": str(root_path),
+    }
+    request_path, output_path = root_path / "request.json", root_path / "result.json"
+    write_json(request_path, request)
+    completed = subprocess.run(
+        [
+            str(root / ".venv/bin/python"),
+            "-m",
+            "phylo_lens_eval.rq3_seal_child",
+            "--request",
+            str(request_path),
+            "--output",
+            str(output_path),
+        ],
+        cwd=root,
+        env={**os.environ, "PYTHONPATH": str(root / "eval/src")},
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    (root_path / "child.stdout.log").write_text(completed.stdout, encoding="utf-8")
+    (root_path / "child.stderr.log").write_text(completed.stderr, encoding="utf-8")
+    result = json.loads(output_path.read_text(encoding="utf-8")) if output_path.exists() else {}
+    if completed.returncode or result.get("state") != "success":
+        raise ValueError(f"RQ3 child layout build failed: {result.get('error', completed.stderr)}")
+    return result
+
+
+def _seal_master(source: Path, retained_root: Path) -> None:
+    """Checkpoint a child-built layout, then create immutable retained evidence."""
+    if not source.is_file():
+        raise ValueError("RQ3 child did not create a SQLite database to seal.")
+    # The child has exited, so every product write connection is disposed.  This
+    # dedicated connection is the only finalization writer and is explicitly closed.
+    connection = sqlite3.connect(source)
+    try:
+        connection.execute("pragma wal_checkpoint(TRUNCATE)").fetchall()
+        connection.execute("pragma journal_mode=DELETE").fetchall()
+        connection.commit()
+    finally:
+        connection.close()
+    source_wal = source.with_name(source.name + "-wal")
+    if source_wal.exists() and source_wal.stat().st_size:
+        raise ValueError("RQ3 seal failed: uncheckpointed WAL bytes remain.")
+    retained_root.mkdir(parents=True, exist_ok=False)
+    retained = retained_root / source.name
+    shutil.copy2(source, retained)
+    if checksum_sha256(source) != checksum_sha256(retained):
+        raise ValueError("RQ3 retained master copy differs from finalized source.")
+    retained.chmod(0o444)
+    retained_root.chmod(0o555)
+    _assert_sealed_master(retained)
+
+
+def _copy_master_for_runtime(master_root: Path, runtime_root: Path, expected_sha: str) -> None:
+    master = master_root / "prepared_layout.sqlite3"
+    _assert_sealed_master(master)
+    runtime_root.mkdir(parents=True, exist_ok=False)
+    runtime = runtime_root / master.name
+    shutil.copy2(master, runtime)
+    runtime.chmod(0o644)
+    if checksum_sha256(runtime) != expected_sha:
+        raise ValueError("RQ3 runtime copy does not equal the sealed master.")
+
+
+def _assert_sealed_master(database: Path) -> None:
+    if not database.is_file() or checksum_sha256(database) == "":
+        raise ValueError("RQ3 retained master database is unavailable.")
+    if database.stat().st_mode & 0o222:
+        raise ValueError("RQ3 retained master is writable.")
+    wal = database.with_name(database.name + "-wal")
+    shm = database.with_name(database.name + "-shm")
+    if (wal.exists() and wal.stat().st_size) or shm.exists():
+        raise ValueError("RQ3 retained master has active SQLite sidecars.")
+
+
 def source_record(source: dict[str, Any]) -> dict[str, Any]:
-    return {
+    values = {
         key: source[key]
         for key in (
             "path",
@@ -295,10 +387,16 @@ def source_record(source: dict[str, Any]) -> dict[str, Any]:
             "warnings",
         )
     }
+    return {"dataset_id": source["dataset"].dataset_id, **values}
 
 
 def inspect_layout(
-    database: Path, source: dict[str, Any], config: dict, layout_version: str
+    database: Path,
+    source: dict[str, Any],
+    config: dict,
+    layout_version: str,
+    *,
+    require_sealed: bool = False,
 ) -> dict[str, Any]:
     dataset_id = source["dataset"].dataset_id
     with _connection(database) as connection:
@@ -397,9 +495,19 @@ def inspect_layout(
         "graph_edges": sha256(edges),
         "prepared_edges": sha256(prepared_edges),
     }
+    if require_sealed:
+        _assert_sealed_master(database)
     return {
         "database_path": str(database),
-        "database_sha256": hashlib.sha256(database.read_bytes()).hexdigest(),
+        "database_sha256": checksum_sha256(database),
+        "database_size_bytes": database.stat().st_size,
+        "seal": {
+            "database_mode": oct(database.stat().st_mode & 0o777),
+            "wal_state": _sidecar_state(database, "-wal"),
+            "shm_state": _sidecar_state(database, "-shm"),
+            "sealed_after_child_process_exit": True,
+            "physical_hash_scope": "retained_master_database_bytes",
+        },
         "prepared_layout_id": layout_version,
         "levels": levels,
         "bounds": {**canonicalize(bounds), "sha256": sha256(bounds)},
@@ -691,9 +799,14 @@ def _edge_record(
 
 
 def _connection(path: Path) -> sqlite3.Connection:
-    connection = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+    connection = sqlite3.connect(f"file:{path}?mode=ro&immutable=1", uri=True)
     connection.row_factory = sqlite3.Row
     return connection
+
+
+def _sidecar_state(database: Path, suffix: str) -> dict[str, Any]:
+    path = database.with_name(database.name + suffix)
+    return {"exists": path.exists(), "size_bytes": path.stat().st_size if path.exists() else 0}
 
 
 def _rows(

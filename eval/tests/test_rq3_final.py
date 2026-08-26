@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import sqlite3
 from types import SimpleNamespace
 
 import pytest
@@ -16,8 +17,11 @@ from phylo_lens_eval.rq3_final import (
     canonicalize,
     load_config,
     sha256,
+    _assert_sealed_master,
+    _seal_master,
 )
 from phylo_lens_eval.rq3_final_audit import build_reports
+from phylo_lens_eval.rq3_final_audit import _audit_retained_master
 
 
 def test_final_config_freezes_independent_complete_source_universe() -> None:
@@ -192,3 +196,75 @@ def test_deterministic_reports_regenerate_byte_for_byte(tmp_path: Path) -> None:
         "rq3-provenance.json",
         "rq3-lod-reduction.svg",
     } == set(first)
+
+
+def test_sealing_copies_stable_master_then_makes_it_read_only(tmp_path: Path) -> None:
+    source_root, retained_root = tmp_path / "source", tmp_path / "retained"
+    source_root.mkdir()
+    database = source_root / "prepared_layout.sqlite3"
+    connection = sqlite3.connect(database)
+    connection.execute("create table sample (value integer)")
+    connection.execute("insert into sample values (1)")
+    connection.commit()
+    connection.close()
+
+    _seal_master(database, retained_root)
+
+    retained = retained_root / database.name
+    assert retained.read_bytes() == database.read_bytes()
+    assert retained.stat().st_mode & 0o222 == 0
+    assert not retained.with_name(retained.name + "-wal").exists()
+    assert not retained.with_name(retained.name + "-shm").exists()
+    _assert_sealed_master(retained)
+
+
+def test_immutable_inspection_does_not_create_sqlite_sidecars(tmp_path: Path) -> None:
+    source_root, retained_root = tmp_path / "source", tmp_path / "retained"
+    source_root.mkdir()
+    database = source_root / "prepared_layout.sqlite3"
+    connection = sqlite3.connect(database)
+    connection.execute("create table sample (value integer)")
+    connection.commit()
+    connection.close()
+    _seal_master(database, retained_root)
+    retained = retained_root / database.name
+
+    connection = sqlite3.connect(f"file:{retained}?mode=ro&immutable=1", uri=True)
+    assert connection.execute("select count(*) from sample").fetchone()[0] == 0
+    connection.close()
+    assert not retained.with_name(retained.name + "-wal").exists()
+    assert not retained.with_name(retained.name + "-shm").exists()
+
+
+def test_audit_recomputes_retained_physical_hash_and_semantic_hashes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    master = tmp_path / "prepared-layout"
+    master.mkdir()
+    database = master / "prepared_layout.sqlite3"
+    database.write_bytes(b"sealed bytes")
+    database.chmod(0o444)
+    source = {"dataset_id": "dataset", "node_ids": [], "edges": []}
+    layout = {
+        "database_sha256": "0" * 64,
+        "prepared_layout_id": "layout",
+        "table_sha256": {"node_positions": "recorded"},
+        "levels": [],
+        "bounds": {},
+        "source_position_count": 0,
+        "source_graph_edge_count": 0,
+    }
+    monkeypatch.setattr(
+        "phylo_lens_eval.rq3_final.inspect_layout",
+        lambda *_args, **_kwargs: {
+            "table_sha256": {"node_positions": "different"},
+            "levels": [],
+            "bounds": {},
+            "source_position_count": 0,
+            "source_graph_edge_count": 0,
+        },
+    )
+    errors: list[str] = []
+    _audit_retained_master(tmp_path, source, layout, {"dataset": {"id": "dataset"}}, errors)
+    assert any("physical SHA256" in error for error in errors)
+    assert any("semantic table hashes" in error for error in errors)

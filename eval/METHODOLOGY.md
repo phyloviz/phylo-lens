@@ -31,6 +31,15 @@ makes the final raw-only audit fail. Reduction counts distinguish represented
 source nodes, materialized visual nodes, materialized edges, and triangle
 proxies; the three levels are ordered cases, not statistical repetitions.
 
+The retained RQ3 SQLite master is sealed only after a disposable product-build
+process exits, an evaluation-only connection checkpoints and finalizes WAL
+state, and the final retained copy is hashed. The audit recomputes its physical
+SHA-256 and semantic table hashes through immutable read-only access. Final
+`thesis-final-rq3-v020-001` is superseded for publication because its retained
+SQLite artifact changed after finalization and its original audit trusted stored
+metadata; `thesis-final-rq3-v020-002` is the authoritative replacement. This
+is an evidence-integrity correction, not a scientific-protocol change.
+
 Every condition has one retained warm-up and five measured observations.  A
 fresh pinned service container and empty persistence directory are created for
 each observation.  Health and a pre-timing `sfdp`/GTS smoke are required;

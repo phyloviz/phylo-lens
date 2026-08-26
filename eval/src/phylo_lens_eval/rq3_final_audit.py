@@ -7,6 +7,7 @@ import csv
 import hashlib
 import io
 import json
+from types import SimpleNamespace
 from pathlib import Path
 from typing import Any
 
@@ -32,8 +33,9 @@ def main() -> None:
         if name == "generate":
             command.add_argument("--output-dir", type=Path, required=True)
             command.add_argument("--reporting-audit-commit", required=True)
+        command.add_argument("--allow-development", action="store_true")
     args = parser.parse_args()
-    audit = audit_run(args.run_dir)
+    audit = audit_run(args.run_dir, require_final=not args.allow_development)
     if args.command == "audit":
         print(json.dumps(audit, indent=2, sort_keys=True))
         return
@@ -45,7 +47,7 @@ def main() -> None:
     print(args.output_dir)
 
 
-def audit_run(run_dir: Path) -> dict[str, Any]:
+def audit_run(run_dir: Path, *, require_final: bool = True) -> dict[str, Any]:
     errors: list[str] = []
     manifest = _read_json(run_dir / "manifest.json", errors)
     config = _read_json(run_dir / "resolved-config.json", errors)
@@ -63,7 +65,8 @@ def audit_run(run_dir: Path) -> dict[str, Any]:
             )
     except ValueError as error:
         errors.append(str(error))
-    _audit_manifest(manifest, source, layout, cases, errors)
+    _audit_manifest(manifest, source, layout, cases, errors, require_final=require_final)
+    _audit_retained_master(run_dir, source, layout, expected_config, errors)
     seen_levels: set[int] = set()
     for case in cases:
         _audit_case(case, source, layout, seen_levels, errors)
@@ -76,16 +79,66 @@ def audit_run(run_dir: Path) -> dict[str, Any]:
     return _result(errors, run_dir, cases)
 
 
+def _audit_retained_master(
+    run_dir: Path,
+    source_record: dict[str, Any],
+    layout: dict[str, Any],
+    config: dict[str, Any],
+    errors: list[str],
+) -> None:
+    """Recompute retained bytes and semantic rows; never trust raw metadata alone."""
+    from .common import checksum_sha256
+    from .rq3_final import inspect_layout
+
+    database = run_dir / "prepared-layout" / "prepared_layout.sqlite3"
+    if not database.is_file():
+        errors.append("Retained sealed SQLite master is missing.")
+        return
+    current_sha = checksum_sha256(database)
+    if current_sha != layout.get("database_sha256"):
+        errors.append("Retained SQLite physical SHA256 differs from sealed metadata.")
+    if database.stat().st_mode & 0o222:
+        errors.append("Retained SQLite master remains write-capable.")
+    for suffix in ("-wal", "-shm"):
+        sidecar = database.with_name(database.name + suffix)
+        if sidecar.exists() and sidecar.stat().st_size:
+            errors.append(f"Retained SQLite master has non-empty {suffix} sidecar.")
+    try:
+        source = {
+            "dataset": SimpleNamespace(
+                dataset_id=source_record.get("dataset_id", config["dataset"]["id"])
+            ),
+            "node_ids": tuple(source_record["node_ids"]),
+            "edges": tuple(tuple(edge) for edge in source_record["edges"]),
+        }
+        current = inspect_layout(
+            database,
+            source,
+            config,
+            layout.get("prepared_layout_id", ""),
+        )
+    except Exception as error:
+        errors.append(f"Cannot immutably inspect retained SQLite master: {error}")
+        return
+    if current.get("table_sha256") != layout.get("table_sha256"):
+        errors.append("Retained SQLite semantic table hashes differ from sealed metadata.")
+    for key in ("levels", "bounds", "source_position_count", "source_graph_edge_count"):
+        if current.get(key) != layout.get(key):
+            errors.append(f"Retained SQLite {key} differs from sealed metadata.")
+
+
 def _audit_manifest(
     manifest: dict[str, Any],
     source: dict[str, Any],
     layout: dict[str, Any],
     cases: list[dict[str, Any]],
     errors: list[str],
+    *,
+    require_final: bool = True,
 ) -> None:
     if manifest.get("state") != "completed":
         errors.append("Manifest state is not completed.")
-    if not FINAL_RUN_ID_PATTERN.fullmatch(str(manifest.get("run_id", ""))):
+    if require_final and not FINAL_RUN_ID_PATTERN.fullmatch(str(manifest.get("run_id", ""))):
         errors.append("Final audit requires a thesis-final-rq3-v020-NNN run ID.")
     if manifest.get("experiment_id") != EXPERIMENT_ID:
         errors.append("Manifest experiment ID differs from final RQ3.")
