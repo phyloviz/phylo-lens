@@ -257,6 +257,7 @@ def test_metric_marks_collapse_http_as_not_applicable() -> None:
 
 
 def test_audit_requires_the_frozen_execution_harness_git_commit() -> None:
+    assert EXECUTION_HARNESS_COMMIT == "6479542144689d27e057a7333919653130f92222"
     errors: list[str] = []
     _audit_execution_provenance({"git": {"commit": EXECUTION_HARNESS_COMMIT}}, errors)
     assert errors == []

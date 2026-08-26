@@ -22,7 +22,7 @@ from .rq4_final import (
 )
 from .stats import summary
 
-EXECUTION_HARNESS_COMMIT = "9fd7bbde9438f9170c10279b1635df8bff22e892"
+EXECUTION_HARNESS_COMMIT = "6479542144689d27e057a7333919653130f92222"
 
 
 def _rows(run_dir: Path) -> list[dict[str, Any]]:
@@ -47,6 +47,15 @@ def _replay_result(row: dict[str, Any]) -> dict[str, Any]:
             "eventType": "click"
             if row["scenario"].startswith("expand")
             else "dblclick",
+            "nativeEventType": "click"
+            if row["scenario"].startswith(("expand", "collapse"))
+            else "dblclick",
+            "clickCount": 1 if row["scenario"].startswith("expand") else 2,
+            "capturePhase": True,
+            "stage": "graph-root",
+            "targetClusterId": row.get("target", {}).get("cluster_id")
+            if row.get("target")
+            else None,
             "isTrusted": True,
         },
         "event": row["observer"]["after"],
