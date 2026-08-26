@@ -6,9 +6,15 @@ import argparse
 import json
 from pathlib import Path
 
-from phylo_lens_server.data.normalizer import NormalizeFormat, NormalizeRequest, normalize_dataset
+from phylo_lens_server.data.normalizer import (
+    NormalizeFormat,
+    NormalizeRequest,
+    normalize_dataset,
+)
 from phylo_lens_server.pipeline.worker import PreparedLayoutWorker
-from phylo_lens_server.repository.layout.sqlite_layout_repository import PreparedLayoutStore
+from phylo_lens_server.repository.layout.sqlite_layout_repository import (
+    PreparedLayoutStore,
+)
 
 from .common import write_json
 
@@ -40,7 +46,10 @@ def main() -> None:
             },
         )
     except Exception as error:
-        write_json(args.output, {"state": "failure", "error": f"{type(error).__name__}: {error}"})
+        write_json(
+            args.output,
+            {"state": "failure", "error": f"{type(error).__name__}: {error}"},
+        )
         raise
 
 

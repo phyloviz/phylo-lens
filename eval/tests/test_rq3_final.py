@@ -265,6 +265,8 @@ def test_audit_recomputes_retained_physical_hash_and_semantic_hashes(
         },
     )
     errors: list[str] = []
-    _audit_retained_master(tmp_path, source, layout, {"dataset": {"id": "dataset"}}, errors)
+    _audit_retained_master(
+        tmp_path, source, layout, {"dataset": {"id": "dataset"}}, errors
+    )
     assert any("physical SHA256" in error for error in errors)
     assert any("semantic table hashes" in error for error in errors)

@@ -26,6 +26,10 @@ declare global {
         requestTrace: () => unknown[];
         operationRequestTrace: () => unknown[];
         finishAtFrame: (sequence: number) => Promise<number>;
+        armInput: (eventType: "click" | "dblclick") => void;
+        inputEvent: () => unknown;
+        baselineFrames: (count: number) => Promise<number[]>;
+        gpuEvidence: () => unknown;
       };
       rq2Final?: {
         createView: (apiUrl: string) => void;
@@ -58,6 +62,7 @@ const rq4DiagnosticReaders = new Map<
 const rq4RequestTrace: Array<Record<string, unknown>> = [];
 let rq4FetchInstalled = false;
 let rq4OperationRequestStart = 0;
+let rq4InputEvent: Record<string, unknown> | null = null;
 const rq2FinalSnapshots: Array<Record<string, unknown>> = [];
 
 window.phyloLensEvaluation = {
@@ -170,6 +175,73 @@ window.phyloLensEvaluation.rq4 = {
       throw new Error("snapshot_application_timeout");
     }
     return doubleAnimationFrame();
+  },
+  armInput: (eventType) => {
+    rq4OperationRequestStart = rq4RequestTrace.length;
+    rq4InputEvent = null;
+    const capture = (event: Event) => {
+      if (event.type !== eventType || rq4InputEvent) return;
+      const mouse = event as MouseEvent;
+      const timestamp = performance.now();
+      rq4InputEvent = {
+        eventType: event.type,
+        timestamp,
+        clientX: mouse.clientX,
+        clientY: mouse.clientY,
+        isTrusted: event.isTrusted,
+        viewport: latestSnapshotViewport(),
+      };
+      if (frameSampling) {
+        frameSampling.samples = [];
+        frameSampling.previous = timestamp;
+      }
+      document.removeEventListener(eventType, capture, true);
+    };
+    document.addEventListener(eventType, capture, true);
+  },
+  inputEvent: () => (rq4InputEvent ? structuredClone(rq4InputEvent) : null),
+  baselineFrames: async (count) => {
+    const samples: number[] = [];
+    let previous: number | undefined;
+    while (samples.length < count) {
+      const now = await new Promise<number>((resolve) =>
+        requestAnimationFrame(resolve),
+      );
+      if (previous !== undefined) samples.push(now - previous);
+      previous = now;
+    }
+    return samples;
+  },
+  gpuEvidence: () => {
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("webgl2") ?? canvas.getContext("webgl");
+    if (!context)
+      return {
+        hardware_accelerated: false,
+        vendor: null,
+        renderer: null,
+        backend: null,
+      };
+    const extension = context.getExtension("WEBGL_debug_renderer_info");
+    const vendor = String(
+      extension
+        ? context.getParameter(extension.UNMASKED_VENDOR_WEBGL)
+        : context.getParameter(context.VENDOR),
+    );
+    const renderer = String(
+      extension
+        ? context.getParameter(extension.UNMASKED_RENDERER_WEBGL)
+        : context.getParameter(context.RENDERER),
+    );
+    const software = /swiftshader|software|llvmpipe/i.test(
+      `${vendor} ${renderer}`,
+    );
+    return {
+      hardware_accelerated: !software,
+      vendor,
+      renderer,
+      backend: /metal/i.test(`${vendor} ${renderer}`) ? "Metal" : "unknown",
+    };
   },
 };
 window.phyloLensEvaluation.rq2Final = {

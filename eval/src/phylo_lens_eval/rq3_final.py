@@ -275,7 +275,12 @@ def run(args: argparse.Namespace) -> Path:
         runtime_root = run_dir / "runtime-validation" / f"lod-level-{level}"
         _copy_master_for_runtime(layout_root, runtime_root, layout["database_sha256"])
         case = validate_level(
-            PreparedLayoutStore(runtime_root), source, layout, level, args.run_id, run_dir
+            PreparedLayoutStore(runtime_root),
+            source,
+            layout,
+            level,
+            args.run_id,
+            run_dir,
         )
         validate_rq3_final_observation(case)
         write_json(run_dir / "cases" / case["case_id"] / "observation.json", case)
@@ -291,7 +296,9 @@ def run(args: argparse.Namespace) -> Path:
     return run_dir
 
 
-def _build_layout_in_child(root: Path, source: dict[str, Any], root_path: Path) -> dict[str, Any]:
+def _build_layout_in_child(
+    root: Path, source: dict[str, Any], root_path: Path
+) -> dict[str, Any]:
     """Process exit is the explicit disposal boundary for product write handles."""
     request = {
         "dataset_id": source["dataset"].dataset_id,
@@ -318,9 +325,15 @@ def _build_layout_in_child(root: Path, source: dict[str, Any], root_path: Path) 
     )
     (root_path / "child.stdout.log").write_text(completed.stdout, encoding="utf-8")
     (root_path / "child.stderr.log").write_text(completed.stderr, encoding="utf-8")
-    result = json.loads(output_path.read_text(encoding="utf-8")) if output_path.exists() else {}
+    result = (
+        json.loads(output_path.read_text(encoding="utf-8"))
+        if output_path.exists()
+        else {}
+    )
     if completed.returncode or result.get("state") != "success":
-        raise ValueError(f"RQ3 child layout build failed: {result.get('error', completed.stderr)}")
+        raise ValueError(
+            f"RQ3 child layout build failed: {result.get('error', completed.stderr)}"
+        )
     return result
 
 
@@ -350,7 +363,9 @@ def _seal_master(source: Path, retained_root: Path) -> None:
     _assert_sealed_master(retained)
 
 
-def _copy_master_for_runtime(master_root: Path, runtime_root: Path, expected_sha: str) -> None:
+def _copy_master_for_runtime(
+    master_root: Path, runtime_root: Path, expected_sha: str
+) -> None:
     master = master_root / "prepared_layout.sqlite3"
     _assert_sealed_master(master)
     runtime_root.mkdir(parents=True, exist_ok=False)
@@ -806,7 +821,10 @@ def _connection(path: Path) -> sqlite3.Connection:
 
 def _sidecar_state(database: Path, suffix: str) -> dict[str, Any]:
     path = database.with_name(database.name + suffix)
-    return {"exists": path.exists(), "size_bytes": path.stat().st_size if path.exists() else 0}
+    return {
+        "exists": path.exists(),
+        "size_bytes": path.stat().st_size if path.exists() else 0,
+    }
 
 
 def _rows(

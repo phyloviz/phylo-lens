@@ -65,7 +65,9 @@ def audit_run(run_dir: Path, *, require_final: bool = True) -> dict[str, Any]:
             )
     except ValueError as error:
         errors.append(str(error))
-    _audit_manifest(manifest, source, layout, cases, errors, require_final=require_final)
+    _audit_manifest(
+        manifest, source, layout, cases, errors, require_final=require_final
+    )
     _audit_retained_master(run_dir, source, layout, expected_config, errors)
     seen_levels: set[int] = set()
     for case in cases:
@@ -121,7 +123,9 @@ def _audit_retained_master(
         errors.append(f"Cannot immutably inspect retained SQLite master: {error}")
         return
     if current.get("table_sha256") != layout.get("table_sha256"):
-        errors.append("Retained SQLite semantic table hashes differ from sealed metadata.")
+        errors.append(
+            "Retained SQLite semantic table hashes differ from sealed metadata."
+        )
     for key in ("levels", "bounds", "source_position_count", "source_graph_edge_count"):
         if current.get(key) != layout.get(key):
             errors.append(f"Retained SQLite {key} differs from sealed metadata.")
@@ -138,7 +142,9 @@ def _audit_manifest(
 ) -> None:
     if manifest.get("state") != "completed":
         errors.append("Manifest state is not completed.")
-    if require_final and not FINAL_RUN_ID_PATTERN.fullmatch(str(manifest.get("run_id", ""))):
+    if require_final and not FINAL_RUN_ID_PATTERN.fullmatch(
+        str(manifest.get("run_id", ""))
+    ):
         errors.append("Final audit requires a thesis-final-rq3-v020-NNN run ID.")
     if manifest.get("experiment_id") != EXPERIMENT_ID:
         errors.append("Manifest experiment ID differs from final RQ3.")

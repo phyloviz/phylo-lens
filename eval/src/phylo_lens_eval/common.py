@@ -133,6 +133,11 @@ def validate_rq4_observation(payload: dict) -> None:
     _validate_schema(payload, "rq4-observation.schema.json")
 
 
+def validate_rq4_final_observation(payload: dict) -> None:
+    """Validate one terminal final-RQ4 interaction observation."""
+    _validate_schema(payload, "rq4-final-observation.schema.json")
+
+
 def classify_failure(returncode: int | None, timed_out: bool) -> str:
     if timed_out:
         return "timeout"

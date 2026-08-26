@@ -1,0 +1,112 @@
+{
+  "schema_version": "1",
+  "id": "rq4-interactive-final-v020",
+  "research_question": "What browser-observed settle latency and frame pacing does PhyloLens exhibit during deterministic viewport navigation and aggregate expand/collapse interactions after layout preparation and normal public bootstrap have completed?",
+  "product": {
+    "version": "0.2.0",
+    "release_commit": "cbb78f5e74b37e4fb480c0416e614e27e6f67ed9"
+  },
+  "dataset": {
+    "id": "enterobase-salmonella-atchman-goeburst",
+    "repository_parent_relative_path": "Thesis/data/enterobase/salmonella/salmonella_atchman-fullgoeburst-tree.nwk",
+    "source_description": "EnteroBase / Achtman-MLST-derived goeBURST data; no dataset license is inferred by this evaluation.",
+    "sha256": "d0911c01bf4e149fc229812243717f91ce50343435a28f4e6b174d2166e638e9",
+    "node_count": 13075,
+    "edge_count": 13074
+  },
+  "layout_source_run": "eval/results/raw/rq3-lod-final-v020/thesis-final-rq3-v020-002",
+  "layout": {
+    "id": "7aff2dd8da83881e",
+    "database_sha256": "3a2a837e20fe2d1ccf965becc75c51f937050f57c8a2df19886cdf92a3553681",
+    "lod_tier_count": 3,
+    "max_nodes": 100,
+    "table_sha256": {
+      "node_positions": "b7599cbea8d5fc1d80cce4625077f663d00d9dd5a5beb112237ebe9d5cc08de6",
+      "prepared_clusters": "a8b2108e818f643db2ce058ea841dbd3f4e3f6138ea318a1efc041343b163204",
+      "cluster_members": "89cb9c8c4284e60926da08f80a6f52ec5d620eb36895616949190fd47a37699e",
+      "graph_edges": "dab1ed9ee44cecb40a9f00467a60160b46578c0c56f451f77b5b098fbf0ae426",
+      "prepared_edges": "bf9a10e9edd9dde2f369d0e340e8ebb32b3e63f83e456a89f38977babf8b1a6c"
+    }
+  },
+  "browser": {
+    "headless": false,
+    "viewport": { "width": 960, "height": 640 },
+    "device_scale_factor": 1,
+    "locale": "en-US",
+    "timezone": "UTC",
+    "launch_args": []
+  },
+  "baseline_frame_sample_count": 12,
+  "setup_quiescence_ms": 2000,
+  "timeout_seconds": 60,
+  "warmup_repetitions": 0,
+  "measured_repetitions": 7,
+  "retries": 0,
+  "scenarios": [
+    {
+      "id": "navigation",
+      "operation": "viewport_navigation",
+      "input": { "kind": "stage_double_click", "client_x": 20, "client_y": 20 }
+    },
+    {
+      "id": "expand-low",
+      "operation": "cluster_expand",
+      "target": {
+        "cluster_id": "distance_cluster_4_10002_14d97c1137",
+        "representative_node_id": "2580",
+        "represented_member_count": 3,
+        "compact_structural_fingerprint": "fnv1a32:6a750b84"
+      }
+    },
+    {
+      "id": "collapse-low",
+      "operation": "cluster_collapse",
+      "target": {
+        "cluster_id": "distance_cluster_4_10002_14d97c1137",
+        "representative_node_id": "2580",
+        "represented_member_count": 3,
+        "compact_structural_fingerprint": "fnv1a32:6a750b84"
+      }
+    },
+    {
+      "id": "expand-representative",
+      "operation": "cluster_expand",
+      "target": {
+        "cluster_id": "distance_cluster_4_10251_f38ea20456",
+        "representative_node_id": "3089",
+        "represented_member_count": 7,
+        "compact_structural_fingerprint": "fnv1a32:31de51a2"
+      }
+    },
+    {
+      "id": "collapse-representative",
+      "operation": "cluster_collapse",
+      "target": {
+        "cluster_id": "distance_cluster_4_10251_f38ea20456",
+        "representative_node_id": "3089",
+        "represented_member_count": 7,
+        "compact_structural_fingerprint": "fnv1a32:31de51a2"
+      }
+    },
+    {
+      "id": "expand-high",
+      "operation": "cluster_expand",
+      "target": {
+        "cluster_id": "distance_cluster_4_10_a13178fa3f",
+        "representative_node_id": "19",
+        "represented_member_count": 8170,
+        "compact_structural_fingerprint": "fnv1a32:09a593b2"
+      }
+    },
+    {
+      "id": "collapse-high",
+      "operation": "cluster_collapse",
+      "target": {
+        "cluster_id": "distance_cluster_4_10_a13178fa3f",
+        "representative_node_id": "19",
+        "represented_member_count": 8170,
+        "compact_structural_fingerprint": "fnv1a32:09a593b2"
+      }
+    }
+  ]
+}
