@@ -28,6 +28,38 @@ SVG_NS = "http://www.w3.org/2000/svg"
 COLORS = ("#1b6ca8", "#c45b21", "#3d7d4a", "#6b4f9b")
 DASHES = ("", "8 4", "2 3", "10 3 2 3")
 MARKERS = ("circle", "square", "diamond", "triangle")
+FIGURE_SPECS = {
+    "F1": {"physical_width_mm": 178, "viewbox": [1220, 570]},
+    "F2": {"physical_width_mm": 86, "viewbox": [590, 410]},
+    "F3": {"physical_width_mm": 178, "viewbox": [1220, 500]},
+    "F4": {"physical_width_mm": 178, "viewbox": [1120, 470]},
+    "F5": {"physical_width_mm": 178, "viewbox": [1180, 550]},
+}
+FONT_CONFIGURATION = {
+    "family": "Arial, Helvetica, sans-serif",
+    "axis_font_units": 17,
+    "axis_title_font_units": 19,
+    "legend_font_units": 18,
+    "panel_label_font_units": 24,
+    "series_stroke_units": 2.4,
+    "interval_stroke_units": 2,
+    "marker_radius_units": 4.1,
+    "interval_cap_half_width_units": 4,
+}
+CAPTIONS = {
+    "F1": "Server-side preparation time (A) and peak process-tree resident set size (B) as source graph size increases across balanced, caterpillar, and irregular synthetic topologies. Points show medians and intervals show P25–P75 over measured runs. Axes are logarithmic. One caterpillar condition contains four successful measurements because an infrastructure-startup failure was retained and not retried.",
+    "F2": "Client first-visualization latency as the materialized primitive workload increases in the isolated browser microbenchmark. Points show medians and intervals show P25–P75. Detail and triangle fixtures exercise different graph compositions after fixture delivery through the frozen replay path; this measurement does not include server-side viewport preparation.",
+    "F3": "Materialized visual-node ratio (A) and primitive reduction relative to full detail (B) across the three persisted levels of detail. Every level represents all 13,075 source nodes; the bars quantify materialization rather than represented-node coverage. Exact membership, representative-position, and quotient-connectivity preservation are evaluated separately.",
+    "F4": "Browser-observed settle latency for deterministic navigation and aggregate expand/collapse interactions after normal bootstrap and layout preparation. Points show medians and intervals show P25–P75 over seven measured observations per scenario. Settle latency terminates at the second animation frame after snapshot application and should not be interpreted as physical display-completion latency.",
+    "F5": "Native-path end-to-end time to first meaningful visual across PhyloLens v0.2.0, Phylotree, and Taxonium. Points show medians and intervals show P25–P75; both axes are logarithmic. The systems follow different architectures and native processing paths, so these results describe observed end-to-end behavior rather than equivalent layout throughput.",
+}
+ALT_TEXT = {
+    "F1": "Two log-scale panels show preparation time and peak process-tree RSS increasing with source graph size for three synthetic topologies. Irregular trees have the highest preparation times at larger sizes, while RSS remains similar across topologies and reaches about one GiB at the largest size.",
+    "F2": "First-visualization latency rises with materialized primitive count in the isolated client benchmark. The detail series increases from about 22 to 188 milliseconds, while the two triangle-control observations remain below the detail result at comparable workloads.",
+    "F3": "Two bar charts compare three persisted LoD levels. Materialized visual-node ratio rises from about 9 to 100 percent from L0 to L2, while primitive reduction falls from about 90 percent to zero; all levels still represent the complete source graph.",
+    "F4": "Horizontal point-range plot of seven browser-observed interaction settle latencies. Navigation is about 314 milliseconds, while expand and collapse interactions are roughly 25 to 60 milliseconds; each point is annotated with its median and a narrow P25–P75 interval.",
+    "F5": "Log-scale comparison of first meaningful visual time across three systems and ten dataset sizes. Taxonium remains below one second, Phylotree grows from fractions of a second to several seconds, and PhyloLens grows from about nine seconds to more than 200 seconds; results compare native end-to-end paths rather than equivalent algorithms.",
+}
 
 
 def repository_root() -> Path:
@@ -99,13 +131,21 @@ def latex(value: str) -> str:
     )
 
 
-def svg_document(width: int, height: int, title: str, body: list[str]) -> str:
+def svg_document(
+    width: int,
+    height: int,
+    title: str,
+    body: list[str],
+    *,
+    physical_width_mm: int,
+) -> str:
+    physical_height_mm = physical_width_mm * height / width
     return "\n".join(
         [
-            f'<svg xmlns="{SVG_NS}" width="{width}" height="{height}" viewBox="0 0 {width} {height}" role="img" aria-labelledby="title desc">',
+            f'<svg xmlns="{SVG_NS}" width="{physical_width_mm}mm" height="{physical_height_mm:.2f}mm" viewBox="0 0 {width} {height}" role="img" aria-labelledby="title desc">',
             f'<title id="title">{escape(title)}</title>',
             '<desc id="desc">Medians shown with P25--P75 intervals from reconciled authoritative evidence.</desc>',
-            "<style>text{font-family:Arial,Helvetica,sans-serif;fill:#1f2933}.title{font-size:22px;font-weight:700}.subtitle{font-size:13px}.axis{font-size:12px}.axis-title{font-size:14px;font-weight:600}.legend{font-size:13px}.note{font-size:12px}.frame{fill:none;stroke:#334e68;stroke-width:1}.grid{stroke:#d9e2ec;stroke-width:1}.series{fill:none;stroke-width:2.4}.interval{stroke-width:2}.marker{stroke:#1f2933;stroke-width:1}</style>",
+            "<style>text{font-family:Arial,Helvetica,sans-serif;fill:#1f2933}.title{font-size:24px;font-weight:700}.subtitle{font-size:17px}.axis{font-size:17px}.axis-title{font-size:19px;font-weight:600}.legend{font-size:18px}.note{font-size:17px}.value{font-size:17px;font-weight:600}.frame{fill:none;stroke:#334e68;stroke-width:1.2}.grid{stroke:#d9e2ec;stroke-width:0.8}.series{fill:none;stroke-width:2.4}.interval{stroke-width:2}.marker{stroke:#1f2933;stroke-width:1}</style>",
             f'<rect width="{width}" height="{height}" fill="#ffffff"/>',
             *body,
             "</svg>",
@@ -123,6 +163,19 @@ def marker(shape: str, x: float, y: float, color: str) -> str:
     if shape == "diamond":
         return f'<path class="marker" d="M{x:.2f},{y - 5:.2f} L{x + 5:.2f},{y:.2f} L{x:.2f},{y + 5:.2f} L{x - 5:.2f},{y:.2f} Z" fill="{color}"/>'
     return f'<path class="marker" d="M{x:.2f},{y - 5:.2f} L{x + 5:.2f},{y + 4:.2f} L{x - 5:.2f},{y + 4:.2f} Z" fill="{color}"/>'
+
+
+def shared_legend(body: list[str], names: list[str], *, x: float, y: float) -> None:
+    for index, name in enumerate(names):
+        color, dash, shape = COLORS[index], DASHES[index], MARKERS[index]
+        lx = x + index * 240
+        body.append(
+            f'<line class="series" stroke="{color}" stroke-dasharray="{dash}" x1="{lx}" x2="{lx + 24}" y1="{y}" y2="{y}"/>'
+        )
+        body.append(marker(shape, lx + 12, y, color))
+        body.append(
+            f'<text class="legend" x="{lx + 31}" y="{y + 6}">{escape(name)}</text>'
+        )
 
 
 def scale(
@@ -172,7 +225,10 @@ def tick_label(value: float, *, seconds: bool = False, gib: bool = False) -> str
     if gib:
         return f"{value:g}"
     if value >= 1000:
-        return f"{value / 1000:g}k"
+        scaled = value / 1000
+        if math.isclose(scaled, round(scaled), abs_tol=0.01):
+            return f"{round(scaled):g}k"
+        return f"{scaled:g}k"
     return f"{value:g}"
 
 
@@ -191,6 +247,7 @@ def draw_xy_panel(
     y_log: bool,
     x_ticks: list[float] | None = None,
     y_label_kind: str = "number",
+    show_legend: bool = True,
 ) -> None:
     left, right, top, bottom = 72.0, 20.0, 40.0, 64.0
     px0, px1, py0, py1 = x + left, x + width - right, y + top, y + height - bottom
@@ -252,22 +309,24 @@ def draw_xy_panel(
                 f'<line class="interval" stroke="{color}" x1="{xx - 4:.2f}" x2="{xx + 4:.2f}" y1="{hi:.2f}" y2="{hi:.2f}"/>'
             )
             points.append(f"{xx:.2f},{yy:.2f}")
-        body.append(
-            f'<polyline class="series" stroke="{color}" stroke-dasharray="{dash}" points="{" ".join(points)}"/>'
-        )
+        if ordered[0].get("connect", 1.0):
+            body.append(
+                f'<polyline class="series" stroke="{color}" stroke-dasharray="{dash}" points="{" ".join(points)}"/>'
+            )
         for row in ordered:
             xx = scale(row["x"], xmin, xmax, px0, px1, log=x_log)
             yy = scale(row["median"], ymin, ymax, py1, py0, log=y_log)
             body.append(marker(shape, xx, yy, color))
-        lx = x + 8 + index * 135
-        ly = y + 34
-        body.append(
-            f'<line class="series" stroke="{color}" stroke-dasharray="{dash}" x1="{lx}" x2="{lx + 22}" y1="{ly}" y2="{ly}"/>'
-        )
-        body.append(marker(shape, lx + 11, ly, color))
-        body.append(
-            f'<text class="legend" x="{lx + 28}" y="{ly + 4}">{escape(name)}</text>'
-        )
+        if show_legend:
+            lx = x + 8 + index * 185
+            ly = y + 34
+            body.append(
+                f'<line class="series" stroke="{color}" stroke-dasharray="{dash}" x1="{lx}" x2="{lx + 24}" y1="{ly}" y2="{ly}"/>'
+            )
+            body.append(marker(shape, lx + 12, ly, color))
+            body.append(
+                f'<text class="legend" x="{lx + 31}" y="{ly + 6}">{escape(name)}</text>'
+            )
 
 
 def figure_f1(rows: list[dict[str, str]]) -> str:
@@ -296,18 +355,16 @@ def figure_f1(rows: list[dict[str, str]]) -> str:
                 "hi": bytes_to_gib(row["peak_rss_bytes_p75"]),
             }
         )
-    body: list[str] = [
-        '<text class="title" x="38" y="34">RQ1 — preparation scalability</text>',
-        '<text class="subtitle" x="38" y="55">Medians with P25–P75 intervals; both axes use logarithmic scaling.</text>',
-    ]
+    body: list[str] = []
     nodes = [9999, 19999, 49999, 99999]
+    shared_legend(body, list(groups), x=290, y=20)
     draw_xy_panel(
         body,
         x=30,
-        y=75,
+        y=35,
         width=570,
         height=510,
-        title="A. Server-side preparation",
+        title="A. Preparation time",
         x_label="Source graph nodes (log scale)",
         y_label="Preparation time (s; log scale)",
         groups=groups,
@@ -315,11 +372,12 @@ def figure_f1(rows: list[dict[str, str]]) -> str:
         y_log=True,
         x_ticks=nodes,
         y_label_kind="seconds",
+        show_legend=False,
     )
     draw_xy_panel(
         body,
         x=620,
-        y=75,
+        y=35,
         width=570,
         height=510,
         title="B. Peak process-tree RSS",
@@ -330,8 +388,11 @@ def figure_f1(rows: list[dict[str, str]]) -> str:
         y_log=True,
         x_ticks=nodes,
         y_label_kind="gib",
+        show_legend=False,
     )
-    return svg_document(1220, 610, "RQ1 preparation scalability", body)
+    return svg_document(
+        1220, 570, "RQ1 preparation scalability", body, physical_width_mm=178
+    )
 
 
 def figure_f2(rows: list[dict[str, str]]) -> str:
@@ -344,19 +405,17 @@ def figure_f2(rows: list[dict[str, str]]) -> str:
                 "lo": float(row["client_first_visualization_ms_p25"]),
                 "median": float(row["client_first_visualization_ms_median"]),
                 "hi": float(row["client_first_visualization_ms_p75"]),
+                "connect": 0.0 if row["family"] == "triangle_control" else 1.0,
             }
         )
-    body = [
-        '<text class="title" x="38" y="34">RQ2 — isolated client visualization scalability</text>',
-        '<text class="subtitle" x="38" y="55">Frozen replay path after fixture delivery; medians with P25–P75 intervals.</text>',
-    ]
+    body: list[str] = []
     draw_xy_panel(
         body,
-        x=100,
-        y=80,
-        width=960,
-        height=500,
-        title="Client first-visualization latency",
+        x=20,
+        y=15,
+        width=550,
+        height=375,
+        title="First-visualization latency",
         x_label="Materialized primitives (log scale)",
         y_label="First visualization (ms)",
         groups=groups,
@@ -364,7 +423,9 @@ def figure_f2(rows: list[dict[str, str]]) -> str:
         y_log=False,
         x_ticks=[1000, 5000, 10000, 20000, 40000],
     )
-    return svg_document(1160, 610, "RQ2 client visualization scalability", body)
+    return svg_document(
+        590, 410, "RQ2 client visualization scalability", body, physical_width_mm=86
+    )
 
 
 def draw_bar_panel(
@@ -423,14 +484,11 @@ def figure_f3(rows: list[dict[str, str]]) -> str:
         (label.replace("\n", " "), float(row["primitive_reduction_ratio"]) * 100)
         for label, row in zip(labels, rows, strict=True)
     ]
-    body = [
-        '<text class="title" x="38" y="34">RQ3 — persisted LoD effectiveness</text>',
-        '<text class="subtitle" x="38" y="55">All three persisted levels represent all 13,075 source nodes; bars show materialization, not represented-node coverage.</text>',
-    ]
+    body: list[str] = []
     draw_bar_panel(
         body,
         x=30,
-        y=80,
+        y=30,
         width=570,
         height=440,
         title="A. Materialized visual-node ratio",
@@ -441,15 +499,15 @@ def figure_f3(rows: list[dict[str, str]]) -> str:
     draw_bar_panel(
         body,
         x=620,
-        y=80,
+        y=30,
         width=570,
         height=440,
         title="B. Primitive reduction from full detail",
         values=reduction,
         y_label="Primitive reduction (%)",
-        color=COLORS[2],
+        color=COLORS[0],
     )
-    return svg_document(1220, 550, "RQ3 LoD effectiveness", body)
+    return svg_document(1220, 500, "RQ3 LoD effectiveness", body, physical_width_mm=178)
 
 
 def figure_f4(rows: list[dict[str, str]]) -> str:
@@ -464,14 +522,21 @@ def figure_f4(rows: list[dict[str, str]]) -> str:
     ]
     data = {row["scenario"]: row for row in rows}
     values = [data[name] for name in order]
-    left, right, top, bottom = 230, 45, 72, 55
-    width, height = 1120, 510
+    display_names = {
+        "navigation": "Navigation",
+        "expand-low": "Expand — low",
+        "collapse-low": "Collapse — low",
+        "expand-representative": "Expand — representative",
+        "collapse-representative": "Collapse — representative",
+        "expand-high": "Expand — high",
+        "collapse-high": "Collapse — high",
+    }
+    left, right, top, bottom = 285, 55, 36, 55
+    width, height = 1120, 470
     px0, px1, py0, py1 = left, width - right, top, height - bottom
     max_value = max(float(row["settle_latency_ms_p75"]) for row in values) * 1.15
     body = [
-        '<text class="title" x="38" y="34">RQ4 — browser-observed interaction settle latency</text>',
-        '<text class="subtitle" x="38" y="55">Medians with P25–P75 intervals; no display-completeness threshold is implied.</text>',
-        f'<rect class="frame" x="{px0}" y="{py0}" width="{px1 - px0}" height="{py1 - py0}"/>',
+        f'<rect class="frame" x="{px0}" y="{py0}" width="{px1 - px0}" height="{py1 - py0}"/>'
     ]
     for value in linear_ticks(0, max_value):
         xx = scale(value, 0, max_value, px0, px1, log=False)
@@ -481,9 +546,10 @@ def figure_f4(rows: list[dict[str, str]]) -> str:
                 f'<text class="axis" text-anchor="middle" x="{xx:.2f}" y="{py1 + 19}">{value:.0f}</text>',
             ]
         )
-    step = (py1 - py0) / len(values)
+    positions = (0.5, 1.8, 2.8, 4.1, 5.1, 6.4, 7.4)
+    step = (py1 - py0) / 8.0
     for index, row in enumerate(values):
-        yy = py0 + (index + 0.5) * step
+        yy = py0 + positions[index] * step
         lo, median, hi = (
             float(row[key])
             for key in (
@@ -502,13 +568,16 @@ def figure_f4(rows: list[dict[str, str]]) -> str:
                 f'<line class="interval" stroke="{COLORS[0]}" x1="{xlo:.2f}" x2="{xlo:.2f}" y1="{yy - 4:.2f}" y2="{yy + 4:.2f}"/>',
                 f'<line class="interval" stroke="{COLORS[0]}" x1="{xhi:.2f}" x2="{xhi:.2f}" y1="{yy - 4:.2f}" y2="{yy + 4:.2f}"/>',
                 marker("circle", xmid, yy, COLORS[0]),
-                f'<text class="axis" text-anchor="end" x="{px0 - 12}" y="{yy + 4:.2f}">{escape(row["scenario"])}</text>',
+                f'<text class="axis" text-anchor="end" x="{px0 - 14}" y="{yy + 5:.2f}">{escape(display_names[row["scenario"]])}</text>',
+                f'<text class="value" x="{xmid + 9:.2f}" y="{yy + 6:.2f}">{median:.1f}</text>',
             ]
         )
     body.append(
         f'<text class="axis-title" text-anchor="middle" x="{(px0 + px1) / 2:.2f}" y="{height - 12}">Browser-observed settle latency (ms)</text>'
     )
-    return svg_document(width, height, "RQ4 interaction responsiveness", body)
+    return svg_document(
+        width, height, "RQ4 interaction responsiveness", body, physical_width_mm=178
+    )
 
 
 def figure_f5(rows: list[dict[str, str]]) -> str:
@@ -527,17 +596,14 @@ def figure_f5(rows: list[dict[str, str]]) -> str:
                 "hi": ms_to_seconds(row["p75_ms"]),
             }
         )
-    body = [
-        '<text class="title" x="38" y="34">External comparison — native-path first meaningful visual time</text>',
-        '<text class="subtitle" x="38" y="55">Different system architectures; medians with P25–P75 intervals. Both axes use logarithmic scaling.</text>',
-    ]
+    body: list[str] = []
     draw_xy_panel(
         body,
         x=100,
-        y=80,
+        y=20,
         width=980,
         height=500,
-        title="Reconciled authoritative comparison",
+        title="",
         x_label="Dataset size (leaves; log scale)",
         y_label="First meaningful visual time (s; log scale)",
         groups=groups,
@@ -546,7 +612,9 @@ def figure_f5(rows: list[dict[str, str]]) -> str:
         x_ticks=[12500, 25000, 50000, 100000, 200000],
         y_label_kind="seconds",
     )
-    return svg_document(1180, 610, "External native-path comparison", body)
+    return svg_document(
+        1180, 550, "External native-path comparison", body, physical_width_mm=178
+    )
 
 
 def export_figure(svg: str, output: Path, stem: str) -> list[Path]:
@@ -912,6 +980,26 @@ def source_records(root: Path, files: list[Path]) -> list[dict[str, str]]:
     ]
 
 
+def write_caption_alt_metadata(output: Path) -> Path:
+    path = output / "caption-alt-metadata.json"
+    write_json(
+        path,
+        {
+            "figures": {
+                artifact_id: {
+                    "caption_draft": CAPTIONS[artifact_id],
+                    "alt_text_draft": ALT_TEXT[artifact_id],
+                    "intended_physical_width_mm": FIGURE_SPECS[artifact_id][
+                        "physical_width_mm"
+                    ],
+                }
+                for artifact_id in FIGURE_SPECS
+            }
+        },
+    )
+    return path
+
+
 def sidecar(
     root: Path,
     output: Path,
@@ -950,7 +1038,32 @@ def sidecar(
         "transformations": transformations,
         "units": units,
         "caveats": caveats,
+        "rendering_only_transformation": artifact_id in FIGURE_SPECS,
+        "source_data_unchanged": True,
     }
+    if artifact_id in FIGURE_SPECS:
+        spec = FIGURE_SPECS[artifact_id]
+        units_per_mm = spec["viewbox"][0] / spec["physical_width_mm"]
+        payload["caption_alt_metadata"] = "caption-alt-metadata.json"
+        payload["intended_physical_width_mm"] = spec["physical_width_mm"]
+        payload["plotting_dimensions"] = {
+            "viewbox": spec["viewbox"],
+            "physical_height_mm": round(
+                spec["physical_width_mm"] * spec["viewbox"][1] / spec["viewbox"][0],
+                2,
+            ),
+        }
+        payload["font_configuration"] = {
+            **FONT_CONFIGURATION,
+            "axis_font_points_at_final_width": round(
+                FONT_CONFIGURATION["axis_font_units"] / units_per_mm * 72 / 25.4,
+                2,
+            ),
+            "legend_font_points_at_final_width": round(
+                FONT_CONFIGURATION["legend_font_units"] / units_per_mm * 72 / 25.4,
+                2,
+            ),
+        }
     write_json(path, payload)
     return path
 
@@ -969,10 +1082,19 @@ def figure_sources(source: Path) -> dict[str, list[Path]]:
     }
 
 
+def consolidated_source_hashes(source: Path) -> dict[str, str]:
+    return {
+        str(path.relative_to(source)): sha256(path)
+        for path in source.rglob("*")
+        if path.is_file() and "publication" not in path.relative_to(source).parts
+    }
+
+
 def generate(root: Path, output: Path, *, replace: bool = False) -> list[Path]:
     source = root / SOURCE_DIRECTORY
     if not source.is_dir():
         raise FileNotFoundError(f"Consolidated evidence is missing: {source}")
+    source_hashes_before = consolidated_source_hashes(source)
     if output.exists():
         if not replace:
             raise FileExistsError(f"Refusing to replace publication output: {output}")
@@ -1075,6 +1197,8 @@ def generate(root: Path, output: Path, *, replace: bool = False) -> list[Path]:
         ),
     }
     generated: list[Path] = []
+    caption_alt_path = write_caption_alt_metadata(output)
+    generated.append(caption_alt_path)
     source_map = figure_sources(source)
     figure_sidecars: dict[str, Path] = {}
     for artifact_id, (
@@ -1145,6 +1269,7 @@ def generate(root: Path, output: Path, *, replace: bool = False) -> list[Path]:
             text=True,
         ).stdout.strip(),
         "frozen_consolidation_commit": CONSOLIDATION_COMMIT,
+        "caption_alt_metadata": str(caption_alt_path.relative_to(output)),
         "artifacts": [
             *[
                 {
@@ -1199,6 +1324,10 @@ def generate(root: Path, output: Path, *, replace: bool = False) -> list[Path]:
     readme_path = output / "README.md"
     write_text(readme_path, readme)
     generated.append(readme_path)
+    if source_hashes_before != consolidated_source_hashes(source):
+        raise RuntimeError(
+            "Publication rendering modified consolidated source evidence"
+        )
     return generated
 
 
@@ -1254,6 +1383,9 @@ def validate(root: Path, output: Path) -> None:
         "thesis-final-fullmst-phylolens-v020-004",
     }
     manifest = read_json(output / "publication-artifacts.json")
+    caption_alt = read_json(output / manifest["caption_alt_metadata"])
+    assert set(caption_alt["figures"]) == set(FIGURE_SPECS)
+    manifest_by_id = {entry["id"]: entry for entry in manifest["artifacts"]}
     for entry in manifest["artifacts"]:
         sidecar = read_json(output / entry["provenance_sidecar"])
         for name, expected_sha in sidecar["artifact_sha256"].items():
@@ -1267,6 +1399,57 @@ def validate(root: Path, output: Path) -> None:
                 assert path.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
             elif path.suffix == ".tex":
                 assert "\\begin{tabular}" in path.read_text(encoding="utf-8")
+    with tempfile.TemporaryDirectory() as temporary:
+        temp = Path(temporary)
+        for artifact_id, spec in FIGURE_SPECS.items():
+            svg = output / manifest_by_id[artifact_id]["files"][0]
+            root_element = element_tree.parse(svg).getroot()
+            assert root_element.attrib["width"] == f"{spec['physical_width_mm']}mm"
+            assert root_element.attrib["viewBox"] == "0 0 " + " ".join(
+                str(value) for value in spec["viewbox"]
+            )
+            sidecar = read_json(output / "provenance" / f"{artifact_id}.json")
+            assert sidecar["source_data_unchanged"] is True
+            assert sidecar["rendering_only_transformation"] is True
+            assert (
+                sidecar["font_configuration"]["axis_font_points_at_final_width"] >= 6.5
+            )
+            assert (
+                sidecar["font_configuration"]["legend_font_points_at_final_width"]
+                >= 6.5
+            )
+            preview = temp / f"{artifact_id}-physical-300dpi.png"
+            subprocess.run(
+                [
+                    "rsvg-convert",
+                    "-f",
+                    "png",
+                    "-d",
+                    "300",
+                    "-p",
+                    "300",
+                    "-o",
+                    str(preview),
+                    str(svg),
+                ],
+                check=True,
+            )
+            dimensions = subprocess.run(
+                ["sips", "-g", "pixelWidth", str(preview)],
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout
+            observed_width = int(dimensions.rsplit(":", 1)[1].strip())
+            expected_width = round(spec["physical_width_mm"] / 25.4 * 300)
+            assert abs(observed_width - expected_width) <= 2
+            if artifact_id == "F4":
+                svg_text = svg.read_text(encoding="utf-8")
+                for row in rq4:
+                    assert (
+                        f">{float(row['settle_latency_ms_median']):.1f}</text>"
+                        in svg_text
+                    )
     with tempfile.TemporaryDirectory() as temporary:
         temp = Path(temporary)
         for entry in manifest["artifacts"]:
