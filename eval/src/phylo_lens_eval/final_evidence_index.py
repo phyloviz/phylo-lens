@@ -11,6 +11,9 @@ import argparse
 import csv
 import hashlib
 import json
+import math
+import shutil
+import subprocess
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
@@ -43,7 +46,13 @@ def digest(path: Path) -> str:
 def relative(root: Path, path: Path | None) -> str | None:
     if path is None:
         return None
-    return str(path.relative_to(root))
+    try:
+        return str(path.relative_to(root))
+    except ValueError:
+        # The combined external comparison is retained by the Thesis project,
+        # rather than copied into this repository.  Preserve its absolute path
+        # instead of misclassifying the evidence as missing.
+        return str(path)
 
 
 def artifact(root: Path, path: Path | None) -> dict[str, str] | None:
@@ -187,6 +196,236 @@ def rq4_results(root: Path, raw: Path, derived: Path) -> list[dict[str, Any]]:
     return output
 
 
+def git_output(root: Path, *args: str) -> str:
+    result = subprocess.run(
+        ["git", *args], cwd=root, check=True, capture_output=True, text=True
+    )
+    return result.stdout.strip()
+
+
+def verify_reconciled_git_history(root: Path) -> None:
+    """Confirm recovered commit provenance from local immutable Git history."""
+    checks = (
+        (
+            "b97f98588e7398f60cc9b0637e8b8abf58b409d6",
+            "b51504aa256cbd0052ebe43fd35d03b5a612ec1c",
+            {"eval/src/phylo_lens_eval/rq1_final_audit.py"},
+        ),
+        (
+            "6479542144689d27e057a7333919653130f92222",
+            "8f82a42c66e1501f76608401f1bc4ccec010a768",
+            {
+                "eval/src/phylo_lens_eval/rq4_final_audit.py",
+                "eval/tests/test_rq4_final.py",
+            },
+        ),
+        (
+            "2a4e7ce80af9d72ff95c883a2633bae6e8d0191a",
+            "00dd1bfd876000ddca87c085676e711cee2f11ed",
+            {
+                "eval/src/phylo_lens_eval/msagl_baseline_audit.py",
+                "eval/tests/test_msagl_baseline_audit.py",
+            },
+        ),
+    )
+    for execution, reporting, expected_paths in checks:
+        git_output(root, "rev-parse", "--verify", f"{execution}^{{commit}}")
+        git_output(root, "rev-parse", "--verify", f"{reporting}^{{commit}}")
+        if subprocess.run(
+            ["git", "merge-base", "--is-ancestor", execution, reporting],
+            cwd=root,
+            check=False,
+        ).returncode:
+            raise ValueError(
+                f"Reporting commit does not follow execution commit: {reporting}"
+            )
+        changed = set(
+            git_output(root, "show", "--format=", "--name-only", reporting).splitlines()
+        )
+        if changed != expected_paths:
+            raise ValueError(
+                f"Unexpected reporting-commit scope for {reporting}: {changed}"
+            )
+        if git_output(
+            root,
+            "diff",
+            "--name-only",
+            execution,
+            reporting,
+            "--",
+            "code/server",
+            "code/client",
+        ):
+            raise ValueError(
+                f"Product source changed between recovered commits: {reporting}"
+            )
+
+
+def verify_external_comparison(root: Path) -> dict[str, Any]:
+    """Validate the retained cross-system table against its source observations.
+
+    The combined report intentionally draws PhyloLens from the v0.2.0
+    replacement run and Phylotree.js/Taxonium from the original native run.
+    This verification prevents the consolidation from treating the combined
+    table as an untraceable external input.
+    """
+    thesis = root.parent / "Thesis"
+    combined = (
+        thesis
+        / "results/derived/final-external-fullmst-combined-v020"
+        / "thesis-final-fullmst-combined-v020-004"
+    )
+    original_raw = (
+        thesis / "results/raw/final/final-external-fullmst" / "thesis-final-fullmst-001"
+    )
+    replacement_raw = (
+        thesis
+        / "results/raw/final/final-external-fullmst-phylolens-0.2.0"
+        / "thesis-final-fullmst-phylolens-v020-004"
+    )
+    audit_path = combined / "combined-final-audit.json"
+    summary_path = combined / "combined-external-summary.json"
+    timing_path = combined / "combined-external-timing-summary.csv"
+    outcomes_path = combined / "combined-external-success-failure-scaling.csv"
+    topology_path = combined / "combined-external-topology-identity-status.csv"
+    required = (
+        audit_path,
+        summary_path,
+        timing_path,
+        outcomes_path,
+        topology_path,
+        original_raw / "observations",
+        replacement_raw / "observations",
+    )
+    if any(not path.exists() for path in required):
+        missing = [str(path) for path in required if not path.exists()]
+        raise FileNotFoundError(
+            f"External-comparison evidence is incomplete: {missing}"
+        )
+
+    audit, combined_summary = read_json(audit_path), read_json(summary_path)
+    if audit.get("status") != "passed" or audit.get("report_congruent") is not True:
+        raise ValueError("Combined external-comparison audit did not pass congruence")
+    if audit.get("original_run", {}).get("run_id") != "thesis-final-fullmst-001":
+        raise ValueError(
+            "Combined external-comparison original source run is unexpected"
+        )
+    if (
+        audit.get("replacement_run_audit", {}).get("run_id")
+        != "thesis-final-fullmst-phylolens-v020-004"
+    ):
+        raise ValueError(
+            "Combined external-comparison replacement source run is unexpected"
+        )
+
+    expected_source = {
+        "phylolens": replacement_raw,
+        "phylotree": original_raw,
+        "taxonium": original_raw,
+    }
+    source_rows: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
+    all_source_rows: list[dict[str, Any]] = []
+    for tool_id, source_root in expected_source.items():
+        for path in sorted((source_root / "observations").glob("*.json")):
+            row = read_json(path)
+            if row.get("tool_id") != tool_id:
+                continue
+            all_source_rows.append(row)
+            if row.get("phase") == "measured" and row.get("status") == "success":
+                source_rows[(tool_id, row["dataset_id"])].append(row)
+
+    reported_timings = {
+        (row["tool_id"], row["dataset_id"]): row
+        for row in csv.DictReader(timing_path.open(encoding="utf-8", newline=""))
+    }
+    reported_outcomes = {
+        (row["tool_id"], row["dataset_id"]): row
+        for row in csv.DictReader(outcomes_path.open(encoding="utf-8", newline=""))
+    }
+    matrix = {
+        (row["tool_id"], row["dataset_id"]): row for row in combined_summary["matrix"]
+    }
+    expected_keys = set(source_rows)
+    if not (
+        len(expected_keys)
+        == 30
+        == len(reported_timings)
+        == len(reported_outcomes)
+        == len(matrix)
+    ):
+        raise ValueError(
+            "External-comparison matrix does not contain 30 tool/dataset rows"
+        )
+    if (
+        set(reported_timings) != expected_keys
+        or set(reported_outcomes) != expected_keys
+        or set(matrix) != expected_keys
+    ):
+        raise ValueError(
+            "External-comparison tables do not match source observation keys"
+        )
+
+    for key, observations in source_rows.items():
+        tool_id, _ = key
+        metrics = summary(
+            [float(row["time_to_first_visual_output_ms"]) for row in observations]
+        )
+        assert metrics is not None
+        timing, outcome, matrix_row = (
+            reported_timings[key],
+            reported_outcomes[key],
+            matrix[key],
+        )
+        if len(observations) != 3 or int(timing["successful_count"]) != 3:
+            raise ValueError(f"External-comparison measured count mismatch for {key}")
+        for report_name, metric_name in (
+            ("median_ms", "median"),
+            ("p25_ms", "p25"),
+            ("p75_ms", "p75"),
+            ("iqr_ms", "iqr"),
+        ):
+            if not math.isclose(
+                float(timing[report_name]), float(metrics[metric_name]), abs_tol=1e-9
+            ):
+                raise ValueError(
+                    f"External-comparison {report_name} mismatch for {key}"
+                )
+        for row in (timing, outcome, matrix_row):
+            if row["source_run_dir"] != str(expected_source[tool_id]):
+                raise ValueError(f"External-comparison source path mismatch for {key}")
+        if any(
+            int(row[field]) != 0
+            for row in (outcome, matrix_row)
+            for field in ("failure_count", "timeout_count")
+        ):
+            raise ValueError(f"External-comparison outcome mismatch for {key}")
+        if int(outcome["measured_count"]) != 3 or int(outcome["warmup_count"]) != 1:
+            raise ValueError(f"External-comparison repetition mismatch for {key}")
+
+    if any(row.get("status") != "success" for row in all_source_rows):
+        raise ValueError(
+            "External-comparison selected source observations are not all successful"
+        )
+    return {
+        "combined": combined,
+        "original_raw": original_raw,
+        "replacement_raw": replacement_raw,
+        "audit": audit,
+        "summary": combined_summary,
+        "artifacts": [
+            audit_path,
+            summary_path,
+            timing_path,
+            outcomes_path,
+            topology_path,
+        ],
+        "matrix_rows": len(expected_keys),
+        "selected_terminal_observations": len(all_source_rows),
+        "selected_warmups": sum(row["phase"] == "warmup" for row in all_source_rows),
+        "selected_measured": sum(row["phase"] == "measured" for row in all_source_rows),
+    }
+
+
 def index_record(
     *,
     study: str,
@@ -213,6 +452,7 @@ def index_record(
     predecessors: list[dict[str, str]],
     artifacts: list[Path],
     root: Path,
+    source_raw_directories: list[Path] | None = None,
 ) -> dict[str, Any]:
     return {
         "study": study,
@@ -220,6 +460,9 @@ def index_record(
         "authoritative_status": status,
         "authoritative_run_id": run_id,
         "raw_directory": relative(root, raw),
+        "source_raw_directories": [
+            relative(root, path) for path in (source_raw_directories or [])
+        ],
         "derived_directory": relative(root, derived),
         "product_commit": product_commit,
         "execution_harness_commit": execution_harness_commit,
@@ -243,12 +486,15 @@ def index_record(
     }
 
 
-def build(root: Path, output: Path) -> list[Path]:
+def build(root: Path, output: Path, *, replace: bool = False) -> list[Path]:
     if output.exists():
-        raise FileExistsError(
-            f"Refusing to replace existing consolidated output: {output}"
-        )
+        if not replace:
+            raise FileExistsError(
+                f"Refusing to replace existing consolidated output: {output}"
+            )
+        shutil.rmtree(output)
     output.mkdir(parents=True)
+    verify_reconciled_git_history(root)
     raw_root, derived_root = root / "eval/results/raw", root / "eval/results/derived"
     rq1_raw = raw_root / "rq1-final-oci-v020/thesis-final-rq1-v020-002"
     rq1_derived = derived_root / "rq1-final-oci-v020/thesis-final-rq1-v020-002"
@@ -262,6 +508,7 @@ def build(root: Path, output: Path) -> list[Path]:
     msagl_derived = (
         derived_root / "rq5-msagljs-current-mds-v001/thesis-msagljs-mds-v001-001"
     )
+    external = verify_external_comparison(root)
 
     rq1_manifest, rq1_audit = (
         read_json(rq1_raw / "manifest.json"),
@@ -322,6 +569,16 @@ def build(root: Path, output: Path) -> list[Path]:
     }.items():
         copy_csv(source, output / filename)
         generated.append(output / filename)
+    for filename, source in {
+        "external-comparison-first-meaningful-visual.csv": external["combined"]
+        / "combined-external-timing-summary.csv",
+        "external-comparison-success-failure.csv": external["combined"]
+        / "combined-external-success-failure-scaling.csv",
+        "external-comparison-topology-identity-status.csv": external["combined"]
+        / "combined-external-topology-identity-status.csv",
+    }.items():
+        copy_csv(source, output / filename)
+        generated.append(output / filename)
     semantic = {
         "source_artifacts": {
             name: artifact(root, rq3_derived / name)
@@ -339,14 +596,17 @@ def build(root: Path, output: Path) -> list[Path]:
     }
     write_json(output / "rq3-semantic-fidelity.json", semantic)
     generated.append(output / "rq3-semantic-fidelity.json")
-    external_missing = {
-        "requested_authoritative_run_id": "thesis-final-fullmst-combined-v020-004",
-        "status": "missing_from_workspace",
-        "searched_roots": ["eval/results", "../Developer"],
-        "reason": "No raw or derived artifact directory was found; no numerical values were consolidated.",
+    external_provenance = {
+        "validation": "Recomputed 30 timing summaries from 90 successful measured source observations and matched the retained combined table exactly.",
+        "combined_audit": external["audit"],
+        "source_raw_directories": [
+            str(external["original_raw"]),
+            str(external["replacement_raw"]),
+        ],
+        "source_artifacts": [artifact(root, path) for path in external["artifacts"]],
     }
-    write_json(output / "external-comparison-status.json", external_missing)
-    generated.append(output / "external-comparison-status.json")
+    write_json(output / "external-comparison-provenance.json", external_provenance)
+    generated.append(output / "external-comparison-provenance.json")
 
     records = [
         index_record(
@@ -360,13 +620,17 @@ def build(root: Path, output: Path) -> list[Path]:
             execution_harness_commit=rq1_manifest["provenance"][
                 "evaluation_harness_commit"
             ],
-            reporting_audit_commit=None,
+            reporting_audit_commit="b51504aa256cbd0052ebe43fd35d03b5a612ec1c",
             provenance={
                 "host": rq1_manifest["provenance"]["host"],
                 "docker_version": rq1_manifest["provenance"]["docker_version"],
                 "oci_index_reference": rq1_manifest["provenance"][
                     "oci_index_reference"
                 ],
+                "reporting_audit_commit_recovery": {
+                    "commit": "b51504aa256cbd0052ebe43fd35d03b5a612ec1c",
+                    "evidence": "Git commit subject ‘Audit immutable final RQ1 run ID sequence’; changed only eval/src/phylo_lens_eval/rq1_final_audit.py and follows the manifest-recorded execution harness commit.",
+                },
             },
             dataset={"conditions": rq1_manifest["provenance"]["verified_conditions"]},
             layout=None,
@@ -391,9 +655,7 @@ def build(root: Path, output: Path) -> list[Path]:
                 "Warm-ups are retained but excluded from value statistics.",
                 "The retained single caterpillar-50000 measured failure is counted but excluded from value statistics.",
             ],
-            missing_provenance=[
-                "Reporting/audit commit is not recorded in the RQ1 audit artifact."
-            ],
+            missing_provenance=[],
             predecessors=[
                 {
                     "run_id": "thesis-final-rq1-v020-001",
@@ -471,7 +733,15 @@ def build(root: Path, output: Path) -> list[Path]:
             product_commit=rq3_manifest["product"]["release_commit"],
             execution_harness_commit=rq3_manifest["environment"]["git"]["commit"],
             reporting_audit_commit=rq3_audit["reporting_audit_commit"],
-            provenance={"environment": rq3_manifest["environment"]},
+            provenance={
+                "environment": rq3_manifest["environment"],
+                "integrity_reconciliation": {
+                    "sealing_implementation_commit": "2a9b07a42b4bb698009ca9931a34a5860ac48336",
+                    "sealed_sqlite_sha256": rq3_manifest["layout"]["database_sha256"],
+                    "semantic_artifact_sha256": rq3_audit["derived_sha256"],
+                    "disposition": "Physical sealed SQLite and all semantic-validation artifacts were rehashed against the retained audit ledger; historical dirty-worktree status is retained unchanged.",
+                },
+            },
             dataset=rq3_manifest["source"],
             layout=rq3_manifest["layout"],
             repetitions={"terminal_cases": 3},
@@ -527,10 +797,14 @@ def build(root: Path, output: Path) -> list[Path]:
             derived=rq4_derived,
             product_commit=PRODUCT_COMMIT,
             execution_harness_commit=rq4_manifest["git"]["commit"],
-            reporting_audit_commit=None,
+            reporting_audit_commit="8f82a42c66e1501f76608401f1bc4ccec010a768",
             provenance={
                 "environment": rq4_manifest["environment"],
                 "browser": rq4_manifest["rq4"]["browser"],
+                "reporting_audit_commit_recovery": {
+                    "commit": "8f82a42c66e1501f76608401f1bc4ccec010a768",
+                    "evidence": "Git commit subject ‘test(eval): pin corrected RQ4 execution harness’; changed only RQ4 audit/test files, is after the manifest-recorded execution harness, and has no product-source or raw-v003 paths.",
+                },
             },
             dataset=rq4_manifest["dataset"],
             layout=rq4_manifest["authoritative_master"],
@@ -556,9 +830,7 @@ def build(root: Path, output: Path) -> list[Path]:
                 "Timing boundary is trusted capture-phase browser input event through second post-snapshot animation frame.",
                 "v002 is not publication evidence because collapse timing instrumentation timestamped after synchronous snapshot application.",
             ],
-            missing_provenance=[
-                "The generated RQ4 audit artifact does not record its own reporting/audit commit."
-            ],
+            missing_provenance=[],
             predecessors=[
                 {
                     "run_id": "thesis-final-rq4-v020-001",
@@ -590,9 +862,21 @@ def build(root: Path, output: Path) -> list[Path]:
             raw=msagl_raw,
             derived=msagl_derived,
             product_commit=None,
-            execution_harness_commit=None,
-            reporting_audit_commit=None,
-            provenance=msagl_manifest["provenance"],
+            execution_harness_commit="2a4e7ce80af9d72ff95c883a2633bae6e8d0191a",
+            reporting_audit_commit="00dd1bfd876000ddca87c085676e711cee2f11ed",
+            provenance={
+                **msagl_manifest["provenance"],
+                "commit_recovery": {
+                    "execution_harness": {
+                        "commit": "2a4e7ce80af9d72ff95c883a2633bae6e8d0191a",
+                        "evidence": "Git commit subject ‘Harden MSAGLJS baseline execution evidence’; changed the native runner, execution harness, and execution tests.",
+                    },
+                    "reporting_audit": {
+                        "commit": "00dd1bfd876000ddca87c085676e711cee2f11ed",
+                        "evidence": "Git commit subject ‘Add MSAGLJS raw report and final audit’; changed only the MSAGLJS audit implementation and its tests after the execution harness commit.",
+                    },
+                },
+            },
             dataset={
                 "per-condition source/adapted SHA-256": "retained in observations.jsonl and msagljs-provenance.json"
             },
@@ -625,7 +909,6 @@ def build(root: Path, output: Path) -> list[Path]:
             ],
             missing_provenance=[
                 "PhyloLens product commit is not applicable/recorded for the independent MSAGLJS run.",
-                "Execution and reporting harness commits are not recorded in the retained MSAGLJS manifest/audit.",
             ],
             predecessors=[],
             artifacts=[
@@ -640,32 +923,55 @@ def build(root: Path, output: Path) -> list[Path]:
         index_record(
             study="External comparison",
             purpose="Final first-meaningful-visual comparison across systems and sizes.",
-            status="authoritative_evidence_unavailable",
+            status="authoritative",
             run_id="thesis-final-fullmst-combined-v020-004",
             raw=None,
-            derived=None,
+            derived=external["combined"],
             product_commit=None,
             execution_harness_commit=None,
             reporting_audit_commit=None,
-            provenance={},
-            dataset=None,
+            provenance={
+                "combined_audit": artifact(
+                    root, external["combined"] / "combined-final-audit.json"
+                ),
+                "source_run_policy": external["audit"]["replacement_policy"],
+            },
+            dataset={
+                "original_tree_sha256": external["audit"]["original_run"][
+                    "tree_sha256"
+                ],
+                "replacement_phylolens_tree_sha256": external["audit"][
+                    "phylolens_replacement_run"
+                ]["tree_sha256"],
+            },
             layout=None,
-            repetitions=None,
-            counts=None,
+            repetitions={"warmups_per_condition": 1, "measured_per_condition": 3},
+            counts={
+                "terminal": external["selected_terminal_observations"],
+                "warmup": external["selected_warmups"],
+                "measured": external["selected_measured"],
+                "success": external["selected_measured"],
+                "failure": 0,
+                "timeout": 0,
+                "invalid": 0,
+            },
             retry_policy=None,
-            audit_result=None,
-            report_congruent=None,
+            audit_result="PASS",
+            report_congruent=True,
             primary_metrics=["first_meaningful_visual"],
-            secondary_metrics=[],
+            secondary_metrics=["success/failure/timeout scaling outcomes"],
             interpretation_constraints=[
-                "Do not generate cross-system numeric claims until retained raw/derived evidence is supplied."
+                "PhyloLens rows are from the v0.2.0 replacement run; Phylotree.js and Taxonium rows are from the original native run.",
+                "Topology/identity observability differs by system; consult external-comparison-topology-identity-status.csv for eligibility caveats.",
             ],
-            missing_provenance=[
-                "No external-comparison raw or derived artifact directory was found in the available workspace."
-            ],
+            missing_provenance=[],
             predecessors=[],
-            artifacts=[],
+            artifacts=external["artifacts"],
             root=root,
+            source_raw_directories=[
+                external["original_raw"],
+                external["replacement_raw"],
+            ],
         ),
     ]
     index = {
@@ -831,10 +1137,15 @@ def main() -> None:
         description="Consolidate closed final evaluation evidence."
     )
     parser.add_argument("--output-dir", type=Path)
+    parser.add_argument(
+        "--replace",
+        action="store_true",
+        help="replace an existing consolidated derived directory (never raw evidence)",
+    )
     args = parser.parse_args()
     root = repository_root()
     output = args.output_dir or root / "eval/results/derived/consolidated-final-v020"
-    for path in build(root, output.resolve()):
+    for path in build(root, output.resolve(), replace=args.replace):
         print(path)
 
 
