@@ -6,30 +6,54 @@
   ],
   "artifact_id": "F3",
   "artifact_sha256": {
-    "figures/F3-rq3-lod-effectiveness.pdf": "5f1a9fb4ebabbe7f1ddde5a0487d8f00f7e91e300481d979b530ef29de990830",
-    "figures/F3-rq3-lod-effectiveness.png": "6eeedea6d3bbbcb4d3105b18fd4b2fcca28fa43a9f03aae2fc5a2c3824f842e0",
-    "figures/F3-rq3-lod-effectiveness.svg": "9cfc641864b3e044b8118cadd57a3ded9e2484e75313d9ad0ed1aa8419449ecf"
+    "figures/F3-rq3-lod-effectiveness.pdf": "fba38e45525ea773d400f6a87506e53ac3c1eafb13e87ab06036c2dd78049918",
+    "figures/F3-rq3-lod-effectiveness.png": "e63c0f68389ce3fec8181db6f536a2aabc3536fb7e9520521514ecf23cd3f124",
+    "figures/F3-rq3-lod-effectiveness.svg": "863e9522b2e153320ab138dcf6734608455f249ce618affe62dafa9c3f89871f"
   },
   "authoritative_source_runs": [
     "thesis-final-rq3-v020-002"
   ],
+  "caption_alt_metadata": "caption-alt-metadata.json",
   "caveats": [
     "All persisted levels represent 13,075 source nodes; materialized visual-node counts are distinct from represented source-node counts."
   ],
+  "font_configuration": {
+    "axis_font_points_at_final_width": 7.03,
+    "axis_font_units": 17,
+    "axis_title_font_units": 19,
+    "family": "Arial, Helvetica, sans-serif",
+    "interval_cap_half_width_units": 4,
+    "interval_stroke_units": 2,
+    "legend_font_points_at_final_width": 7.44,
+    "legend_font_units": 18,
+    "marker_radius_units": 4.1,
+    "panel_label_font_units": 24,
+    "series_stroke_units": 2.4
+  },
   "frozen_consolidation_commit": "5e7090add3a9a5ef2c0ae3cdc3ea4ee6192ab2f4",
-  "generation_commit": "493199b37e96ec26789a4de4f2ba4180c551804d",
+  "generation_commit": "627e87269e4009730ccf8863c35a64b79060693c",
   "generation_script": "eval/src/phylo_lens_eval/publication_artifacts.py",
+  "intended_physical_width_mm": 178,
   "metric_definitions": [
     "Materialized visual-node ratio",
     "Primitive reduction relative to full detail"
   ],
+  "plotting_dimensions": {
+    "physical_height_mm": 72.95,
+    "viewbox": [
+      1220,
+      500
+    ]
+  },
   "product_commit": "cbb78f5e74b37e4fb480c0416e614e27e6f67ed9",
+  "rendering_only_transformation": true,
   "source_consolidated_files": [
     {
       "path": "eval/results/derived/consolidated-final-v020/rq3-lod-reduction.csv",
       "sha256": "e8c607849535f83e46ebe01696fc41e9a6db9631683a0ef8903bdd833b5a076b"
     }
   ],
+  "source_data_unchanged": true,
   "status": "MAIN_TEXT",
   "transformations": [
     "ratios converted to percentages",

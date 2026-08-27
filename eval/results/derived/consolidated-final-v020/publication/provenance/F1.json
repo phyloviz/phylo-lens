@@ -6,30 +6,54 @@
   ],
   "artifact_id": "F1",
   "artifact_sha256": {
-    "figures/F1-rq1-preparation-scalability.pdf": "713773a0987fab1381cde463ad27e60286a3827460fd526e178218c8f2d47f25",
-    "figures/F1-rq1-preparation-scalability.png": "1fab17e24814891183adc9293f6fc3e397ebbb5044630675f6e9ce6231a0486e",
-    "figures/F1-rq1-preparation-scalability.svg": "c0c13b7dfb47bf738412d16e75c41f3f6f0bfb8d6d4122e2446a1d64f0177cc9"
+    "figures/F1-rq1-preparation-scalability.pdf": "1ee0d228e5fa87a2ee0c02abfa8cb64e73268c4d916569e33982f3ca7daba3b2",
+    "figures/F1-rq1-preparation-scalability.png": "81175070c6ef40ca5e0b38abdbbb7a0ccf9c100545b1edcf2b89014e4c9245c3",
+    "figures/F1-rq1-preparation-scalability.svg": "ee1ab5ca569f58a862b576bca932efd04432c419bb5faf15c189ebc861104d98"
   },
   "authoritative_source_runs": [
     "thesis-final-rq1-v020-002"
   ],
+  "caption_alt_metadata": "caption-alt-metadata.json",
   "caveats": [
     "Caterpillar 50k includes four successful measured observations; one retained infrastructure-startup failure was not retried."
   ],
+  "font_configuration": {
+    "axis_font_points_at_final_width": 7.03,
+    "axis_font_units": 17,
+    "axis_title_font_units": 19,
+    "family": "Arial, Helvetica, sans-serif",
+    "interval_cap_half_width_units": 4,
+    "interval_stroke_units": 2,
+    "legend_font_points_at_final_width": 7.44,
+    "legend_font_units": 18,
+    "marker_radius_units": 4.1,
+    "panel_label_font_units": 24,
+    "series_stroke_units": 2.4
+  },
   "frozen_consolidation_commit": "5e7090add3a9a5ef2c0ae3cdc3ea4ee6192ab2f4",
-  "generation_commit": "493199b37e96ec26789a4de4f2ba4180c551804d",
+  "generation_commit": "627e87269e4009730ccf8863c35a64b79060693c",
   "generation_script": "eval/src/phylo_lens_eval/publication_artifacts.py",
+  "intended_physical_width_mm": 178,
   "metric_definitions": [
     "Preparation median with P25\u2013P75 interval",
     "Peak recursive process-tree RSS median with P25\u2013P75 interval"
   ],
+  "plotting_dimensions": {
+    "physical_height_mm": 83.16,
+    "viewbox": [
+      1220,
+      570
+    ]
+  },
   "product_commit": "cbb78f5e74b37e4fb480c0416e614e27e6f67ed9",
+  "rendering_only_transformation": true,
   "source_consolidated_files": [
     {
       "path": "eval/results/derived/consolidated-final-v020/rq1-condition-metrics.csv",
       "sha256": "eaca696e6aff0d6cb1899758f11b165bff3f8cfd9b1facf106111da6837d60c8"
     }
   ],
+  "source_data_unchanged": true,
   "status": "MAIN_TEXT",
   "transformations": [
     "ms converted to seconds",

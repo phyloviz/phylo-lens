@@ -128,8 +128,9 @@
       "status": "APPENDIX"
     }
   ],
+  "caption_alt_metadata": "caption-alt-metadata.json",
   "frozen_consolidation_commit": "5e7090add3a9a5ef2c0ae3cdc3ea4ee6192ab2f4",
-  "generation_commit": "493199b37e96ec26789a4de4f2ba4180c551804d",
+  "generation_commit": "627e87269e4009730ccf8863c35a64b79060693c",
   "generation_script": "eval/src/phylo_lens_eval/publication_artifacts.py",
   "schema_version": "1"
 }

@@ -11,12 +11,13 @@
   ],
   "caveats": [],
   "frozen_consolidation_commit": "5e7090add3a9a5ef2c0ae3cdc3ea4ee6192ab2f4",
-  "generation_commit": "493199b37e96ec26789a4de4f2ba4180c551804d",
+  "generation_commit": "627e87269e4009730ccf8863c35a64b79060693c",
   "generation_script": "eval/src/phylo_lens_eval/publication_artifacts.py",
   "metric_definitions": [
     "Full persisted LoD fidelity/invariant ledger."
   ],
   "product_commit": "cbb78f5e74b37e4fb480c0416e614e27e6f67ed9",
+  "rendering_only_transformation": false,
   "source_consolidated_files": [
     {
       "path": "eval/results/derived/consolidated-final-v020/rq3-lod-reduction.csv",
@@ -27,6 +28,7 @@
       "sha256": "a9fbfc61e6c1ca23e76f8afa58bbf6995984d7209c702c6082f4557db313665d"
     }
   ],
+  "source_data_unchanged": true,
   "status": "APPENDIX",
   "transformations": [
     "Deterministic numeric formatting only; all values parsed from consolidated CSV/JSON."

@@ -1,0 +1,29 @@
+{
+  "figures": {
+    "F1": {
+      "alt_text_draft": "Two log-scale panels show preparation time and peak process-tree RSS increasing with source graph size for three synthetic topologies. Irregular trees have the highest preparation times at larger sizes, while RSS remains similar across topologies and reaches about one GiB at the largest size.",
+      "caption_draft": "Server-side preparation time (A) and peak process-tree resident set size (B) as source graph size increases across balanced, caterpillar, and irregular synthetic topologies. Points show medians and intervals show P25\u2013P75 over measured runs. Axes are logarithmic. One caterpillar condition contains four successful measurements because an infrastructure-startup failure was retained and not retried.",
+      "intended_physical_width_mm": 178
+    },
+    "F2": {
+      "alt_text_draft": "First-visualization latency rises with materialized primitive count in the isolated client benchmark. The detail series increases from about 22 to 188 milliseconds, while the two triangle-control observations remain below the detail result at comparable workloads.",
+      "caption_draft": "Client first-visualization latency as the materialized primitive workload increases in the isolated browser microbenchmark. Points show medians and intervals show P25\u2013P75. Detail and triangle fixtures exercise different graph compositions after fixture delivery through the frozen replay path; this measurement does not include server-side viewport preparation.",
+      "intended_physical_width_mm": 86
+    },
+    "F3": {
+      "alt_text_draft": "Two bar charts compare three persisted LoD levels. Materialized visual-node ratio rises from about 9 to 100 percent from L0 to L2, while primitive reduction falls from about 90 percent to zero; all levels still represent the complete source graph.",
+      "caption_draft": "Materialized visual-node ratio (A) and primitive reduction relative to full detail (B) across the three persisted levels of detail. Every level represents all 13,075 source nodes; the bars quantify materialization rather than represented-node coverage. Exact membership, representative-position, and quotient-connectivity preservation are evaluated separately.",
+      "intended_physical_width_mm": 178
+    },
+    "F4": {
+      "alt_text_draft": "Horizontal point-range plot of seven browser-observed interaction settle latencies. Navigation is about 314 milliseconds, while expand and collapse interactions are roughly 25 to 60 milliseconds; each point is annotated with its median and a narrow P25\u2013P75 interval.",
+      "caption_draft": "Browser-observed settle latency for deterministic navigation and aggregate expand/collapse interactions after normal bootstrap and layout preparation. Points show medians and intervals show P25\u2013P75 over seven measured observations per scenario. Settle latency terminates at the second animation frame after snapshot application and should not be interpreted as physical display-completion latency.",
+      "intended_physical_width_mm": 178
+    },
+    "F5": {
+      "alt_text_draft": "Log-scale comparison of first meaningful visual time across three systems and ten dataset sizes. Taxonium remains below one second, Phylotree grows from fractions of a second to several seconds, and PhyloLens grows from about nine seconds to more than 200 seconds; results compare native end-to-end paths rather than equivalent algorithms.",
+      "caption_draft": "Native-path end-to-end time to first meaningful visual across PhyloLens v0.2.0, Phylotree, and Taxonium. Points show medians and intervals show P25\u2013P75; both axes are logarithmic. The systems follow different architectures and native processing paths, so these results describe observed end-to-end behavior rather than equivalent layout throughput.",
+      "intended_physical_width_mm": 178
+    }
+  }
+}

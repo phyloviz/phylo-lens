@@ -6,29 +6,53 @@
   ],
   "artifact_id": "F2",
   "artifact_sha256": {
-    "figures/F2-rq2-client-visualization-scalability.pdf": "f15091394362907d476da7deafcc6439041cdfdca767977741afbc89c20e0982",
-    "figures/F2-rq2-client-visualization-scalability.png": "1635b534727001074375e22a42d9d61f9a72216ea55dd40575370dfc947b6555",
-    "figures/F2-rq2-client-visualization-scalability.svg": "5efa5cb7e54d06db5cbf2292d269415f584b032fdf854cc0c2e9eece5fa9d6cf"
+    "figures/F2-rq2-client-visualization-scalability.pdf": "f631e5932ecf49291038e8b65a358daee831bde68d6af85cb3c8a328202edaed",
+    "figures/F2-rq2-client-visualization-scalability.png": "d7f56b9cb91dd3e37b3500603b80ae63317a620180ae30c1df3b80c5fe046bcd",
+    "figures/F2-rq2-client-visualization-scalability.svg": "febbd785dbe30cccb1a4ce3ea7351fb960276756c8127a8eebc31987c52a7d29"
   },
   "authoritative_source_runs": [
     "thesis-final-rq2-v020-001"
   ],
+  "caption_alt_metadata": "caption-alt-metadata.json",
   "caveats": [
     "Isolated client microbenchmark after frozen replay fixture delivery; not server-backed viewport latency, total startup, or full browser memory scalability."
   ],
+  "font_configuration": {
+    "axis_font_points_at_final_width": 7.02,
+    "axis_font_units": 17,
+    "axis_title_font_units": 19,
+    "family": "Arial, Helvetica, sans-serif",
+    "interval_cap_half_width_units": 4,
+    "interval_stroke_units": 2,
+    "legend_font_points_at_final_width": 7.44,
+    "legend_font_units": 18,
+    "marker_radius_units": 4.1,
+    "panel_label_font_units": 24,
+    "series_stroke_units": 2.4
+  },
   "frozen_consolidation_commit": "5e7090add3a9a5ef2c0ae3cdc3ea4ee6192ab2f4",
-  "generation_commit": "493199b37e96ec26789a4de4f2ba4180c551804d",
+  "generation_commit": "627e87269e4009730ccf8863c35a64b79060693c",
   "generation_script": "eval/src/phylo_lens_eval/publication_artifacts.py",
+  "intended_physical_width_mm": 86,
   "metric_definitions": [
     "Isolated client first-visualization latency median with P25\u2013P75 interval"
   ],
+  "plotting_dimensions": {
+    "physical_height_mm": 59.76,
+    "viewbox": [
+      590,
+      410
+    ]
+  },
   "product_commit": "cbb78f5e74b37e4fb480c0416e614e27e6f67ed9",
+  "rendering_only_transformation": true,
   "source_consolidated_files": [
     {
       "path": "eval/results/derived/consolidated-final-v020/rq2-first-visualization-summary.csv",
       "sha256": "b60fea8ca535f5c40d7281202072c0d81dad8acad116e1d667ef5e53c95f9b6d"
     }
   ],
+  "source_data_unchanged": true,
   "status": "MAIN_TEXT",
   "transformations": [
     "logarithmic primitive-count x axis"

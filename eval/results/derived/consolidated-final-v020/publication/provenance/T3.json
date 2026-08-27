@@ -14,18 +14,20 @@
     "Current public MSAGLJS native MDS pipeline; not IPSep-CoLa."
   ],
   "frozen_consolidation_commit": "5e7090add3a9a5ef2c0ae3cdc3ea4ee6192ab2f4",
-  "generation_commit": "493199b37e96ec26789a4de4f2ba4180c551804d",
+  "generation_commit": "627e87269e4009730ccf8863c35a64b79060693c",
   "generation_script": "eval/src/phylo_lens_eval/publication_artifacts.py",
   "metric_definitions": [
     "Native preparation-to-browsable-state descriptive comparison."
   ],
   "product_commit": "cbb78f5e74b37e4fb480c0416e614e27e6f67ed9",
+  "rendering_only_transformation": false,
   "source_consolidated_files": [
     {
       "path": "eval/results/derived/consolidated-final-v020/phylolens-vs-msagljs-descriptive-comparison.csv",
       "sha256": "72362bc6c774156c14886052bdd4f39af2b083dcc1e74739b6279fbd47cd5bc6"
     }
   ],
+  "source_data_unchanged": true,
   "status": "MAIN_TEXT",
   "transformations": [
     "Deterministic numeric formatting only; all values parsed from consolidated CSV/JSON."
