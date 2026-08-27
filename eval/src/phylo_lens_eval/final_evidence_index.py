@@ -561,6 +561,9 @@ def build(root: Path, output: Path, *, replace: bool = False) -> list[Path]:
         generated.append(path)
     for filename, source in {
         "rq3-lod-reduction.csv": rq3_derived / "rq3-lod-reduction.csv",
+        "rq4-phase-summary.csv": rq4_derived / "rq4-phase-summary.csv",
+        "rq4-frame-summary.csv": rq4_derived / "rq4-frame-summary.csv",
+        "rq4-state-cardinality.csv": rq4_derived / "rq4-state-cardinality.csv",
         "msagljs-condition-metrics.csv": msagl_derived / "msagljs-timing-summary.csv",
         "msagljs-success-failure.csv": msagl_derived
         / "msagljs-success-failure-summary.csv",
