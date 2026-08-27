@@ -1,0 +1,33 @@
+{
+  "artifact_filenames": [
+    "tables/A-rq1-full-condition-summary.tex"
+  ],
+  "artifact_id": "A",
+  "artifact_sha256": {
+    "tables/A-rq1-full-condition-summary.tex": "2a0bfe6bf4367a9e519672d7263ba8c676f698b61a2d4df862e650b31a1f32f2"
+  },
+  "authoritative_source_runs": [
+    "thesis-final-rq1-v020-002"
+  ],
+  "caveats": [],
+  "frozen_consolidation_commit": "5e7090add3a9a5ef2c0ae3cdc3ea4ee6192ab2f4",
+  "generation_commit": "493199b37e96ec26789a4de4f2ba4180c551804d",
+  "generation_script": "eval/src/phylo_lens_eval/publication_artifacts.py",
+  "metric_definitions": [
+    "Full RQ1 condition summaries; milliseconds converted to seconds and bytes to GiB."
+  ],
+  "product_commit": "cbb78f5e74b37e4fb480c0416e614e27e6f67ed9",
+  "source_consolidated_files": [
+    {
+      "path": "eval/results/derived/consolidated-final-v020/rq1-condition-metrics.csv",
+      "sha256": "eaca696e6aff0d6cb1899758f11b165bff3f8cfd9b1facf106111da6837d60c8"
+    }
+  ],
+  "status": "APPENDIX",
+  "transformations": [
+    "Deterministic numeric formatting only; all values parsed from consolidated CSV/JSON."
+  ],
+  "units": [
+    "As stated in table headers"
+  ]
+}

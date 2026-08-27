@@ -1,0 +1,39 @@
+{
+  "artifact_filenames": [
+    "figures/F4-rq4-interaction-responsiveness.svg",
+    "figures/F4-rq4-interaction-responsiveness.pdf",
+    "figures/F4-rq4-interaction-responsiveness.png"
+  ],
+  "artifact_id": "F4",
+  "artifact_sha256": {
+    "figures/F4-rq4-interaction-responsiveness.pdf": "fd1741f8cea13cbb6a1fe683ec4cc12d15924d4975fce1dce8f29b11513b1409",
+    "figures/F4-rq4-interaction-responsiveness.png": "5bdbda9bb6ba9431fb35d6cdea6a18605f80894d662d58d231361dbae71e8382",
+    "figures/F4-rq4-interaction-responsiveness.svg": "6073bc439edca66af5cb610186b3c91c7448821db58141531069b51a2932bdf6"
+  },
+  "authoritative_source_runs": [
+    "thesis-final-rq4-v020-003"
+  ],
+  "caveats": [
+    "Settle latency is not physical display latency or pixel-complete latency."
+  ],
+  "frozen_consolidation_commit": "5e7090add3a9a5ef2c0ae3cdc3ea4ee6192ab2f4",
+  "generation_commit": "493199b37e96ec26789a4de4f2ba4180c551804d",
+  "generation_script": "eval/src/phylo_lens_eval/publication_artifacts.py",
+  "metric_definitions": [
+    "Browser-observed settle latency median with P25\u2013P75 interval"
+  ],
+  "product_commit": "cbb78f5e74b37e4fb480c0416e614e27e6f67ed9",
+  "source_consolidated_files": [
+    {
+      "path": "eval/results/derived/consolidated-final-v020/rq4-condition-metrics.csv",
+      "sha256": "64c8f07fdc4ceedae479ac84cd8b4a1e521cbb4f8c5a23704ee1648b69facd07"
+    }
+  ],
+  "status": "MAIN_TEXT",
+  "transformations": [
+    "none"
+  ],
+  "units": [
+    "milliseconds"
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "artifact_filenames": [
+    "tables/T2-rq4-interaction-summary.tex"
+  ],
+  "artifact_id": "T2",
+  "artifact_sha256": {
+    "tables/T2-rq4-interaction-summary.tex": "8619ba0242d8d1648d8edfb6e9e3a364152cfab77fe0919db009f36f33e33086"
+  },
+  "authoritative_source_runs": [
+    "thesis-final-rq4-v020-003"
+  ],
+  "caveats": [],
+  "frozen_consolidation_commit": "5e7090add3a9a5ef2c0ae3cdc3ea4ee6192ab2f4",
+  "generation_commit": "493199b37e96ec26789a4de4f2ba4180c551804d",
+  "generation_script": "eval/src/phylo_lens_eval/publication_artifacts.py",
+  "metric_definitions": [
+    "Browser-observed settle latency and retained interaction phase summaries."
+  ],
+  "product_commit": "cbb78f5e74b37e4fb480c0416e614e27e6f67ed9",
+  "source_consolidated_files": [
+    {
+      "path": "eval/results/derived/consolidated-final-v020/rq4-condition-metrics.csv",
+      "sha256": "64c8f07fdc4ceedae479ac84cd8b4a1e521cbb4f8c5a23704ee1648b69facd07"
+    }
+  ],
+  "status": "MAIN_TEXT",
+  "transformations": [
+    "Deterministic numeric formatting only; all values parsed from consolidated CSV/JSON."
+  ],
+  "units": [
+    "As stated in table headers"
+  ]
+}

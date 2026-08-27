@@ -1,0 +1,41 @@
+{
+  "artifact_filenames": [
+    "figures/F3-rq3-lod-effectiveness.svg",
+    "figures/F3-rq3-lod-effectiveness.pdf",
+    "figures/F3-rq3-lod-effectiveness.png"
+  ],
+  "artifact_id": "F3",
+  "artifact_sha256": {
+    "figures/F3-rq3-lod-effectiveness.pdf": "5f1a9fb4ebabbe7f1ddde5a0487d8f00f7e91e300481d979b530ef29de990830",
+    "figures/F3-rq3-lod-effectiveness.png": "6eeedea6d3bbbcb4d3105b18fd4b2fcca28fa43a9f03aae2fc5a2c3824f842e0",
+    "figures/F3-rq3-lod-effectiveness.svg": "9cfc641864b3e044b8118cadd57a3ded9e2484e75313d9ad0ed1aa8419449ecf"
+  },
+  "authoritative_source_runs": [
+    "thesis-final-rq3-v020-002"
+  ],
+  "caveats": [
+    "All persisted levels represent 13,075 source nodes; materialized visual-node counts are distinct from represented source-node counts."
+  ],
+  "frozen_consolidation_commit": "5e7090add3a9a5ef2c0ae3cdc3ea4ee6192ab2f4",
+  "generation_commit": "493199b37e96ec26789a4de4f2ba4180c551804d",
+  "generation_script": "eval/src/phylo_lens_eval/publication_artifacts.py",
+  "metric_definitions": [
+    "Materialized visual-node ratio",
+    "Primitive reduction relative to full detail"
+  ],
+  "product_commit": "cbb78f5e74b37e4fb480c0416e614e27e6f67ed9",
+  "source_consolidated_files": [
+    {
+      "path": "eval/results/derived/consolidated-final-v020/rq3-lod-reduction.csv",
+      "sha256": "e8c607849535f83e46ebe01696fc41e9a6db9631683a0ef8903bdd833b5a076b"
+    }
+  ],
+  "status": "MAIN_TEXT",
+  "transformations": [
+    "ratios converted to percentages",
+    "categorical persisted levels only"
+  ],
+  "units": [
+    "percent"
+  ]
+}

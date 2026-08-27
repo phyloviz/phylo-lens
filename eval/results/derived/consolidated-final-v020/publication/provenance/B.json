@@ -1,0 +1,43 @@
+{
+  "artifact_filenames": [
+    "tables/B-rq2-client-diagnostics.tex"
+  ],
+  "artifact_id": "B",
+  "artifact_sha256": {
+    "tables/B-rq2-client-diagnostics.tex": "c22eda931913eddddac1ea20732685a10b6eb911ce9f948a2d4c50b7cf946e65"
+  },
+  "authoritative_source_runs": [
+    "thesis-final-rq2-v020-001"
+  ],
+  "caveats": [
+    "Isolated client microbenchmark after frozen replay fixture delivery."
+  ],
+  "frozen_consolidation_commit": "5e7090add3a9a5ef2c0ae3cdc3ea4ee6192ab2f4",
+  "generation_commit": "493199b37e96ec26789a4de4f2ba4180c551804d",
+  "generation_script": "eval/src/phylo_lens_eval/publication_artifacts.py",
+  "metric_definitions": [
+    "Isolated client latency, heap-used delta, and frame diagnostics."
+  ],
+  "product_commit": "cbb78f5e74b37e4fb480c0416e614e27e6f67ed9",
+  "source_consolidated_files": [
+    {
+      "path": "eval/results/derived/consolidated-final-v020/rq2-first-visualization-summary.csv",
+      "sha256": "b60fea8ca535f5c40d7281202072c0d81dad8acad116e1d667ef5e53c95f9b6d"
+    },
+    {
+      "path": "eval/results/derived/consolidated-final-v020/rq2-memory-summary.csv",
+      "sha256": "d76a54db13f9a41b15b9e413004c5f16c85c4bafc2874479b3718847d2b7d96e"
+    },
+    {
+      "path": "eval/results/derived/consolidated-final-v020/rq2-frame-summary.csv",
+      "sha256": "11662e2a3f2182ec7aa16a3fc33ed9f99a7d30aa143449761d71b8be0927c95b"
+    }
+  ],
+  "status": "APPENDIX",
+  "transformations": [
+    "Deterministic numeric formatting only; all values parsed from consolidated CSV/JSON."
+  ],
+  "units": [
+    "As stated in table headers"
+  ]
+}

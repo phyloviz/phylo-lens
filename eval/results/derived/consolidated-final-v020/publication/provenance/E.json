@@ -1,0 +1,35 @@
+{
+  "artifact_filenames": [
+    "tables/E-msagljs-per-stage-timing.tex"
+  ],
+  "artifact_id": "E",
+  "artifact_sha256": {
+    "tables/E-msagljs-per-stage-timing.tex": "b0a00ef23fce61d2d3df039391897a5b7c238d01a9ecd0c67267a965cc070fe9"
+  },
+  "authoritative_source_runs": [
+    "thesis-msagljs-mds-v001-001"
+  ],
+  "caveats": [
+    "Current-source native MDS path; not manuscript IPSep-CoLa reproduction."
+  ],
+  "frozen_consolidation_commit": "5e7090add3a9a5ef2c0ae3cdc3ea4ee6192ab2f4",
+  "generation_commit": "493199b37e96ec26789a4de4f2ba4180c551804d",
+  "generation_script": "eval/src/phylo_lens_eval/publication_artifacts.py",
+  "metric_definitions": [
+    "Full MSAGLJS per-stage timing summaries."
+  ],
+  "product_commit": "cbb78f5e74b37e4fb480c0416e614e27e6f67ed9",
+  "source_consolidated_files": [
+    {
+      "path": "eval/results/derived/consolidated-final-v020/msagljs-condition-metrics.csv",
+      "sha256": "e1fa1b4f42a1a445be3e1a2477d1c28f40ad85ff153f8e6e0befaf4bdb723f11"
+    }
+  ],
+  "status": "APPENDIX",
+  "transformations": [
+    "Deterministic numeric formatting only; all values parsed from consolidated CSV/JSON."
+  ],
+  "units": [
+    "As stated in table headers"
+  ]
+}

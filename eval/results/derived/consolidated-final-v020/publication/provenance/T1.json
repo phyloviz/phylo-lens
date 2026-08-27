@@ -1,0 +1,37 @@
+{
+  "artifact_filenames": [
+    "tables/T1-rq3-lod-fidelity.tex"
+  ],
+  "artifact_id": "T1",
+  "artifact_sha256": {
+    "tables/T1-rq3-lod-fidelity.tex": "c88adc80bac8559ac96de396fa53dc697103434720ee11dae1f9b5e1c79d8d9a"
+  },
+  "authoritative_source_runs": [
+    "thesis-final-rq3-v020-002"
+  ],
+  "caveats": [],
+  "frozen_consolidation_commit": "5e7090add3a9a5ef2c0ae3cdc3ea4ee6192ab2f4",
+  "generation_commit": "493199b37e96ec26789a4de4f2ba4180c551804d",
+  "generation_script": "eval/src/phylo_lens_eval/publication_artifacts.py",
+  "metric_definitions": [
+    "Exact persisted LoD structural metrics and semantic-fidelity ledger."
+  ],
+  "product_commit": "cbb78f5e74b37e4fb480c0416e614e27e6f67ed9",
+  "source_consolidated_files": [
+    {
+      "path": "eval/results/derived/consolidated-final-v020/rq3-lod-reduction.csv",
+      "sha256": "e8c607849535f83e46ebe01696fc41e9a6db9631683a0ef8903bdd833b5a076b"
+    },
+    {
+      "path": "eval/results/derived/consolidated-final-v020/rq3-semantic-fidelity.json",
+      "sha256": "a9fbfc61e6c1ca23e76f8afa58bbf6995984d7209c702c6082f4557db313665d"
+    }
+  ],
+  "status": "MAIN_TEXT",
+  "transformations": [
+    "Deterministic numeric formatting only; all values parsed from consolidated CSV/JSON."
+  ],
+  "units": [
+    "As stated in table headers"
+  ]
+}

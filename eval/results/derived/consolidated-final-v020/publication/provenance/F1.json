@@ -1,0 +1,43 @@
+{
+  "artifact_filenames": [
+    "figures/F1-rq1-preparation-scalability.svg",
+    "figures/F1-rq1-preparation-scalability.pdf",
+    "figures/F1-rq1-preparation-scalability.png"
+  ],
+  "artifact_id": "F1",
+  "artifact_sha256": {
+    "figures/F1-rq1-preparation-scalability.pdf": "713773a0987fab1381cde463ad27e60286a3827460fd526e178218c8f2d47f25",
+    "figures/F1-rq1-preparation-scalability.png": "1fab17e24814891183adc9293f6fc3e397ebbb5044630675f6e9ce6231a0486e",
+    "figures/F1-rq1-preparation-scalability.svg": "c0c13b7dfb47bf738412d16e75c41f3f6f0bfb8d6d4122e2446a1d64f0177cc9"
+  },
+  "authoritative_source_runs": [
+    "thesis-final-rq1-v020-002"
+  ],
+  "caveats": [
+    "Caterpillar 50k includes four successful measured observations; one retained infrastructure-startup failure was not retried."
+  ],
+  "frozen_consolidation_commit": "5e7090add3a9a5ef2c0ae3cdc3ea4ee6192ab2f4",
+  "generation_commit": "493199b37e96ec26789a4de4f2ba4180c551804d",
+  "generation_script": "eval/src/phylo_lens_eval/publication_artifacts.py",
+  "metric_definitions": [
+    "Preparation median with P25\u2013P75 interval",
+    "Peak recursive process-tree RSS median with P25\u2013P75 interval"
+  ],
+  "product_commit": "cbb78f5e74b37e4fb480c0416e614e27e6f67ed9",
+  "source_consolidated_files": [
+    {
+      "path": "eval/results/derived/consolidated-final-v020/rq1-condition-metrics.csv",
+      "sha256": "eaca696e6aff0d6cb1899758f11b165bff3f8cfd9b1facf106111da6837d60c8"
+    }
+  ],
+  "status": "MAIN_TEXT",
+  "transformations": [
+    "ms converted to seconds",
+    "bytes converted to GiB",
+    "logarithmic x and y axes"
+  ],
+  "units": [
+    "seconds",
+    "GiB"
+  ]
+}

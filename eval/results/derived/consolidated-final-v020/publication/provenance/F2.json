@@ -1,0 +1,39 @@
+{
+  "artifact_filenames": [
+    "figures/F2-rq2-client-visualization-scalability.svg",
+    "figures/F2-rq2-client-visualization-scalability.pdf",
+    "figures/F2-rq2-client-visualization-scalability.png"
+  ],
+  "artifact_id": "F2",
+  "artifact_sha256": {
+    "figures/F2-rq2-client-visualization-scalability.pdf": "f15091394362907d476da7deafcc6439041cdfdca767977741afbc89c20e0982",
+    "figures/F2-rq2-client-visualization-scalability.png": "1635b534727001074375e22a42d9d61f9a72216ea55dd40575370dfc947b6555",
+    "figures/F2-rq2-client-visualization-scalability.svg": "5efa5cb7e54d06db5cbf2292d269415f584b032fdf854cc0c2e9eece5fa9d6cf"
+  },
+  "authoritative_source_runs": [
+    "thesis-final-rq2-v020-001"
+  ],
+  "caveats": [
+    "Isolated client microbenchmark after frozen replay fixture delivery; not server-backed viewport latency, total startup, or full browser memory scalability."
+  ],
+  "frozen_consolidation_commit": "5e7090add3a9a5ef2c0ae3cdc3ea4ee6192ab2f4",
+  "generation_commit": "493199b37e96ec26789a4de4f2ba4180c551804d",
+  "generation_script": "eval/src/phylo_lens_eval/publication_artifacts.py",
+  "metric_definitions": [
+    "Isolated client first-visualization latency median with P25\u2013P75 interval"
+  ],
+  "product_commit": "cbb78f5e74b37e4fb480c0416e614e27e6f67ed9",
+  "source_consolidated_files": [
+    {
+      "path": "eval/results/derived/consolidated-final-v020/rq2-first-visualization-summary.csv",
+      "sha256": "b60fea8ca535f5c40d7281202072c0d81dad8acad116e1d667ef5e53c95f9b6d"
+    }
+  ],
+  "status": "MAIN_TEXT",
+  "transformations": [
+    "logarithmic primitive-count x axis"
+  ],
+  "units": [
+    "milliseconds"
+  ]
+}

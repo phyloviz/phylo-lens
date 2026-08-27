@@ -1,0 +1,51 @@
+{
+  "artifact_filenames": [
+    "figures/F5-external-native-path-comparison.svg",
+    "figures/F5-external-native-path-comparison.pdf",
+    "figures/F5-external-native-path-comparison.png"
+  ],
+  "artifact_id": "F5",
+  "artifact_sha256": {
+    "figures/F5-external-native-path-comparison.pdf": "a62dd7fa8e12b6ec5bdedcd0d3b0bfd855f4707ae8f731496d9e8c06cb64491a",
+    "figures/F5-external-native-path-comparison.png": "b90102ed776e1bb90ccab4d48af09d0e2306012249b891255bf515a052f50ff5",
+    "figures/F5-external-native-path-comparison.svg": "edbb7a094f28fadec01ef12589f0c8f22fe8def671b68fce576ad8c23edf7eeb"
+  },
+  "authoritative_source_runs": [
+    "thesis-final-fullmst-combined-v020-004",
+    "thesis-final-fullmst-001",
+    "thesis-final-fullmst-phylolens-v020-004"
+  ],
+  "caveats": [
+    "Native-path cross-system comparison across different architectures; not equivalent layout throughput, the same-algorithm benchmark, or a direct algorithmic speed comparison.",
+    "PhyloLens topology verified but identity unverified by public API; Phylotree topology verified with root-label identity failure; Taxonium execution/scalability eligible but topology/identity unverified by public component API."
+  ],
+  "frozen_consolidation_commit": "5e7090add3a9a5ef2c0ae3cdc3ea4ee6192ab2f4",
+  "generation_commit": "493199b37e96ec26789a4de4f2ba4180c551804d",
+  "generation_script": "eval/src/phylo_lens_eval/publication_artifacts.py",
+  "metric_definitions": [
+    "Native-path end-to-end first meaningful visual time median with P25\u2013P75 interval"
+  ],
+  "product_commit": "cbb78f5e74b37e4fb480c0416e614e27e6f67ed9",
+  "source_consolidated_files": [
+    {
+      "path": "eval/results/derived/consolidated-final-v020/external-comparison-first-meaningful-visual.csv",
+      "sha256": "d8039eff8d1534604ac8e060060494e23e3798301f3c3e710644de54d1fa2cde"
+    },
+    {
+      "path": "eval/results/derived/consolidated-final-v020/external-comparison-topology-identity-status.csv",
+      "sha256": "81ced76e2f9fc78283d4696a9de2e685127096a7fe6d9d5d2ae13421c95b78ba"
+    },
+    {
+      "path": "eval/results/derived/consolidated-final-v020/external-comparison-provenance.json",
+      "sha256": "1bd84bbc2ad35f5eddcfb8b8bb35b579c2b80efe92ccf5e27b0c4608054d2e9f"
+    }
+  ],
+  "status": "MAIN_TEXT",
+  "transformations": [
+    "ms converted to seconds",
+    "logarithmic x and y axes"
+  ],
+  "units": [
+    "seconds"
+  ]
+}
