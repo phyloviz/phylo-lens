@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://phyloviz.org/phylo-lens/eval/rq3-final-observation/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "run_id", "experiment_id", "case_id", "status", "terminal_classification", "failure_kind", "level", "source", "layout", "bounds", "membership", "positions", "full_detail", "quotient_connectivity", "reduction", "mismatches", "artifacts", "error"],
+  "properties": {
+    "schema_version": {"const": "1"},
+    "run_id": {"type": "string", "minLength": 1},
+    "experiment_id": {"const": "rq3-lod-final-v020"},
+    "case_id": {"type": "string", "minLength": 1},
+    "status": {"enum": ["success", "invalid", "failure"]},
+    "terminal_classification": {"enum": ["PASS", "FAIL"]},
+    "failure_kind": {"type": "string", "minLength": 1},
+    "level": {"type": "object"},
+    "source": {"type": "object"},
+    "layout": {"type": "object"},
+    "bounds": {"type": "object"},
+    "membership": {"type": "object"},
+    "positions": {"type": "object"},
+    "full_detail": {"type": "object"},
+    "quotient_connectivity": {"type": "object"},
+    "reduction": {"type": "object"},
+    "mismatches": {"type": "object"},
+    "artifacts": {"type": "object"},
+    "error": {"type": ["string", "null"]}
+  }
+}

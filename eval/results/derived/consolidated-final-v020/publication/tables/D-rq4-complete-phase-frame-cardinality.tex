@@ -1,0 +1,16 @@
+\begin{tabular}{lrrrr}
+\hline
+Scenario & Phase medians: event\ensuremath{\to}request / HTTP / response\ensuremath{\to}snapshot / event\ensuremath{\to}snapshot / snapshot\ensuremath{\to}settle (ms) & Baseline / operation frame medians (ms) & Materialized V/E & Truncated \\
+\hline
+navigation & 265.80 / 19.30 / 3.20 / N/A / 25.90 & 8.30 / 8.30 & 100/91 \ensuremath{\to} 100/66 & 7/7 \\
+expand-low & 0.70 / 18.80 / 5.90 / N/A / 23.30 & 8.30 / 8.35 & 100/91 \ensuremath{\to} 102/94 & 0/7 \\
+collapse-low & N/A / N/A / N/A / 2.00 / 23.80 & 8.30 / 8.30 & 102/94 \ensuremath{\to} 100/91 & 0/7 \\
+expand-representative & 0.70 / 21.50 / 5.60 / N/A / 21.40 & 8.30 / 8.30 & 100/91 \ensuremath{\to} 107/99 & 0/7 \\
+collapse-representative & N/A / N/A / N/A / 2.70 / 23.00 & 8.30 / 8.30 & 107/99 \ensuremath{\to} 101/91 & 0/7 \\
+expand-high & 0.80 / 29.70 / 3.40 / N/A / 25.70 & 8.30 / 8.30 & 100/91 \ensuremath{\to} 208/199 & 7/7 \\
+collapse-high & N/A / N/A / N/A / 1.90 / 24.80 & 8.30 / 8.30 & 208/199 \ensuremath{\to} 108/91 & 0/7 \\
+\hline
+\end{tabular}
+
+\par\smallskip
+\footnotesize Blank request/HTTP phase values are represented as N/A for collapses, which issue no viewport request.

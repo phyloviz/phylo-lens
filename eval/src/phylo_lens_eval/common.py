@@ -114,13 +114,28 @@ def validate_rq2_observation(payload: dict) -> None:
     _validate_schema(payload, "rq2-observation.schema.json")
 
 
+def validate_rq2_final_observation(payload: dict) -> None:
+    """Validate one terminal final-RQ2 client-microbenchmark observation."""
+    _validate_schema(payload, "rq2-final-observation.schema.json")
+
+
 def validate_rq3_pair(payload: dict) -> None:
     """Validate a strict RQ3 paired-comparison artifact."""
     _validate_schema(payload, "rq3-pair.schema.json")
 
 
+def validate_rq3_final_observation(payload: dict) -> None:
+    """Validate one terminal deterministic final-RQ3 LoD case."""
+    _validate_schema(payload, "rq3-final-observation.schema.json")
+
+
 def validate_rq4_observation(payload: dict) -> None:
     _validate_schema(payload, "rq4-observation.schema.json")
+
+
+def validate_rq4_final_observation(payload: dict) -> None:
+    """Validate one terminal final-RQ4 interaction observation."""
+    _validate_schema(payload, "rq4-final-observation.schema.json")
 
 
 def classify_failure(returncode: int | None, timed_out: bool) -> str:

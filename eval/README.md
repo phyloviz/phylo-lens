@@ -3,6 +3,27 @@
 This directory contains reproducible RQ1–RQ4 evaluation harnesses. It does not
 contain external-tool comparisons or thesis-result claims.
 
+## Final RQ1 released-OCI harness
+
+`phylo_lens_eval.rq1_final` is the immutable final RQ1 runner.  It is separate
+from the legacy local-import runner: final observations exclusively call the
+released public OCI service API and use the frozen 15-condition input matrix
+in `config/rq1-final-oci-v020.json`.  Run it only from a clean, committed
+evaluation checkout and a clean benchmark checkout at the approved Thesis
+commit:
+
+```bash
+PYTHONPATH=eval/src .venv/bin/python -m phylo_lens_eval.rq1_final \
+  --run-id thesis-final-rq1-v020-001 \
+  --thesis-root /Users/goncalofrutuoso/Developer/Thesis
+```
+
+The command refuses any other run ID, an existing raw-result directory, a
+dirty worktree, changed product source, input checksum mismatch, or a Thesis
+commit other than the recorded provenance.  It does not retry observations.
+After a completed campaign, generate deterministic derived artifacts and audit
+them from the raw directory with `phylo_lens_eval.rq1_final_audit`.
+
 RQ4 measures warm-session interactive responsiveness after the normal public
 client bootstrap. Every operation uses a fresh server/browser process but calls
 the public `PhyloLensView.load()` during unmeasured setup; preparation and first
@@ -98,6 +119,26 @@ The local replay server is an API contract fixture; its timings are diagnostics,
 not server-performance measurements. Headless smoke outputs are CI validation,
 not final thesis evidence.
 
+The final isolated-client RQ2 is separate from that historical pilot. It uses
+the deterministic replay API with a fixed >6,000-node synthetic prepared
+metadata count and varies only the returned materialized fixture. It requires a
+caller-supplied immutable run ID, headed hardware-accelerated Chromium, and the
+frozen 7 × (1 warm-up + 5 measured) matrix:
+
+```bash
+PYTHONPATH=eval/src:code/server/src python -m phylo_lens_eval.rq2_final \
+  --run-id thesis-final-rq2-v020-001
+```
+
+Generate derived artifacts only after a completed audit-passing final run:
+
+```bash
+PYTHONPATH=eval/src:code/server/src python -m phylo_lens_eval.rq2_final_audit generate \
+  --run-dir eval/results/raw/rq2-client-final-v020/thesis-final-rq2-v020-001 \
+  --output-dir eval/results/derived/rq2-client-final-v020/thesis-final-rq2-v020-001 \
+  --reporting-audit-commit <commit>
+```
+
 ## RQ3 paired triangle aggregation
 
 Run the tiny synthetic paired ablation after building the same browser inputs:
@@ -105,6 +146,32 @@ Run the tiny synthetic paired ablation after building the same browser inputs:
 ```bash
 PYTHONPATH=eval/src:code/server/src python -m phylo_lens_eval.rq3 \
   --experiment rq3-triangle-pilot --warmups 0 --repetitions 1
+
+## Final RQ3: persisted LoD fidelity and materialization reduction
+
+`phylo_lens_eval.rq3_final` is a deterministic structural study, not a browser
+or performance benchmark. It independently parses the frozen EnteroBase /
+Achtman-MLST-derived goeBURST input, prepares exactly one v0.2.0 SQLite layout,
+and validates persisted LoD levels 0, 1, and 2 over one padded full-world
+bound. It rejects a pre-existing raw run directory and records no retries.
+
+Run only from a clean, committed evaluation harness and only after the final
+run ID has been approved:
+
+```bash
+PYTHONPATH=eval/src:code/server/src python -m phylo_lens_eval.rq3_final \
+  --run-id thesis-final-rq3-v020-001
+```
+
+After a completed audit-passing final run, create deterministic derived
+artifacts without rereading or modifying the product:
+
+```bash
+PYTHONPATH=eval/src:code/server/src python -m phylo_lens_eval.rq3_final_audit generate \
+  --run-dir eval/results/raw/rq3-lod-final-v020/thesis-final-rq3-v020-001 \
+  --output-dir eval/results/derived/rq3-lod-final-v020/thesis-final-rq3-v020-001 \
+  --reporting-audit-commit <commit>
+```
 ```
 
 RQ3 reads only persisted prepared-layout data to expand selected triangle

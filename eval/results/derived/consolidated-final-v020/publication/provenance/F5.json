@@ -1,0 +1,75 @@
+{
+  "artifact_filenames": [
+    "figures/F5-external-native-path-comparison.svg",
+    "figures/F5-external-native-path-comparison.pdf",
+    "figures/F5-external-native-path-comparison.png"
+  ],
+  "artifact_id": "F5",
+  "artifact_sha256": {
+    "figures/F5-external-native-path-comparison.pdf": "40048476d002266cb04ba5cbc3401cb6e3dd811074a185f3051efe69ccfaffec",
+    "figures/F5-external-native-path-comparison.png": "95cd5076e8bf7c1c770d1da8bac96ff0337f04eafc2f50c7c19623da19e7861e",
+    "figures/F5-external-native-path-comparison.svg": "15740fe6e16162680e0ffe12ace4bb29e531bffc01fd257b29042213f7d22bc4"
+  },
+  "authoritative_source_runs": [
+    "thesis-final-fullmst-combined-v020-004",
+    "thesis-final-fullmst-001",
+    "thesis-final-fullmst-phylolens-v020-004"
+  ],
+  "caption_alt_metadata": "caption-alt-metadata.json",
+  "caveats": [
+    "Native-path cross-system comparison across different architectures; not equivalent layout throughput, the same-algorithm benchmark, or a direct algorithmic speed comparison.",
+    "PhyloLens topology verified but identity unverified by public API; Phylotree topology verified with root-label identity failure; Taxonium execution/scalability eligible but topology/identity unverified by public component API."
+  ],
+  "font_configuration": {
+    "axis_font_points_at_final_width": 7.27,
+    "axis_font_units": 17,
+    "axis_title_font_units": 19,
+    "family": "Arial, Helvetica, sans-serif",
+    "interval_cap_half_width_units": 4,
+    "interval_stroke_units": 2,
+    "legend_font_points_at_final_width": 7.7,
+    "legend_font_units": 18,
+    "marker_radius_units": 4.1,
+    "panel_label_font_units": 24,
+    "series_stroke_units": 2.4
+  },
+  "frozen_consolidation_commit": "5e7090add3a9a5ef2c0ae3cdc3ea4ee6192ab2f4",
+  "generation_commit": "627e87269e4009730ccf8863c35a64b79060693c",
+  "generation_script": "eval/src/phylo_lens_eval/publication_artifacts.py",
+  "intended_physical_width_mm": 178,
+  "metric_definitions": [
+    "Native-path end-to-end first meaningful visual time median with P25\u2013P75 interval"
+  ],
+  "plotting_dimensions": {
+    "physical_height_mm": 82.97,
+    "viewbox": [
+      1180,
+      550
+    ]
+  },
+  "product_commit": "cbb78f5e74b37e4fb480c0416e614e27e6f67ed9",
+  "rendering_only_transformation": true,
+  "source_consolidated_files": [
+    {
+      "path": "eval/results/derived/consolidated-final-v020/external-comparison-first-meaningful-visual.csv",
+      "sha256": "d8039eff8d1534604ac8e060060494e23e3798301f3c3e710644de54d1fa2cde"
+    },
+    {
+      "path": "eval/results/derived/consolidated-final-v020/external-comparison-topology-identity-status.csv",
+      "sha256": "81ced76e2f9fc78283d4696a9de2e685127096a7fe6d9d5d2ae13421c95b78ba"
+    },
+    {
+      "path": "eval/results/derived/consolidated-final-v020/external-comparison-provenance.json",
+      "sha256": "1bd84bbc2ad35f5eddcfb8b8bb35b579c2b80efe92ccf5e27b0c4608054d2e9f"
+    }
+  ],
+  "source_data_unchanged": true,
+  "status": "MAIN_TEXT",
+  "transformations": [
+    "ms converted to seconds",
+    "logarithmic x and y axes"
+  ],
+  "units": [
+    "seconds"
+  ]
+}

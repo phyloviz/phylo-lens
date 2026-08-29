@@ -1,5 +1,69 @@
 # RQ1 and RQ2 methodology
 
+## Final released-OCI RQ1 protocol
+
+The definitive RQ1 campaign is distinct from the legacy direct-import runner
+documented below.  It is executed only by `phylo_lens_eval.rq1_final` using
+the released PhyloLens `v0.2.0` OCI service, pinned by index digest.  It uses
+the retained pilot Newick inputs, rather than generating inputs during the
+campaign: 5,000, 10,000, 25,000, 50,000, and 100,000 requested leaves, each
+with balanced, irregular (seed 2026), and caterpillar topology.  Requested
+leaves, actual parsed-node counts, topology, seed, byte size, and SHA-256 are
+all fixed in `config/rq1-final-oci-v020.json` and verified before execution.
+
+## Final RQ3: persisted hierarchical LoD fidelity and reduction
+
+Final RQ3 asks: **How effectively does PhyloLens’s persisted hierarchical
+level-of-detail representation reduce the materialized graph across persisted
+LoD levels while preserving exact source-node membership, representative
+positions, and quotient connectivity?** It is a deterministic correctness and
+representation-reduction study, not a performance or browser benchmark.
+
+The evaluator independently parses the retained canonical Newick input and
+requires all 13,075 source IDs and 13,074 source edges. It prepares one frozen
+v0.2.0 SQLite layout, uses one exact padded full-world rectangle for all three
+persisted LoD levels, and never derives the expected source universe from a
+LoD response. For each level it checks exact membership partitioning,
+float-identity representative positions, full-detail source nodes/positions/
+edges, and the source-derived quotient edge set (including supporting source
+edge provenance). A semantic mismatch is retained as invalid evidence and
+makes the final raw-only audit fail. Reduction counts distinguish represented
+source nodes, materialized visual nodes, materialized edges, and triangle
+proxies; the three levels are ordered cases, not statistical repetitions.
+
+The retained RQ3 SQLite master is sealed only after a disposable product-build
+process exits, an evaluation-only connection checkpoints and finalizes WAL
+state, and the final retained copy is hashed. The audit recomputes its physical
+SHA-256 and semantic table hashes through immutable read-only access. Final
+`thesis-final-rq3-v020-001` is superseded for publication because its retained
+SQLite artifact changed after finalization and its original audit trusted stored
+metadata; `thesis-final-rq3-v020-002` is the authoritative replacement. This
+is an evidence-integrity correction, not a scientific-protocol change.
+
+Every condition has one retained warm-up and five measured observations.  A
+fresh pinned service container and empty persistence directory are created for
+each observation.  Health and a pre-timing `sfdp`/GTS smoke are required;
+timing starts immediately before the public `POST /api/graph/prepare` request
+and ends when the fixed-100-ms public-status polling loop first observes
+`ready`.  The primary metric is `preparation_wall_ms = t_ready_observed - t0`.
+The startup bound is 30 seconds, the preparation deadline is 300 seconds from
+`t0`, and the outer watchdog is 345 seconds from service start.  These are
+experiment bounds: the product's SFDP timeout remains unset.
+
+Only `ready` layouts are successful.  Explicit preparation/layout failures,
+timeouts, non-ready/degraded layouts, and infrastructure failures are retained
+as raw observations without retry; all 90 matrix cells remain in the audit.
+The runner records public requests, every status poll, terminal status,
+service logs, persistence artifacts, runtime OCI platform identity/image
+labels, and environment provenance.
+
+Final memory evidence is a separate non-networked sidecar that shares the
+service PID namespace.  It begins before `t0`, samples the recursive service
+process tree every 20 ms, excludes itself and its descendants, and retains raw
+member-PID RSS samples.  Root-only RSS is explicitly unavailable, not
+equivalent evidence.  A successful final observation requires process-tree
+scope and observed `sfdp` descendant evidence; otherwise it is audit-invalid.
+
 RQ1 asks how server-side preparation cost changes with input size and topology,
 and how cost is distributed across preparation stages. The direct-tree path is
 measured as:
@@ -85,6 +149,8 @@ result file is written.
 
 ## RQ2: client-side visualization scalability
 
+### Historical pilot
+
 RQ2 measures a private evaluation page importing the built public
 `@phyloviz/phylo-lens` entry. It does not expose Sigma, Graphology, workbench,
 or renderer internals, and production TypeScript APIs are unchanged. Synthetic
@@ -139,6 +205,34 @@ raw JSONL. Summaries exclude warm-ups and report configured/success/invalid/
 failure/timeout counts plus median, P25, P75, IQR, minimum, and maximum. Final
 thesis runs should use headed Chromium on a recorded environment; CI uses only
 a tiny headless fixture and is not evidence of scalability or display quality.
+
+### Final v0.2.0 isolated client microbenchmark
+
+The final RQ2 asks: **How does the PhyloLens browser client behave as the
+materialized visual working set grows, in terms of first-visualization latency,
+JavaScript heap usage, and frame pacing?** It is deliberately a loopback-replay
+microbenchmark, not a real-server viewport/LoD experiment. Replay removes
+preparation, database, layout, and viewport-selection cost; the public
+`createPhyloLensView` entry remains the client under test.
+
+Every fixture advertises the same synthetic prepared global count of 100,000
+nodes, above the 6,000-node small-tree path, while its returned snapshot varies
+over the frozen seven-condition 999--39,999 primitive matrix. The public load
+uses evaluation-specific `maxNodes=100000`, and the replay response must be
+untruncated. Browser startup and deterministic replay-fixture generation are
+outside timing. The primary interval is `t2 - t0`, from immediately before
+`view.load()` through the second rAF after it resolves; it includes replay HTTP,
+DTO processing, snapshot application, renderer work, and those two rAFs.
+
+One retained warm-up and five fresh headed-Chromium measured observations run
+per condition. Warm-ups describe OS/filesystem warming rather than persistent
+browser/JIT state and never enter value summaries. The fixed post-load camera
+input is only a frame-pacing stress diagnostic; its raw rAF intervals are not
+interaction latency. GPU evidence must identify a hardware WebGL renderer and
+reject software/SwiftShader paths. Process-tree RSS is published only when the
+browser root and every recursively discovered live descendant are sampled;
+root-only RSS is retained as diagnostic evidence but unavailable for publication
+aggregate-memory statistics.
 
 ## RQ3: paired triangle-aggregation ablation
 

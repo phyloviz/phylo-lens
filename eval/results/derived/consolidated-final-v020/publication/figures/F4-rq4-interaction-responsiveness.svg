@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="178mm" height="74.70mm" viewBox="0 0 1120 470" role="img" aria-labelledby="title desc">
+<title id="title">RQ4 interaction responsiveness</title>
+<desc id="desc">Medians shown with P25--P75 intervals from reconciled authoritative evidence.</desc>
+<style>text{font-family:Arial,Helvetica,sans-serif;fill:#1f2933}.title{font-size:24px;font-weight:700}.subtitle{font-size:17px}.axis{font-size:17px}.axis-title{font-size:19px;font-weight:600}.legend{font-size:18px}.note{font-size:17px}.value{font-size:17px;font-weight:600}.frame{fill:none;stroke:#334e68;stroke-width:1.2}.grid{stroke:#d9e2ec;stroke-width:0.8}.series{fill:none;stroke-width:2.4}.interval{stroke-width:2}.marker{stroke:#1f2933;stroke-width:1}</style>
+<rect width="1120" height="470" fill="#ffffff"/>
+<rect class="frame" x="285" y="36" width="780" height="379"/>
+<line class="grid" x1="285.00" x2="285.00" y1="36" y2="415"/>
+<text class="axis" text-anchor="middle" x="285.00" y="434">0</text>
+<line class="grid" x1="500.56" x2="500.56" y1="36" y2="415"/>
+<text class="axis" text-anchor="middle" x="500.56" y="434">100</text>
+<line class="grid" x1="716.12" x2="716.12" y1="36" y2="415"/>
+<text class="axis" text-anchor="middle" x="716.12" y="434">200</text>
+<line class="grid" x1="931.68" x2="931.68" y1="36" y2="415"/>
+<text class="axis" text-anchor="middle" x="931.68" y="434">300</text>
+<line class="interval" stroke="#1b6ca8" x1="960.35" x2="963.26" y1="59.69" y2="59.69"/>
+<line class="interval" stroke="#1b6ca8" x1="960.35" x2="960.35" y1="55.69" y2="63.69"/>
+<line class="interval" stroke="#1b6ca8" x1="963.26" x2="963.26" y1="55.69" y2="63.69"/>
+<circle class="marker" cx="961.64" cy="59.69" r="4.1" fill="#1b6ca8"/>
+<text class="axis" text-anchor="end" x="271" y="64.69">Navigation</text>
+<text class="value" x="970.64" y="65.69">313.9</text>
+<line class="interval" stroke="#1b6ca8" x1="389.22" x2="391.81" y1="121.28" y2="121.28"/>
+<line class="interval" stroke="#1b6ca8" x1="389.22" x2="389.22" y1="117.28" y2="125.28"/>
+<line class="interval" stroke="#1b6ca8" x1="391.81" x2="391.81" y1="117.28" y2="125.28"/>
+<circle class="marker" cx="390.62" cy="121.28" r="4.1" fill="#1b6ca8"/>
+<text class="axis" text-anchor="end" x="271" y="126.28">Expand — low</text>
+<text class="value" x="399.62" y="127.28">49.0</text>
+<line class="interval" stroke="#1b6ca8" x1="337.60" x2="343.96" y1="168.65" y2="168.65"/>
+<line class="interval" stroke="#1b6ca8" x1="337.60" x2="337.60" y1="164.65" y2="172.65"/>
+<line class="interval" stroke="#1b6ca8" x1="343.96" x2="343.96" y1="164.65" y2="172.65"/>
+<circle class="marker" cx="341.48" cy="168.65" r="4.1" fill="#1b6ca8"/>
+<text class="axis" text-anchor="end" x="271" y="173.65">Collapse — low</text>
+<text class="value" x="350.48" y="174.65">26.2</text>
+<line class="interval" stroke="#1b6ca8" x1="389.22" x2="393.64" y1="230.24" y2="230.24"/>
+<line class="interval" stroke="#1b6ca8" x1="389.22" x2="389.22" y1="226.24" y2="234.24"/>
+<line class="interval" stroke="#1b6ca8" x1="393.64" x2="393.64" y1="226.24" y2="234.24"/>
+<circle class="marker" cx="391.49" cy="230.24" r="4.1" fill="#1b6ca8"/>
+<text class="axis" text-anchor="end" x="271" y="235.24">Expand — representative</text>
+<text class="value" x="400.49" y="236.24">49.4</text>
+<line class="interval" stroke="#1b6ca8" x1="338.35" x2="343.09" y1="277.61" y2="277.61"/>
+<line class="interval" stroke="#1b6ca8" x1="338.35" x2="338.35" y1="273.61" y2="281.61"/>
+<line class="interval" stroke="#1b6ca8" x1="343.09" x2="343.09" y1="273.61" y2="281.61"/>
+<circle class="marker" cx="340.40" cy="277.61" r="4.1" fill="#1b6ca8"/>
+<text class="axis" text-anchor="end" x="271" y="282.61">Collapse — representative</text>
+<text class="value" x="349.40" y="283.61">25.7</text>
+<line class="interval" stroke="#1b6ca8" x1="406.25" x2="424.36" y1="339.20" y2="339.20"/>
+<line class="interval" stroke="#1b6ca8" x1="406.25" x2="406.25" y1="335.20" y2="343.20"/>
+<line class="interval" stroke="#1b6ca8" x1="424.36" x2="424.36" y1="335.20" y2="343.20"/>
+<circle class="marker" cx="413.47" cy="339.20" r="4.1" fill="#1b6ca8"/>
+<text class="axis" text-anchor="end" x="271" y="344.20">Expand — high</text>
+<text class="value" x="422.47" y="345.20">59.6</text>
+<line class="interval" stroke="#1b6ca8" x1="336.84" x2="345.57" y1="386.57" y2="386.57"/>
+<line class="interval" stroke="#1b6ca8" x1="336.84" x2="336.84" y1="382.57" y2="390.57"/>
+<line class="interval" stroke="#1b6ca8" x1="345.57" x2="345.57" y1="382.57" y2="390.57"/>
+<circle class="marker" cx="342.12" cy="386.57" r="4.1" fill="#1b6ca8"/>
+<text class="axis" text-anchor="end" x="271" y="391.57">Collapse — high</text>
+<text class="value" x="351.12" y="392.57">26.5</text>
+<text class="axis-title" text-anchor="middle" x="675.00" y="458">Browser-observed settle latency (ms)</text>
+</svg>

@@ -1,6 +1,7 @@
 // @ts-expect-error The browser bundle intentionally imports the built public
 // package entry; declarations are emitted separately by the package build.
 import { createPhyloLensView } from "../../../code/client/dist/index.js";
+import { armCaptureInput } from "./rq4-input-capture.mjs";
 
 const root = document.querySelector<HTMLElement>("#graph-root");
 if (!root) throw new Error("Missing graph root.");
@@ -26,6 +27,30 @@ declare global {
         requestTrace: () => unknown[];
         operationRequestTrace: () => unknown[];
         finishAtFrame: (sequence: number) => Promise<number>;
+        armInput: (specification: {
+          eventType: "click" | "dblclick";
+          nativeEventType: "click" | "dblclick";
+          clickCount: number | null;
+          clientX: number;
+          clientY: number;
+          targetClusterId: string | null;
+        }) => void;
+        inputEvent: () => unknown;
+        baselineFrames: (count: number) => Promise<number[]>;
+        gpuEvidence: () => unknown;
+      };
+      rq2Final?: {
+        createView: (apiUrl: string) => void;
+        load: (
+          content: string,
+          name: string,
+          maxNodes: number,
+        ) => Promise<unknown>;
+        latestSnapshot: () => unknown;
+        gpuEvidence: () => unknown;
+        startFrameSampling: () => void;
+        finishFrameSampling: () => number[];
+        dispose: () => void;
       };
     };
   }
@@ -45,6 +70,8 @@ const rq4DiagnosticReaders = new Map<
 const rq4RequestTrace: Array<Record<string, unknown>> = [];
 let rq4FetchInstalled = false;
 let rq4OperationRequestStart = 0;
+let rq4InputEvent: Record<string, unknown> | null = null;
+const rq2FinalSnapshots: Array<Record<string, unknown>> = [];
 
 window.phyloLensEvaluation = {
   createView: (apiUrl: string) => {
@@ -156,6 +183,120 @@ window.phyloLensEvaluation.rq4 = {
       throw new Error("snapshot_application_timeout");
     }
     return doubleAnimationFrame();
+  },
+  armInput: (specification) => {
+    rq4OperationRequestStart = rq4RequestTrace.length;
+    rq4InputEvent = null;
+    armCaptureInput(document, root, specification, (captured) => {
+      rq4InputEvent = {
+        ...captured,
+        viewport: latestSnapshotViewport(),
+      };
+      if (frameSampling) {
+        frameSampling.samples = [];
+        frameSampling.previous = captured.timestamp;
+      }
+    });
+  },
+  inputEvent: () => (rq4InputEvent ? structuredClone(rq4InputEvent) : null),
+  baselineFrames: async (count) => {
+    const samples: number[] = [];
+    let previous: number | undefined;
+    while (samples.length < count) {
+      const now = await new Promise<number>((resolve) =>
+        requestAnimationFrame(resolve),
+      );
+      if (previous !== undefined) samples.push(now - previous);
+      previous = now;
+    }
+    return samples;
+  },
+  gpuEvidence: () => {
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("webgl2") ?? canvas.getContext("webgl");
+    if (!context)
+      return {
+        hardware_accelerated: false,
+        vendor: null,
+        renderer: null,
+        backend: null,
+      };
+    const extension = context.getExtension("WEBGL_debug_renderer_info");
+    const vendor = String(
+      extension
+        ? context.getParameter(extension.UNMASKED_VENDOR_WEBGL)
+        : context.getParameter(context.VENDOR),
+    );
+    const renderer = String(
+      extension
+        ? context.getParameter(extension.UNMASKED_RENDERER_WEBGL)
+        : context.getParameter(context.RENDERER),
+    );
+    const software = /swiftshader|software|llvmpipe/i.test(
+      `${vendor} ${renderer}`,
+    );
+    return {
+      hardware_accelerated: !software,
+      vendor,
+      renderer,
+      backend: /metal/i.test(`${vendor} ${renderer}`) ? "Metal" : "unknown",
+    };
+  },
+};
+window.phyloLensEvaluation.rq2Final = {
+  createView: (apiUrl) => {
+    if (activeView) throw new Error("Evaluation view is already active.");
+    rq2FinalSnapshots.length = 0;
+    (root as unknown as Record<symbol, unknown>)[RQ4_OBSERVER_SYMBOL] = (
+      boundary: Record<string, unknown>,
+      readDiagnostics: () => Record<string, unknown> | null,
+    ) => {
+      const diagnostics = readDiagnostics();
+      rq2FinalSnapshots.push({
+        ...boundary,
+        triangleCount: diagnostics?.visibleAggregateTriangleCount ?? null,
+      });
+    };
+    activeView = createPhyloLensView({ container: root, apiUrl });
+  },
+  load: async (content, name, maxNodes) => {
+    if (!activeView) throw new Error("Evaluation view was not created.");
+    const t0 = performance.now();
+    await activeView.load({
+      content,
+      name,
+      lod: { maxNodes },
+      visualMapping: undefined,
+    });
+    const t1 = performance.now();
+    const t2 = await doubleAnimationFrame();
+    return { t0, t1, t2, snapshot: rq2FinalSnapshots.at(-1) ?? null };
+  },
+  latestSnapshot: () => structuredClone(rq2FinalSnapshots.at(-1) ?? null),
+  gpuEvidence: () => {
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("webgl2") ?? canvas.getContext("webgl");
+    if (!context) return { available: false, vendor: null, renderer: null };
+    const extension = context.getExtension("WEBGL_debug_renderer_info");
+    const vendor = extension
+      ? context.getParameter(extension.UNMASKED_VENDOR_WEBGL)
+      : context.getParameter(context.VENDOR);
+    const renderer = extension
+      ? context.getParameter(extension.UNMASKED_RENDERER_WEBGL)
+      : context.getParameter(context.RENDERER);
+    return {
+      available: true,
+      vendor: String(vendor),
+      renderer: String(renderer),
+    };
+  },
+  startFrameSampling: () => window.phyloLensEvaluation?.startFrameSampling(),
+  finishFrameSampling: () =>
+    window.phyloLensEvaluation?.finishFrameSampling() ?? [],
+  dispose: () => {
+    activeView?.dispose();
+    activeView = undefined;
+    delete (root as unknown as Record<symbol, unknown>)[RQ4_OBSERVER_SYMBOL];
   },
 };
 document.documentElement.dataset.rq2Bootstrap = "ready";

@@ -1,0 +1,136 @@
+{
+  "artifacts": [
+    {
+      "files": [
+        "figures/F1-rq1-preparation-scalability.svg",
+        "figures/F1-rq1-preparation-scalability.pdf",
+        "figures/F1-rq1-preparation-scalability.png"
+      ],
+      "id": "F1",
+      "provenance_sidecar": "provenance/F1.json",
+      "rq_or_comparison": "RQ1",
+      "status": "MAIN_TEXT"
+    },
+    {
+      "files": [
+        "figures/F2-rq2-client-visualization-scalability.svg",
+        "figures/F2-rq2-client-visualization-scalability.pdf",
+        "figures/F2-rq2-client-visualization-scalability.png"
+      ],
+      "id": "F2",
+      "provenance_sidecar": "provenance/F2.json",
+      "rq_or_comparison": "RQ2",
+      "status": "MAIN_TEXT"
+    },
+    {
+      "files": [
+        "figures/F3-rq3-lod-effectiveness.svg",
+        "figures/F3-rq3-lod-effectiveness.pdf",
+        "figures/F3-rq3-lod-effectiveness.png"
+      ],
+      "id": "F3",
+      "provenance_sidecar": "provenance/F3.json",
+      "rq_or_comparison": "RQ3",
+      "status": "MAIN_TEXT"
+    },
+    {
+      "files": [
+        "figures/F4-rq4-interaction-responsiveness.svg",
+        "figures/F4-rq4-interaction-responsiveness.pdf",
+        "figures/F4-rq4-interaction-responsiveness.png"
+      ],
+      "id": "F4",
+      "provenance_sidecar": "provenance/F4.json",
+      "rq_or_comparison": "RQ4",
+      "status": "MAIN_TEXT"
+    },
+    {
+      "files": [
+        "figures/F5-external-native-path-comparison.svg",
+        "figures/F5-external-native-path-comparison.pdf",
+        "figures/F5-external-native-path-comparison.png"
+      ],
+      "id": "F5",
+      "provenance_sidecar": "provenance/F5.json",
+      "rq_or_comparison": "External comparison",
+      "status": "MAIN_TEXT"
+    },
+    {
+      "files": [
+        "tables/T1-rq3-lod-fidelity.tex"
+      ],
+      "id": "T1",
+      "provenance_sidecar": "provenance/T1.json",
+      "rq_or_comparison": "RQ3",
+      "status": "MAIN_TEXT"
+    },
+    {
+      "files": [
+        "tables/T2-rq4-interaction-summary.tex"
+      ],
+      "id": "T2",
+      "provenance_sidecar": "provenance/T2.json",
+      "rq_or_comparison": "RQ4",
+      "status": "MAIN_TEXT"
+    },
+    {
+      "files": [
+        "tables/T3-msagljs-architectural-baseline.tex"
+      ],
+      "id": "T3",
+      "provenance_sidecar": "provenance/T3.json",
+      "rq_or_comparison": "MSAGLJS baseline",
+      "status": "MAIN_TEXT"
+    },
+    {
+      "files": [
+        "tables/A-rq1-full-condition-summary.tex"
+      ],
+      "id": "A",
+      "provenance_sidecar": "provenance/A.json",
+      "rq_or_comparison": "RQ1",
+      "status": "APPENDIX"
+    },
+    {
+      "files": [
+        "tables/B-rq2-client-diagnostics.tex"
+      ],
+      "id": "B",
+      "provenance_sidecar": "provenance/B.json",
+      "rq_or_comparison": "RQ2",
+      "status": "APPENDIX"
+    },
+    {
+      "files": [
+        "tables/C-rq3-fidelity-invariant-ledger.tex"
+      ],
+      "id": "C",
+      "provenance_sidecar": "provenance/C.json",
+      "rq_or_comparison": "RQ3",
+      "status": "APPENDIX"
+    },
+    {
+      "files": [
+        "tables/D-rq4-complete-phase-frame-cardinality.tex"
+      ],
+      "id": "D",
+      "provenance_sidecar": "provenance/D.json",
+      "rq_or_comparison": "RQ4",
+      "status": "APPENDIX"
+    },
+    {
+      "files": [
+        "tables/E-msagljs-per-stage-timing.tex"
+      ],
+      "id": "E",
+      "provenance_sidecar": "provenance/E.json",
+      "rq_or_comparison": "MSAGLJS baseline",
+      "status": "APPENDIX"
+    }
+  ],
+  "caption_alt_metadata": "caption-alt-metadata.json",
+  "frozen_consolidation_commit": "5e7090add3a9a5ef2c0ae3cdc3ea4ee6192ab2f4",
+  "generation_commit": "627e87269e4009730ccf8863c35a64b79060693c",
+  "generation_script": "eval/src/phylo_lens_eval/publication_artifacts.py",
+  "schema_version": "1"
+}

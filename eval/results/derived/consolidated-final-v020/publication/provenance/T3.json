@@ -1,0 +1,38 @@
+{
+  "artifact_filenames": [
+    "tables/T3-msagljs-architectural-baseline.tex"
+  ],
+  "artifact_id": "T3",
+  "artifact_sha256": {
+    "tables/T3-msagljs-architectural-baseline.tex": "e968ee108c4079c4ba19045e1dd0c082bad60f0d19607dda1f71494f89e379c3"
+  },
+  "authoritative_source_runs": [
+    "thesis-msagljs-mds-v001-001",
+    "thesis-final-rq1-v020-002"
+  ],
+  "caveats": [
+    "Current public MSAGLJS native MDS pipeline; not IPSep-CoLa."
+  ],
+  "frozen_consolidation_commit": "5e7090add3a9a5ef2c0ae3cdc3ea4ee6192ab2f4",
+  "generation_commit": "627e87269e4009730ccf8863c35a64b79060693c",
+  "generation_script": "eval/src/phylo_lens_eval/publication_artifacts.py",
+  "metric_definitions": [
+    "Native preparation-to-browsable-state descriptive comparison."
+  ],
+  "product_commit": "cbb78f5e74b37e4fb480c0416e614e27e6f67ed9",
+  "rendering_only_transformation": false,
+  "source_consolidated_files": [
+    {
+      "path": "eval/results/derived/consolidated-final-v020/phylolens-vs-msagljs-descriptive-comparison.csv",
+      "sha256": "72362bc6c774156c14886052bdd4f39af2b083dcc1e74739b6279fbd47cd5bc6"
+    }
+  ],
+  "source_data_unchanged": true,
+  "status": "MAIN_TEXT",
+  "transformations": [
+    "Deterministic numeric formatting only; all values parsed from consolidated CSV/JSON."
+  ],
+  "units": [
+    "As stated in table headers"
+  ]
+}

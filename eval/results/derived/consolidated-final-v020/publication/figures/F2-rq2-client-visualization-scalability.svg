@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="86mm" height="59.76mm" viewBox="0 0 590 410" role="img" aria-labelledby="title desc">
+<title id="title">RQ2 client visualization scalability</title>
+<desc id="desc">Medians shown with P25--P75 intervals from reconciled authoritative evidence.</desc>
+<style>text{font-family:Arial,Helvetica,sans-serif;fill:#1f2933}.title{font-size:24px;font-weight:700}.subtitle{font-size:17px}.axis{font-size:17px}.axis-title{font-size:19px;font-weight:600}.legend{font-size:18px}.note{font-size:17px}.value{font-size:17px;font-weight:600}.frame{fill:none;stroke:#334e68;stroke-width:1.2}.grid{stroke:#d9e2ec;stroke-width:0.8}.series{fill:none;stroke-width:2.4}.interval{stroke-width:2}.marker{stroke:#1f2933;stroke-width:1}</style>
+<rect width="590" height="410" fill="#ffffff"/>
+<text class="title" x="20" y="37">First-visualization latency</text>
+<rect class="frame" x="92.0" y="55.0" width="458.0" height="271.0"/>
+<line class="grid" x1="92.0" x2="550.0" y1="326.31" y2="326.31"/>
+<text class="axis" text-anchor="end" x="84.0" y="330.31">0</text>
+<line class="grid" x1="92.0" x2="550.0" y1="198.13" y2="198.13"/>
+<text class="axis" text-anchor="end" x="84.0" y="202.13">100</text>
+<line class="grid" x1="92.0" x2="550.0" y1="69.95" y2="69.95"/>
+<text class="axis" text-anchor="end" x="84.0" y="73.95">200</text>
+<line class="grid" x1="124.15" x2="124.15" y1="55.0" y2="326.0"/>
+<text class="axis" text-anchor="middle" x="124.15" y="345.0">1k</text>
+<line class="grid" x1="295.97" x2="295.97" y1="55.0" y2="326.0"/>
+<text class="axis" text-anchor="middle" x="295.97" y="345.0">5k</text>
+<line class="grid" x1="369.97" x2="369.97" y1="55.0" y2="326.0"/>
+<text class="axis" text-anchor="middle" x="369.97" y="345.0">10k</text>
+<line class="grid" x1="443.96" x2="443.96" y1="55.0" y2="326.0"/>
+<text class="axis" text-anchor="middle" x="443.96" y="345.0">20k</text>
+<line class="grid" x1="517.96" x2="517.96" y1="55.0" y2="326.0"/>
+<text class="axis" text-anchor="middle" x="517.96" y="345.0">40k</text>
+<text class="axis-title" text-anchor="middle" x="321.00" y="378">Materialized primitives (log scale)</text>
+<text class="axis-title" text-anchor="middle" transform="translate(38,190.50) rotate(-90)">First visualization (ms)</text>
+<line class="interval" stroke="#1b6ca8" x1="124.04" x2="124.04" y1="299.77" y2="297.98"/>
+<line class="interval" stroke="#1b6ca8" x1="120.04" x2="128.04" y1="299.77" y2="299.77"/>
+<line class="interval" stroke="#1b6ca8" x1="120.04" x2="128.04" y1="297.98" y2="297.98"/>
+<line class="interval" stroke="#1b6ca8" x1="295.94" x2="295.94" y1="272.73" y2="270.68"/>
+<line class="interval" stroke="#1b6ca8" x1="291.94" x2="299.94" y1="272.73" y2="272.73"/>
+<line class="interval" stroke="#1b6ca8" x1="291.94" x2="299.94" y1="270.68" y2="270.68"/>
+<line class="interval" stroke="#1b6ca8" x1="369.95" x2="369.95" y1="249.01" y2="245.81"/>
+<line class="interval" stroke="#1b6ca8" x1="365.95" x2="373.95" y1="249.01" y2="249.01"/>
+<line class="interval" stroke="#1b6ca8" x1="365.95" x2="373.95" y1="245.81" y2="245.81"/>
+<line class="interval" stroke="#1b6ca8" x1="443.96" x2="443.96" y1="193.38" y2="191.72"/>
+<line class="interval" stroke="#1b6ca8" x1="439.96" x2="447.96" y1="193.38" y2="193.38"/>
+<line class="interval" stroke="#1b6ca8" x1="439.96" x2="447.96" y1="191.72" y2="191.72"/>
+<line class="interval" stroke="#1b6ca8" x1="517.96" x2="517.96" y1="89.04" y2="81.23"/>
+<line class="interval" stroke="#1b6ca8" x1="513.96" x2="521.96" y1="89.04" y2="89.04"/>
+<line class="interval" stroke="#1b6ca8" x1="513.96" x2="521.96" y1="81.23" y2="81.23"/>
+<polyline class="series" stroke="#1b6ca8" stroke-dasharray="" points="124.04,298.62 295.94,271.83 369.95,249.01 443.96,191.85 517.96,85.71"/>
+<circle class="marker" cx="124.04" cy="298.62" r="4.1" fill="#1b6ca8"/>
+<circle class="marker" cx="295.94" cy="271.83" r="4.1" fill="#1b6ca8"/>
+<circle class="marker" cx="369.95" cy="249.01" r="4.1" fill="#1b6ca8"/>
+<circle class="marker" cx="443.96" cy="191.85" r="4.1" fill="#1b6ca8"/>
+<circle class="marker" cx="517.96" cy="85.71" r="4.1" fill="#1b6ca8"/>
+<line class="series" stroke="#1b6ca8" stroke-dasharray="" x1="28" x2="52" y1="49" y2="49"/>
+<circle class="marker" cx="40.00" cy="49.00" r="4.1" fill="#1b6ca8"/>
+<text class="legend" x="59" y="55">Detail fixture</text>
+<line class="interval" stroke="#c45b21" x1="369.94" x2="369.94" y1="249.91" y2="248.50"/>
+<line class="interval" stroke="#c45b21" x1="365.94" x2="373.94" y1="249.91" y2="249.91"/>
+<line class="interval" stroke="#c45b21" x1="365.94" x2="373.94" y1="248.50" y2="248.50"/>
+<line class="interval" stroke="#c45b21" x1="443.96" x2="443.96" y1="207.61" y2="204.02"/>
+<line class="interval" stroke="#c45b21" x1="439.96" x2="447.96" y1="207.61" y2="207.61"/>
+<line class="interval" stroke="#c45b21" x1="439.96" x2="447.96" y1="204.02" y2="204.02"/>
+<rect class="marker" x="365.94" y="245.14" width="8" height="8" fill="#c45b21"/>
+<rect class="marker" x="439.96" y="200.28" width="8" height="8" fill="#c45b21"/>
+<line class="series" stroke="#c45b21" stroke-dasharray="8 4" x1="213" x2="237" y1="49" y2="49"/>
+<rect class="marker" x="221.00" y="45.00" width="8" height="8" fill="#c45b21"/>
+<text class="legend" x="244" y="55">Triangle fixture</text>
+</svg>

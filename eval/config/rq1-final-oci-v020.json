@@ -1,0 +1,43 @@
+{
+  "schema_version": "1",
+  "id": "rq1-final-oci-v020",
+  "research_question": "RQ1",
+  "classification": "final",
+  "product": {
+    "release_tag": "v0.2.0",
+    "release_commit": "cbb78f5e74b37e4fb480c0416e614e27e6f67ed9",
+    "oci_index_reference": "ghcr.io/phyloviz/phylo-lens-service@sha256:3031f36bbf661d03a9c8843279ab8342f7931770d1c631ca88e3127670d14525",
+    "npm_companion_version": "@phyloviz/phylo-lens@0.2.0"
+  },
+  "input_source": {
+    "kind": "retained_rq1_scale_discovery_pilot",
+    "run_id": "20260811T175126Z-c1d5ff7f9b",
+    "relative_root": "eval/results/raw/rq1-scale-discovery-pilot/20260811T175126Z-c1d5ff7f9b/pilot-inputs",
+    "generator": "phylolens-companion-synthetic",
+    "generator_version": "1.0.0"
+  },
+  "warmup_repetitions": 1,
+  "measured_repetitions": 5,
+  "preparation_timeout_seconds": 300,
+  "startup_timeout_seconds": 30,
+  "outer_watchdog_seconds": 345,
+  "poll_interval_ms": 100,
+  "rss_sampling_interval_ms": 20,
+  "conditions": [
+    {"id":"balanced-5000","topology":"balanced","seed":null,"requested_leaves":5000,"parsed_nodes":9999,"parsed_edges":9998,"path":"pilot-synthetic-balanced-5000-leaves.newick","sha256":"688d3d531c0c0e0639f0b4243f1165f7708a3fdde7d8a54479421f83c9ac953b"},
+    {"id":"irregular-5000-seed-2026","topology":"irregular","seed":2026,"requested_leaves":5000,"parsed_nodes":9999,"parsed_edges":9998,"path":"pilot-synthetic-irregular-5000-leaves-2026.newick","sha256":"c4e62c0bff7e3a2f0c28335386efba31f6aa565fb6d8c5e0b3e4c589a9338563"},
+    {"id":"caterpillar-5000","topology":"caterpillar","seed":null,"requested_leaves":5000,"parsed_nodes":9999,"parsed_edges":9998,"path":"pilot-synthetic-caterpillar-5000-leaves.newick","sha256":"9fe505907d03587e21f7c0cb4c5803bf5b1ab8673bb6688db498c2b92fa674ba"},
+    {"id":"balanced-10000","topology":"balanced","seed":null,"requested_leaves":10000,"parsed_nodes":19999,"parsed_edges":19998,"path":"../Thesis/data/synthetic/controls/balanced-10k.newick","sha256":"40730327897329006df8d9038320bc5da23c814b9aaeb12cb04639394e67fa8a"},
+    {"id":"irregular-10000-seed-2026","topology":"irregular","seed":2026,"requested_leaves":10000,"parsed_nodes":19999,"parsed_edges":19998,"path":"../Thesis/data/synthetic/controls/irregular-10k-seed-2026.newick","sha256":"5e698731b1d9e4b492dcadb37933e2d94a504948c703890cfd51f5425b995948"},
+    {"id":"caterpillar-10000","topology":"caterpillar","seed":null,"requested_leaves":10000,"parsed_nodes":19999,"parsed_edges":19998,"path":"../Thesis/data/synthetic/controls/caterpillar-10k.newick","sha256":"ed7c74304db48032125c20880b56d2b4dde6f9d335e9cbe644888b19b3f47850"},
+    {"id":"balanced-25000","topology":"balanced","seed":null,"requested_leaves":25000,"parsed_nodes":49999,"parsed_edges":49998,"path":"pilot-synthetic-balanced-25000-leaves.newick","sha256":"d39f8dd435cce3db198845ed3465b568a12c427858976df2182b076b525a942c"},
+    {"id":"irregular-25000-seed-2026","topology":"irregular","seed":2026,"requested_leaves":25000,"parsed_nodes":49999,"parsed_edges":49998,"path":"pilot-synthetic-irregular-25000-leaves-2026.newick","sha256":"01e4bea31ae9b7f902fd328426f45014732134283239919d022a208eaafea3e9"},
+    {"id":"caterpillar-25000","topology":"caterpillar","seed":null,"requested_leaves":25000,"parsed_nodes":49999,"parsed_edges":49998,"path":"pilot-synthetic-caterpillar-25000-leaves.newick","sha256":"b4a1e8797945e4c4b24f870c3f7bcb4092189b2834ad8b54650e809c63e13ba2"},
+    {"id":"balanced-50000","topology":"balanced","seed":null,"requested_leaves":50000,"parsed_nodes":99999,"parsed_edges":99998,"path":"pilot-synthetic-balanced-50000-leaves.newick","sha256":"7bd4fdf87687440a2595477937db71c495a95c4974937883c1fbcc4254ededbd"},
+    {"id":"irregular-50000-seed-2026","topology":"irregular","seed":2026,"requested_leaves":50000,"parsed_nodes":99999,"parsed_edges":99998,"path":"pilot-synthetic-irregular-50000-leaves-2026.newick","sha256":"be44d383aa582b727c87b860df3206885a9821b838e97f992c532773651baa2b"},
+    {"id":"caterpillar-50000","topology":"caterpillar","seed":null,"requested_leaves":50000,"parsed_nodes":99999,"parsed_edges":99998,"path":"pilot-synthetic-caterpillar-50000-leaves.newick","sha256":"ad8dc10e6bfd1cea5fcaadd790c464123d1eb074c56179ceafa9b55d7f705b14"},
+    {"id":"balanced-100000","topology":"balanced","seed":null,"requested_leaves":100000,"parsed_nodes":199999,"parsed_edges":199998,"path":"pilot-synthetic-balanced-100000-leaves.newick","sha256":"52d13f6be25eef1688ae28778aeca8ab67071d9b39e49fd510994c669ea0a1c1"},
+    {"id":"irregular-100000-seed-2026","topology":"irregular","seed":2026,"requested_leaves":100000,"parsed_nodes":199999,"parsed_edges":199998,"path":"pilot-synthetic-irregular-100000-leaves-2026.newick","sha256":"7504be9663440e75384672bc5876a43fc34b9bd374ddc45fd4b6b08cf93c62b8"},
+    {"id":"caterpillar-100000","topology":"caterpillar","seed":null,"requested_leaves":100000,"parsed_nodes":199999,"parsed_edges":199998,"path":"pilot-synthetic-caterpillar-100000-leaves.newick","sha256":"159f3fc7ca132c18996dae3ecf480b87d2ad9ad5267d5ab80776bccb723a1f48"}
+  ]
+}

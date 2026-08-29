@@ -1,0 +1,43 @@
+{
+  "artifact_filenames": [
+    "tables/D-rq4-complete-phase-frame-cardinality.tex"
+  ],
+  "artifact_id": "D",
+  "artifact_sha256": {
+    "tables/D-rq4-complete-phase-frame-cardinality.tex": "8cfed9c705962036d164693fce62cc77425523c070afb91cb1f2362507d762cf"
+  },
+  "authoritative_source_runs": [
+    "thesis-final-rq4-v020-003"
+  ],
+  "caveats": [],
+  "frozen_consolidation_commit": "5e7090add3a9a5ef2c0ae3cdc3ea4ee6192ab2f4",
+  "generation_commit": "627e87269e4009730ccf8863c35a64b79060693c",
+  "generation_script": "eval/src/phylo_lens_eval/publication_artifacts.py",
+  "metric_definitions": [
+    "Complete RQ4 phase, frame, truncation, and materialized-cardinality summaries."
+  ],
+  "product_commit": "cbb78f5e74b37e4fb480c0416e614e27e6f67ed9",
+  "rendering_only_transformation": false,
+  "source_consolidated_files": [
+    {
+      "path": "eval/results/derived/consolidated-final-v020/rq4-condition-metrics.csv",
+      "sha256": "64c8f07fdc4ceedae479ac84cd8b4a1e521cbb4f8c5a23704ee1648b69facd07"
+    },
+    {
+      "path": "eval/results/derived/consolidated-final-v020/rq4-frame-summary.csv",
+      "sha256": "a5fbfa0836d39a1c71dd4e1a309d0b051d14539d9134656bf38a242319e32901"
+    },
+    {
+      "path": "eval/results/derived/consolidated-final-v020/rq4-state-cardinality.csv",
+      "sha256": "a29e35f368a0a39ecce2035e3cc2379ece860fcd1b1c9d3430cd1233bd021e6a"
+    }
+  ],
+  "source_data_unchanged": true,
+  "status": "APPENDIX",
+  "transformations": [
+    "Deterministic numeric formatting only; all values parsed from consolidated CSV/JSON."
+  ],
+  "units": [
+    "As stated in table headers"
+  ]
+}

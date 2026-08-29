@@ -1,0 +1,23 @@
+{
+  "schema_version": "1",
+  "id": "rq3-lod-final-v020",
+  "research_question": "How effectively does PhyloLens’s persisted hierarchical level-of-detail representation reduce the materialized graph across persisted LoD levels while preserving exact source-node membership, representative positions, and quotient connectivity?",
+  "product": {
+    "version": "0.2.0",
+    "release_commit": "cbb78f5e74b37e4fb480c0416e614e27e6f67ed9"
+  },
+  "dataset": {
+    "id": "enterobase-salmonella-atchman-goeburst",
+    "repository_parent_relative_path": "Thesis/data/enterobase/salmonella/salmonella_atchman-fullgoeburst-tree.nwk",
+    "source_description": "EnteroBase / Achtman-MLST-derived goeBURST data; no dataset license is inferred by this evaluation.",
+    "expected_canonical_sha256": "d0911c01bf4e149fc229812243717f91ce50343435a28f4e6b174d2166e638e9",
+    "declared_node_count": 13075,
+    "declared_edge_count": 13074
+  },
+  "lod_levels": [0, 1, 2],
+  "expected_persisted_level_count": 3,
+  "full_world_padding_fraction": 0.01,
+  "max_nodes": 100000,
+  "retries": 0,
+  "canonical_serialization": "json-sort-keys-compact; persisted floating-point coordinates encoded with float.hex"
+}

@@ -1,0 +1,16 @@
+\begin{tabular}{lrrrrrrr}
+\hline
+Scenario & Represented members & Settle median (ms) & IQR (ms) & HTTP median (ms) & Event\ensuremath{\to}snapshot / snapshot\ensuremath{\to}settle (ms) & Materialized V/E & Truncated \\
+\hline
+navigation & N/A & 313.90 & 1.35 & 19.30 & N/A / 25.90 & 100/91 \ensuremath{\to} 100/66 & 7/7 \\
+expand-low & 3 & 49.00 & 1.20 & 18.80 & N/A / 23.30 & 100/91 \ensuremath{\to} 102/94 & 0/7 \\
+collapse-low & 3 & 26.20 & 2.95 & N/A & 2.00 / 23.80 & 102/94 \ensuremath{\to} 100/91 & 0/7 \\
+expand-representative & 7 & 49.40 & 2.05 & 21.50 & N/A / 21.40 & 100/91 \ensuremath{\to} 107/99 & 0/7 \\
+collapse-representative & 7 & 25.70 & 2.20 & N/A & 2.70 / 23.00 & 107/99 \ensuremath{\to} 101/91 & 0/7 \\
+expand-high & 8170 & 59.60 & 8.40 & 29.70 & N/A / 25.70 & 100/91 \ensuremath{\to} 208/199 & 7/7 \\
+collapse-high & 8170 & 26.50 & 4.05 & N/A & 1.90 / 24.80 & 208/199 \ensuremath{\to} 108/91 & 0/7 \\
+\hline
+\end{tabular}
+
+\par\smallskip
+\footnotesize Collapse scenarios issue zero measured viewport requests; HTTP is therefore N/A. Represented members are source members, not rendered nodes.

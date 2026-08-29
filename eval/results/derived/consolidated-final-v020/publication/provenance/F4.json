@@ -1,0 +1,63 @@
+{
+  "artifact_filenames": [
+    "figures/F4-rq4-interaction-responsiveness.svg",
+    "figures/F4-rq4-interaction-responsiveness.pdf",
+    "figures/F4-rq4-interaction-responsiveness.png"
+  ],
+  "artifact_id": "F4",
+  "artifact_sha256": {
+    "figures/F4-rq4-interaction-responsiveness.pdf": "8947f6d0a2d3fef74023932a794a52af9fdf4eff36981f373fe1fe267fabb15b",
+    "figures/F4-rq4-interaction-responsiveness.png": "c2632ede5cb03d67e5148edf226c956537af68c85f0c62b11d6055600ff7ad8a",
+    "figures/F4-rq4-interaction-responsiveness.svg": "b06f49c7e9065c78a036bdd8f5a09270394e8e213c220e7888edb41ccf5dae3e"
+  },
+  "authoritative_source_runs": [
+    "thesis-final-rq4-v020-003"
+  ],
+  "caption_alt_metadata": "caption-alt-metadata.json",
+  "caveats": [
+    "Settle latency is not physical display latency or pixel-complete latency."
+  ],
+  "font_configuration": {
+    "axis_font_points_at_final_width": 7.66,
+    "axis_font_units": 17,
+    "axis_title_font_units": 19,
+    "family": "Arial, Helvetica, sans-serif",
+    "interval_cap_half_width_units": 4,
+    "interval_stroke_units": 2,
+    "legend_font_points_at_final_width": 8.11,
+    "legend_font_units": 18,
+    "marker_radius_units": 4.1,
+    "panel_label_font_units": 24,
+    "series_stroke_units": 2.4
+  },
+  "frozen_consolidation_commit": "5e7090add3a9a5ef2c0ae3cdc3ea4ee6192ab2f4",
+  "generation_commit": "627e87269e4009730ccf8863c35a64b79060693c",
+  "generation_script": "eval/src/phylo_lens_eval/publication_artifacts.py",
+  "intended_physical_width_mm": 178,
+  "metric_definitions": [
+    "Browser-observed settle latency median with P25\u2013P75 interval"
+  ],
+  "plotting_dimensions": {
+    "physical_height_mm": 74.7,
+    "viewbox": [
+      1120,
+      470
+    ]
+  },
+  "product_commit": "cbb78f5e74b37e4fb480c0416e614e27e6f67ed9",
+  "rendering_only_transformation": true,
+  "source_consolidated_files": [
+    {
+      "path": "eval/results/derived/consolidated-final-v020/rq4-condition-metrics.csv",
+      "sha256": "64c8f07fdc4ceedae479ac84cd8b4a1e521cbb4f8c5a23704ee1648b69facd07"
+    }
+  ],
+  "source_data_unchanged": true,
+  "status": "MAIN_TEXT",
+  "transformations": [
+    "none"
+  ],
+  "units": [
+    "milliseconds"
+  ]
+}
