@@ -22,6 +22,7 @@ class FakeDurablePrepareJobStore:
     claimed_job: ClaimedPrepareJob | None
     ready_result: dict[str, Any] | None = None
     failed_error: str | None = None
+    failed_error_details: dict[str, Any] | None = None
     schema_asserted: bool = False
     heartbeat_count: int = 0
     heartbeat_result: bool = True
@@ -54,8 +55,16 @@ class FakeDurablePrepareJobStore:
         self.ready_result = result
         return True
 
-    def mark_failed(self, *, job_id: str, worker_id: str, error: str) -> bool:
+    def mark_failed(
+        self,
+        *,
+        job_id: str,
+        worker_id: str,
+        error: str,
+        error_details: dict[str, Any] | None = None,
+    ) -> bool:
         self.failed_error = error
+        self.failed_error_details = error_details
         return True
 
     def snapshot(self, job_id: str) -> DurablePrepareJob | None:
