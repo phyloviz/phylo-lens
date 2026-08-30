@@ -155,11 +155,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Install Graphviz for native evaluation smokes
-        run: |
-          sudo apt-get update
-          sudo apt-get install --yes graphviz
-
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
@@ -181,6 +176,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Install Graphviz for native evaluation smokes
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes graphviz
 
       - name: Setup Node.js
         uses: actions/setup-node@v6

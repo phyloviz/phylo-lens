@@ -35,6 +35,19 @@ def _row(
     }
 
 
+def _retained_final_inputs_available() -> bool:
+    root = repository_root()
+    config = load_config()
+    return all(
+        rq1_final.condition_path(root, config, condition).is_file()
+        for condition in config["conditions"]
+    )
+
+
+@pytest.mark.skipif(
+    not _retained_final_inputs_available(),
+    reason="requires retained final RQ1 inputs excluded from a clean checkout",
+)
 def test_final_matrix_is_exact_and_retained_inputs_verify() -> None:
     config = load_config()
     conditions = verified_conditions(repository_root(), config)

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from copy import deepcopy
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -139,6 +140,14 @@ def _development_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return run_dir
 
 
+def _clean_product_tree(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        audit_module.subprocess,
+        "run",
+        lambda *_args, **_kwargs: SimpleNamespace(returncode=0),
+    )
+
+
 def test_statistics_are_deterministic_and_exclude_warmups_failures_and_timeouts() -> (
     None
 ):
@@ -218,6 +227,7 @@ def test_tile_level_index_30_allows_31_levels(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     run_dir = _development_run(tmp_path, monkeypatch)
+    _clean_product_tree(monkeypatch)
     row = json.loads((run_dir / "observations.jsonl").read_text())
     row["native"]["actual_levels_built"] = 31
     row["native"]["tile_map_number_of_levels"] = 31
@@ -279,6 +289,7 @@ def test_audit_checks_byte_for_byte_derived_congruence(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     run_dir = _development_run(tmp_path, monkeypatch)
+    _clean_product_tree(monkeypatch)
     rq1 = tmp_path / "rq1"
     rq1.mkdir()
     (rq1 / "observations.jsonl").write_text(

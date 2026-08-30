@@ -34,6 +34,32 @@ PROTECTED_RQ4_EVIDENCE_SHA256 = {
 }
 
 
+def _retained_final_evidence_available() -> bool:
+    root = repository_root()
+    config = load_config()
+    source = (
+        root.parent / config["dataset"]["repository_parent_relative_path"]
+    ).resolve()
+    master = (
+        root
+        / config["layout_source_run"]
+        / "prepared-layout"
+        / "prepared_layout.sqlite3"
+    )
+    raw = root / "eval/results/raw"
+    return (
+        source.is_file()
+        and master.is_file()
+        and all((raw / path).is_file() for path in PROTECTED_RQ4_EVIDENCE_SHA256)
+    )
+
+
+requires_retained_final_evidence = pytest.mark.skipif(
+    not _retained_final_evidence_available(),
+    reason="requires retained final RQ3/RQ4 evidence excluded from a clean checkout",
+)
+
+
 def _result(operation: str = "cluster_expand") -> dict:
     request = {
         "fetchInvocationTimestamp": 2.0,
@@ -118,6 +144,7 @@ def test_run_id_patterns_accept_only_immutable_final_or_dev_ids() -> None:
     assert not DEVELOPMENT_RUN_ID_PATTERN.fullmatch("dev-rq4-final-INVALID")
 
 
+@requires_retained_final_evidence
 def test_authoritative_master_is_v002_and_targets_match_semantic_layout() -> None:
     config = load_config()
     master = _verify_master(repository_root(), config, _source(config))
@@ -126,6 +153,7 @@ def test_authoritative_master_is_v002_and_targets_match_semantic_layout() -> Non
     assert master["layout_id"] == config["layout"]["id"]
 
 
+@requires_retained_final_evidence
 def test_runtime_copy_starts_as_exact_byte_copy_without_writing_master(
     tmp_path: Path,
 ) -> None:
@@ -138,12 +166,14 @@ def test_runtime_copy_starts_as_exact_byte_copy_without_writing_master(
     assert checksum_sha256(Path(master["path"])) == before
 
 
+@requires_retained_final_evidence
 def test_protected_rq4_v001_and_v002_raw_evidence_is_unchanged() -> None:
     raw = repository_root() / "eval/results/raw"
     for relative_path, expected_sha256 in PROTECTED_RQ4_EVIDENCE_SHA256.items():
         assert checksum_sha256(raw / relative_path) == expected_sha256
 
 
+@requires_retained_final_evidence
 def test_existing_run_directory_is_refused_before_browser_execution(
     tmp_path: Path,
 ) -> None:
