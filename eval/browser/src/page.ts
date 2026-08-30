@@ -111,7 +111,9 @@ window.phyloLensEvaluation = {
     const tick = (now: number) => {
       const sampler = frameSampling;
       if (!sampler || !sampler.active) return;
-      if (sampler.previous !== undefined)
+      // requestAnimationFrame's frame timestamp can precede a performance.now()
+      // captured during the current frame. That boundary is not a frame interval.
+      if (sampler.previous !== undefined && now >= sampler.previous)
         sampler.samples.push(now - sampler.previous);
       sampler.previous = now;
       requestAnimationFrame(tick);
