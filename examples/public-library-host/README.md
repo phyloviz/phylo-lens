@@ -10,11 +10,8 @@ interaction, and exports the visible view as a PNG.
 
 ## Release status
 
-The currently published `@phyloviz/phylo-lens@0.2.0` tarball omits its declared
-`dist/` files, so a clean registry install cannot yet run this proof of concept.
-The repository's packed-artifact test below verifies a complete package from
-this source revision. Publish a new patch release from this revision before
-using the registry-install instructions with a jury.
+This proof of concept installs `@phyloviz/phylo-lens@0.2.1`, which includes the
+library bundle and TypeScript declarations required by an external host.
 
 ## Run it
 
