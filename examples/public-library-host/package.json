@@ -3,10 +3,11 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "dev": "vite",
     "build": "tsc -b && vite build"
   },
   "dependencies": {
-    "@phyloviz/phylo-lens": "file:../../code/client/phyloviz-phylo-lens-0.2.0.tgz"
+    "@phyloviz/phylo-lens": "0.2.0"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^5.0.4",

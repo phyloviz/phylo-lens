@@ -3,10 +3,67 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>PhyloLens Public Library Host</title>
+    <title>PhyloLens integration proof of concept</title>
   </head>
   <body>
-    <div id="graph-root" style="width: 100vw; height: 100vh"></div>
+    <main class="app-shell">
+      <header class="app-header">
+        <a class="brand" href="https://github.com/phyloviz/phylo-lens" aria-label="PhyloLens on GitHub">
+          <span class="brand-mark" aria-hidden="true">⌘</span>
+          <span>PhyloLens</span>
+        </a>
+        <p>Published npm package integration proof of concept</p>
+      </header>
+
+      <section class="workspace" aria-label="PhyloLens visualisation">
+        <aside class="control-panel">
+          <p class="eyebrow">External host application</p>
+          <h1>Explore a phylogenetic tree</h1>
+          <p class="intro">
+            This Vite application imports <code>@phyloviz/phylo-lens</code> from npm and sends its data to a separately running API service.
+          </p>
+
+          <fieldset class="dataset-picker">
+            <legend>Sample dataset</legend>
+            <label>
+              <input type="radio" name="dataset" value="outbreak" checked />
+              <span>
+                <strong>Outbreak cluster</strong>
+                <small>12 labelled samples with branch lengths</small>
+              </span>
+            </label>
+            <label>
+              <input type="radio" name="dataset" value="forest" />
+              <span>
+                <strong>Two lineages</strong>
+                <small>A disconnected Newick forest</small>
+              </span>
+            </label>
+          </fieldset>
+
+          <button id="export-png" type="button" disabled>Export visible view as PNG</button>
+          <p id="status" class="status" role="status" aria-live="polite">Connecting to the PhyloLens service…</p>
+
+          <div class="how-it-works">
+            <h2>What this demonstrates</h2>
+            <ul>
+              <li>npm package resolution and TypeScript build</li>
+              <li>Newick preparation by the API service</li>
+              <li>Interactive zoom, pan and semantic detail</li>
+              <li>PNG export from the embedded view</li>
+            </ul>
+          </div>
+        </aside>
+
+        <section class="graph-panel">
+          <div class="graph-toolbar">
+            <span id="dataset-name">Outbreak cluster</span>
+            <span>Scroll to zoom · drag to pan</span>
+          </div>
+          <div id="graph-root" aria-label="Interactive phylogenetic graph"></div>
+        </section>
+      </section>
+    </main>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

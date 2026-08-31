@@ -1,6 +1,6 @@
 {
   "name": "@phyloviz/phylo-lens",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Headless, scalable phylogenetic tree visualization client. Server-side level-of-detail with a Sigma.js renderer, consumable as a library by host apps such as PHYLOViZ.",
   "license": "MIT",
   "type": "module",
@@ -27,6 +27,7 @@
     "build": "tsc -b && vite build",
     "build:lib": "vite build --config vite.lib.config.ts && tsc -p tsconfig.lib.json",
     "test": "vitest run",
+    "prepack": "npm run build:lib --silent >/dev/null 2>&1",
     "prepublishOnly": "npm run build:lib",
     "format": "prettier --write \"src/**/*.{ts,tsx,js,json,css}\" \"tests/**/*.{ts,tsx,js,json,css}\" \"*.{js,json,html}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,js,json,css}\" \"tests/**/*.{ts,tsx,js,json,css}\" \"*.{js,json,html}\""

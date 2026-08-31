@@ -1,48 +1,61 @@
-# Packed-package consumer fixture
+# PhyloLens external-host proof of concept
 
-This directory is a minimal external Vite/TypeScript application used to verify
-`@phyloviz/phylo-lens` as a published-style npm artifact.
+This is a small Vite/TypeScript application designed for a thesis jury (or any
+external developer) to run PhyloLens as they would use it in a real project.
+It installs the published [`@phyloviz/phylo-lens`](https://www.npmjs.com/package/@phyloviz/phylo-lens)
+package from npm; it does not import the library source or use repository path aliases.
 
-The fixture must consume the tarball produced by `npm pack`. It must not import
-from `code/client/src`, use TypeScript path aliases into the repository, or rely
-on the client workspace's installed dependencies.
+The page renders two Newick datasets, supports the library's pan and zoom
+interaction, and exports the visible view as a PNG.
 
-## Run from the repository root
+## Release status
+
+The currently published `@phyloviz/phylo-lens@0.2.0` tarball omits its declared
+`dist/` files, so a clean registry install cannot yet run this proof of concept.
+The repository's packed-artifact test below verifies a complete package from
+this source revision. Publish a new patch release from this revision before
+using the registry-install instructions with a jury.
+
+## Run it
+
+Start the separately deployable API service in one terminal:
+
+```bash
+docker run --rm -p 8000:8000 \
+  -e PHYLO_LENS_CORS_ORIGINS=http://localhost:5173 \
+  -v phylo-lens-data:/data \
+  ghcr.io/phyloviz/phylo-lens-service:0.2.0
+```
+
+Then install and start this independent browser host in another terminal:
+
+```bash
+cd examples/public-library-host
+npm install
+npm run dev
+```
+
+Open the URL printed by Vite (normally `http://localhost:5173`). The Vite
+development server proxies `/health` and `/api` to `http://localhost:8000`.
+Set `VITE_PHYLO_LENS_PROXY_TARGET` when the service runs elsewhere, or set
+`VITE_PHYLO_LENS_API_URL` to call a configured service URL directly.
+
+## What is being validated
+
+- npm registry installation, ESM exports, TypeScript declarations and library-owned runtime dependencies;
+- public `createPhyloLensView()` integration from a standalone host;
+- independent service preparation and viewport reads;
+- an interactive rendered view and PNG export.
+
+## Distribution smoke test
+
+From the repository root, run:
 
 ```bash
 ./scripts/packed-package-consumer-smoke.sh
 ```
 
-The script:
-
-1. installs client dependencies;
-2. builds the library;
-3. packs the npm tarball;
-4. installs the fixture dependencies against that tarball;
-5. builds the external host.
-
-## Manual validation
-
-```bash
-cd code/client
-npm ci
-npm run build:lib
-npm pack
-
-cd ../../examples/public-library-host
-npm ci
-npm run build
-```
-
-The fixture validates:
-
-- package-root exports;
-- ESM resolution;
-- included TypeScript declarations;
-- runtime dependency ownership;
-- absence of source-tree coupling;
-- compatibility with a standard Vite browser build.
-
-It is intentionally small. Product demonstrations and renderer experiments
-belong in `code/client`; this fixture should change only when the public package
-contract or distribution layout changes.
+That stricter CI check rebuilds the browser library, packs it with `npm pack`,
+installs the generated tarball in a temporary copy of this host, and builds it.
+It complements the npm-registry proof of concept above by catching packaging
+errors before publication.
