@@ -195,4 +195,3 @@ Start with the [documentation index](docs/README.md).
 - [Client rendering](docs/CLIENT_RENDERING.md)
 - [Cluster interaction](docs/EXPAND_COLLAPSE.md)
 - [CI and release process](docs/RELEASE.md)
-- [Known limitations and future work](docs/BACKLOG.md)

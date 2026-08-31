@@ -22,7 +22,7 @@ JAVA_COMMAND = "java"
 ENV_PHYLOLIB_JAR = "PHYLO_LENS_PHYLOLIB_JAR"
 ENV_PHYLOLIB_JAVA = "PHYLO_LENS_PHYLOLIB_JAVA"
 
-# Defaults per BACKLOG item 4: hamming for allelic MLST, goeBURST lvs=3, Newick
+# Defaults: Hamming for allelic MLST, goeBURST lvs=3, then Newick
 # output feeding the existing parse_newick path.
 DEFAULT_DISTANCE_METHOD = "hamming"
 DEFAULT_GOEBURST_LVS = 3

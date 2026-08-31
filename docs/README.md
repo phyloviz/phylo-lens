@@ -18,7 +18,6 @@ release information across several files.
 | Understand viewport synchronization and Sigma rendering | [Client rendering](CLIENT_RENDERING.md) |
 | Understand representative expansion, meta-edges, and collapse | [Cluster expand/collapse](EXPAND_COLLAPSE.md) |
 | Configure CI, npm publication, and multi-platform Docker releases | [Release and CI](RELEASE.md) |
-| Review known limitations and deferred work | [Limitations and future work](BACKLOG.md) |
 
 Component-specific setup is documented in:
 
