@@ -4,10 +4,12 @@ import argparse
 import hashlib
 import json
 import os
+import sys
 from pathlib import Path
 
 import pytest
 
+import phylo_lens_eval.rq4 as rq4_module
 from phylo_lens_eval.common import validate_rq4_observation
 from phylo_lens_eval.rq4 import (
     POLICY,
@@ -79,6 +81,39 @@ def test_rq4_aggregate_selection_is_exact_or_stably_sorted() -> None:
     assert select_aggregate_target(targets, None) == targets[1]
     assert select_aggregate_target(targets, "cluster-z") == targets[0]
     assert select_aggregate_target(targets, "missing") is None
+
+
+def test_rq4_uses_the_running_python_for_its_server(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    commands: list[list[str]] = []
+
+    class FinishedProcess:
+        def poll(self) -> int:
+            return 0
+
+    def fake_popen(command: list[str], **_kwargs: object) -> FinishedProcess:
+        commands.append(command)
+        return FinishedProcess()
+
+    def fail_readiness(*_args: object) -> None:
+        raise RuntimeError("server_start_failure")
+
+    monkeypatch.setattr(rq4_module.subprocess, "Popen", fake_popen)
+    monkeypatch.setattr(rq4_module, "wait_ready", fail_readiness)
+    monkeypatch.setattr(rq4_module, "free_port", lambda: 8000)
+    rq4_module._repetition(
+        repository_root(),
+        tmp_path / "run",
+        {"id": "rq4", "timeout_seconds": 1, "browser": {}},
+        {"id": "navigation", "operation": "viewport_navigation", "input": {}},
+        "(A:1,B:1)root;",
+        hashlib.sha256(b"fixture").hexdigest(),
+        0,
+        False,
+    )
+
+    assert commands[0][0] == sys.executable
 
 
 def _server_backed_result() -> dict:

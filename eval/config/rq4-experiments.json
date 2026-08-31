@@ -14,8 +14,8 @@
     "browser": {"headless": true, "viewport": {"width": 960, "height": 640}, "device_scale_factor": 1, "launch_args": []},
     "scenarios": [
       {"id": "navigation", "operation": "viewport_navigation", "input": {"kind": "stage_double_click", "client_x": 20, "client_y": 20}},
-      {"id": "expansion", "operation": "cluster_expand", "setup_quiescence_ms": 100, "target_cluster_id": null},
-      {"id": "collapse", "operation": "cluster_collapse", "setup_quiescence_ms": 100, "target_cluster_id": null}
+      {"id": "expansion", "operation": "cluster_expand", "target_cluster_id": null},
+      {"id": "collapse", "operation": "cluster_collapse", "target_cluster_id": null}
     ]
   }]
 }

@@ -9,6 +9,7 @@ import math
 import os
 import socket
 import subprocess
+import sys
 import time
 from pathlib import Path
 from typing import Any
@@ -223,7 +224,7 @@ def _repetition(
         try:
             server = subprocess.Popen(
                 [
-                    str(root / ".venv/bin/python"),
+                    sys.executable,
                     "-m",
                     "uvicorn",
                     "phylo_lens_server.main:app",
