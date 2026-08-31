@@ -1,7 +1,27 @@
 # PhyloLens evaluation
 
-This directory contains reproducible RQ1–RQ4 evaluation harnesses. It does not
-contain external-tool comparisons or thesis-result claims.
+This directory contains reproducible RQ1–RQ4 evaluation harnesses, their
+raw-only audits, and an explicitly separated MSAGL external-tool baseline. It
+does not itself assert thesis-result claims; derived evidence is subject to the
+recorded audit and reporting provenance.
+
+## Source layout
+
+The evaluation package is organized by responsibility so that each study can be
+reviewed end-to-end:
+
+```text
+eval/src/phylo_lens_eval/
+├── core/        shared schemas, configuration, environment capture, statistics
+├── pilots/      small reproducible RQ1–RQ4 implementation studies
+├── final/       immutable final runners and their raw-only audits, by RQ
+├── baselines/   external-tool adapters and audits
+└── reporting/   final-evidence reconciliation and publication artifacts
+```
+
+The documented `python -m phylo_lens_eval.rq…` commands remain supported as
+short compatibility entry points. New code and tests import the structured
+packages directly.
 
 ## Final RQ1 released-OCI harness
 
@@ -146,6 +166,7 @@ Run the tiny synthetic paired ablation after building the same browser inputs:
 ```bash
 PYTHONPATH=eval/src:code/server/src python -m phylo_lens_eval.rq3 \
   --experiment rq3-triangle-pilot --warmups 0 --repetitions 1
+```
 
 ## Final RQ3: persisted LoD fidelity and materialization reduction
 
@@ -172,8 +193,6 @@ PYTHONPATH=eval/src:code/server/src python -m phylo_lens_eval.rq3_final_audit ge
   --output-dir eval/results/derived/rq3-lod-final-v020/thesis-final-rq3-v020-001 \
   --reporting-audit-commit <commit>
 ```
-```
-
 RQ3 reads only persisted prepared-layout data to expand selected triangle
 members into detail at their original coordinates. Its raw `pairs.jsonl` is the
 statistical unit; it records both condition observations, semantic-population

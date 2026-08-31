@@ -7,8 +7,8 @@ import sys
 from pathlib import Path
 
 import pytest
-from phylo_lens_eval.common import validate_rq2_observation
-from phylo_lens_eval.rq2 import (
+from phylo_lens_eval.core.common import validate_rq2_observation
+from phylo_lens_eval.pilots.rq2 import (
     _load_render_peak,
     _run_node_and_monitor,
     _valid_first_render_timing,
@@ -110,7 +110,7 @@ def _observation(
 
 
 def test_rq2_config_and_observation_schema() -> None:
-    root = Path(__file__).resolve().parents[1]
+    root = Path(__file__).resolve().parents[2]
     experiment = load_rq2_experiment(
         root / "config/rq2-experiments.json", "rq2-client-pilot"
     )

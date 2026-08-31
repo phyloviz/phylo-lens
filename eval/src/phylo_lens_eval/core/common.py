@@ -155,7 +155,7 @@ def safe_filename(value: str) -> str:
 def _validate_schema(payload: dict, filename: str) -> None:
     from jsonschema import Draft202012Validator, FormatChecker
 
-    schema_path = Path(__file__).resolve().parents[2] / "schemas/v1" / filename
+    schema_path = Path(__file__).resolve().parents[3] / "schemas/v1" / filename
     schema = json.loads(schema_path.read_text(encoding="utf-8"))
     validator = Draft202012Validator(schema, format_checker=FormatChecker())
     errors = sorted(validator.iter_errors(payload), key=lambda error: list(error.path))

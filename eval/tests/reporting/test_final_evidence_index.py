@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from phylo_lens_eval.final_evidence_index import verify_external_comparison
-from phylo_lens_eval.stats import summary
+from phylo_lens_eval.reporting.final_evidence_index import verify_external_comparison
+from phylo_lens_eval.core.stats import summary
 
 
 def _write_json(path: Path, payload: object) -> None:

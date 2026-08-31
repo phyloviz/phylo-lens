@@ -5,9 +5,9 @@ from pathlib import Path
 
 import pytest
 
-from phylo_lens_eval.common import checksum_sha256, create_isolated_run_directory
-from phylo_lens_eval.rq3_final import parse_canonical_source
-from phylo_lens_eval.rq4_final import (
+from phylo_lens_eval.core.common import checksum_sha256, create_isolated_run_directory
+from phylo_lens_eval.final.rq3.rq3_final import parse_canonical_source
+from phylo_lens_eval.final.rq4.rq4_final import (
     DEVELOPMENT_RUN_ID_PATTERN,
     EXPERIMENT_ID,
     FINAL_RUN_ID_PATTERN,
@@ -20,7 +20,7 @@ from phylo_lens_eval.rq4_final import (
     summarize,
     validate_result,
 )
-from phylo_lens_eval.rq4_final_audit import (
+from phylo_lens_eval.final.rq4.rq4_final_audit import (
     EXECUTION_HARNESS_COMMIT,
     _audit_execution_provenance,
 )

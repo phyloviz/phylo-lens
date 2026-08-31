@@ -4,7 +4,7 @@ import sys
 
 import pytest
 
-from phylo_lens_eval.msagl_baseline import (
+from phylo_lens_eval.baselines.msagl_baseline import (
     DEVELOPMENT_SMOKE_RUN_ID_PATTERN,
     NATIVE_MAX_MEMORY_BYTES,
     RUN_ID_PATTERN,

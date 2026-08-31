@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 import pytest
-from phylo_lens_eval.common import (
+from phylo_lens_eval.core.common import (
     checksum_sha256,
     classify_failure,
     create_isolated_run_directory,
@@ -13,7 +13,7 @@ from phylo_lens_eval.common import (
     validate_manifest,
     validate_observation,
 )
-from phylo_lens_eval.config import (
+from phylo_lens_eval.core.config import (
     ConfigurationError,
     load_datasets,
     load_experiments,
@@ -152,7 +152,7 @@ def test_configuration_validation_rejects_invalid_repetitions(tmp_path: Path) ->
 
 
 def test_configuration_catalog_resolves_repository_fixture() -> None:
-    eval_root = Path(__file__).resolve().parents[1]
+    eval_root = Path(__file__).resolve().parents[2]
     datasets = load_datasets(eval_root / "config/datasets.json", eval_root.parent)
     experiment = resolve_experiment(
         "rq1-direct-tree",

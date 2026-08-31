@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from phylo_lens_eval.rq3 import (
+from phylo_lens_eval.pilots.rq3 import (
     counterbalanced_order,
     deterministic_pair_id,
     paired_responses,

@@ -5,11 +5,11 @@ from pathlib import Path
 
 import pytest
 
-from phylo_lens_eval.common import (
+from phylo_lens_eval.core.common import (
     create_isolated_run_directory,
     validate_rq2_final_observation,
 )
-from phylo_lens_eval.rq2_final import (
+from phylo_lens_eval.final.rq2.rq2_final import (
     DEVELOPMENT_RUN_ID_PATTERN,
     FINAL_RUN_ID_PATTERN,
     _validate_final_experiment,
@@ -18,7 +18,7 @@ from phylo_lens_eval.rq2_final import (
     load_final_experiment,
     summarize_final_observations,
 )
-from phylo_lens_eval.rq2_final_audit import audit_run, build_reports
+from phylo_lens_eval.final.rq2.rq2_final_audit import audit_run, build_reports
 
 
 def _observation(condition: dict, role: str, index: int) -> dict:
@@ -118,7 +118,7 @@ def _observation(condition: dict, role: str, index: int) -> dict:
 
 
 def test_final_matrix_and_policy_are_frozen() -> None:
-    root = Path(__file__).resolve().parents[1]
+    root = Path(__file__).resolve().parents[3]
     experiment = load_final_experiment(root / "config/rq2-experiments.json")
     _validate_final_experiment(experiment)
     assert len(experiment["fixtures"]) == 7
@@ -146,7 +146,7 @@ def test_existing_final_raw_run_directory_is_refused(tmp_path: Path) -> None:
 
 
 def test_final_schema_and_summary_exclude_warmups() -> None:
-    root = Path(__file__).resolve().parents[1]
+    root = Path(__file__).resolve().parents[3]
     condition = load_final_experiment(root / "config/rq2-experiments.json")["fixtures"][
         0
     ]
@@ -161,7 +161,7 @@ def test_final_schema_and_summary_exclude_warmups() -> None:
 
 
 def test_failure_observation_retains_truncation_evidence() -> None:
-    root = Path(__file__).resolve().parents[1]
+    root = Path(__file__).resolve().parents[3]
     condition = load_final_experiment(root / "config/rq2-experiments.json")["fixtures"][
         0
     ]
@@ -176,7 +176,7 @@ def test_failure_observation_retains_truncation_evidence() -> None:
 
 
 def test_final_audit_and_raw_only_reports(tmp_path: Path) -> None:
-    root = Path(__file__).resolve().parents[1]
+    root = Path(__file__).resolve().parents[3]
     config = load_final_experiment(root / "config/rq2-experiments.json")
     run_dir = tmp_path / "rq2-client-final-v020" / "thesis-final-rq2-v020-001"
     run_dir.mkdir(parents=True)

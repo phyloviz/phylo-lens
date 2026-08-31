@@ -1,4 +1,4 @@
-# RQ1 and RQ2 methodology
+# RQ1–RQ4 evaluation methodology
 
 ## Final released-OCI RQ1 protocol
 

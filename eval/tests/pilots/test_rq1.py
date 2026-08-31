@@ -8,12 +8,12 @@ import time
 from pathlib import Path
 
 import psutil
-from phylo_lens_eval.common import (
+from phylo_lens_eval.core.common import (
     validate_manifest,
     validate_observation,
     wait_with_peak_rss,
 )
-from phylo_lens_eval.stats import summarize_observations
+from phylo_lens_eval.core.stats import summarize_observations
 
 
 def test_summary_excludes_warmups_and_retains_failures() -> None:
@@ -80,11 +80,11 @@ def test_timeout_terminates_child_process_tree(tmp_path: Path) -> None:
 def test_tiny_end_to_end_direct_tree_preparation_validates_raw_artifacts(
     tmp_path: Path,
 ) -> None:
-    root = Path(__file__).resolve().parents[2]
+    root = Path(__file__).resolve().parents[3]
     command = [
         sys.executable,
         "-m",
-        "phylo_lens_eval.rq1",
+        "phylo_lens_eval.pilots.rq1",
         "--experiment",
         "rq1-direct-tree",
         "--dataset",

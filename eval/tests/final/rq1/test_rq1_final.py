@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-import phylo_lens_eval.rq1_final as rq1_final
-from phylo_lens_eval.rq1_final import (
+import phylo_lens_eval.final.rq1.rq1_final as rq1_final
+from phylo_lens_eval.final.rq1.rq1_final import (
     FinalRQ1Error,
     _validate_run_id,
     load_config,

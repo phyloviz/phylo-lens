@@ -6,8 +6,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from phylo_lens_eval.common import create_isolated_run_directory
-from phylo_lens_eval.rq3_final import (
+from phylo_lens_eval.core.common import create_isolated_run_directory
+from phylo_lens_eval.final.rq3.rq3_final import (
     DEVELOPMENT_RUN_ID_PATTERN,
     FINAL_RUN_ID_PATTERN,
     _expected_quotient,
@@ -20,8 +20,8 @@ from phylo_lens_eval.rq3_final import (
     _assert_sealed_master,
     _seal_master,
 )
-from phylo_lens_eval.rq3_final_audit import build_reports
-from phylo_lens_eval.rq3_final_audit import _audit_retained_master
+from phylo_lens_eval.final.rq3.rq3_final_audit import build_reports
+from phylo_lens_eval.final.rq3.rq3_final_audit import _audit_retained_master
 
 
 def test_final_config_freezes_independent_complete_source_universe() -> None:
@@ -93,7 +93,7 @@ def _case_inputs(
     aggregate_xy: tuple[float, float] = (0.0, 0.0),
     edges: tuple[SimpleNamespace, ...] = (),
 ) -> tuple[SimpleNamespace, dict, dict]:
-    import phylo_lens_eval.rq3_final as rq3
+    import phylo_lens_eval.final.rq3.rq3_final as rq3
 
     positions = {
         "a": (0.0, 0.0, "cluster", "ready"),
@@ -255,7 +255,7 @@ def test_audit_recomputes_retained_physical_hash_and_semantic_hashes(
         "source_graph_edge_count": 0,
     }
     monkeypatch.setattr(
-        "phylo_lens_eval.rq3_final.inspect_layout",
+        "phylo_lens_eval.final.rq3.rq3_final.inspect_layout",
         lambda *_args, **_kwargs: {
             "table_sha256": {"node_positions": "different"},
             "levels": [],

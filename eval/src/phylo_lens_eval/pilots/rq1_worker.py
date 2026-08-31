@@ -23,8 +23,8 @@ from phylo_lens_server.repository.layout.sqlite_layout_repository import (
 )
 from phylo_lens_server.services.graph_service import ensure_graph_edge_distances
 
-from . import SCHEMA_VERSION
-from .common import persisted_size_bytes, validate_observation, write_json
+from .. import SCHEMA_VERSION
+from ..core.common import persisted_size_bytes, validate_observation, write_json
 
 
 class StageTimer(AbstractContextManager[None]):

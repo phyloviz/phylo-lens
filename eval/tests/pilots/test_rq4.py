@@ -9,9 +9,9 @@ from pathlib import Path
 
 import pytest
 
-import phylo_lens_eval.rq4 as rq4_module
-from phylo_lens_eval.common import validate_rq4_observation
-from phylo_lens_eval.rq4 import (
+import phylo_lens_eval.pilots.rq4 as rq4_module
+from phylo_lens_eval.core.common import validate_rq4_observation
+from phylo_lens_eval.pilots.rq4 import (
     POLICY,
     deterministic_newick,
     load_experiment,

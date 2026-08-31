@@ -7,9 +7,9 @@ from types import SimpleNamespace
 
 import pytest
 
-import phylo_lens_eval.msagl_baseline_audit as audit_module
-from phylo_lens_eval.msagl_baseline import adapt_newick
-from phylo_lens_eval.msagl_baseline_audit import (
+import phylo_lens_eval.baselines.msagl_baseline_audit as audit_module
+from phylo_lens_eval.baselines.msagl_baseline import adapt_newick
+from phylo_lens_eval.baselines.msagl_baseline_audit import (
     MSAuditError,
     audit,
     comparison_rows,
