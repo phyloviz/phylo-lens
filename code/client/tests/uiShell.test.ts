@@ -459,6 +459,7 @@ describe("uiShell", () => {
     document.body.innerHTML = `
       <form id="render-form"></form>
       <textarea id="newick-input"></textarea>
+      <input id="show-node-pies" type="checkbox" checked />
       <select id="metadata-pie-field"></select>
       <div id="ancillary-wheel"></div>
       <div id="status"></div>
@@ -468,6 +469,7 @@ describe("uiShell", () => {
     const input = document.getElementById("newick-input") as HTMLTextAreaElement;
     const metadataPieFieldSelect = document.getElementById("metadata-pie-field") as HTMLSelectElement;
     const ancillaryWheelContainer = document.getElementById("ancillary-wheel") as HTMLElement;
+    const showNodePiesInput = document.getElementById("show-node-pies") as HTMLInputElement;
     const status = document.getElementById("status") as HTMLElement;
 
     input.value = "(A,B,C)Root;";
@@ -502,6 +504,7 @@ describe("uiShell", () => {
         form,
         newickInput: input,
         metadataPieFieldSelect,
+        showNodePiesInput,
         ancillaryWheelContainer,
         status,
       },
@@ -522,6 +525,25 @@ describe("uiShell", () => {
     expect([...metadataPieFieldSelect.options].map((option) => option.value)).toEqual(["", "country"]);
     expect(ancillaryWheelContainer.textContent).toContain("Portugal");
     expect(ancillaryWheelContainer.textContent).toContain("Canada");
+    showNodePiesInput.checked = false;
+    showNodePiesInput.dispatchEvent(new Event("change"));
+    expect(fakeWorkbench.updateVisualMapping).toHaveBeenLastCalledWith({
+      colorField: "country",
+      pie: { enabled: false, fields: ["country"] },
+    });
+    metadataPieFieldSelect.dispatchEvent(new Event("change"));
+    expect(fakeWorkbench.updateVisualMapping).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        pie: { enabled: false, fields: ["country"] },
+      }),
+    );
+    showNodePiesInput.checked = true;
+    showNodePiesInput.dispatchEvent(new Event("change"));
+    expect(fakeWorkbench.updateVisualMapping).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        pie: { enabled: true, fields: ["country"] },
+      }),
+    );
     shell.unmount();
   });
 
@@ -1264,3 +1286,32 @@ function setInputFiles(input: HTMLInputElement, files: File[]): void {
     value: files,
   });
 }
+
+it("applies an uploaded table to the current tree without submitting the render form", async () => {
+  document.body.innerHTML = `<form></form><textarea>(A,B)Root;</textarea><input id="file" type="file" /><input id="join" value="id" /><button type="button"></button><div id="status"></div>`;
+  const form = document.querySelector("form")!;
+  const newickInput = document.querySelector("textarea")!;
+  const ancillaryFileInput = document.querySelector<HTMLInputElement>("#file")!;
+  const ancillaryJoinColumnInput = document.querySelector<HTMLInputElement>("#join")!;
+  const applyAncillaryButton = document.querySelector("button")!;
+  const status = document.querySelector<HTMLElement>("#status")!;
+  const workbench = makeFakeWorkbench();
+  workbench.applyAncillaryData = vi.fn().mockResolvedValue({ matched_node_count: 2, warnings: [] });
+  const shell = uiShell({
+    workbench,
+    elements: { form, newickInput, ancillaryFileInput, ancillaryJoinColumnInput, applyAncillaryButton, status },
+  });
+  shell.mount();
+  expect(applyAncillaryButton.disabled).toBe(true);
+  await shell.renderCurrentInput();
+  expect(applyAncillaryButton.disabled).toBe(false);
+  const content = "id,country\nA,PT\nB,CA";
+  setInputFiles(ancillaryFileInput, [new File([content], "metadata.csv")]);
+  applyAncillaryButton.click();
+  expect(applyAncillaryButton.disabled).toBe(true);
+  await vi.waitFor(() => expect(status.textContent).toContain("Applied ancillary data to 2 nodes"));
+  expect(workbench.applyAncillaryData).toHaveBeenCalledWith({ content, join_column: "id", format: "csv" });
+  expect(workbench.renderNewick).toHaveBeenCalledTimes(1);
+  expect(applyAncillaryButton.disabled).toBe(false);
+  shell.unmount();
+});

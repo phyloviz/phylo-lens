@@ -4,6 +4,8 @@ const mocks = vi.hoisted(() => ({
   prepareGraph: vi.fn(),
   renderNewick: vi.fn(),
   exportPng: vi.fn(),
+  updateVisualMapping: vi.fn(),
+  applyAncillaryData: vi.fn(),
   dispose: vi.fn(),
   createRenderer: vi.fn(),
 }));
@@ -26,6 +28,8 @@ vi.mock("../src/app/workbench/graphWorkbench", () => ({
   createGraphWorkbench: vi.fn(() => ({
     renderNewick: mocks.renderNewick,
     exportPng: mocks.exportPng,
+    updateVisualMapping: mocks.updateVisualMapping,
+    applyAncillaryData: mocks.applyAncillaryData,
     dispose: mocks.dispose,
   })),
 }));
@@ -39,6 +43,8 @@ describe("createPhyloLensView", () => {
     mocks.prepareGraph.mockReset();
     mocks.renderNewick.mockReset();
     mocks.exportPng.mockReset();
+    mocks.updateVisualMapping.mockReset();
+    mocks.applyAncillaryData.mockReset();
     mocks.dispose.mockReset();
     mocks.createRenderer.mockReset();
   });
@@ -175,4 +181,30 @@ describe("createPhyloLensView", () => {
 
     expect(() => view.exportPng()).toThrow(ERR_PHYLO_LENS_VIEW_DISPOSED);
   });
+});
+
+it("updates pie visibility through the public API and rejects changes after disposal", async () => {
+  const view = createPhyloLensView({ container: document.createElement("div"), apiUrl: "" });
+  await view.load({ content: "(A,B);" });
+  view.updateVisualMapping({ pie: { enabled: false } });
+  expect(mocks.updateVisualMapping).toHaveBeenLastCalledWith({ pie: { enabled: false } });
+  view.updateVisualMapping({ pie: { enabled: true } });
+  expect(mocks.updateVisualMapping).toHaveBeenLastCalledWith({ pie: { enabled: true } });
+  view.dispose();
+  expect(() => view.updateVisualMapping({})).toThrow(ERR_PHYLO_LENS_VIEW_DISPOSED);
+});
+
+it("exposes ancillary upload results without leaking layout identifiers", async () => {
+  mocks.applyAncillaryData.mockResolvedValue({
+    dataset_id: "tree",
+    layout_version: "revision",
+    matched_node_count: 2,
+    warnings: ["Unmatched row"],
+  });
+  const view = createPhyloLensView({ container: document.createElement("div"), apiUrl: "" });
+  const data = { content: "id,country\nA,PT", join_column: "id", format: "csv" as const };
+  await expect(view.applyAncillaryData(data)).resolves.toEqual({ matchedNodeCount: 2, warnings: ["Unmatched row"] });
+  expect(mocks.applyAncillaryData).toHaveBeenCalledWith(data);
+  view.dispose();
+  await expect(view.applyAncillaryData(data)).rejects.toThrow(ERR_PHYLO_LENS_VIEW_DISPOSED);
 });

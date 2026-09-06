@@ -83,6 +83,8 @@ export class ViewportSyncController {
   private initialFitTimer: ReturnType<typeof window.setTimeout> | null = null;
   private requestSequence = 0;
   private mounted = false;
+  private replacingLayout = false;
+  private refreshAfterReplacement = false;
   private loadedInitialViewport = false;
   private lastRequestedLodLevel: number | null | undefined;
   private nextForcedLodLevel: number | undefined;
@@ -166,6 +168,59 @@ export class ViewportSyncController {
     this.scheduleViewportRefresh(0);
   }
 
+  async replaceLayoutVersion(version: string): Promise<void> {
+    if (!this.mounted || !this.loadedInitialViewport || this.replacingLayout) {
+      throw new Error("Cannot replace metadata before the view is ready or while another replacement is pending.");
+    }
+    this.replacingLayout = true;
+    this.nextForcedLodLevel = undefined;
+    this.fitNextResponse = false;
+    const sequence = ++this.requestSequence;
+    if (this.debounceTimer !== null) {
+      window.clearTimeout(this.debounceTimer);
+      this.debounceTimer = null;
+    }
+    // A metadata update must never refit the camera, including a pending initial fit.
+    if (this.initialFitTimer !== null) {
+      window.clearTimeout(this.initialFitTimer);
+      this.initialFitTimer = null;
+    }
+    const query = buildGraphViewportQuery({
+      datasetId: this.datasetId,
+      layoutVersion: version,
+      viewState: this.renderer.getViewportSyncState?.() ?? null,
+      maxNodes: this.maxNodes,
+      forceFinestTier: this.isKnownSmallTree() || this.isSmallTreeLoaded(),
+      lodTierCount: this.lodTierCount,
+      currentLodLevel: this.lastRequestedLodLevel ?? null,
+    });
+    try {
+      const response = await this.client.readViewport(query);
+      if (!this.mounted || sequence !== this.requestSequence) {
+        throw new Error("Metadata update was superseded by a newer view.");
+      }
+      if (response.layout_version !== version || response.dataset_id !== this.datasetId) {
+        throw new Error("Metadata viewport returned a different layout.");
+      }
+      const graph = graphSnapshotFromViewportResponse(response, this.getRenderSettings?.());
+      this.layoutVersion = version;
+      this.lastRequestedLodLevel = query.lod_level;
+      this.totalNodeCount = response.total_node_count;
+      this.expandedClusterIds.clear();
+      this.expandedClusterCache.clear();
+      this.currentGraph = graph;
+      this.applyGraph(graph, "viewport_sync");
+      this.onGraphSynced?.(graph, response);
+      this.onViewportLoaded?.(response);
+    } finally {
+      this.replacingLayout = false;
+      if (this.refreshAfterReplacement) {
+        this.refreshAfterReplacement = false;
+        this.scheduleViewportRefresh(0);
+      }
+    }
+  }
+
   handleNodeClick(state: RenderNodeClickState): void {
     const nodeId = state.nodeId;
     if (!nodeId || !isExpandableRepresentative(state.attributes)) {
@@ -202,6 +257,7 @@ export class ViewportSyncController {
   }
 
   collapseCluster(clusterId: string): void {
+    if (this.replacingLayout) return;
     const snapshot = this.expandedClusterCache.get(clusterId);
     if (!snapshot || !this.currentGraph) {
       return;
@@ -275,6 +331,10 @@ export class ViewportSyncController {
   }
 
   private scheduleViewportRefresh(delayMs = this.debounceMs): void {
+    if (this.replacingLayout) {
+      this.refreshAfterReplacement = true;
+      return;
+    }
     if (!this.mounted) {
       return;
     }
@@ -363,6 +423,7 @@ export class ViewportSyncController {
     options: { fitToResponse?: boolean; focusNodeId?: string | null },
     snapshot?: ExpandedClusterSnapshot,
   ): Promise<void> {
+    if (this.replacingLayout) return;
     const sequence = ++this.requestSequence;
     try {
       const response = await this.readCluster(clusterId, options.focusNodeId);

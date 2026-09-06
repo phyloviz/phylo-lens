@@ -13,6 +13,7 @@ export interface VisualMappingPaletteOptions {
   saveFilename: string;
   getGraph: () => PositionedGraph | null;
   getSelectedFields: () => string[];
+  getPiesEnabled?: () => boolean | undefined;
   getSizeFieldValue: () => string | undefined;
   getSizeScaleValue: () => string | undefined;
   onChanged: () => void;
@@ -126,12 +127,17 @@ export default function (options: VisualMappingPaletteOptions) {
   }
 
   function buildCurrentVisualMapping(): VisualMappingOptions {
-    return buildVisualMappingForControls(
+    const mapping = buildVisualMappingForControls(
       baseVisualMapping,
       options.getSelectedFields(),
       options.getSizeFieldValue(),
       options.getSizeScaleValue(),
       controls.readSelectedColors(),
     );
+    const enabled = options.getPiesEnabled?.();
+    if (enabled !== undefined) {
+      mapping.pie = { ...mapping.pie, enabled };
+    }
+    return mapping;
   }
 }

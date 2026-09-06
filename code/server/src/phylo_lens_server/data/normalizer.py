@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import time
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
 from io import StringIO
@@ -338,6 +339,30 @@ def _parse_ancillary_metadata(
         warnings.append(WARN_ANCILLARY_UNMATCHED_NODE_COUNT.format(count=missing_count))
 
     return metadata_by_node_id, rows_by_node_id, warnings
+
+
+@dataclass(frozen=True)
+class AncillaryMetadata:
+    schema: tuple[MetadataField, ...]
+    by_node_id: dict[str, dict[str, str | float | bool | None]]
+    warnings: tuple[str, ...]
+
+
+def normalize_ancillary_data(
+    request: AncillaryDataRequest, node_ids: set[str]
+) -> AncillaryMetadata:
+    """Normalize a replacement table against already persisted canonical IDs."""
+    metadata, _, warnings = _parse_ancillary_metadata(
+        request, node_ids=node_ids, declared_schema=[]
+    )
+    if not metadata:
+        raise ParseError("Ancillary table does not match any nodes in this layout.")
+    schema = tuple(
+        field
+        for field in _merge_metadata_schema([], metadata)
+        if not is_internal_metadata_key(field.key)
+    )
+    return AncillaryMetadata(schema, metadata, tuple(warnings))
 
 
 def _reject_reserved_metadata_keys(

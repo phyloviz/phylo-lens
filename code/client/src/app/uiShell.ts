@@ -74,6 +74,7 @@ export interface UiShellElements {
   datasetNameInput?: HTMLInputElement;
   ancillaryInput?: HTMLTextAreaElement;
   ancillaryFileInput?: HTMLInputElement;
+  applyAncillaryButton?: HTMLButtonElement;
   ancillaryJoinColumnInput?: HTMLInputElement;
   ancillaryFormatSelect?: HTMLSelectElement;
   status: HTMLElement;
@@ -82,6 +83,7 @@ export interface UiShellElements {
   ancillaryModeSelect?: HTMLSelectElement;
   ancillaryNodeSelect?: HTMLSelectElement;
   metadataPieFieldSelect?: HTMLSelectElement;
+  showNodePiesInput?: HTMLInputElement;
   metadataSizeFieldInput?: HTMLInputElement;
   metadataSizeScaleSelect?: HTMLSelectElement;
   paletteControlsContainer?: HTMLElement;
@@ -122,6 +124,7 @@ export default function (options: UiShellOptions): UiShell {
     datasetNameInput,
     ancillaryInput,
     ancillaryFileInput,
+    applyAncillaryButton,
     ancillaryJoinColumnInput,
     ancillaryFormatSelect,
     status: statusElement,
@@ -130,6 +133,7 @@ export default function (options: UiShellOptions): UiShell {
     ancillaryModeSelect,
     ancillaryNodeSelect,
     metadataPieFieldSelect,
+    showNodePiesInput,
     metadataSizeFieldInput,
     metadataSizeScaleSelect,
     paletteControlsContainer,
@@ -147,6 +151,8 @@ export default function (options: UiShellOptions): UiShell {
     regionSelectionPanel,
   } = options.elements;
 
+  let applyingAncillary = false;
+  let loadingGraph = false;
   let lastRenderedGraph: PositionedGraph | null = null;
   const bindings = eventBindings();
   const pieFieldControls = metadataPieFieldControls(metadataPieFieldSelect);
@@ -157,6 +163,7 @@ export default function (options: UiShellOptions): UiShell {
     saveFilename: CATEGORY_COLOR_SAVE_FILENAME,
     getGraph: () => lastRenderedGraph,
     getSelectedFields: () => getSelectedOptions(metadataPieFieldSelect),
+    getPiesEnabled: () => showNodePiesInput?.checked,
     getSizeFieldValue: () => metadataSizeFieldInput?.value,
     getSizeScaleValue: () => metadataSizeScaleSelect?.value,
     onChanged: () => {
@@ -251,6 +258,7 @@ export default function (options: UiShellOptions): UiShell {
       wheels.renderOverview();
     });
     bindings.on(metadataPieFieldSelect, "change", handleMetadataPieFieldChange);
+    bindings.on(showNodePiesInput, "change", () => palette.applyControlChange());
     bindings.on(metadataPieFieldSelect, "mousedown", (event) => {
       handleMetadataPieFieldPointerDown(event as MouseEvent);
     });
@@ -298,10 +306,40 @@ export default function (options: UiShellOptions): UiShell {
     updateLodPlaybackControls(false);
     handleDisplayOptionsChange();
 
+    updateApplyAncillaryButton();
+    bindings.on(applyAncillaryButton, "click", () => {
+      void applyCurrentAncillaryData();
+    });
     bindings.on(form, "submit", (event) => {
       event.preventDefault();
       void renderCurrentInput();
     });
+  }
+
+  function updateApplyAncillaryButton(): void {
+    if (applyAncillaryButton) {
+      applyAncillaryButton.disabled = !lastRenderedGraph || applyingAncillary || loadingGraph;
+    }
+  }
+
+  async function applyCurrentAncillaryData(): Promise<void> {
+    if (!lastRenderedGraph || applyingAncillary || loadingGraph) return;
+    applyingAncillary = true;
+    updateApplyAncillaryButton();
+    setStatus("Applying ancillary data...");
+    try {
+      const data = await getAncillaryDataInput();
+      if (!data) throw new Error("Choose an ancillary table first.");
+      const result = await workbench.applyAncillaryData(data);
+      setStatus(
+        `Applied ancillary data to ${result.matched_node_count} nodes.${result.warnings.length ? " " + result.warnings.join(" ") : ""}`,
+      );
+    } catch (error) {
+      setFailureStatus(error instanceof Error ? error.message : "unknown error");
+    } finally {
+      applyingAncillary = false;
+      updateApplyAncillaryButton();
+    }
   }
 
   // Normalize and render using current user input values.
@@ -317,6 +355,8 @@ export default function (options: UiShellOptions): UiShell {
       return;
     }
 
+    loadingGraph = true;
+    updateApplyAncillaryButton();
     setStatus(`${STATUS_RENDERING_PREFIX}...`);
 
     try {
@@ -343,6 +383,9 @@ export default function (options: UiShellOptions): UiShell {
       pieFieldControls.updateOptions(null);
       palette.renderControls();
       wheels.renderOverview();
+    } finally {
+      loadingGraph = false;
+      updateApplyAncillaryButton();
     }
   }
 
@@ -367,6 +410,7 @@ export default function (options: UiShellOptions): UiShell {
   function handleGraphRendered(graph: PositionedGraph): void {
     setStatus(buildRenderedStatus(graph));
     lastRenderedGraph = graph;
+    updateApplyAncillaryButton();
     updateNodeSelector(
       ancillaryNodeSelect,
       getAncillaryMode(ancillaryModeSelect) === ANCILLARY_MODE_SELECTED ? graph : null,

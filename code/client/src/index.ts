@@ -1,5 +1,7 @@
 export {
   createPhyloLensView,
+  type PhyloLensAncillaryData,
+  type PhyloLensAncillaryResult,
   type PhyloLensLoadOptions,
   type PhyloLensView,
   type PhyloLensViewOptions,

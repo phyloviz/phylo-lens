@@ -637,6 +637,9 @@
             </label>
           </div>
 
+          <button id="apply-ancillary-button" type="button" disabled>Apply table to current tree</button>
+          <p>Applying a table replaces the current metadata while keeping the tree layout.</p>
+
           <label hidden>
             Advanced Ancillary JSON (optional)
             <textarea
@@ -660,6 +663,10 @@
                 <option value="current">Current graph snapshot</option>
                 <option value="selected">Selected node only</option>
               </select>
+            </label>
+            <label>
+              Show node pie charts
+              <input id="show-node-pies" type="checkbox" checked />
             </label>
             <label>
               Pie Field
