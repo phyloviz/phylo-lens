@@ -192,7 +192,16 @@ The fingerprint includes:
 
 The generated timestamp is excluded. JSON keys and collections are ordered
 canonically, so Python dictionary insertion order does not affect identity.
-Metadata changes therefore invalidate reuse even when topology remains the same.
+Metadata changes supplied to preparation therefore invalidate reuse even when
+topology remains the same.
+
+Post-load ancillary replacement takes a separate path: it derives a new version
+from a namespaced hash of the source version, dataset identifier, replacement
+schema, and normalized node metadata. Within one transaction it copies the
+geometry tables and writes replacement metadata and cluster summaries. The source
+version remains immutable; no layout or cluster construction runs. Existing
+read APIs and schema tables require no migration. This trades additional storage
+and database copying for a small change to the existing version model.
 
 ## Persistence model
 

@@ -20,6 +20,8 @@ from phylo_lens_server.http.graph.dependencies import (
     get_prepared_layout_store,
 )
 from phylo_lens_server.http.graph.schemas import (
+    GraphAncillaryRequest,
+    GraphAncillaryResponse,
     GraphPrepareJob,
     GraphPrepareStatus,
     GraphRegionQuery,
@@ -32,6 +34,9 @@ from phylo_lens_server.http.graph.schemas import (
 from phylo_lens_server.repository.jobs.local import (
     PrepareJobRegistry,
     PrepareQueueFullError,
+)
+from phylo_lens_server.repository.layout.ancillary_revision import (
+    AncillaryLayoutNotFoundError,
 )
 from phylo_lens_server.repository.layout.sqlite_layout_repository import (
     PreparedLayoutStore,
@@ -167,5 +172,23 @@ def search_graph_nodes(
         ) from exc
     except HTTPException:
         raise
+    except Exception as exc:  # pragma: no cover
+        raise unexpected_server_error(exc) from exc
+
+
+@router.put("/ancillary", response_model=GraphAncillaryResponse)
+def apply_ancillary_data(
+    request: GraphAncillaryRequest,
+    store: Annotated[PreparedLayoutStore, Depends(get_prepared_layout_store)],
+) -> GraphAncillaryResponse:
+    """Replace metadata in a new version, reusing the source's prepared geometry."""
+    try:
+        return graph_service.apply_ancillary_data(request, store)
+    except AncillaryLayoutNotFoundError as exc:
+        raise not_found_error("The requested prepared layout was not found.") from exc
+    except ParseError as exc:
+        raise parse_error_to_http(exc) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:  # pragma: no cover
         raise unexpected_server_error(exc) from exc

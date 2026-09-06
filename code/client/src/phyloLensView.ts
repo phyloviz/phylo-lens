@@ -41,8 +41,18 @@ export interface PhyloLensLoadOptions {
   };
 }
 
+export type PhyloLensAncillaryData = NonNullable<PhyloLensLoadOptions["ancillaryData"]>;
+
+export interface PhyloLensAncillaryResult {
+  matchedNodeCount: number;
+  warnings: string[];
+}
+
 export interface PhyloLensView {
   load: (options: PhyloLensLoadOptions) => Promise<void>;
+  /** Replace the visual mapping of a loaded tree and schedule a viewport refresh. */
+  updateVisualMapping: (mapping: VisualMappingOptions) => void;
+  applyAncillaryData: (data: PhyloLensAncillaryData) => Promise<PhyloLensAncillaryResult>;
   exportPng: () => Promise<Blob>;
   dispose: () => void;
 }
@@ -68,6 +78,22 @@ export function createPhyloLensView(options: PhyloLensViewOptions): PhyloLensVie
         }
         throw error;
       }
+    },
+    applyAncillaryData: async (data) => {
+      if (disposed) throw new Error(ERR_PHYLO_LENS_VIEW_DISPOSED);
+      try {
+        const result = await workbench.applyAncillaryData(data);
+        return { matchedNodeCount: result.matched_node_count, warnings: result.warnings };
+      } catch (error) {
+        if (disposed) throw new Error(ERR_PHYLO_LENS_VIEW_DISPOSED);
+        throw error;
+      }
+    },
+    updateVisualMapping: (mapping) => {
+      if (disposed) {
+        throw new Error(ERR_PHYLO_LENS_VIEW_DISPOSED);
+      }
+      workbench.updateVisualMapping(mapping);
     },
     exportPng: () => {
       if (disposed) {

@@ -29,6 +29,7 @@ Optional response fields with `None` values are omitted on graph routes.
 | `POST` | `/api/graph/viewport` | `GraphViewportQuery` | `GraphViewportResponse` | `200` |
 | `POST` | `/api/graph/region` | `GraphRegionQuery` | `GraphRegionResponse` | `200` |
 | `POST` | `/api/graph/search` | `GraphSearchQuery` | `GraphSearchResponse` | `200` |
+| `PUT` | `/api/graph/ancillary` | `GraphAncillaryRequest` | `GraphAncillaryResponse` | `200` |
 
 ## Prepare lifecycle
 
@@ -515,3 +516,57 @@ The service is a prepare-once, read-many API:
 Scripts and notebooks may use the protocol directly. Browser integrations should
 prefer `@phyloviz/phylo-lens`, which validates responses at runtime and owns the
 polling and viewport lifecycle.
+
+
+## Apply ancillary data to a prepared layout
+
+`PUT /api/graph/ancillary` accepts an exact published source version:
+
+```json
+{
+  "dataset_id": "tree",
+  "layout_version": "existing-version",
+  "ancillary_data": {
+    "format": "csv",
+    "join_column": "id",
+    "content": "id,country\nA,Portugal\nB,Canada\n"
+  }
+}
+```
+
+`format` is `auto` (default), `csv`, or `tsv`. The source must be `ready` or
+`degraded`. Joins use persisted canonical IDs, with the initial-import label slug
+fallback. Original source-label provenance is not stored, so this endpoint accepts
+persisted IDs rather than re-parsing the original Newick or typing input.
+Repeated rows use the same aggregation rules as initial ancillary import.
+
+Success (`200`) is synchronous:
+
+```json
+{
+  "dataset_id": "tree",
+  "layout_version": "new-version",
+  "matched_node_count": 2,
+  "warnings": []
+}
+```
+
+The returned version contains the replacement node metadata and public schema.
+All previous metadata fields are replaced, including directly supplied metadata;
+unmatched nodes have no replacement metadata. The source version is unchanged.
+Use the returned version for subsequent viewport, search, and region requests.
+The update reuses stored geometry and cluster memberships and rebuilds cluster
+metadata summaries. It does not invoke normalization of the tree, PhyloLib,
+Graphviz, or LoD construction.
+
+Invalid tables, reserved metadata columns, and tables matching no nodes return
+`400`. Missing or unpublished source versions return `404`; invalid request
+shapes return `422`. Unmatched rows and nodes are reported in `warnings` when at
+least one node matches. Publication is transactional: a failed write leaves no
+partial version. Repeating the same source version and normalized table returns
+the same derived version, including concurrent identical requests.
+
+This operation copies persisted geometry into a new immutable version. Its cost
+includes table parsing, database copying, and metadata aggregation, and it consumes
+additional storage. Large uploads can take time even though layout computation is
+skipped. No new prepare job is submitted.

@@ -106,6 +106,67 @@ describe("ViewportSyncController", () => {
     vi.restoreAllMocks();
   });
 
+  it("drops old viewport responses and cached expansions when adopting metadata", async () => {
+    const renderer = createRenderer();
+    let resolveOld: (response: GraphViewportResponse) => void = () => undefined;
+    const readViewport = vi
+      .fn()
+      .mockResolvedValueOnce(viewportResponse())
+      .mockResolvedValueOnce(clusterResponse())
+      .mockImplementationOnce(
+        () =>
+          new Promise<GraphViewportResponse>((resolve) => {
+            resolveOld = resolve;
+          }),
+      )
+      .mockResolvedValue(viewportResponse({ layout_version: "metadata-1" }));
+    const controller = new ViewportSyncController({
+      datasetId: "tree",
+      client: { readViewport },
+      renderer,
+      lodTierCount: 3,
+    });
+    controller.mount();
+    await vi.advanceTimersByTimeAsync(0);
+    controller.expandCluster("cluster-a");
+    await vi.advanceTimersByTimeAsync(0);
+    controller.refreshNow();
+    await vi.advanceTimersByTimeAsync(0);
+    const fits = vi.mocked(renderer.fitGraphSnapshot!).mock.calls.length;
+    await controller.replaceLayoutVersion("metadata-1");
+    const appliedCount = renderer.appliedGraphs.length;
+    controller.collapseCluster("cluster-a");
+    resolveOld(viewportResponse());
+    await vi.advanceTimersByTimeAsync(0);
+    expect(renderer.appliedGraphs).toHaveLength(appliedCount);
+    expect(renderer.fitGraphSnapshot).toHaveBeenCalledTimes(fits);
+    expect(readViewport).toHaveBeenLastCalledWith(expect.objectContaining({ layout_version: "metadata-1" }));
+    controller.unmount();
+  });
+
+  it("does not apply a metadata viewport after disposal", async () => {
+    const renderer = createRenderer();
+    let resolveReplacement: (response: GraphViewportResponse) => void = () => undefined;
+    const readViewport = vi
+      .fn()
+      .mockResolvedValueOnce(viewportResponse())
+      .mockImplementationOnce(
+        () =>
+          new Promise<GraphViewportResponse>((resolve) => {
+            resolveReplacement = resolve;
+          }),
+      );
+    const controller = new ViewportSyncController({ datasetId: "tree", client: { readViewport }, renderer });
+    controller.mount();
+    await vi.advanceTimersByTimeAsync(0);
+    const pending = controller.replaceLayoutVersion("metadata-1");
+    const rejected = expect(pending).rejects.toThrow("superseded");
+    controller.unmount();
+    resolveReplacement(viewportResponse({ layout_version: "metadata-1" }));
+    await rejected;
+    expect(renderer.appliedGraphs).toHaveLength(1);
+  });
+
   it("loads viewport responses and applies renderer-neutral graph snapshots", async () => {
     const renderer = createRenderer();
     const readViewport = vi.fn(async () => viewportResponse());

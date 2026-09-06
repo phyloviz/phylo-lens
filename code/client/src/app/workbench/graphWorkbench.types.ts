@@ -1,5 +1,5 @@
 import type { GraphClient } from "../../api/graphClient";
-import type { GraphMetadataField, GraphMetadataValue } from "../../api/graphContracts";
+import type { GraphAncillaryResponse, GraphMetadataField, GraphMetadataValue } from "../../api/graphContracts";
 import type { CanonicalDataset, SearchDatasetResponse, SourceFormat, Viewport } from "../../contracts/models";
 import type { PositionedGraph } from "../../contracts/positioned";
 import type { MetadataIndexData } from "../../ancillary/metadataIndex";
@@ -68,6 +68,8 @@ export type GraphNodeClickedHandler = (state: RenderNodeClickState) => void;
 export interface GraphWorkbench {
   renderNewick: (newick: string, datasetName?: string, options?: RenderNewickOptions) => Promise<PositionedGraph>;
 
+  applyAncillaryData: (data: NonNullable<RenderNewickOptions["ancillaryData"]>) => Promise<GraphAncillaryResponse>;
+
   exportPng: () => Promise<Blob>;
 
   applyMetadataFilters: (filterState: MetadataFilterState) => PositionedGraph;
@@ -113,7 +115,7 @@ export interface GraphWorkbench {
 
 export interface PreparedDatasetSession {
   datasetId: string;
-  layoutVersion?: string;
+  layoutVersion: string;
   metadataSchema: CanonicalDataset["metadata_schema"];
   metadataByNodeId: CanonicalDataset["metadata_by_node_id"];
   ancillaryRowsByNodeId: CanonicalDataset["ancillary_rows_by_node_id"];

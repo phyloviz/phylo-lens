@@ -325,14 +325,18 @@ def reference_edge_distance(
     known_node_ids: set[str],
 ) -> float:
     """Median of positive edge distances, used to normalize ``len=`` by scale."""
-    distances = [
-        edge.distance
-        for edge in edges
-        if edge.source in known_node_ids
-        and edge.target in known_node_ids
-        and edge.distance is not None
-        and edge.distance > 0.0
-    ]
+    distances: list[float] = []
+
+    for edge in edges:
+        if edge.source not in known_node_ids or edge.target not in known_node_ids:
+            continue
+
+        distance = edge.distance
+        if distance is None or distance <= 0.0:
+            continue
+
+        distances.append(distance)
+
     return median(distances) if distances else 0.0
 
 

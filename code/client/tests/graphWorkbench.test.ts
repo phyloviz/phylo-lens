@@ -423,3 +423,70 @@ describe("graphWorkbench navigation", () => {
     }
   });
 });
+
+const ancillaryData = { format: "csv" as const, join_column: "id", content: "id,country\ntree,Portugal\n" };
+const ancillaryResult = { dataset_id: "tree", layout_version: "metadata-1", matched_node_count: 1, warnings: [] };
+
+it("applies ancillary data without preparation or camera fitting and updates subsequent queries", async () => {
+  const updatedViewport = viewportResponse("tree", "metadata-1");
+  updatedViewport.metadata_schema = [{ key: "country", type: "string" }];
+  updatedViewport.nodes[0]!.metadata = { country: "Portugal" };
+  const readViewport = vi.fn().mockResolvedValueOnce(viewportResponse()).mockResolvedValue(updatedViewport);
+  const applyAncillaryData = vi.fn().mockResolvedValue(ancillaryResult);
+  const { workbench, renderer, graphClient } = createWorkbenchHarness({ readViewport, applyAncillaryData });
+  await workbench.renderNewick("(A,B)Root;");
+  const fits = vi.mocked(renderer.fitGraphSnapshot!).mock.calls.length;
+  await expect(workbench.applyAncillaryData(ancillaryData)).resolves.toEqual(ancillaryResult);
+  expect(applyAncillaryData).toHaveBeenCalledWith({
+    dataset_id: "tree",
+    layout_version: "layout-1",
+    ancillary_data: ancillaryData,
+  });
+  expect(graphClient.prepareGraph).toHaveBeenCalledTimes(1);
+  expect(renderer.fitGraphSnapshot).toHaveBeenCalledTimes(fits);
+  expect(readViewport).toHaveBeenLastCalledWith(expect.objectContaining({ layout_version: "metadata-1" }));
+  expect(renderer.applyGraphSnapshot).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      nodes: [expect.objectContaining({ attributes: expect.objectContaining({ metadata: { country: "Portugal" } }) })],
+    }),
+  );
+  await workbench.applyAncillaryData(ancillaryData);
+  expect(applyAncillaryData).toHaveBeenLastCalledWith(expect.objectContaining({ layout_version: "metadata-1" }));
+  workbench.dispose();
+});
+
+it("keeps the source version usable if the updated viewport fails", async () => {
+  const applyAncillaryData = vi.fn().mockResolvedValue(ancillaryResult);
+  const readViewport = vi.fn().mockResolvedValueOnce(viewportResponse()).mockRejectedValueOnce(new Error("offline"));
+  const { workbench, renderer } = createWorkbenchHarness({ applyAncillaryData, readViewport });
+  await workbench.renderNewick("(A,B)Root;");
+  await expect(workbench.applyAncillaryData(ancillaryData)).rejects.toThrow("offline");
+  expect(renderer.applyGraphSnapshot).toHaveBeenCalledTimes(1);
+  readViewport.mockResolvedValue(viewportResponse("tree", "metadata-1"));
+  await workbench.applyAncillaryData(ancillaryData);
+  expect(applyAncillaryData).toHaveBeenLastCalledWith(expect.objectContaining({ layout_version: "layout-1" }));
+  workbench.dispose();
+});
+
+it("rejects concurrent uploads and ignores an upload completed after another tree loads", async () => {
+  const pending = deferred<typeof ancillaryResult>();
+  const applyAncillaryData = vi.fn(() => pending.promise);
+  const { workbench, renderer } = createWorkbenchHarness({ applyAncillaryData });
+  await workbench.renderNewick("(A,B)Root;");
+  const upload = workbench.applyAncillaryData(ancillaryData);
+  const rejected = expect(upload).rejects.toThrow(ERR_GRAPH_LOAD_SUPERSEDED);
+  await expect(workbench.applyAncillaryData(ancillaryData)).rejects.toThrow("pending");
+  await workbench.renderNewick("(C,D)Root;");
+  pending.resolve(ancillaryResult);
+  await rejected;
+  expect(renderer.applyGraphSnapshot).toHaveBeenCalledTimes(2);
+  workbench.dispose();
+});
+
+it("rejects applying data before a tree is loaded", async () => {
+  const applyAncillaryData = vi.fn();
+  const { workbench } = createWorkbenchHarness({ applyAncillaryData });
+  await expect(workbench.applyAncillaryData(ancillaryData)).rejects.toThrow();
+  expect(applyAncillaryData).not.toHaveBeenCalled();
+  workbench.dispose();
+});

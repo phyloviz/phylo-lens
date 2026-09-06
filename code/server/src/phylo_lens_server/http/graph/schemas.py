@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field, model_validator
 
+from phylo_lens_server.data.normalizer import AncillaryDataRequest
 from phylo_lens_server.pipeline.models import LayoutStatus
 
 DEFAULT_MAX_VIEWPORT_NODES = 2_500
@@ -181,3 +182,16 @@ class GraphSearchResponse(BaseModel):
     query: str
     matches: list[GraphSearchMatch]
     total_count: int
+
+
+class GraphAncillaryRequest(BaseModel):
+    dataset_id: str = Field(min_length=1)
+    layout_version: str = Field(min_length=1)
+    ancillary_data: AncillaryDataRequest
+
+
+class GraphAncillaryResponse(BaseModel):
+    dataset_id: str
+    layout_version: str
+    matched_node_count: int = Field(ge=1)
+    warnings: list[str] = Field(default_factory=list)

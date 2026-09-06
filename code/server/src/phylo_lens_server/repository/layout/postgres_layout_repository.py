@@ -5,6 +5,7 @@ from collections.abc import Iterable
 from dataclasses import replace
 from typing import Any
 
+from phylo_lens_server.data.normalizer import AncillaryMetadata
 from phylo_lens_server.domain.metadata_keys import is_internal_metadata_key
 from phylo_lens_server.pipeline.models import (
     ClusterLayout,
@@ -22,7 +23,11 @@ from phylo_lens_server.pipeline.models import (
     ViewportReadResult,
 )
 from phylo_lens_server.repository.jobs.postgres import import_psycopg
-from phylo_lens_server.repository.layout import region_reader, writer
+from phylo_lens_server.repository.layout import (
+    ancillary_revision,
+    region_reader,
+    writer,
+)
 from phylo_lens_server.repository.layout.metadata_reader import (
     aggregate_cluster_metadata_by_node_ids,
     aggregate_layout_status,
@@ -49,6 +54,20 @@ class PostgresPreparedLayoutStore:
         self._dsn = dsn
         self._threshold_cache: dict[tuple[str, str], tuple[float, ...]] = {}
         self.path = dsn
+
+    def ancillary_node_ids(self, dataset_id: str, layout_version: str) -> set[str]:
+        with self._connect() as connection:
+            return ancillary_revision.published_node_ids(
+                connection, dataset_id, layout_version, "%s"
+            )
+
+    def apply_ancillary_metadata(
+        self, dataset_id: str, layout_version: str, metadata: AncillaryMetadata
+    ) -> str:
+        with self._connect() as connection:
+            return ancillary_revision.publish_revision(
+                connection, dataset_id, layout_version, metadata, "%s"
+            )
 
     def clear_dataset(self, dataset_id: str) -> None:
         keys = [key for key in self._threshold_cache if key[0] == dataset_id]

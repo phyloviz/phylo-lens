@@ -246,7 +246,7 @@ not apply DDL while serving traffic.
 | `PHYLO_LENS_POSTGRES_DSN` | unset | Required for PostgreSQL mode, schema initialization and external workers. |
 | `PHYLO_LENS_CORS_ORIGINS` | empty | Comma-separated browser origins allowed to call the service directly. |
 
-CORS permits `GET` and `POST` with the `Content-Type` header. Credentials and
+CORS permits `GET`, `POST`, and `PUT` with the `Content-Type` header. Credentials and
 cookies are disabled. An empty origin list is the safe production default.
 
 ### External processes
