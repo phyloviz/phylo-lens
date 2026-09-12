@@ -17,6 +17,7 @@ import {
 } from "./viewportQuery";
 import {
   graphSnapshotFromViewportResponse,
+  graphSnapshotWithDisplayOptions,
   isExpandableRepresentative,
   mergeGraphSnapshots,
   type ViewportSyncSettings,
@@ -164,6 +165,15 @@ export class ViewportSyncController {
     }
     this.fitNextResponse = options.fitToResponse === true;
     this.scheduleViewportRefresh(0);
+  }
+
+  updateDisplayOptions(displayOptions: ViewportSyncSettings["displayOptions"]): void {
+    if (!this.currentGraph) {
+      return;
+    }
+    this.currentGraph = graphSnapshotWithDisplayOptions(this.currentGraph, displayOptions);
+    this.applyGraph(this.currentGraph, "viewport_sync");
+    this.onGraphSynced?.(this.currentGraph);
   }
 
   handleNodeClick(state: RenderNodeClickState): void {
