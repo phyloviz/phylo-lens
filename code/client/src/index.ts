@@ -11,4 +11,5 @@ export {
   SUPPORTED_PHYLO_LENS_API_VERSION,
 } from "./api/serviceCompatibility";
 export { type MetadataField, type SourceFormat, type Viewport } from "./contracts/models";
+export type { SfdpOptions } from "./api/graphContracts";
 export type { VisualMappingOptions } from "./render/mapping/visualMapping";

@@ -102,6 +102,28 @@ describe("graphGuards", () => {
     ).toBe(false);
   });
 
+  it("validates supported SFDP preparation options", () => {
+    const request = {
+      format: "newick",
+      dataset_name: "tree",
+      content: "(A,B)Root;",
+      sfdp_options: {
+        k: 0.5,
+        repulsiveForce: 2,
+        overlap: "prism",
+        overlapScaling: -4,
+        smoothing: "spring",
+        quadtree: "fast",
+        beautify: true,
+      },
+    };
+
+    expect(isNormalizeRequest(request)).toBe(true);
+    expect(isNormalizeRequest({ ...request, sfdp_options: { overlap: "other" } })).toBe(false);
+    expect(isNormalizeRequest({ ...request, sfdp_options: { k: 0 } })).toBe(false);
+    expect(isNormalizeRequest({ ...request, sfdp_options: { iterations: 100 } })).toBe(false);
+  });
+
   it("validates prepare responses", () => {
     expect(isGraphPrepareResponse(PREPARE_FIXTURE)).toBe(true);
     expect(isGraphPrepareResponse({ ...PREPARE_FIXTURE, node_count: "3" })).toBe(false);
