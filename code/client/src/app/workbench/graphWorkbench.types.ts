@@ -1,5 +1,5 @@
 import type { GraphClient } from "../../api/graphClient";
-import type { GraphMetadataField, GraphMetadataValue } from "../../api/graphContracts";
+import type { GraphMetadataField, GraphMetadataValue, SfdpOptions } from "../../api/graphContracts";
 import type { CanonicalDataset, SearchDatasetResponse, SourceFormat, Viewport } from "../../contracts/models";
 import type { PositionedGraph } from "../../contracts/positioned";
 import type { MetadataIndexData } from "../../ancillary/metadataIndex";
@@ -45,9 +45,9 @@ export interface RenderNewickOptions {
   // Seed presentation toggles with the render request. This keeps the first
   // viewport snapshot consistent with selections made before loading a graph.
   displayOptions?: GraphDisplayOptions;
-  layout?: {
-    forceIterations?: number;
-  };
+  // Optional SFDP overrides are sent with preparation. Omitted fields defer to
+  // Graphviz's defaults.
+  sfdpOptions?: SfdpOptions;
   lod?: {
     maxNodes?: number;
     lodHint?: number;
@@ -123,7 +123,6 @@ export interface PreparedDatasetSession {
   displayOptions?: GraphDisplayOptions;
   // Prepare-time warnings, surfaced by the shell on every slice.
   layoutWarnings?: string[];
-  layout?: RenderNewickOptions["layout"];
   // Total precomputed LoD tiers for the dataset (from the prepare response).
   // Surfaced in the status bar as "LoD tier X/Y" so semantic-zoom transitions
   // are observable.

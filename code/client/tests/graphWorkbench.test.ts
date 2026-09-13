@@ -117,6 +117,20 @@ describe("graphWorkbench navigation", () => {
     expect(events).toEqual(["prepare", "viewport", "renderer", "resolved"]);
   });
 
+  it("maps public SFDP options into the prepare request", async () => {
+    const { graphClient, workbench } = createWorkbenchHarness();
+
+    await workbench.renderNewick("(a:1,b:1)root;", "tree", {
+      sfdpOptions: { k: 0.5, overlap: "prism", prismIterations: 10, beautify: true },
+    });
+
+    expect(graphClient.prepareGraph).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sfdp_options: { k: 0.5, overlap: "prism", prismIterations: 10, beautify: true },
+      }),
+    );
+  });
+
   it("keeps initial display options when constructing the viewport session", async () => {
     const { renderer, workbench } = createWorkbenchHarness({
       readViewport: vi.fn(async () => ({

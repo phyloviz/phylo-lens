@@ -51,13 +51,18 @@ def prepare_graph_job(
             job_id = registry.submit(
                 dataset,
                 submit_warnings,
+                sfdp_options=request.sfdp_options,
                 reserved_capacity=True,
             )
     else:
         normalized = normalize_dataset(request, expose_internal_schema=True)
         dataset, distance_warnings = ensure_graph_edge_distances(normalized.dataset)
         submit_warnings = (*normalized.warnings, *distance_warnings)
-        job_id = registry.submit(dataset, submit_warnings)
+        job_id = registry.submit(
+            dataset,
+            submit_warnings,
+            sfdp_options=request.sfdp_options,
+        )
     return GraphPrepareJob(
         job_id=job_id,
         status="pending",

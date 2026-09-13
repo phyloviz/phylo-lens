@@ -16,6 +16,7 @@ from phylo_lens_server.pipeline.clustering import (
     threshold_for_representative_target,
 )
 from phylo_lens_server.pipeline.models import PreparedLayoutArtifacts
+from phylo_lens_server.pipeline.sfdp import SfdpOptions, resolve_sfdp_options
 
 ERR_EMPTY_DATASET = "Prepared layout requires at least one node."
 ERR_MISSING_DISTANCE = "Prepared layout requires every edge to carry a distance value."
@@ -30,20 +31,23 @@ def prepare_layout_artifacts(
     dataset: CanonicalDataset,
     *,
     max_thresholds: int = MAX_CLUSTER_THRESHOLDS,
+    sfdp_options: SfdpOptions | None = None,
 ) -> PreparedLayoutArtifacts:
     if not dataset.nodes:
         raise PreparedLayoutIngestError(ERR_EMPTY_DATASET)
     if any(edge.distance is None for edge in dataset.edges):
         raise PreparedLayoutIngestError(ERR_MISSING_DISTANCE)
 
+    resolved_sfdp_options = resolve_sfdp_options(sfdp_options)
     node_ids = tuple(sorted(node.id for node in dataset.nodes))
     cluster_index = ClusterIndex.build(dataset)
+    sorted_edges = sort_edges_by_distance(dataset.edges)
     thresholds = selected_distance_thresholds(
         node_ids,
         dataset.edges,
         max_thresholds,
+        sorted_edges=sorted_edges,
     )
-    sorted_edges = sort_edges_by_distance(dataset.edges)
     components = components_by_threshold(
         node_ids,
         dataset.edges,
@@ -73,8 +77,9 @@ def prepare_layout_artifacts(
     )
     return PreparedLayoutArtifacts(
         dataset=dataset,
-        layout_version=layout_version_for_dataset(dataset),
+        layout_version=layout_version_for_dataset(dataset, resolved_sfdp_options),
         clusters=tuple(clusters),
+        sfdp_options=resolved_sfdp_options,
     )
 
 
@@ -82,6 +87,8 @@ def selected_distance_thresholds(
     node_ids: tuple[str, ...],
     edges: list[CanonicalEdge],
     max_thresholds: int,
+    *,
+    sorted_edges: tuple[CanonicalEdge, ...] | None = None,
 ) -> tuple[float, ...]:
     unique_desc = sorted(
         {edge.distance for edge in edges if edge.distance is not None},
@@ -92,7 +99,12 @@ def selected_distance_thresholds(
     if len(node_ids) <= 1:
         return (unique_desc[-1],)
 
-    component_counts = threshold_component_counts(node_ids, edges, tuple(unique_desc))
+    component_counts = threshold_component_counts(
+        node_ids,
+        edges,
+        tuple(unique_desc),
+        sorted_edges=sorted_edges,
+    )
     selected: list[float] = []
     for target in representative_targets(len(node_ids), max_thresholds):
         threshold = threshold_for_representative_target(component_counts, target)
@@ -106,9 +118,17 @@ def selected_distance_thresholds(
     return tuple(sorted(selected[:max_thresholds], reverse=True))
 
 
-def layout_version_for_dataset(dataset: CanonicalDataset) -> str:
+def layout_version_for_dataset(
+    dataset: CanonicalDataset,
+    sfdp_options: SfdpOptions | None = None,
+) -> str:
+    resolved_sfdp_options = resolve_sfdp_options(sfdp_options)
     payload = {
         "pipeline_version": LAYOUT_PIPELINE_VERSION,
+        "sfdp_options": resolved_sfdp_options.model_dump(
+            mode="json",
+            by_alias=True,
+        ),
         "dataset_id": dataset.dataset_id,
         "nodes": [
             node.model_dump(mode="json", exclude_none=True)

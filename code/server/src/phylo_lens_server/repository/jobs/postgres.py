@@ -3,12 +3,13 @@ from __future__ import annotations
 import hashlib
 import json
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Literal, Protocol
 
 from phylo_lens_server.database.schema_files import CREATE_SCHEMA_FILE, read_schema_sql
 from phylo_lens_server.domain.models import CanonicalDataset
 from phylo_lens_server.pipeline.ingest import layout_version_for_dataset
+from phylo_lens_server.pipeline.sfdp import SfdpOptions, resolve_sfdp_options
 from phylo_lens_server.repository.jobs.local import (
     ERR_PREPARE_QUEUE_FULL,
     JOB_STATUS_FAILED,
@@ -73,6 +74,7 @@ class ClaimedPrepareJob:
     job_id: str
     dataset: CanonicalDataset
     warnings: tuple[str, ...]
+    sfdp_options: SfdpOptions = field(default_factory=SfdpOptions)
 
 
 @dataclass(frozen=True)
@@ -92,6 +94,7 @@ class DurablePrepareJobStore(Protocol):
         dataset: CanonicalDataset,
         warnings: tuple[str, ...] = (),
         *,
+        sfdp_options: SfdpOptions | None = None,
         max_active_jobs: int | None = None,
     ) -> str: ...
 
@@ -172,12 +175,20 @@ class PostgresPrepareJobStore:
         dataset: CanonicalDataset,
         warnings: tuple[str, ...] = (),
         *,
+        sfdp_options: SfdpOptions | None = None,
         max_active_jobs: int | None = None,
     ) -> str:
         validate_max_active_jobs(max_active_jobs)
         dataset_id = dataset.dataset_id
-        layout_version = layout_version_for_dataset(dataset)
-        payload = dataset.model_dump(mode="json")
+        resolved_sfdp_options = resolve_sfdp_options(sfdp_options)
+        layout_version = layout_version_for_dataset(dataset, resolved_sfdp_options)
+        payload = {
+            "dataset": dataset.model_dump(mode="json"),
+            "sfdp_options": resolved_sfdp_options.model_dump(
+                mode="json",
+                by_alias=True,
+            ),
+        }
         job_id = uuid.uuid4().hex
 
         with self._connect() as connection, connection.transaction():
@@ -264,8 +275,13 @@ class PostgresPrepareJobStore:
             return None
         return ClaimedPrepareJob(
             job_id=row["job_id"],
-            dataset=CanonicalDataset.model_validate(row["dataset_payload"]),
+            dataset=CanonicalDataset.model_validate(
+                row["dataset_payload"].get("dataset", row["dataset_payload"])
+            ),
             warnings=tuple(row["warnings"] or ()),
+            sfdp_options=SfdpOptions.model_validate(
+                row["dataset_payload"].get("sfdp_options", {})
+            ),
         )
 
     def heartbeat(
@@ -389,10 +405,13 @@ class DurablePrepareJobRegistry:
         self,
         dataset: CanonicalDataset,
         warnings: tuple[str, ...] = (),
+        *,
+        sfdp_options: SfdpOptions | None = None,
     ) -> str:
         return self._store.submit(
             dataset,
             warnings,
+            sfdp_options=sfdp_options,
             max_active_jobs=self._max_active_jobs,
         )
 

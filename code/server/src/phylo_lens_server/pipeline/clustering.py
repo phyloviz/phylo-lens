@@ -56,15 +56,16 @@ class _UnionFind:
             index = self.parent[index]
         return index
 
-    def union(self, left: int, right: int) -> None:
+    def union(self, left: int, right: int) -> bool:
         left_root = self.find(left)
         right_root = self.find(right)
         if left_root == right_root:
-            return
+            return False
         if self.size[left_root] < self.size[right_root]:
             left_root, right_root = right_root, left_root
         self.parent[right_root] = left_root
         self.size[left_root] += self.size[right_root]
+        return True
 
 
 @dataclass(frozen=True)
@@ -115,25 +116,28 @@ def threshold_component_counts(
     node_ids: tuple[str, ...],
     edges: list[CanonicalEdge],
     thresholds_desc: tuple[float, ...],
+    *,
+    sorted_edges: tuple[CanonicalEdge, ...] | None = None,
 ) -> tuple[_ThresholdComponentCount, ...]:
     node_index_by_id = {node_id: index for index, node_id in enumerate(node_ids)}
-    weighted_edges = sorted(
-        ((_edge_distance(edge), edge.source, edge.target) for edge in edges),
-        key=lambda item: (item[0], item[1], item[2]),
-    )
+    if sorted_edges is None:
+        sorted_edges = sort_edges_by_distance(edges)
     union_find = _UnionFind.create(len(node_ids))
     edge_index = 0
+    component_count = len(node_ids)
     counts_by_threshold: dict[float, int] = {}
 
     for threshold in reversed(thresholds_desc):
-        while edge_index < len(weighted_edges):
-            distance, source, target = weighted_edges[edge_index]
-            if distance > threshold:
+        while edge_index < len(sorted_edges):
+            edge = sorted_edges[edge_index]
+            if _edge_distance(edge) > threshold:
                 break
-            union_find.union(node_index_by_id[source], node_index_by_id[target])
+            if union_find.union(
+                node_index_by_id[edge.source], node_index_by_id[edge.target]
+            ):
+                component_count -= 1
             edge_index += 1
-        roots = {union_find.find(index) for index in range(len(node_ids))}
-        counts_by_threshold[threshold] = len(roots)
+        counts_by_threshold[threshold] = component_count
 
     return tuple(
         _ThresholdComponentCount(
@@ -331,47 +335,4 @@ def representative_by_centroid(
     return min(
         member_node_ids,
         key=lambda node_id: (-internal_degree[node_id], node_id),
-    )
-
-
-def distance_clusters(
-    dataset: CanonicalDataset,
-    node_ids: tuple[str, ...],
-    thresholds_desc: tuple[float, ...],
-    *,
-    index: ClusterIndex | None = None,
-) -> list[PreparedCluster]:
-    node_index_by_id = {node_id: index_ for index_, node_id in enumerate(node_ids)}
-    cluster_index = index if index is not None else ClusterIndex.build(dataset)
-    weighted_edges = sorted(
-        ((_edge_distance(edge), edge.source, edge.target) for edge in dataset.edges),
-        key=lambda item: (item[0], item[1], item[2]),
-    )
-    thresholds_asc = tuple(reversed(thresholds_desc))
-    union_find = _UnionFind.create(len(node_ids))
-    edge_index = 0
-    clusters_by_key: dict[tuple[str, ...], PreparedCluster] = {}
-
-    for threshold in thresholds_asc:
-        while edge_index < len(weighted_edges):
-            distance, source, target = weighted_edges[edge_index]
-            if distance > threshold:
-                break
-            union_find.union(node_index_by_id[source], node_index_by_id[target])
-            edge_index += 1
-
-        for component in components_for_union_find(node_ids, union_find):
-            if len(component) <= 1 or component in clusters_by_key:
-                continue
-            clusters_by_key[component] = prepared_cluster(
-                dataset, threshold, component, index=cluster_index
-            )
-
-    return sorted(
-        clusters_by_key.values(),
-        key=lambda cluster: (
-            -cluster.member_count,
-            cluster.threshold or 0.0,
-            cluster.cluster_id,
-        ),
     )
