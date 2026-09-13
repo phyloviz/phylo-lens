@@ -154,25 +154,18 @@ def test_prepare_layout_artifacts_builds_distance_clusters_with_representatives(
     assert set(abc_cluster.boundary_edge_ids) == {"e_c_d_1", "e_c_e_1"}
 
 
-def test_default_sfdp_options_preserve_graphviz_defaults_in_dot() -> None:
+def test_default_sfdp_options_emit_phylolens_defaults_in_dot() -> None:
     node_ids = ("a", "b")
     edges = (CanonicalEdge(id="e1", source="a", target="b", distance=1.0),)
 
     default_payload = graphviz_dot_payload(node_ids, edges)
 
     assert default_payload == graphviz_dot_payload(node_ids, edges, SfdpOptions())
-    assert "pack=true" in default_payload
-    assert "splines=false" in default_payload
-    for attribute in (
-        "K=",
-        "repulsiveforce=",
-        "overlap=",
-        "overlap_scaling=",
-        "smoothing=",
-        "quadtree=",
-        "beautify=",
-    ):
-        assert attribute not in default_payload
+    assert (
+        'graph [K=0.3, repulsiveforce=1, overlap="prism0", '
+        'overlap_scaling=-4, smoothing="spring", quadtree="normal", '
+        "beautify=false, pack=true, splines=false];"
+    ) in default_payload
 
 
 def test_sfdp_options_reach_generated_dot() -> None:
@@ -192,11 +185,53 @@ def test_sfdp_options_reach_generated_dot() -> None:
 
     assert "K=0.75" in payload
     assert "repulsiveforce=2" in payload
-    assert 'overlap="prism"' in payload
+    assert 'overlap="prism0"' in payload
     assert "overlap_scaling=-4.5" in payload
     assert 'smoothing="spring"' in payload
     assert 'quadtree="fast"' in payload
     assert "beautify=true" in payload
+
+
+@pytest.mark.parametrize(
+    ("prism_iterations", "expected_overlap"),
+    ((10, 'overlap="prism10"'), (100, 'overlap="prism100"')),
+)
+def test_prism_iterations_are_serialized_into_overlap(
+    prism_iterations: int,
+    expected_overlap: str,
+) -> None:
+    payload = graphviz_dot_payload(
+        ("a", "b"),
+        (CanonicalEdge(id="e1", source="a", target="b", distance=1.0),),
+        SfdpOptions(prismIterations=prism_iterations),
+    )
+
+    assert expected_overlap in payload
+
+
+def test_scale_overlap_uses_defaults_without_prism_attributes() -> None:
+    payload = graphviz_dot_payload(
+        ("a", "b"),
+        (CanonicalEdge(id="e1", source="a", target="b", distance=1.0),),
+        SfdpOptions(overlap=SfdpOverlap.SCALE),
+    )
+
+    assert 'overlap="scale"' in payload
+    assert "overlap_scaling=" not in payload
+
+
+@pytest.mark.parametrize(
+    "options",
+    (
+        {"overlap": SfdpOverlap.SCALE, "prism_iterations": 10},
+        {"overlap": SfdpOverlap.SCALE, "overlap_scaling": -2.0},
+    ),
+)
+def test_scale_overlap_rejects_explicit_prism_configuration(
+    options: dict[str, object],
+) -> None:
+    with pytest.raises(ValidationError):
+        SfdpOptions(**options)
 
 
 @pytest.mark.parametrize(
@@ -223,10 +258,41 @@ def test_sfdp_options_reject_invalid_public_values(options: dict[str, object]) -
 
 def test_sfdp_options_change_layout_version() -> None:
     dataset = _dataset()
+    default_version = layout_version_for_dataset(dataset)
 
-    assert layout_version_for_dataset(dataset) != layout_version_for_dataset(
-        dataset,
+    variants = (
         SfdpOptions(k=0.75),
+        SfdpOptions(repulsiveForce=2.0),
+        SfdpOptions(prismIterations=10),
+        SfdpOptions(overlap=SfdpOverlap.SCALE),
+        SfdpOptions(overlapScaling=-2.0),
+        SfdpOptions(smoothing=SfdpSmoothing.NONE),
+        SfdpOptions(quadtree=SfdpQuadtree.FAST),
+        SfdpOptions(beautify=True),
+    )
+
+    assert all(
+        layout_version_for_dataset(dataset, options) != default_version
+        for options in variants
+    )
+
+
+def test_equivalent_resolved_sfdp_options_share_layout_version() -> None:
+    dataset = _dataset()
+    explicit_defaults = SfdpOptions(
+        k=0.3,
+        repulsiveForce=1.0,
+        overlap=SfdpOverlap.PRISM,
+        prismIterations=0,
+        overlapScaling=-4.0,
+        smoothing=SfdpSmoothing.SPRING,
+        quadtree=SfdpQuadtree.NORMAL,
+        beautify=False,
+    )
+
+    assert layout_version_for_dataset(dataset) == layout_version_for_dataset(
+        dataset,
+        explicit_defaults,
     )
 
 

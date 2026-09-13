@@ -12,7 +12,8 @@ export type GraphMetadata = Record<string, GraphMetadataValue>;
 export interface SfdpOptions {
   k?: number;
   repulsiveForce?: number;
-  overlap?: "prism0" | "prism" | "scale";
+  overlap?: "prism" | "scale";
+  prismIterations?: number;
   overlapScaling?: number;
   smoothing?: "none" | "avg_dist" | "graph_dist" | "power_dist" | "rng" | "spring" | "triangle";
   quadtree?: "none" | "normal" | "fast";

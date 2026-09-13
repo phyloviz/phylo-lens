@@ -216,6 +216,7 @@ function isOptionalSfdpOptions(value: unknown): value is SfdpOptions | undefined
     "k",
     "repulsiveForce",
     "overlap",
+    "prismIterations",
     "overlapScaling",
     "smoothing",
     "quadtree",
@@ -224,13 +225,15 @@ function isOptionalSfdpOptions(value: unknown): value is SfdpOptions | undefined
   if (Object.keys(value).some((key) => !allowedKeys.has(key))) {
     return false;
   }
+  const usesScaleOverlap = value.overlap === "scale";
   return (
     (value.k === undefined || (isFiniteNumber(value.k) && value.k > 0)) &&
     (value.repulsiveForce === undefined || (isFiniteNumber(value.repulsiveForce) && value.repulsiveForce >= 0)) &&
-    (value.overlap === undefined ||
-      value.overlap === "prism0" ||
-      value.overlap === "prism" ||
-      value.overlap === "scale") &&
+    (value.overlap === undefined || value.overlap === "prism" || value.overlap === "scale") &&
+    (value.prismIterations === undefined ||
+      (isFiniteNumber(value.prismIterations) &&
+        Number.isInteger(value.prismIterations) &&
+        value.prismIterations >= 0)) &&
     (value.overlapScaling === undefined || isFiniteNumber(value.overlapScaling)) &&
     (value.smoothing === undefined ||
       value.smoothing === "none" ||
@@ -244,7 +247,8 @@ function isOptionalSfdpOptions(value: unknown): value is SfdpOptions | undefined
       value.quadtree === "none" ||
       value.quadtree === "normal" ||
       value.quadtree === "fast") &&
-    (value.beautify === undefined || isBoolean(value.beautify))
+    (value.beautify === undefined || isBoolean(value.beautify)) &&
+    (!usesScaleOverlap || (value.prismIterations === undefined && value.overlapScaling === undefined))
   );
 }
 

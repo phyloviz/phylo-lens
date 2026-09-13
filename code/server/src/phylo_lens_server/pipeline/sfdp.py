@@ -1,14 +1,12 @@
 from __future__ import annotations
 
 from enum import StrEnum
+from typing import Self
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class SfdpOverlap(StrEnum):
-    """Overlap-removal modes intentionally supported by PhyloLens."""
-
-    PRISM0 = "prism0"
     PRISM = "prism"
     SCALE = "scale"
 
@@ -30,49 +28,77 @@ class SfdpQuadtree(StrEnum):
 
 
 class SfdpOptions(BaseModel):
-    """Optional, SFDP-specific Graphviz overrides for a prepared layout.
+    """Graphviz SFDP configuration."""
 
-    ``None`` means that no DOT attribute is emitted, preserving Graphviz's own
-    default for that option.
-    """
+    model_config = ConfigDict(
+        extra="forbid",
+        frozen=True,
+        populate_by_name=True,
+    )
 
-    model_config = ConfigDict(extra="forbid", frozen=True, populate_by_name=True)
-
-    k: float | None = Field(
-        default=None,
+    k: float = Field(
+        default=0.3,
         gt=0,
         strict=True,
         allow_inf_nan=False,
     )
-    repulsive_force: float | None = Field(
-        default=None,
+
+    repulsive_force: float = Field(
+        default=1.0,
         alias="repulsiveForce",
         ge=0,
         strict=True,
         allow_inf_nan=False,
     )
-    overlap: SfdpOverlap | None = None
-    overlap_scaling: float | None = Field(
-        default=None,
+
+    overlap: SfdpOverlap = SfdpOverlap.PRISM
+
+    prism_iterations: int = Field(
+        default=0,
+        alias="prismIterations",
+        ge=0,
+        strict=True,
+    )
+
+    overlap_scaling: float = Field(
+        default=-4.0,
         alias="overlapScaling",
         strict=True,
         allow_inf_nan=False,
     )
-    smoothing: SfdpSmoothing | None = None
-    quadtree: SfdpQuadtree | None = None
-    beautify: bool | None = None
+
+    smoothing: SfdpSmoothing = SfdpSmoothing.SPRING
+    quadtree: SfdpQuadtree = SfdpQuadtree.NORMAL
+    beautify: bool = False
+
+    @model_validator(mode="after")
+    def validate_overlap_options(self) -> Self:
+        if self.overlap == SfdpOverlap.SCALE:
+            if "prism_iterations" in self.model_fields_set:
+                raise ValueError("prismIterations requires Prism overlap removal.")
+            if "overlap_scaling" in self.model_fields_set:
+                raise ValueError("overlapScaling requires Prism overlap removal.")
+
+        return self
 
     def dot_attributes(self) -> dict[str, str | float | bool]:
-        attributes: dict[str, str | float | bool | None] = {
+        attributes: dict[str, str | float | bool] = {
             "K": self.k,
             "repulsiveforce": self.repulsive_force,
-            "overlap": self.overlap,
-            "overlap_scaling": self.overlap_scaling,
-            "smoothing": self.smoothing,
-            "quadtree": self.quadtree,
-            "beautify": self.beautify,
+            "overlap": (
+                f"prism{self.prism_iterations}"
+                if self.overlap == SfdpOverlap.PRISM
+                else self.overlap.value
+            ),
         }
-        return {name: value for name, value in attributes.items() if value is not None}
+        if self.overlap == SfdpOverlap.PRISM:
+            attributes["overlap_scaling"] = self.overlap_scaling
+        attributes.update(
+            smoothing=self.smoothing.value,
+            quadtree=self.quadtree.value,
+            beautify=self.beautify,
+        )
+        return attributes
 
 
 def resolve_sfdp_options(options: SfdpOptions | None) -> SfdpOptions:
