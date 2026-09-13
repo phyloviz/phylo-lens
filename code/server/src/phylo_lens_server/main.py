@@ -4,11 +4,9 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 import uvicorn
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 
-from phylo_lens_server.http.errors import unexpected_server_error
 from phylo_lens_server.http.graph.dependencies import (
     shutdown_prepare_job_registry_if_started,
 )
@@ -76,15 +74,6 @@ def parse_cors_origins(raw_origins: str | None = None) -> list[str]:
 
 def create_app() -> FastAPI:
     app = FastAPI(title=APP_TITLE, version=service_version(), lifespan=lifespan)
-
-    @app.exception_handler(Exception)
-    async def handle_unexpected_server_error(
-        _request: Request, exc: Exception
-    ) -> JSONResponse:
-        error = unexpected_server_error(exc)
-        return JSONResponse(
-            status_code=error.status_code, content={"detail": error.detail}
-        )
 
     app.add_middleware(
         CORSMiddleware,

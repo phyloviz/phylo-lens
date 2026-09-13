@@ -13,6 +13,7 @@ from phylo_lens_server.http.errors import (
     not_found_error,
     parse_error_to_http,
     pydantic_validation_error_to_http,
+    unexpected_server_error,
 )
 from phylo_lens_server.http.graph.dependencies import (
     get_prepare_job_registry,
@@ -76,6 +77,8 @@ def prepare_graph(
         raise pydantic_validation_error_to_http(exc) from exc
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:  # pragma: no cover
+        raise unexpected_server_error(exc) from exc
 
 
 @router.get(
@@ -116,6 +119,8 @@ def read_graph_viewport(
         ) from exc
     except HTTPException:
         raise
+    except Exception as exc:  # pragma: no cover
+        raise unexpected_server_error(exc) from exc
 
 
 @router.post(
@@ -138,6 +143,8 @@ def read_graph_region(
         ) from exc
     except HTTPException:
         raise
+    except Exception as exc:  # pragma: no cover
+        raise unexpected_server_error(exc) from exc
 
 
 @router.post(
@@ -160,3 +167,5 @@ def search_graph_nodes(
         ) from exc
     except HTTPException:
         raise
+    except Exception as exc:  # pragma: no cover
+        raise unexpected_server_error(exc) from exc
