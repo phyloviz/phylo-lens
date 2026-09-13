@@ -24,6 +24,7 @@ import type {
   GraphViewportNode,
   GraphViewportResponse,
   NormalizeRequest,
+  SfdpOptions,
 } from "./graphContracts";
 
 export function isNormalizeRequest(value: unknown): value is NormalizeRequest {
@@ -35,7 +36,8 @@ export function isNormalizeRequest(value: unknown): value is NormalizeRequest {
     isOptionalNormalizeOptions(value.options) &&
     isOptionalGraphMetadataSchema(value.metadata_schema) &&
     isOptionalMetadataByNodeId(value.metadata_by_node_id) &&
-    isOptionalAncillaryDataRequest(value.ancillary_data)
+    isOptionalAncillaryDataRequest(value.ancillary_data) &&
+    isOptionalSfdpOptions(value.sfdp_options)
   );
 }
 
@@ -200,6 +202,53 @@ function isOptionalNormalizeOptions(value: unknown): boolean {
   return (
     value === undefined ||
     (isRecord(value) && (value.allow_self_loops === undefined || isBoolean(value.allow_self_loops)))
+  );
+}
+
+function isOptionalSfdpOptions(value: unknown): value is SfdpOptions | undefined {
+  if (value === undefined) {
+    return true;
+  }
+  if (!isRecord(value)) {
+    return false;
+  }
+  const allowedKeys = new Set([
+    "k",
+    "repulsiveForce",
+    "overlap",
+    "prismIterations",
+    "overlapScaling",
+    "smoothing",
+    "quadtree",
+    "beautify",
+  ]);
+  if (Object.keys(value).some((key) => !allowedKeys.has(key))) {
+    return false;
+  }
+  const usesScaleOverlap = value.overlap === "scale";
+  return (
+    (value.k === undefined || (isFiniteNumber(value.k) && value.k > 0)) &&
+    (value.repulsiveForce === undefined || (isFiniteNumber(value.repulsiveForce) && value.repulsiveForce >= 0)) &&
+    (value.overlap === undefined || value.overlap === "prism" || value.overlap === "scale") &&
+    (value.prismIterations === undefined ||
+      (isFiniteNumber(value.prismIterations) &&
+        Number.isInteger(value.prismIterations) &&
+        value.prismIterations >= 0)) &&
+    (value.overlapScaling === undefined || isFiniteNumber(value.overlapScaling)) &&
+    (value.smoothing === undefined ||
+      value.smoothing === "none" ||
+      value.smoothing === "avg_dist" ||
+      value.smoothing === "graph_dist" ||
+      value.smoothing === "power_dist" ||
+      value.smoothing === "rng" ||
+      value.smoothing === "spring" ||
+      value.smoothing === "triangle") &&
+    (value.quadtree === undefined ||
+      value.quadtree === "none" ||
+      value.quadtree === "normal" ||
+      value.quadtree === "fast") &&
+    (value.beautify === undefined || isBoolean(value.beautify)) &&
+    (!usesScaleOverlap || (value.prismIterations === undefined && value.overlapScaling === undefined))
   );
 }
 

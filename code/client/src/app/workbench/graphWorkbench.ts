@@ -200,6 +200,7 @@ async function renderNewick({
     metadata_schema: options.metadataSchema ?? [],
     metadata_by_node_id: options.metadataByNodeId ?? {},
     ancillary_data: options.ancillaryData,
+    sfdp_options: options.sfdpOptions,
   };
 
   if (!renderer.getViewportSyncState || !renderer.applyGraphSnapshot) {
@@ -220,7 +221,6 @@ async function renderNewick({
     visualMapping: options.visualMapping,
     displayOptions: options.displayOptions,
     layoutWarnings: preparedGraph.warnings,
-    layout: options.layout,
     lodTierCount: preparedGraph.lod_tier_count,
     lod: {
       maxNodes: options.lod?.maxNodes ?? DEFAULT_VIEW_SLICE_MAX_NODES,
@@ -254,6 +254,7 @@ async function renderNewick({
       visualMapping: state.preparedSession?.visualMapping,
       filterState: state.activeFilters,
       metadataSchema: state.preparedSession?.metadataSchema,
+      metadataByNodeId: state.preparedSession?.metadataByNodeId,
       displayOptions: state.preparedSession?.displayOptions,
     }),
   });

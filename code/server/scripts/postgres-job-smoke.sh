@@ -7,6 +7,7 @@ POSTGRES_PORT="${POSTGRES_PORT:-15432}"
 POSTGRES_DB="${POSTGRES_DB:-phylo_lens_smoke}"
 POSTGRES_USER="${POSTGRES_USER:-phylo_lens}"
 POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-phylo_lens_smoke}"
+PYTHON_BIN="${PYTHON_BIN:-python}"
 export POSTGRES_PORT POSTGRES_DB POSTGRES_USER POSTGRES_PASSWORD
 
 cleanup() {
@@ -24,7 +25,7 @@ docker run -d \
 
 trap cleanup EXIT
 
-PYTHONPATH="${PYTHONPATH:+${PYTHONPATH}:}src" python - <<'PY'
+PYTHONPATH="${PYTHONPATH:+${PYTHONPATH}:}src" "$PYTHON_BIN" - <<'PY'
 from __future__ import annotations
 
 import os
