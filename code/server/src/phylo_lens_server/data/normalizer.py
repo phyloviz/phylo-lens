@@ -34,6 +34,7 @@ from phylo_lens_server.domain.models import (
     MetadataField,
 )
 from phylo_lens_server.domain.validators import validate_canonical_dataset
+from phylo_lens_server.pipeline.sfdp import SfdpOptions
 
 
 class NormalizeFormat(StrEnum):
@@ -100,6 +101,7 @@ class NormalizeRequest(BaseModel):
         default_factory=dict
     )
     ancillary_data: AncillaryDataRequest | None = None
+    sfdp_options: SfdpOptions = Field(default_factory=SfdpOptions)
 
 
 class NormalizeStats(BaseModel):

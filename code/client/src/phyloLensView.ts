@@ -1,4 +1,5 @@
 import { createGraphClient } from "./api/graphClient";
+import type { SfdpOptions } from "./api/graphContracts";
 import { SOURCE_FORMAT_NEWICK, type MetadataField, type SourceFormat, type Viewport } from "./contracts/models";
 import rendererFactory from "./render/rendererFactory";
 import { RENDERER_KIND_SIGMA } from "./render/renderer.types";
@@ -31,9 +32,7 @@ export interface PhyloLensLoadOptions {
     join_column: string;
   };
   visualMapping?: VisualMappingOptions;
-  layout?: {
-    forceIterations?: number;
-  };
+  sfdpOptions?: SfdpOptions;
   lod?: {
     maxNodes?: number;
     lodHint?: number;

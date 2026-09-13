@@ -42,6 +42,7 @@ export interface ViewportSyncSettings {
   visualMapping?: VisualMappingOptions;
   filterState?: MetadataFilterState;
   metadataSchema?: MetadataField[];
+  metadataByNodeId?: Record<string, Record<string, GraphMetadataValue>>;
   displayOptions?: GraphDisplayOptions;
 }
 
@@ -85,6 +86,37 @@ export function graphSnapshotFromViewportResponse(
           }
         : undefined,
     },
+  };
+}
+
+export function graphSnapshotWithDisplayOptions(
+  graph: PositionedGraph,
+  displayOptions?: GraphDisplayOptions,
+): PositionedGraph {
+  const showNodeLabel = displayOptions?.nodeLabels !== false;
+  const showEdgeLabel = displayOptions?.edgeDistanceLabels === true;
+  const distanceWeighted = displayOptions?.distanceWeightedEdges === true;
+
+  return {
+    ...graph,
+    nodes: graph.nodes.map((node) => {
+      const attributes = { ...(node.attributes ?? {}) };
+      const isRepresentative =
+        attributes.is_cluster_proxy === true ||
+        attributes.type === GRAPH_VIEWER_TRIANGLE_NODE_TYPE ||
+        (typeof attributes.member_count === "number" && attributes.member_count > 1);
+      attributes.label = isRepresentative || !showNodeLabel ? "" : node.id;
+      return { ...node, attributes };
+    }),
+    edges: graph.edges.map((edge) => {
+      const attributes = { ...(edge.attributes ?? {}) };
+      const distance = numberAttribute(attributes.distance);
+      const hasDistance = distance !== undefined;
+      attributes.size = edgeSizeForDistance(distance, GRAPH_VIEWER_BASE_EDGE_SIZE, distanceWeighted);
+      attributes.label = showEdgeLabel && hasDistance ? String(distance) : "";
+      attributes.forceLabel = showEdgeLabel;
+      return { ...edge, attributes };
+    }),
   };
 }
 
@@ -212,8 +244,9 @@ function resolveViewportVisuals(
   const scale = mapping.size?.scale ?? SIZE_SCALE_LINEAR;
   const palette = mapping.palette ?? DEFAULT_COLOR_PALETTE;
   const numericStats = computeSizeFieldStats(nodes, sizeField);
+  const stableColorValues = Object.values(settings?.metadataByNodeId ?? {}).map((metadata) => metadata[colorField]);
   const colorForValue = buildValueColorMap(
-    nodes.map((node) => node.metadata?.[colorField]),
+    stableColorValues.some(hasMetadataValue) ? stableColorValues : nodes.map((node) => node.metadata?.[colorField]),
     palette,
   );
   const pie = mapping.pie && mapping.pie.enabled !== false ? mapping.pie : undefined;
@@ -227,6 +260,10 @@ function resolveViewportVisuals(
     numericStats,
     pie,
   };
+}
+
+function hasMetadataValue(value: GraphMetadataValue | undefined): boolean {
+  return value !== undefined && value !== null && value !== "";
 }
 
 function viewportHasProfileCount(nodes: GraphViewportNode[]): boolean {

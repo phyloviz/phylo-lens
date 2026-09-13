@@ -5,7 +5,6 @@ from collections.abc import Iterable
 from dataclasses import replace
 from typing import Any
 
-from phylo_lens_server.domain.metadata_keys import is_internal_metadata_key
 from phylo_lens_server.pipeline.models import (
     ClusterLayout,
     LayoutBounds,
@@ -76,70 +75,15 @@ class PostgresPreparedLayoutStore:
         status: str = "refining",
         stage_factory=None,
     ) -> None:
-        with (
-            self._connect() as connection,
-            connection.transaction(),
-            writer._stage(stage_factory, "persist_layouts.prepared_clusters"),
-        ):
-            connection.execute(
-                """
-                    insert into datasets(dataset_id, layout_version, status)
-                        values (%s, %s, %s)
-                        on conflict(dataset_id, layout_version) do update set
-                            status = excluded.status
-                        """,
-                (
-                    artifacts.dataset.dataset_id,
-                    artifacts.layout_version,
-                    status,
-                ),
+        with self._connect() as connection, connection.transaction():
+            writer.save_artifacts_to_connection(
+                connection,
+                artifacts,
+                status=status,
+                stage_factory=stage_factory,
+                placeholder="%s",
+                execute_many=execute_many_chunked,
             )
-            with writer._stage(stage_factory, "persist_artifacts.prepared_clusters"):
-                execute_many_chunked(
-                    connection,
-                    """
-                        insert into prepared_clusters(
-                            dataset_id, layout_version, cluster_id, threshold,
-                            representative_node_id, member_count, status
-                        )
-                        values (%s, %s, %s, %s, %s, %s, %s)
-                        on conflict(dataset_id, layout_version, cluster_id) do update set
-                            threshold = excluded.threshold,
-                            representative_node_id = excluded.representative_node_id,
-                            member_count = excluded.member_count,
-                            status = excluded.status
-                        """,
-                    writer.prepared_cluster_rows(artifacts),
-                )
-            with writer._stage(stage_factory, "persist_artifacts.cluster_members"):
-                execute_many_chunked(
-                    connection,
-                    """
-                        insert into cluster_members(
-                            dataset_id, layout_version, cluster_id, node_id
-                        )
-                        values (%s, %s, %s, %s)
-                        on conflict do nothing
-                        """,
-                    writer.cluster_member_rows(artifacts),
-                )
-            with writer._stage(stage_factory, "persist_artifacts.graph_edges"):
-                execute_many_chunked(
-                    connection,
-                    """
-                        insert into graph_edges(
-                            dataset_id, layout_version, edge_id,
-                            source_node_id, target_node_id, distance
-                        )
-                        values (%s, %s, %s, %s, %s, %s)
-                        on conflict(dataset_id, layout_version, edge_id) do update set
-                            source_node_id = excluded.source_node_id,
-                            target_node_id = excluded.target_node_id,
-                            distance = excluded.distance
-                        """,
-                    writer.graph_edge_rows(artifacts),
-                )
-            self._persist_metadata(connection, artifacts, stage_factory=stage_factory)
 
     def save_layouts(
         self,
@@ -148,57 +92,15 @@ class PostgresPreparedLayoutStore:
         *,
         stage_factory=None,
     ) -> None:
-        with (
-            self._connect() as connection,
-            connection.transaction(),
-            writer._stage(stage_factory, "persist_layouts.prepared_clusters"),
-        ):
-            execute_many_chunked(
+        with self._connect() as connection, connection.transaction():
+            writer.save_layouts_to_connection(
                 connection,
-                """
-                        insert into prepared_clusters(
-                            dataset_id, layout_version, cluster_id, representative_node_id,
-                            member_count, x, y, radius, min_x, max_x, min_y, max_y, status
-                        )
-                        values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                        on conflict(dataset_id, layout_version, cluster_id) do update set
-                            representative_node_id = excluded.representative_node_id,
-                            member_count = excluded.member_count,
-                            x = excluded.x,
-                            y = excluded.y,
-                            radius = excluded.radius,
-                            min_x = excluded.min_x,
-                            max_x = excluded.max_x,
-                            min_y = excluded.min_y,
-                            max_y = excluded.max_y,
-                            status = excluded.status
-                        """,
-                writer.cluster_layout_rows(cluster_layouts),
+                cluster_layouts,
+                node_positions,
+                stage_factory=stage_factory,
+                placeholder="%s",
+                execute_many=execute_many_chunked,
             )
-            if node_positions:
-                first = node_positions[0]
-                with writer._stage(
-                    stage_factory, "persist_layouts.node_positions.clear_existing"
-                ):
-                    connection.execute(
-                        """
-                            delete from node_positions
-                            where dataset_id = %s and layout_version = %s
-                            """,
-                        (first.dataset_id, first.layout_version),
-                    )
-            with writer._stage(stage_factory, "persist_layouts.node_positions.rows"):
-                execute_many_chunked(
-                    connection,
-                    """
-                        insert into node_positions(
-                            dataset_id, layout_version, cluster_id, node_id,
-                            x, y, status
-                        )
-                        values (%s, %s, %s, %s, %s, %s, %s)
-                        """,
-                    writer.node_position_rows(cluster_layouts, node_positions),
-                )
 
     def save_prepared_edges(
         self,
@@ -209,32 +111,13 @@ class PostgresPreparedLayoutStore:
         if not prepared_edges:
             return
         with self._connect() as connection, connection.transaction():
-            first = prepared_edges[0]
-            with writer._stage(stage_factory, "persist_prepared_edges.clear_existing"):
-                connection.execute(
-                    """
-                        delete from prepared_edges
-                        where dataset_id = %s and layout_version = %s
-                        """,
-                    (first.dataset_id, first.layout_version),
-                )
-            with writer._stage(stage_factory, "persist_prepared_edges.rows"):
-                execute_many_chunked(
-                    connection,
-                    """
-                        insert into prepared_edges(
-                            dataset_id, layout_version, lod_level, edge_id,
-                            source_node_id, target_node_id, distance
-                        )
-                        values (%s, %s, %s, %s, %s, %s, %s)
-                        on conflict(dataset_id, layout_version, lod_level, edge_id)
-                        do update set
-                            source_node_id = excluded.source_node_id,
-                            target_node_id = excluded.target_node_id,
-                            distance = excluded.distance
-                        """,
-                    writer.prepared_edge_rows(prepared_edges),
-                )
+            writer.save_prepared_edges_to_connection(
+                connection,
+                prepared_edges,
+                stage_factory=stage_factory,
+                placeholder="%s",
+                execute_many=execute_many_chunked,
+            )
 
     def publish_layout_version(
         self,
@@ -404,77 +287,6 @@ class PostgresPreparedLayoutStore:
     def _connect(self):
         psycopg = import_psycopg()
         return psycopg.connect(self._dsn, row_factory=psycopg.rows.dict_row)
-
-    def _persist_metadata(
-        self, connection, artifacts: PreparedLayoutArtifacts, *, stage_factory=None
-    ) -> None:
-        dataset_id = artifacts.dataset.dataset_id
-        layout_version = artifacts.layout_version
-        public_fields = tuple(
-            (field.key, str(field.type))
-            for field in artifacts.dataset.metadata_schema
-            if not is_internal_metadata_key(field.key)
-        )
-        public_keys = {key for key, _ in public_fields}
-
-        with writer._stage(stage_factory, "persist_artifacts.metadata_schema"):
-            execute_many_chunked(
-                connection,
-                """
-                insert into metadata_schema(
-                    dataset_id, layout_version, field_key, field_type
-                )
-                values (%s, %s, %s, %s)
-                on conflict(dataset_id, layout_version, field_key) do update set
-                    field_type = excluded.field_type
-                """,
-                [
-                    (dataset_id, layout_version, key, field_type)
-                    for key, field_type in public_fields
-                ],
-            )
-
-        render_metadata_by_node = writer.render_metadata_by_node_map(
-            artifacts.dataset.metadata_by_node_id,
-            public_keys,
-        )
-        render_metadata_json_by_node = {
-            node_id: json.dumps(metadata)
-            for node_id, metadata in render_metadata_by_node.items()
-        }
-        with writer._stage(stage_factory, "persist_artifacts.node_metadata"):
-            execute_many_chunked(
-                connection,
-                """
-                insert into node_metadata(
-                    dataset_id, layout_version, node_id, metadata_json
-                )
-                values (%s, %s, %s, %s)
-                on conflict(dataset_id, layout_version, node_id) do update set
-                    metadata_json = excluded.metadata_json
-                """,
-                writer.node_metadata_rows(
-                    dataset_id, layout_version, render_metadata_json_by_node
-                ),
-            )
-        with writer._stage(stage_factory, "persist_artifacts.cluster_metadata"):
-            execute_many_chunked(
-                connection,
-                """
-                insert into cluster_metadata(
-                    dataset_id, layout_version, cluster_id, metadata_json
-                )
-                values (%s, %s, %s, %s)
-                on conflict(dataset_id, layout_version, cluster_id) do update set
-                    metadata_json = excluded.metadata_json
-                """,
-                writer.cluster_metadata_rows(
-                    artifacts,
-                    render_metadata_by_node,
-                    render_metadata_json_by_node,
-                    public_fields,
-                ),
-            )
 
 
 def layout_tables() -> tuple[str, ...]:

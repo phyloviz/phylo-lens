@@ -67,6 +67,7 @@ function createWorkbenchHarness(overrides: Partial<GraphClient> = {}) {
     getViewportSyncState: vi.fn(() => viewportState),
     applyGraphSnapshot: vi.fn(),
     fitGraphSnapshot: vi.fn(() => null),
+    updateDisplayOptions: vi.fn(),
     setViewChangeHandler: vi.fn(),
     setNodeClickHandler: vi.fn(),
     setNodeDoubleClickHandler: vi.fn(),
@@ -117,6 +118,20 @@ describe("graphWorkbench navigation", () => {
     expect(events).toEqual(["prepare", "viewport", "renderer", "resolved"]);
   });
 
+  it("maps public SFDP options into the prepare request", async () => {
+    const { graphClient, workbench } = createWorkbenchHarness();
+
+    await workbench.renderNewick("(a:1,b:1)root;", "tree", {
+      sfdpOptions: { k: 0.5, overlap: "prism", prismIterations: 10, beautify: true },
+    });
+
+    expect(graphClient.prepareGraph).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sfdp_options: { k: 0.5, overlap: "prism", prismIterations: 10, beautify: true },
+      }),
+    );
+  });
+
   it("keeps initial display options when constructing the viewport session", async () => {
     const { renderer, workbench } = createWorkbenchHarness({
       readViewport: vi.fn(async () => ({
@@ -133,6 +148,42 @@ describe("graphWorkbench navigation", () => {
       },
     });
 
+    expect(renderer.applyGraphSnapshot).toHaveBeenCalledWith(
+      expect.objectContaining({
+        nodes: [expect.objectContaining({ attributes: expect.objectContaining({ label: "" }) })],
+        edges: [
+          expect.objectContaining({
+            attributes: expect.objectContaining({ label: "3", forceLabel: true, size: expect.any(Number) }),
+          }),
+        ],
+      }) as PositionedGraph,
+    );
+  });
+
+  it("applies display options to the live viewport without another request", async () => {
+    const { graphClient, renderer, workbench } = createWorkbenchHarness({
+      readViewport: vi.fn(async () => ({
+        ...viewportResponse(),
+        edges: [{ id: "tree-edge", source: "tree", target: "tree", distance: 3 }],
+      })),
+    } as Partial<GraphClient>);
+
+    await workbench.renderNewick("(a:1,b:1)root;", "tree");
+    vi.mocked(graphClient.readViewport).mockClear();
+    vi.mocked(renderer.applyGraphSnapshot).mockClear();
+
+    workbench.updateDisplayOptions({
+      nodeLabels: false,
+      edgeDistanceLabels: true,
+      distanceWeightedEdges: true,
+    });
+
+    expect(graphClient.readViewport).not.toHaveBeenCalled();
+    expect(renderer.updateDisplayOptions).toHaveBeenCalledWith({
+      nodeLabels: false,
+      edgeDistanceLabels: true,
+      distanceWeightedEdges: true,
+    });
     expect(renderer.applyGraphSnapshot).toHaveBeenCalledWith(
       expect.objectContaining({
         nodes: [expect.objectContaining({ attributes: expect.objectContaining({ label: "" }) })],

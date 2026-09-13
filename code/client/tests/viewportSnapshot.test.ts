@@ -96,6 +96,31 @@ describe("viewportSnapshot", () => {
     expect(graph.edges[0]?.attributes?.size).toBeGreaterThan(1);
   });
 
+  it("keeps categorical colors stable when the session has complete metadata", () => {
+    const settings = {
+      visualMapping: { colorField: "country" },
+      metadataByNodeId: {
+        a: { country: "Portugal" },
+        b: { country: "Spain" },
+        c: { country: "Spain" },
+      },
+    };
+    const firstSlice = graphSnapshotFromViewportResponse(
+      viewportResponse([viewportNode("a", { metadata: { country: "Portugal" } })]),
+      settings,
+    );
+    const secondSlice = graphSnapshotFromViewportResponse(
+      viewportResponse([
+        viewportNode("a", { metadata: { country: "Portugal" } }),
+        viewportNode("b", { metadata: { country: "Spain" } }),
+      ]),
+      settings,
+    );
+
+    expect(firstSlice.nodes[0]?.color).toBe("#0ea5e9");
+    expect(secondSlice.nodes.find((node) => node.id === "a")?.color).toBe(firstSlice.nodes[0]?.color);
+  });
+
   it("honors linear and logarithmic size scales for numeric metadata strings", () => {
     const response = viewportResponse(
       [

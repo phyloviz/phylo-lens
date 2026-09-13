@@ -8,6 +8,18 @@ export type GraphMetadataValue = string | number | boolean | null;
 
 export type GraphMetadata = Record<string, GraphMetadataValue>;
 
+/** Supported Graphviz SFDP overrides for a prepared layout. */
+export interface SfdpOptions {
+  k?: number;
+  repulsiveForce?: number;
+  overlap?: "prism" | "scale";
+  prismIterations?: number;
+  overlapScaling?: number;
+  smoothing?: "none" | "avg_dist" | "graph_dist" | "power_dist" | "rng" | "spring" | "triangle";
+  quadtree?: "none" | "normal" | "fast";
+  beautify?: boolean;
+}
+
 export interface GraphMetadataField {
   key: string;
   type: MetadataType;
@@ -27,6 +39,7 @@ export interface NormalizeRequest {
     join_column: string;
     format?: "auto" | "csv" | "tsv";
   };
+  sfdp_options?: SfdpOptions;
 }
 
 export interface GraphViewportQuery {

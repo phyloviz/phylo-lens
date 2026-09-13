@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from typing import Literal
 
 from phylo_lens_server.domain.models import CanonicalDataset
+from phylo_lens_server.pipeline.sfdp import SfdpOptions
 
 LayoutStatus = Literal["pending", "refining", "ready", "degraded", "failed"]
 
@@ -27,6 +28,7 @@ class PreparedLayoutArtifacts:
     dataset: CanonicalDataset
     layout_version: str
     clusters: tuple[PreparedCluster, ...]
+    sfdp_options: SfdpOptions = field(default_factory=SfdpOptions)
 
 
 @dataclass(frozen=True)

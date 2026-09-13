@@ -98,7 +98,14 @@ class RecordingDurableStore:
     def assert_schema_current(self) -> None:
         self.schema_asserted = True
 
-    def submit(self, dataset, warnings=(), *, max_active_jobs=None) -> str:
+    def submit(
+        self,
+        dataset,
+        warnings=(),
+        *,
+        sfdp_options=None,
+        max_active_jobs=None,
+    ) -> str:
         self.submitted.append((dataset.dataset_id, warnings, max_active_jobs))
         return "job-1"
 
