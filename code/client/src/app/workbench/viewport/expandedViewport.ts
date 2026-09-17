@@ -15,6 +15,20 @@ export function composeExpandedViewport(
     }
     for (const edge of patch.edges) edges.set(edge.id, edge);
   }
+  // Expanded members replace their summary; counting both would duplicate isolates.
+  const detailedClusters = new Set(
+    patches.flatMap((patch) =>
+      patch.nodes
+        .filter((node) => node.attributes?.is_cluster_proxy !== true)
+        .map((node) => node.attributes?.cluster_id)
+        .filter((id): id is string => typeof id === "string"),
+    ),
+  );
+  for (const [id, node] of nodes) {
+    const clusterId = node.attributes?.cluster_id;
+    if (node.attributes?.is_cluster_proxy === true && typeof clusterId === "string" && detailedClusters.has(clusterId))
+      nodes.delete(id);
+  }
   const partial = nodes.size > maxNodes;
   const ordered = [...nodes.values()];
   const priority = priorityNodeId ? nodes.get(priorityNodeId) : undefined;

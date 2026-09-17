@@ -1,8 +1,4 @@
-import {
-  buildAncillaryWheelStats,
-  buildAncillaryFieldWheelStats,
-  renderAncillaryWheel,
-} from "../../../components/ancillaryWheel";
+import { buildAncillaryWheelStats, renderAncillaryWheel } from "../../../components/ancillaryWheel";
 import type { PositionedGraph } from "../../../contracts/positioned";
 import type { VisualMappingOptions } from "../../../render/mapping/visualMapping";
 import { renderNodeDetails } from "./nodeDetails";
@@ -92,21 +88,13 @@ export default function (options: AncillaryWheelsOptions) {
     const palette = options.getVisualMapping().palette;
     const categoryColors = options.getCategoryColorOverrides();
 
-    if (selectedFields.length > 1) {
+    if (selectedFields.length)
       return buildAncillaryWheelStats(graph, {
+        fields: selectedFields,
         includeNodeIds,
         palette,
         categoryColors,
       });
-    }
-
-    if (selectedFields.length > 0) {
-      return buildAncillaryFieldWheelStats(graph, selectedFields[0] ?? "", {
-        includeNodeIds,
-        palette,
-        categoryColors,
-      });
-    }
 
     return null;
   }
@@ -132,7 +120,7 @@ export default function (options: AncillaryWheelsOptions) {
     heading.textContent =
       fields.length === 0
         ? "Ancillary coloring: none"
-        : `${subject} · ${fields.length > 1 ? "Color combinations" : "Color field"}: ${fields.join(" × ")}`;
+        : `${subject} · ${fields.length > 1 ? "Observed combinations" : "Color field"}: ${fields.join(" × ")} · one contribution per observation, including missing values`;
     const chart = document.createElement("div");
     renderAncillaryWheel(chart, buildStats(ids), emptyMessage(subject));
     container.replaceChildren(heading, chart);

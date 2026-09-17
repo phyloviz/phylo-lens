@@ -67,11 +67,12 @@ export default function (options: VisualMappingPaletteOptions) {
   }
 
   function readControlColors(): void {
-    categoryColorOverrides = controls.readSelectedColors() ?? {};
+    categoryColorOverrides = { ...categoryColorOverrides, ...controls.readSelectedColors(true) };
   }
 
   function applyControlChange(): void {
-    currentVisualMapping = buildCurrentVisualMapping(controls.readSelectedColors());
+    readControlColors();
+    currentVisualMapping = buildCurrentVisualMapping(categoryColorOverrides);
 
     if (!options.getGraph()) {
       options.onChanged();

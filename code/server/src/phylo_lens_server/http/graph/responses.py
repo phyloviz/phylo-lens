@@ -42,6 +42,7 @@ def graph_viewport_response_from_result(
                 is_representative=node.is_representative,
                 metadata=node.metadata,
                 isolates=list(node.isolates),
+                ancillary_distribution=list(node.ancillary_distribution),
             )
             for node in result.nodes
         ],
@@ -93,6 +94,7 @@ def graph_region_response_from_result(
                 is_representative=node.is_representative,
                 metadata=node.metadata,
                 isolates=list(node.isolates),
+                ancillary_distribution=list(node.ancillary_distribution),
             )
             for node in result.nodes
         ],

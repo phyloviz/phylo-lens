@@ -41,3 +41,13 @@ export interface CategoryCountEntry {
   category: string;
   count: number;
 }
+
+export const PIE_DISTRIBUTION_ATTRIBUTE = "pieDistribution";
+export const MISSING_PIE_CATEGORY = "\u0000missing";
+export interface PieCategory {
+  key: string;
+  category: string;
+  label: string;
+  value: number;
+  missing?: boolean;
+}

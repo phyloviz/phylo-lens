@@ -4,7 +4,6 @@ import {
   CATEGORY_COUNT_FIELD_SEPARATOR,
   PIE_ATTRIBUTE_PREFIX,
   PIE_FIELD_VALUE_SEPARATOR,
-  type AncillaryRow,
   type CategoryCountEntry,
   type AncillaryData,
 } from "./pieMapping.types";
@@ -49,36 +48,6 @@ export function categoryCountsForField(
     .sort((left, right) => right.count - left.count || left.category.localeCompare(right.category));
 }
 
-export function categoryCountsForFieldCombination(rows: AncillaryRow[], fieldKeys: string[]): CategoryCountEntry[] {
-  const selectedFields = fieldKeys.map((fieldKey) => fieldKey.trim()).filter(Boolean);
-  if (selectedFields.length <= 1 || rows.length === 0) {
-    return [];
-  }
-
-  const fieldKey = combinationPieFieldKey(selectedFields);
-  const countsByCategory = new Map<string, number>();
-  rows.forEach((row) => {
-    combinationLabelsForRow(row, selectedFields).forEach((category) => {
-      countsByCategory.set(category, (countsByCategory.get(category) ?? 0) + 1);
-    });
-  });
-
-  return [...countsByCategory.entries()]
-    .map(([category, count]) => ({
-      fieldKey,
-      category,
-      count,
-    }))
-    .sort((left, right) => right.count - left.count || left.category.localeCompare(right.category));
-}
-
-export function combinationPieFieldKey(fieldKeys: string[]): string {
-  return fieldKeys
-    .map((fieldKey) => fieldKey.trim())
-    .filter(Boolean)
-    .join(" + ");
-}
-
 export function isCategoryCountMetadataKey(key: string): boolean {
   return parseCategoryCountMetadataKey(key) !== null;
 }
@@ -99,25 +68,6 @@ export function parseCategoryCountMetadataEntry(
     ...parsedKey,
     count: value,
   };
-}
-
-function combinationLabelsForRow(row: AncillaryRow, fieldKeys: string[]): string[] {
-  const valuesByField = fieldKeys.map((fieldKey) => {
-    const values = categoricalPieValues(row[fieldKey]);
-    return values.map((value) => `${fieldKey}:${value}`);
-  });
-
-  if (valuesByField.some((values) => values.length === 0)) {
-    return [];
-  }
-
-  return valuesByField.reduce<string[]>(
-    (combinations, values) =>
-      combinations.flatMap((combination) =>
-        values.map((value) => (combination.length > 0 ? `${combination} ${value}` : value)),
-      ),
-    [""],
-  );
 }
 
 function parseCategoryCountMetadataKey(key: string): Omit<CategoryCountEntry, "count"> | null {

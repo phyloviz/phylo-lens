@@ -577,7 +577,7 @@ describe("ViewportSyncController", () => {
       datasetId: "tree",
       client: { readViewport },
       renderer,
-      maxNodes: 3,
+      maxNodes: 2,
     });
     controller.mount();
     await vi.advanceTimersByTimeAsync(0);
@@ -772,7 +772,7 @@ describe("ViewportSyncController", () => {
         .at(-1)
         ?.nodes.map((node) => node.id)
         .sort(),
-    ).toEqual(["a1", "a2", "cluster-a", "root"]);
+    ).toEqual(["a1", "a2", "root"]);
 
     readViewport.mockClear();
     await controller.expandCluster("cluster-a");

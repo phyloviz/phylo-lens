@@ -1,3 +1,4 @@
+import type { AncillaryObservation } from "../contracts/ancillary";
 import {
   isArrayOf,
   isBoolean,
@@ -151,6 +152,16 @@ function isGraphViewportNode(value: unknown): value is GraphViewportNode {
     isFiniteNumber(value.member_count) &&
     isBoolean(value.is_representative) &&
     (value.metadata == null || isGraphMetadata(value.metadata)) &&
+    (value.ancillary_distribution === undefined ||
+      isArrayOf(
+        value.ancillary_distribution,
+        (row): row is AncillaryObservation =>
+          isRecord(row) &&
+          isGraphMetadata(row.values) &&
+          isFiniteNumber(row.count) &&
+          Number.isSafeInteger(row.count) &&
+          row.count > 0,
+      )) &&
     (value.isolates === undefined ||
       isArrayOf(
         value.isolates,
