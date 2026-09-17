@@ -297,6 +297,7 @@ export default function (options: UiShellOptions): UiShell {
     bindings.on(lodPauseButton, "click", () => {
       void handleLodPlaybackChange(true);
     });
+    bindings.on(searchInput, "input", search.reset);
     bindings.on(searchButton, "click", () => {
       void search.searchCurrentDataset();
     });
@@ -362,6 +363,7 @@ export default function (options: UiShellOptions): UiShell {
       return;
     }
 
+    search.reset();
     loadingGraph = true;
     expansion.setReady(false);
     updateApplyAncillaryButton();
@@ -409,6 +411,7 @@ export default function (options: UiShellOptions): UiShell {
 
   // Remove shell event listeners and dispose rendering resources.
   function unmount(): void {
+    search.reset();
     bindings.clear();
     expansion.dispose();
     workbench.setGraphRenderedHandler(null);

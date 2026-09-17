@@ -13,11 +13,22 @@ export interface SearchControllerOptions {
 }
 
 export default function (options: SearchControllerOptions) {
+  let generation = 0;
+  let focusGeneration = 0;
+  const reset = () => {
+    generation += 1;
+    focusGeneration += 1;
+    options.workbench.cancelPendingFocus();
+    renderMatches([]);
+  };
   return {
+    reset,
     searchCurrentDataset: searchCurrentDataset,
   };
 
   async function searchCurrentDataset(): Promise<void> {
+    reset();
+    const request = generation;
     const query = options.input?.value.trim() ?? "";
 
     if (!query) {
@@ -30,9 +41,11 @@ export default function (options: SearchControllerOptions) {
         query,
         limit: SEARCH_LIMIT,
       });
+      if (request !== generation) return;
       renderMatches(response.matches);
       options.setStatus(`Search found ${response.total_count} matches`);
     } catch (error) {
+      if (request !== generation) return;
       const message = error instanceof Error ? error.message : "unknown error";
       options.setFailureStatus(message);
     }
@@ -45,6 +58,9 @@ export default function (options: SearchControllerOptions) {
   }
 
   async function focusSearchResult(match: SearchResultItem): Promise<void> {
+    const request = generation;
+    const focus = ++focusGeneration;
+    const isCurrent = () => request === generation && focus === focusGeneration;
     const nodeId = match.node_id;
     try {
       // Pass the match's global coordinates so the workbench can fetch a region
@@ -55,9 +71,11 @@ export default function (options: SearchControllerOptions) {
         y: match.y ?? null,
         clusterId: match.cluster_id ?? null,
       });
+      if (!isCurrent()) return;
       options.onNodeFocused(nodeId);
       options.setStatus(`Focused ${nodeId}`);
     } catch (error) {
+      if (!isCurrent()) return;
       const message = error instanceof Error ? error.message : "unknown error";
       options.setFailureStatus(message);
     }

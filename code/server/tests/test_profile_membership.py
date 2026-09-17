@@ -162,3 +162,39 @@ def test_declared_numeric_metadata_keeps_individual_values(monkeypatch):
     assert [
         isolate.metadata["year"] for isolate in dataset.isolates_by_node_id["a_01"]
     ] == [2020, 2021]
+
+
+def test_original_identifiers_match_literally_after_reopening_store(tmp_path):
+    ids = ["00123", "A/01", "B.02", "C D", "E%F", "G_H", "Straße"]
+    dataset = normalize_dataset(
+        NormalizeRequest(
+            format="typing_data",
+            content="ID\tL1\n" + "".join(f"{identifier}\t1\n" for identifier in ids),
+        )
+    ).dataset
+    prepared = PreparedLayoutWorker(PreparedLayoutStore(tmp_path)).prepare_dataset(
+        dataset
+    )
+    store = PreparedLayoutStore(tmp_path)
+    scope = {
+        "dataset_id": dataset.dataset_id,
+        "layout_version": prepared.artifacts.layout_version,
+        "limit": 10,
+    }
+    profile = dataset.nodes[0].id
+    for identifier in ids:
+        result = store.search_nodes(**scope, query=identifier)
+        assert result.total_count == 1
+        assert result.matches[0].node_id == profile
+        assert result.matches[0].score == 100
+    for query, score in [
+        ("001", 60),
+        ("/01", 40),
+        ("%", 40),
+        ("_", 40),
+        ("STRASSE", 100),
+    ]:
+        result = store.search_nodes(**scope, query=query)
+        assert result.total_count == 1
+        assert result.matches[0].score == score
+    assert not store.search_nodes(**scope, query="EanythingF").matches

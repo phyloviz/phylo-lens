@@ -495,3 +495,6 @@ A second simultaneous upload is rejected. Loading another tree or disposing the
 view prevents a pending upload from being applied to that view; an already
 published server version may remain available. Uploads require the companion
 service to support `PUT /api/graph/ancillary`.
+
+Search and focus are available through `view.searchNodes`, `view.focusNode` and
+`view.cancelPendingFocus`. See [search semantics and validation](../../docs/SEARCH.md).

@@ -96,8 +96,11 @@ export function centerCameraOnCoordinates({
     setState: (state: SigmaCameraState) => void;
   };
   const currentState = camera.getState?.() ?? camera;
-  const viewportPoint = sigma.graphToViewport({ x, y });
-  const nextCenter = sigma.viewportToFramedGraph(viewportPoint);
+  // Use one fixed camera for both conversions. Sigma may still hold the
+  // previous frame matrix when another focus happens before the next render.
+  const conversion = { cameraState: { ...defaultCameraState(), angle: 0 } };
+  const viewportPoint = sigma.graphToViewport({ x, y }, conversion);
+  const nextCenter = sigma.viewportToFramedGraph(viewportPoint, conversion);
 
   beforeSetState?.();
   camera.setState({

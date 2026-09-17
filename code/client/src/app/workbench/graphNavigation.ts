@@ -20,7 +20,14 @@ export default function createGraphNavigation({
   graphClient,
   getViewportSync,
 }: WorkbenchNavigationOptions) {
+  let focusSequence = 0;
+  const cancelPendingFocus = () => {
+    focusSequence += 1;
+    getViewportSync()?.cancelPendingFocus();
+  };
+
   return {
+    cancelPendingFocus,
     selectRegion: selectRegion,
     searchNodes: searchNodes,
     focusNode: focusNode,
@@ -52,6 +59,7 @@ export default function createGraphNavigation({
 
   async function searchNodes(query: { query: string; limit?: number }): Promise<SearchDatasetResponse> {
     const session = requirePreparedSession(state);
+    cancelPendingFocus();
 
     const response = await graphClient.searchGraph({
       dataset_id: session.datasetId,
@@ -80,30 +88,43 @@ export default function createGraphNavigation({
     nodeId: string,
     coordinates?: { x: number | null; y: number | null; clusterId?: string | null },
   ): Promise<PositionedGraph> {
-    requirePreparedSession(state);
+    const session = requirePreparedSession(state);
+    cancelPendingFocus();
+    const sequence = focusSequence;
+    const controller = getViewportSync();
+    const isCurrent = () =>
+      sequence === focusSequence && state.preparedSession === session && getViewportSync() === controller;
+    const currentGraph = () => state.currentGraph ?? createEmptyGraph();
 
-    if (state.focusedNodeId === nodeId) {
-      return state.currentGraph ?? createEmptyGraph();
-    }
-
-    state.focusedNodeId = nodeId;
-    renderer.focusNode?.(nodeId);
-
-    const centeredInSlice = renderer.centerOnNode?.(nodeId);
-    if (
-      centeredInSlice !== true &&
-      coordinates &&
-      coordinates.x !== null &&
-      coordinates.y !== null &&
-      renderer.centerOnCoordinates?.(coordinates.x, coordinates.y) === true
-    ) {
-      if (coordinates.clusterId) {
-        await getViewportSync()?.expandCluster(coordinates.clusterId, { fitToResponse: true, focusNodeId: nodeId });
-      } else {
-        getViewportSync()?.refreshNow({ lodLevel: "finest", fitToResponse: true });
+    // A repeated selection must recenter too: the user may have panned away.
+    const visible = state.currentGraph?.nodes.some(
+      (node) => node.id === nodeId && node.attributes?.is_cluster_proxy !== true,
+    );
+    if (!visible || !renderer.centerOnNode?.(nodeId)) {
+      let location = coordinates;
+      if (!location?.clusterId) {
+        const response = await graphClient.searchGraph({
+          dataset_id: session.datasetId,
+          layout_version: session.layoutVersion ?? null,
+          query: nodeId,
+          limit: 50,
+        });
+        if (!isCurrent()) return currentGraph();
+        const match = response.matches.find((item) => item.node_id === nodeId);
+        if (!match) throw new Error(`Profile ${nodeId} was not found.`);
+        location = { x: match.x ?? null, y: match.y ?? null, clusterId: match.cluster_id };
+      }
+      if (!location.clusterId || !controller) throw new Error(`Profile ${nodeId} has no available layout location.`);
+      const result = await controller.expandCluster(location.clusterId, { focusNodeId: nodeId });
+      if (!isCurrent() || result.status === "superseded") return currentGraph();
+      if (!renderer.centerOnNode?.(nodeId) && location.x != null && location.y != null) {
+        renderer.centerOnCoordinates?.(location.x, location.y);
       }
     }
-
-    return state.currentGraph ?? createEmptyGraph();
+    if (isCurrent()) {
+      state.focusedNodeId = nodeId;
+      renderer.focusNode?.(nodeId);
+    }
+    return currentGraph();
   }
 }
