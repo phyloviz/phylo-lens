@@ -98,8 +98,8 @@ through the bundled PhyloLib command-line application:
 ```text
 profile matrix
   → Hamming distance matrix
-  → goeBURST (lvs = 3)
-  → Newick tree or forest
+  → goeBURST Full MST
+  → Newick tree
   → canonical PhyloLens graph
 ```
 
@@ -107,7 +107,7 @@ The current service uses:
 
 ```text
 java -jar /app/phylolib.jar distance hamming
-java -jar /app/phylolib.jar algorithm goeburst --lvs=3
+java -jar /app/phylolib.jar algorithm goeburstfullmst
 ```
 
 This path is appropriate for MLST and cgMLST-style profiles represented as
@@ -137,12 +137,11 @@ The first-column identifiers become graph node labels after goeBURST/Newick
 conversion. Locus names are used by PhyloLib when interpreting the profile
 matrix; they are not automatically exposed as node metadata.
 
-### Disconnected output
+### Full MST output
 
-PhyloLib may emit one Newick component per disconnected goeBURST component.
-PhyloLens parses each component and merges them into one disconnected canonical
-graph. No sequence type or profile is discarded solely because it belongs to a
-separate component.
+goeBURST Full MST uses every observed locus-variant level, so valid typing
+profiles produce one connected spanning tree. PhyloLens retains defensive support
+for a multi-component Newick result from an upstream runtime.
 
 ### Timeout and failures
 

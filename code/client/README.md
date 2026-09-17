@@ -215,8 +215,8 @@ await view.load({
 ```
 
 The service sends the profile matrix through the bundled PhyloLib JAR:
-Hamming distance is computed first, followed by goeBURST with `lvs=3`. The
-resulting Newick tree or forest enters the normal preparation pipeline.
+Hamming distance is computed first, followed by goeBURST Full MST. The resulting
+Newick tree enters the normal preparation pipeline.
 
 ## Metadata
 

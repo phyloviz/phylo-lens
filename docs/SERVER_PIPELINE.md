@@ -74,8 +74,8 @@ Newick text
 ```text
 allelic-profile matrix
   → PhyloLib Hamming distance
-  → PhyloLib goeBURST
-  → Newick tree or forest
+  → PhyloLib goeBURST Full MST
+  → Newick tree
   → normal Newick canonicalization path
 ```
 
