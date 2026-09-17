@@ -392,19 +392,11 @@ describe("graphWorkbench navigation", () => {
         nodes: [expect.objectContaining({ id: "missing-node" })],
       }) as PositionedGraph,
     );
-    expect(renderer.fitGraphSnapshot).toHaveBeenCalledWith(
-      expect.objectContaining({
-        nodes: [expect.objectContaining({ id: "missing-node" })],
-      }),
-      { resetFirst: false },
-    );
-
+    // Re-selecting after a pan must not be treated as an already-completed focus.
     await workbench.focusNode("missing-node", { x: 42, y: 84, clusterId: "cluster-42" });
-
-    expect(renderer.focusNode).toHaveBeenCalledTimes(1);
-    expect(renderer.centerOnNode).toHaveBeenCalledTimes(1);
-    expect(renderer.centerOnCoordinates).toHaveBeenCalledTimes(1);
-    expect(graphClient.readViewport).toHaveBeenCalledTimes(1);
+    expect(renderer.focusNode).toHaveBeenCalledTimes(2);
+    expect(renderer.centerOnCoordinates).toHaveBeenCalledTimes(2);
+    expect(graphClient.readViewport).toHaveBeenCalledTimes(2);
   });
 
   it("replaces the previous viewport sync session when a second dataset is loaded", async () => {

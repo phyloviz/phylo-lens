@@ -68,6 +68,7 @@ export function createGraphWorkbench(
   });
 
   renderer.setNodeClickHandler?.((clickState) => {
+    navigation.cancelPendingFocus();
     state.focusedNodeId = clickState.nodeId;
     state.nodeClickedHandler?.(clickState);
   });
@@ -159,6 +160,7 @@ export function createGraphWorkbench(
     searchNodes: navigation.searchNodes,
 
     focusNode: navigation.focusNode,
+    cancelPendingFocus: navigation.cancelPendingFocus,
 
     setGraphRenderedHandler: (handler) => {
       state.graphRenderedHandler = handler;

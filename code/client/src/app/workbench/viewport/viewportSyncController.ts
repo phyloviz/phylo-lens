@@ -89,6 +89,7 @@ export class ViewportSyncController {
   private readonly expandedPatches = new Map<string, GraphViewportResponse>();
   private baseResponse: GraphViewportResponse | null = null;
   private keepExpanded = false;
+  private priorityNodeId: string | null = null;
   private allExpanded = false;
   private expansionPartial = false;
   private expansionLodLevel: number | undefined;
@@ -245,6 +246,11 @@ export class ViewportSyncController {
     return this.getExpansionState();
   }
 
+  cancelPendingFocus(): void {
+    if (!this.mounted || !this.loadedInitialViewport) return;
+    this.beginExpansion();
+  }
+
   expandCluster(
     clusterId: string,
     options: { fitToResponse?: boolean; focusNodeId?: string | null } = {},
@@ -330,6 +336,7 @@ export class ViewportSyncController {
       graphSnapshotFromViewportResponse(this.baseResponse!, settings),
       responses.map((response) => graphSnapshotFromViewportResponse(response, settings)),
       this.maxNodes,
+      this.priorityNodeId,
     );
     this.expansionPartial =
       composed.partial ||
@@ -487,7 +494,7 @@ export class ViewportSyncController {
   ): Promise<ExpansionResult> {
     this.requireExpansionReady();
     if (!clusterId) throw new Error("A cluster ID is required.");
-    if (this.expandedPatches.has(clusterId)) return this.expansionResult();
+    if (!options.focusNodeId && this.expandedPatches.has(clusterId)) return this.expansionResult();
     if (!options.focusNodeId && (this.currentGraph?.nodes.length ?? 0) >= this.maxNodes) {
       this.expansionPartial = true;
       return this.expansionResult();
@@ -508,6 +515,12 @@ export class ViewportSyncController {
       // an incomplete subset of its members.
       this.expansionPartial = true;
       return this.expansionResult();
+    }
+    if (options.focusNodeId) {
+      if (!response.nodes.some((node) => node.id === options.focusNodeId && !node.is_representative)) {
+        throw new Error("The requested profile is unavailable in this cluster.");
+      }
+      this.priorityNodeId = options.focusNodeId;
     }
     this.expandedPatches.set(clusterId, response);
     this.expansionLodLevel = this.baseResponse?.lod_level ?? 0;

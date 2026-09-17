@@ -24,7 +24,10 @@ export function renderSearchResults(
     const item = document.createElement("button");
     item.type = "button";
     item.className = "search-result";
-    item.textContent = match.node_id;
+    item.textContent =
+      match.score < 40 || match.matched_text === match.node_id
+        ? match.node_id
+        : `${match.matched_text} → ${match.node_id}`;
     item.title = match.matched_text;
     item.addEventListener("click", () => {
       onFocusNode(match);

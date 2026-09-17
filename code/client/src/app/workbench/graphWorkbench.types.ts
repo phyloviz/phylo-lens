@@ -94,6 +94,7 @@ export interface GraphWorkbench {
 
   searchNodes: (query: { query: string; limit?: number }) => Promise<SearchDatasetResponse>;
 
+  cancelPendingFocus: () => void;
   focusNode: (
     nodeId: string,
     coordinates?: { x: number | null; y: number | null; clusterId?: string | null },

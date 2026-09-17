@@ -49,6 +49,7 @@ function makeFakeWorkbench(
       ],
       total_count: 1,
     })),
+    cancelPendingFocus: vi.fn(),
     focusNode: vi.fn(async () => {
       graphRenderedHandler?.(renderedGraph);
       return renderedGraph;

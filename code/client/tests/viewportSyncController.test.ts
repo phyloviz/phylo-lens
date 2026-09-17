@@ -860,4 +860,54 @@ describe("ViewportSyncController", () => {
     ]);
     expect(events.at(-1)?.clusterId).toBe("cluster-a");
   });
+  it("keeps a searched target in a full slice and fetches another member of the same partial cluster", async () => {
+    const renderer = createRenderer();
+    const readViewport = vi
+      .fn()
+      .mockResolvedValueOnce(viewportResponse())
+      .mockResolvedValueOnce(
+        viewportResponse({ ...clusterResponse(), nodes: [clusterResponse().nodes[0]], truncated: true }),
+      )
+      .mockResolvedValueOnce(
+        viewportResponse({ ...clusterResponse(), nodes: [clusterResponse().nodes[1]], truncated: true }),
+      );
+    const controller = new ViewportSyncController({
+      datasetId: "tree",
+      client: { readViewport },
+      renderer,
+      maxNodes: 2,
+    });
+    controller.mount();
+    await vi.runAllTimersAsync();
+    await controller.expandCluster("cluster-a", { focusNodeId: "a1" });
+    expect(renderer.appliedGraphs.at(-1)?.nodes.map((node) => node.id)).toContain("a1");
+    await controller.expandCluster("cluster-a", { focusNodeId: "a2" });
+    expect(renderer.appliedGraphs.at(-1)?.nodes.map((node) => node.id)).toContain("a2");
+    expect(renderer.appliedGraphs.at(-1)?.nodes).toHaveLength(2);
+    expect(readViewport).toHaveBeenCalledTimes(3);
+    controller.unmount();
+  });
+
+  it("does not apply a focus response after navigation has been cancelled", async () => {
+    const renderer = createRenderer();
+    let resolve!: (response: GraphViewportResponse) => void;
+    const readViewport = vi
+      .fn()
+      .mockResolvedValueOnce(viewportResponse())
+      .mockImplementationOnce(
+        () =>
+          new Promise<GraphViewportResponse>((done) => {
+            resolve = done;
+          }),
+      );
+    const controller = new ViewportSyncController({ datasetId: "tree", client: { readViewport }, renderer });
+    controller.mount();
+    await vi.runAllTimersAsync();
+    const focus = controller.expandCluster("cluster-a", { focusNodeId: "a1" });
+    controller.cancelPendingFocus();
+    resolve(clusterResponse());
+    expect((await focus).status).toBe("superseded");
+    expect(renderer.appliedGraphs).toHaveLength(1);
+    controller.unmount();
+  });
 });
