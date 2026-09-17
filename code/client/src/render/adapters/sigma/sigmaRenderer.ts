@@ -58,6 +58,11 @@ export const ERR_SIGMA_NOT_READY = "Sigma renderer is not mounted.";
 export class SigmaRenderer implements GraphRenderer {
   readonly kind: RendererKind = RENDERER_KIND_SIGMA;
 
+  private cancelFit: (() => void) | null = null;
+  private readonly cancelCameraFit = () => {
+    this.cancelFit?.();
+    this.cancelFit = null;
+  };
   private graph: Graph | null = null;
   private sigma: Sigma | null = null;
   private containerElement: HTMLElement | null = null;
@@ -216,7 +221,11 @@ export class SigmaRenderer implements GraphRenderer {
     };
 
     if (this.sigma) {
-      this.rebuildSigma(this.pieSliceKeys, this.lastRenderedGraph?.nodes ?? []);
+      this.sigma.setSetting(
+        "renderLabels",
+        this.rendererOptions.label?.enabled !== false && this.rendererOptions.display?.nodeLabels !== false,
+      );
+      this.updateEdgeLabelVisibility(this.readSemanticViewState());
     }
   }
 
@@ -338,14 +347,13 @@ export class SigmaRenderer implements GraphRenderer {
     return targets.sort((left, right) => left.clusterId.localeCompare(right.clusterId));
   }
 
-  fitGraphSnapshot(
-    graph: PositionedGraph,
-    options: { resetFirst?: boolean } = {},
-  ): ReturnType<typeof window.setTimeout> | null {
+  fitGraphSnapshot(graph: PositionedGraph, options: { resetFirst?: boolean } = {}): (() => void) | null {
     if (!this.sigma) {
       return null;
     }
-    return fitSigmaToGraphSnapshot(this.sigma, graph, options);
+    this.cancelCameraFit();
+    this.cancelFit = fitSigmaToGraphSnapshot(this.sigma, graph, options);
+    return this.cancelFit;
   }
 
   // Dim every node/edge outside `nodeIds` so the selected region stands out.
@@ -479,6 +487,7 @@ export class SigmaRenderer implements GraphRenderer {
     nodes: readonly PieNodeView[] = [],
     signature = buildPieProgramSignature(sliceKeys, nodes),
   ): void {
+    this.cancelCameraFit();
     const previousCameraState = readCameraState(this.sigma);
     const previousSigma = this.sigma;
     const sigmaSettings = buildSigmaSettings(
@@ -491,11 +500,17 @@ export class SigmaRenderer implements GraphRenderer {
     this.sigma = new Sigma(this.graph as Graph, this.containerElement as HTMLElement, sigmaSettings);
     this.pieSliceKeys = sliceKeys;
     this.pieProgramSignature = signature;
+    // Camera coordinates are relative to this frame, not the currently loaded slice.
+    applyStableCameraBounds(this.sigma, this.coordinateBounds);
+    this.sigma.refresh();
     restoreCameraState(this.sigma, previousCameraState);
     this.bindSigmaHandlers();
   }
 
   private bindSigmaHandlers(): void {
+    for (const event of ["pointerdown", "wheel", "touchstart"]) {
+      this.containerElement?.addEventListener(event, this.cancelCameraFit, { capture: true, passive: true });
+    }
     this.bindCameraHandler();
     this.bindNodeClickHandler();
     this.bindStageClickHandler();
@@ -505,6 +520,10 @@ export class SigmaRenderer implements GraphRenderer {
   }
 
   private unbindSigmaHandlers(): void {
+    this.cancelCameraFit();
+    for (const event of ["pointerdown", "wheel", "touchstart"]) {
+      this.containerElement?.removeEventListener(event, this.cancelCameraFit, true);
+    }
     this.boxSelectController.unbind();
     this.dragController.unbind();
     this.unbindStageClickHandler();

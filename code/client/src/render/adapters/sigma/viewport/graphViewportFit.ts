@@ -13,42 +13,48 @@ export function fitSigmaToGraphSnapshot(
   sigma: SigmaViewportLike,
   graph: PositionedGraph,
   options: { resetFirst?: boolean } = {},
-): ReturnType<typeof window.setTimeout> | null {
-  if (graph.nodes.length === 0) {
-    return null;
-  }
-  sigma.refresh?.();
+): (() => void) | null {
+  if (graph.nodes.length === 0) return null;
   const camera = sigma.getCamera();
-  const target = cameraTargetForGraph(sigma, graph, GRAPH_VIEWER_FIT_PADDING_RATIO);
-
-  if (options.resetFirst === false) {
-    return animateCameraToTarget(sigma, target, GRAPH_VIEWER_INITIAL_FIT_DURATION_MS);
-  }
-
-  return window.setTimeout(() => {
+  let timer: ReturnType<typeof window.setTimeout> | null = null;
+  let cancelled = false;
+  let animating = false;
+  let animationSequence = 0;
+  const animate = (target: { x: number; y: number; ratio: number }, duration: number) => {
+    const sequence = ++animationSequence;
+    animating = true;
+    void camera.animate(target, { duration }, () => {
+      if (sequence === animationSequence) animating = false;
+    });
+  };
+  const start = () => {
+    if (cancelled) return;
     sigma.refresh?.();
-    if (camera.animatedReset) {
-      camera.animatedReset({
-        duration: GRAPH_VIEWER_INITIAL_FIT_DURATION_MS,
-      });
-      window.setTimeout(() => {
-        const state = camera.getState?.();
-        if (!state || typeof state.ratio !== "number" || !camera.animate) {
-          return;
-        }
-        camera.animate(
-          {
-            x: state.x ?? target.x,
-            y: state.y ?? target.y,
-            ratio: Math.max(state.ratio * GRAPH_VIEWER_FIT_PADDING_RATIO, Number.EPSILON),
-          },
-          { duration: 100 },
-        );
-      }, GRAPH_VIEWER_INITIAL_FIT_DURATION_MS);
-      return;
+    const target = cameraTargetForGraph(sigma, graph, GRAPH_VIEWER_FIT_PADDING_RATIO);
+    const state = camera.getState();
+    if (options.resetFirst === false && shouldStageFocusAnimation(state, target, state.ratio)) {
+      animate(
+        { x: state.x, y: state.y, ratio: stagedZoomOutRatio(state.ratio, target.ratio) },
+        GRAPH_VIEWER_FOCUS_ZOOM_OUT_DURATION_MS,
+      );
+      timer = window.setTimeout(() => {
+        if (!cancelled) animate(target, GRAPH_VIEWER_INITIAL_FIT_DURATION_MS - GRAPH_VIEWER_FOCUS_ZOOM_OUT_DURATION_MS);
+      }, GRAPH_VIEWER_FOCUS_ZOOM_OUT_DURATION_MS);
+    } else {
+      animate(target, GRAPH_VIEWER_INITIAL_FIT_DURATION_MS);
     }
-    void animateCameraToTarget(sigma, target, GRAPH_VIEWER_INITIAL_FIT_DURATION_MS);
-  }, GRAPH_VIEWER_INITIAL_FIT_DELAY_MS);
+  };
+  if (options.resetFirst === false) start();
+  else timer = window.setTimeout(start, GRAPH_VIEWER_INITIAL_FIT_DELAY_MS);
+
+  return () => {
+    if (cancelled) return;
+    cancelled = true;
+    if (timer !== null) window.clearTimeout(timer);
+    // Sigma replaces an existing animation when animate is called again.
+    if (animating) void camera.animate(camera.getState(), { duration: 0 });
+    animating = false;
+  };
 }
 
 export function fitSigmaToClusterGraph(sigma: SigmaViewportLike, graph: PositionedGraph): void {
@@ -59,37 +65,6 @@ export function fitSigmaToClusterGraph(sigma: SigmaViewportLike, graph: Position
   sigma.getCamera().animate?.(cameraTargetForGraph(sigma, graph, GRAPH_VIEWER_CLUSTER_FIT_PADDING_RATIO), {
     duration: GRAPH_VIEWER_CLUSTER_FIT_DURATION_MS,
   });
-}
-
-function animateCameraToTarget(
-  sigma: SigmaViewportLike,
-  target: { x: number; y: number; ratio: number },
-  durationMs: number,
-): ReturnType<typeof window.setTimeout> | null {
-  const camera = sigma.getCamera();
-  const state = camera.getState?.();
-  if (!camera.animate || !state || typeof state.x !== "number" || typeof state.y !== "number") {
-    camera.animate?.(target, { duration: durationMs });
-    return null;
-  }
-
-  const currentRatio = typeof state.ratio === "number" && Number.isFinite(state.ratio) ? state.ratio : target.ratio;
-  if (!shouldStageFocusAnimation(state, target, currentRatio)) {
-    camera.animate(target, { duration: durationMs });
-    return null;
-  }
-
-  const zoomOutTarget = {
-    x: state.x,
-    y: state.y,
-    ratio: stagedZoomOutRatio(currentRatio, target.ratio),
-  };
-  camera.animate(zoomOutTarget, { duration: GRAPH_VIEWER_FOCUS_ZOOM_OUT_DURATION_MS });
-  return window.setTimeout(() => {
-    camera.animate?.(target, {
-      duration: Math.max(durationMs - GRAPH_VIEWER_FOCUS_ZOOM_OUT_DURATION_MS, 100),
-    });
-  }, GRAPH_VIEWER_FOCUS_ZOOM_OUT_DURATION_MS);
 }
 
 function shouldStageFocusAnimation(

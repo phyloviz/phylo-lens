@@ -89,6 +89,7 @@ vi.mock("sigma", () => {
       _container?: unknown,
       options?: Record<string, unknown>,
     ) {
+      lastCustomBBox = null;
       lastSigmaOptions = options ?? null;
       lastGraph = graph ?? null;
       lastCamera = this.camera;
@@ -340,7 +341,7 @@ describe("sigmaRenderer", () => {
         },
       ],
       edges: [],
-      viewMeta: { layout: "server", lodLevel: 0 },
+      viewMeta: { layout: "server", lodLevel: 0, globalBounds: { minX: -1000, maxX: 1000, minY: -500, maxY: 500 } },
     });
 
     lastCamera?.handler?.();
@@ -357,6 +358,7 @@ describe("sigmaRenderer", () => {
       attributes: expect.objectContaining({ pie__country__value__portugal: 1 }),
     });
 
+    expect(lastCustomBBox).toEqual({ x: [-1000, 1000], y: [-500, 500] });
     renderer.unmount();
   });
 
@@ -1061,6 +1063,38 @@ describe("sigmaRenderer", () => {
     expect(lastCustomBBox).toEqual({ x: [-100, 100], y: [-50, 50] });
     expect(customBBoxCalls).toBe(1);
 
+    renderer.unmount();
+  });
+
+  it("preserves the global coordinate frame when toggling labels on a partial slice", () => {
+    document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
+    const renderer = new SigmaRenderer();
+    renderer.mount({ container: requireContainer() });
+    renderer.applyGraphSnapshot({
+      nodes: [{ id: "leaf", x: 10, y: 5 }],
+      edges: [],
+      viewMeta: {
+        layout: "server",
+        lodLevel: 1,
+        globalBounds: { minX: -1000, maxX: 1000, minY: -500, maxY: 500 },
+      },
+    });
+    lastCamera?.setState({ x: 1.2, y: -0.3, ratio: 0.2 });
+    const constructions = sigmaConstructions;
+    for (const enabled of [true, false, true]) {
+      renderer.updateDisplayOptions({ edgeDistanceLabels: enabled });
+      expect(lastCustomBBox).toEqual({ x: [-1000, 1000], y: [-500, 500] });
+      expect(lastCamera?.state).toMatchObject({ x: 1.2, y: -0.3, ratio: 0.2 });
+    }
+    expect(sigmaConstructions).toBe(constructions);
+    renderer.applyGraphSnapshot({
+      nodes: [{ id: "leaf", x: 10, y: 5, attributes: { pie__country__value__portugal: 1 } }],
+      edges: [],
+      viewMeta: { layout: "server", lodLevel: 1, globalBounds: { minX: -1000, maxX: 1000, minY: -500, maxY: 500 } },
+    });
+    expect(sigmaConstructions).toBeGreaterThan(constructions);
+    expect(lastCustomBBox).toEqual({ x: [-1000, 1000], y: [-500, 500] });
+    expect(lastCamera?.state).toMatchObject({ x: 1.2, y: -0.3, ratio: 0.2 });
     renderer.unmount();
   });
 

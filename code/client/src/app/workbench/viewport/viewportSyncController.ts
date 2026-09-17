@@ -81,7 +81,7 @@ export class ViewportSyncController {
   private readonly snapshotObserver?: SnapshotAppliedObserver;
   private readonly nextSnapshotSequence?: () => number;
   private debounceTimer: ReturnType<typeof window.setTimeout> | null = null;
-  private initialFitTimer: ReturnType<typeof window.setTimeout> | null = null;
+  private cancelFit: (() => void) | null = null;
   private requestSequence = 0;
   private mounted = false;
   private replacingLayout = false;
@@ -145,9 +145,9 @@ export class ViewportSyncController {
       window.clearTimeout(this.debounceTimer);
       this.debounceTimer = null;
     }
-    if (this.initialFitTimer !== null) {
-      window.clearTimeout(this.initialFitTimer);
-      this.initialFitTimer = null;
+    if (this.cancelFit !== null) {
+      this.cancelFit();
+      this.cancelFit = null;
     }
     this.requestSequence += 1;
     if (this.initialViewportAwaited) {
@@ -185,9 +185,9 @@ export class ViewportSyncController {
       this.debounceTimer = null;
     }
     // An ancillary update must never refit the camera, including a pending initial fit.
-    if (this.initialFitTimer !== null) {
-      window.clearTimeout(this.initialFitTimer);
-      this.initialFitTimer = null;
+    if (this.cancelFit !== null) {
+      this.cancelFit();
+      this.cancelFit = null;
     }
     const query = { ...this.lastViewportQuery, layout_version: version };
     try {
@@ -330,9 +330,6 @@ export class ViewportSyncController {
     if (this.getPaused?.()) {
       return;
     }
-    if (Date.now() < this.suppressCameraRefreshUntil) {
-      return;
-    }
     if (this.isSmallTreeLoaded()) {
       return;
     }
@@ -341,7 +338,14 @@ export class ViewportSyncController {
     if (!lodChanged && nextLodLevel === 0) {
       return;
     }
-    this.scheduleViewportRefresh(lodChanged ? GRAPH_VIEWER_LOD_CHANGE_DEBOUNCE_MS : this.debounceMs);
+    // Keep the last camera change even when a fit animation is still settling.
+    // Otherwise interrupting that animation can leave the viewport unfetched.
+    this.scheduleViewportRefresh(
+      Math.max(
+        lodChanged ? GRAPH_VIEWER_LOD_CHANGE_DEBOUNCE_MS : this.debounceMs,
+        this.suppressCameraRefreshUntil - Date.now(),
+      ),
+    );
   }
 
   private isSmallTreeLoaded(): boolean {
@@ -370,6 +374,8 @@ export class ViewportSyncController {
     if (this.debounceTimer !== null) {
       window.clearTimeout(this.debounceTimer);
     }
+    // Invalidate immediately: an old response can arrive during the debounce window.
+    this.requestSequence += 1;
     this.debounceTimer = window.setTimeout(() => {
       this.debounceTimer = null;
       void this.loadViewport();
@@ -406,14 +412,20 @@ export class ViewportSyncController {
       this.totalNodeCount = response.total_node_count;
       const graph = graphSnapshotFromViewportResponse(response, this.getRenderSettings?.());
       const wasInitialViewport = !this.loadedInitialViewport;
+      // A viewport response replaces the expanded snapshot. Its cached members
+      // must not block a later expansion when the representative reappears.
+      this.expandedClusterIds.clear();
+      this.expandedClusterCache.clear();
       this.currentGraph = graph;
       this.applyGraph(graph, wasInitialViewport ? "initial_load" : "viewport_sync");
       if (fitResponse) {
         this.suppressCameraRefreshUntil = Date.now() + VIEWPORT_SYNC_INITIAL_FIT_DURATION_MS + this.debounceMs;
-        this.initialFitTimer = this.renderer.fitGraphSnapshot?.(graph, { resetFirst: false }) ?? null;
+        this.cancelFit?.();
+        this.cancelFit = this.renderer.fitGraphSnapshot?.(graph, { resetFirst: false }) ?? null;
       }
       if (!fitResponse && !this.loadedInitialViewport && (query.lod_level === 0 || finestTier)) {
-        this.initialFitTimer = this.renderer.fitGraphSnapshot?.(graph) ?? null;
+        this.cancelFit?.();
+        this.cancelFit = this.renderer.fitGraphSnapshot?.(graph) ?? null;
       }
       this.loadedInitialViewport = true;
       this.onGraphSynced?.(graph, response);
@@ -471,7 +483,8 @@ export class ViewportSyncController {
       this.applyGraph(this.currentGraph, "cluster_expand", clusterId);
       if (options.fitToResponse) {
         this.suppressCameraRefreshUntil = Date.now() + VIEWPORT_SYNC_INITIAL_FIT_DURATION_MS + this.debounceMs;
-        this.initialFitTimer = this.renderer.fitGraphSnapshot?.(patch, { resetFirst: false }) ?? null;
+        this.cancelFit?.();
+        this.cancelFit = this.renderer.fitGraphSnapshot?.(patch, { resetFirst: false }) ?? null;
       }
       this.onGraphSynced?.(this.currentGraph, response);
       this.onViewportLoaded?.(response);

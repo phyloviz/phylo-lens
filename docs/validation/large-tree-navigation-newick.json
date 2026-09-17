@@ -1,0 +1,71 @@
+{
+  "ok": true,
+  "fixture": "navigation-6001-leaves.nwk",
+  "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36",
+  "records": [
+    {
+      "operation": "prepare",
+      "elapsedMs": 130.5,
+      "dataset_id": "navigation-6001-leaves.nwk",
+      "layout_version": "c2bfbb7fbad3a42c",
+      "node_count": 12001,
+      "edge_count": 12000,
+      "cluster_count": 4500,
+      "lod_tier_count": 2,
+      "layout_status": "ready",
+      "warnings": []
+    },
+    {
+      "operation": "expand",
+      "labels": false,
+      "nodes": 1514,
+      "elapsedMs": 20.600000001490116,
+      "cameraPreserved": true
+    },
+    {
+      "operation": "collapse",
+      "labels": false,
+      "cameraPreserved": true
+    },
+    {
+      "operation": "pan beyond bounds / zoom / toggle",
+      "labels": false,
+      "cameraPreserved": true,
+      "viewport": {
+        "bounds": {
+          "xmin": 2.1674655314683915,
+          "xmax": 5.039734468531608,
+          "ymin": -0.5544539022877814,
+          "ymax": 0.5944537152573466
+        },
+        "cameraRatio": 0.6356645538161757
+      }
+    },
+    {
+      "operation": "expand",
+      "labels": true,
+      "nodes": 1514,
+      "elapsedMs": 21.099999994039536,
+      "cameraPreserved": true
+    },
+    {
+      "operation": "collapse",
+      "labels": true,
+      "cameraPreserved": true
+    },
+    {
+      "operation": "pan beyond bounds / zoom / toggle",
+      "labels": true,
+      "cameraPreserved": true,
+      "viewport": {
+        "bounds": {
+          "xmin": 2.167465424668789,
+          "xmax": 5.039734148132801,
+          "ymin": -0.5544537287384271,
+          "ymax": 0.5944537820070982
+        },
+        "cameraRatio": 0.6356645447349105
+      }
+    }
+  ]
+}
