@@ -96,6 +96,20 @@ function createWorkbenchHarness(overrides: Partial<GraphClient> = {}) {
 }
 
 describe("graphWorkbench navigation", () => {
+  it("selects triangles without expanding and leaves double-click zoom unbound", async () => {
+    const { workbench, renderer, graphClient } = createWorkbenchHarness();
+    await workbench.renderNewick("(a:1)b;", "tree");
+    vi.mocked(graphClient.readViewport).mockClear();
+    const selected = vi.fn();
+    workbench.setNodeClickedHandler(selected);
+    const click = vi.mocked(renderer.setNodeClickHandler!).mock.calls[0][0]!;
+    click({ nodeId: "a", attributes: { cluster_id: "group", is_cluster_proxy: true } });
+    expect(selected).toHaveBeenCalledWith(expect.objectContaining({ nodeId: "a" }));
+    expect(graphClient.readViewport).not.toHaveBeenCalled();
+    expect(renderer.setNodeDoubleClickHandler).not.toHaveBeenCalled();
+    workbench.dispose();
+  });
+
   it("translates ancillary load options to the compatible API v1 request", async () => {
     const { workbench, graphClient } = createWorkbenchHarness();
     await workbench.renderNewick("(a:1)b;", "tree", {

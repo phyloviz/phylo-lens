@@ -598,8 +598,7 @@
           distance-threshold server pipeline and Sigma-based slice rendering.
         </p>
         <p class="interaction-hint">
-          Semantic zoom: triangles are cluster proxies. <strong>Click</strong> a triangle to expand it into its members;
-          <strong>double-click</strong> a triangle to collapse it back.
+          Click a node to select it, then use the expansion buttons. Double-click or scroll to zoom.
         </p>
 
         <form id="render-form">
@@ -661,6 +660,16 @@
             ></textarea>
           </label>
 
+          <fieldset>
+            <legend>Expansion</legend>
+            <button id="expand-selected" type="button" disabled>Expand selected group</button>
+            <button id="collapse-selected" type="button" disabled>Collapse selected group</button>
+            <button id="expand-all" type="button" disabled>Expand all</button>
+            <button id="collapse-all" type="button" disabled>Collapse all</button>
+            <label><input id="keep-expanded" type="checkbox" disabled />Keep expansion while zooming</label>
+            <p>Keep expansion fixes the current detail level. Turn it off to resume automatic detail.</p>
+            <p id="expansion-feedback" aria-live="polite">Load a tree to use expansion controls.</p>
+          </fieldset>
           <div class="wheel-controls">
             <label>
               LoD

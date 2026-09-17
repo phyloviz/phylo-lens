@@ -1,3 +1,4 @@
+import type { ExpansionResult, ExpansionState } from "../../contracts/expansion";
 import type { AncillaryData, AncillaryField } from "../../contracts/ancillary";
 import type { AncillaryInputOptions } from "../../ancillary/ancillaryInput";
 import type { GraphClient } from "../../api/graphClient";
@@ -66,6 +67,13 @@ export type GraphRenderedHandler = (graph: PositionedGraph) => void;
 export type GraphNodeClickedHandler = (state: RenderNodeClickState) => void;
 
 export interface GraphWorkbench {
+  expandCluster: (clusterId: string) => Promise<ExpansionResult>;
+  collapseCluster: (clusterId: string) => ExpansionState;
+  expandAll: () => Promise<ExpansionResult>;
+  collapseAll: () => Promise<ExpansionResult>;
+  setKeepExpanded: (keep: boolean) => ExpansionState;
+  getExpansionState: () => ExpansionState;
+
   renderNewick: (newick: string, datasetName?: string, options?: RenderNewickOptions) => Promise<PositionedGraph>;
 
   applyAncillaryData: (data: NonNullable<RenderNewickOptions["ancillaryData"]>) => Promise<GraphAncillaryResponse>;

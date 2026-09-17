@@ -173,7 +173,12 @@ async function run(control) {
     preOperation = initial;
   if (control.target) target = targetFor(initial, control.target);
   if (control.operation === "cluster_collapse") {
-    await page.mouse.click(target.clientX, target.clientY);
+    const input = await page.evaluate(
+      (id) =>
+        window.phyloLensEvaluation.rq4.expansionControl(id, "cluster_expand"),
+      target.clusterId,
+    );
+    await page.mouse.click(input.clientX, input.clientY);
     preOperation = await eventFor(
       "cluster_expand",
       target.clusterId,
@@ -187,15 +192,23 @@ async function run(control) {
   );
   const canvas = await page.locator("#graph-root canvas").first().boundingBox();
   if (!canvas) throw new Error("operation_input_failure");
+  if (control.operation !== "viewport_navigation") {
+    const input = await page.evaluate(
+      ({ id, operation }) =>
+        window.phyloLensEvaluation.rq4.expansionControl(id, operation),
+      { id: target.clusterId, operation: control.operation },
+    );
+    target = { ...target, ...input };
+  }
   await page.evaluate(() => window.phyloLensEvaluation?.startFrameSampling());
   responseMetadata = [];
   collectResponses = true;
   const inputSpecification =
     control.operation === "cluster_collapse"
       ? {
-          eventType: "dblclick",
+          eventType: "click",
           nativeEventType: "click",
-          clickCount: 2,
+          clickCount: 1,
           clientX: target.clientX,
           clientY: target.clientY,
           targetClusterId: target.clusterId,
@@ -228,7 +241,7 @@ async function run(control) {
     );
   else if (control.operation === "cluster_expand")
     await page.mouse.click(target.clientX, target.clientY);
-  else await page.mouse.dblclick(target.clientX, target.clientY);
+  else await page.mouse.click(target.clientX, target.clientY);
   const reason =
     control.operation === "viewport_navigation"
       ? "viewport_sync"
@@ -278,6 +291,7 @@ async function run(control) {
   return {
     status: "success",
     clock_domain: "browser_performance_now",
+    interaction_protocol: "explicit-expansion-v1",
     browser: {
       version: browser.version(),
       executable_path: chromium.executablePath(),

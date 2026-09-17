@@ -39,18 +39,21 @@ def _digest(path: Path) -> str:
 
 def _replay_result(row: dict[str, Any]) -> dict[str, Any]:
     timing = row["timing"]
+    explicit_commands = row.get("interaction_protocol") == "explicit-expansion-v1"
+    click_command = row["scenario"].startswith("expand") or (
+        explicit_commands and row["scenario"].startswith("collapse")
+    )
     return {
         "status": "success",
         "clock_domain": "browser_performance_now",
+        "interaction_protocol": row.get("interaction_protocol", "node-gestures-v1"),
         "input_event": {
             "timestamp": timing["t0_event_ms"],
-            "eventType": "click"
-            if row["scenario"].startswith("expand")
-            else "dblclick",
+            "eventType": "click" if click_command else "dblclick",
             "nativeEventType": "click"
             if row["scenario"].startswith(("expand", "collapse"))
             else "dblclick",
-            "clickCount": 1 if row["scenario"].startswith("expand") else 2,
+            "clickCount": 1 if click_command else 2,
             "capturePhase": True,
             "stage": "graph-root",
             "targetClusterId": row.get("target", {}).get("cluster_id")

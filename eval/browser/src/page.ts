@@ -27,6 +27,10 @@ declare global {
         requestTrace: () => unknown[];
         operationRequestTrace: () => unknown[];
         finishAtFrame: (sequence: number) => Promise<number>;
+        expansionControl: (
+          clusterId: string,
+          operation: "cluster_expand" | "cluster_collapse",
+        ) => { clientX: number; clientY: number };
         armInput: (specification: {
           eventType: "click" | "dblclick";
           nativeEventType: "click" | "dblclick";
@@ -185,6 +189,30 @@ window.phyloLensEvaluation.rq4 = {
       throw new Error("snapshot_application_timeout");
     }
     return doubleAnimationFrame();
+  },
+  expansionControl: (clusterId, operation) => {
+    root.querySelector("#expansion-action")?.remove();
+    const button = document.createElement("button");
+    button.id = "expansion-action";
+    button.textContent =
+      operation === "cluster_expand" ? "Expand group" : "Collapse group";
+    Object.assign(button.style, {
+      position: "absolute",
+      left: "8px",
+      top: "8px",
+      zIndex: "10",
+    });
+    button.addEventListener("click", () => {
+      if (operation === "cluster_expand")
+        void activeView?.expandCluster(clusterId);
+      else activeView?.collapseCluster(clusterId);
+    });
+    root.appendChild(button);
+    const rect = button.getBoundingClientRect();
+    return {
+      clientX: rect.x + rect.width / 2,
+      clientY: rect.y + rect.height / 2,
+    };
   },
   armInput: (specification) => {
     rq4OperationRequestStart = rq4RequestTrace.length;

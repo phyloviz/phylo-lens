@@ -8,6 +8,12 @@ const mocks = vi.hoisted(() => ({
   applyAncillaryData: vi.fn(),
   dispose: vi.fn(),
   createRenderer: vi.fn(),
+  expandAll: vi.fn(),
+  collapseAll: vi.fn(),
+  expandCluster: vi.fn(),
+  collapseCluster: vi.fn(),
+  getExpansionState: vi.fn(),
+  setKeepExpanded: vi.fn(),
 }));
 
 vi.mock("../src/api/graphClient", () => ({
@@ -26,6 +32,14 @@ vi.mock("../src/render/rendererFactory", () => ({
 vi.mock("../src/app/workbench/graphWorkbench", () => ({
   ERR_GRAPH_LOAD_SUPERSEDED: "Graph load was superseded by a newer load.",
   createGraphWorkbench: vi.fn(() => ({
+    expandAll: mocks.expandAll,
+    collapseAll: mocks.collapseAll,
+    expandCluster: mocks.expandCluster,
+    collapseCluster: mocks.collapseCluster,
+    getExpansionState: mocks.getExpansionState,
+    setKeepExpanded: mocks.setKeepExpanded,
+    setNodeClickedHandler: vi.fn(),
+    setGraphRenderedHandler: vi.fn(),
     renderNewick: mocks.renderNewick,
     exportPng: mocks.exportPng,
     updateVisualMapping: mocks.updateVisualMapping,
@@ -224,4 +238,27 @@ it("exposes ancillary upload results without leaking layout identifiers", async 
   expect(mocks.applyAncillaryData).toHaveBeenCalledWith(data);
   view.dispose();
   await expect(view.applyAncillaryData(data)).rejects.toThrow(ERR_PHYLO_LENS_VIEW_DISPOSED);
+});
+
+it("exposes expansion results and prevents operations after disposal", async () => {
+  const partial = {
+    status: "partial",
+    renderedNodeCount: 10,
+    maxNodes: 10,
+    partial: true,
+    allExpanded: false,
+    expandedClusterIds: [],
+    keepExpanded: true,
+  };
+  mocks.expandAll.mockResolvedValue(partial);
+  const view = createPhyloLensView({ container: document.createElement("div"), apiUrl: "" });
+  expect(await view.expandAll()).toEqual(partial);
+  view.setKeepExpanded(true);
+  expect(mocks.setKeepExpanded).toHaveBeenCalledWith(true);
+  await view.expandCluster("group");
+  expect(mocks.expandCluster).toHaveBeenCalledWith("group");
+  view.dispose();
+  await expect(view.expandAll()).rejects.toThrow(ERR_PHYLO_LENS_VIEW_DISPOSED);
+  await expect(view.collapseAll()).rejects.toThrow(ERR_PHYLO_LENS_VIEW_DISPOSED);
+  expect(() => view.collapseCluster("group")).toThrow(ERR_PHYLO_LENS_VIEW_DISPOSED);
 });

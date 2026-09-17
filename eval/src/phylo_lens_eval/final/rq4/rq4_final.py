@@ -298,7 +298,13 @@ def validate_result(
     expected_reason = (
         "viewport_sync" if operation == "viewport_navigation" else operation
     )
-    expected_input = "click" if operation == "cluster_expand" else "dblclick"
+    explicit_commands = result.get("interaction_protocol") == "explicit-expansion-v1"
+    expected_input = (
+        "click"
+        if operation == "cluster_expand"
+        or (explicit_commands and operation == "cluster_collapse")
+        else "dblclick"
+    )
     expected_native_input = (
         "click" if operation != "viewport_navigation" else "dblclick"
     )
@@ -435,6 +441,7 @@ def _observation(
     }
     row = {
         "schema_version": "1",
+        "interaction_protocol": result.get("interaction_protocol", "node-gestures-v1"),
         "experiment_id": EXPERIMENT_ID,
         "run_id": run_id,
         "observation_id": f"{scenario['id']}-measured-{index:03d}",

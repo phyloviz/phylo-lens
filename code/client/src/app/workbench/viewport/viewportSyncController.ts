@@ -1,7 +1,9 @@
+import type { ExpansionState, ExpansionResult } from "../../../contracts/expansion";
+import { composeExpandedViewport } from "./expandedViewport";
 import type { GraphClient } from "../../../api/graphClient";
 import type { GraphViewportQuery, GraphViewportResponse } from "../../../api/graphContracts";
-import type { PositionedEdge, PositionedGraph, PositionedNode } from "../../../contracts/positioned";
-import type { GraphRenderer, RenderNodeClickState } from "../../../render/renderer.types";
+import type { PositionedGraph } from "../../../contracts/positioned";
+import type { GraphRenderer } from "../../../render/renderer.types";
 import {
   notifySnapshotApplied,
   type SnapshotApplicationReason,
@@ -18,8 +20,6 @@ import {
 import {
   graphSnapshotFromViewportResponse,
   graphSnapshotWithDisplayOptions,
-  isExpandableRepresentative,
-  mergeGraphSnapshots,
   type ViewportSyncSettings,
 } from "./viewportSnapshot";
 
@@ -49,19 +49,6 @@ export interface ViewportSyncRefreshOptions {
 
 export const VIEWPORT_SYNC_INITIAL_FIT_DURATION_MS = 300;
 export const ERR_VIEWPORT_SYNC_UNMOUNTED = "Viewport sync was unmounted before the initial viewport loaded.";
-
-interface CachedIncidentEdge {
-  id: string;
-  source: string;
-  target: string;
-  attributes: Record<string, unknown>;
-}
-
-interface ExpandedClusterSnapshot {
-  representative: PositionedNode;
-  incidentEdges: CachedIncidentEdge[];
-  memberIds: string[];
-}
 
 export class ViewportSyncController {
   private readonly datasetId: string;
@@ -99,8 +86,12 @@ export class ViewportSyncController {
   private readonly initialViewportLoaded: Promise<PositionedGraph>;
   private resolveInitialViewport: (graph: PositionedGraph) => void = () => undefined;
   private rejectInitialViewport: (error: unknown) => void = () => undefined;
-  private readonly expandedClusterIds = new Set<string>();
-  private readonly expandedClusterCache = new Map<string, ExpandedClusterSnapshot>();
+  private readonly expandedPatches = new Map<string, GraphViewportResponse>();
+  private baseResponse: GraphViewportResponse | null = null;
+  private keepExpanded = false;
+  private allExpanded = false;
+  private expansionPartial = false;
+  private expansionLodLevel: number | undefined;
   private readonly viewportChanged = () => this.scheduleViewportRefreshForCamera();
 
   constructor(options: ViewportSyncControllerOptions) {
@@ -191,7 +182,7 @@ export class ViewportSyncController {
     }
     const query = { ...this.lastViewportQuery, layout_version: version };
     try {
-      const expanded = [...this.expandedClusterIds];
+      const expanded = [...this.expandedPatches.keys()];
       const [response, ...patches] = await Promise.all([
         this.client.readViewport(query),
         ...expanded.map((clusterId) => this.readCluster(clusterId, undefined, version)),
@@ -204,31 +195,14 @@ export class ViewportSyncController {
       ) {
         throw new Error("Ancillary viewport returned a different layout.");
       }
-      let graph = graphSnapshotFromViewportResponse(response, this.getRenderSettings?.());
-      const snapshots = new Map<string, ExpandedClusterSnapshot>();
-      for (const [index, patch] of patches.entries()) {
-        const clusterId = expanded[index];
-        const previous = this.expandedClusterCache.get(clusterId);
-        const snapshot = previous && this.captureClusterSnapshot(previous.representative.id, graph);
-        if (snapshot) {
-          snapshot.memberIds = patch.nodes.filter((node) => !node.is_representative).map((node) => node.id);
-          snapshots.set(clusterId, snapshot);
-        }
-        graph = mergeGraphSnapshots(graph, graphSnapshotFromViewportResponse(patch, this.getRenderSettings?.()));
-      }
-      graph.viewMeta = { ...graph.viewMeta, lodLevel: response.lod_level ?? 0 };
       this.layoutVersion = version;
       this.lastRequestedLodLevel = query.lod_level;
       this.totalNodeCount = response.total_node_count;
       this.lastViewportQuery = query;
-      this.expandedClusterIds.clear();
-      expanded.forEach((clusterId) => this.expandedClusterIds.add(clusterId));
-      this.expandedClusterCache.clear();
-      snapshots.forEach((snapshot, clusterId) => {
-        this.expandedClusterCache.set(clusterId, snapshot);
-        this.expandedClusterIds.add(clusterId);
-      });
-      this.currentGraph = graph;
+      this.baseResponse = response;
+      this.expandedPatches.clear();
+      patches.forEach((patch, index) => this.expandedPatches.set(expanded[index], patch));
+      const graph = this.composeGraph();
       this.applyGraph(graph, "viewport_sync", null, true);
       this.onGraphSynced?.(graph, response);
       this.onViewportLoaded?.(response);
@@ -250,90 +224,135 @@ export class ViewportSyncController {
     this.onGraphSynced?.(this.currentGraph);
   }
 
-  handleNodeClick(state: RenderNodeClickState): void {
-    const nodeId = state.nodeId;
-    if (!nodeId || !isExpandableRepresentative(state.attributes)) {
-      return;
-    }
-    const clusterId = typeof state.attributes?.cluster_id === "string" ? state.attributes.cluster_id : nodeId;
-    // Sigma emits a click before its double-click event. Once this cluster is
-    // expanded, that first click must not start a redundant server expansion
-    // before the following double-click restores the cached local snapshot.
-    if (this.expandedClusterIds.has(clusterId)) {
-      return;
-    }
-    const snapshot = this.captureClusterSnapshot(nodeId);
-    if (!snapshot) {
-      return;
-    }
-    void this.loadCluster(clusterId, {}, snapshot);
-  }
-
-  handleNodeDoubleClick(state: RenderNodeClickState): void {
-    const nodeId = state.nodeId;
-    if (!nodeId) {
-      return;
-    }
-    const clusterId = typeof state.attributes?.cluster_id === "string" ? state.attributes.cluster_id : nodeId;
-    this.collapseCluster(clusterId);
-  }
-
-  expandCluster(clusterId: string, options: { fitToResponse?: boolean; focusNodeId?: string | null } = {}): void {
-    if (!clusterId) {
-      return;
-    }
-    void this.loadCluster(clusterId, options);
-  }
-
-  collapseCluster(clusterId: string): void {
-    if (this.replacingLayout) return;
-    const snapshot = this.expandedClusterCache.get(clusterId);
-    if (!snapshot || !this.currentGraph) {
-      return;
-    }
-
-    const memberIds = new Set(snapshot.memberIds);
-    const nodes = this.currentGraph.nodes.filter(
-      (node) => !memberIds.has(node.id) && node.id !== snapshot.representative.id,
-    );
-    nodes.push(snapshot.representative);
-
-    const nodeIds = new Set(nodes.map((node) => node.id));
-    const currentEdges = this.currentGraph.edges.filter(
-      (edge) =>
-        !memberIds.has(edge.source) &&
-        !memberIds.has(edge.target) &&
-        edge.source !== snapshot.representative.id &&
-        edge.target !== snapshot.representative.id,
-    );
-    const incidentEdges = snapshot.incidentEdges
-      .filter((edge) => nodeIds.has(edge.source) && nodeIds.has(edge.target))
-      .map((edge) => ({
-        id: edge.id,
-        source: edge.source,
-        target: edge.target,
-        attributes: { ...edge.attributes },
-      }));
-
-    this.currentGraph = {
-      ...this.currentGraph,
-      nodes,
-      edges: dedupeEdges([...currentEdges, ...incidentEdges]),
+  getExpansionState(): ExpansionState {
+    return {
+      keepExpanded: this.keepExpanded,
+      expandedClusterIds: [...this.expandedPatches.keys()],
+      allExpanded: this.allExpanded && !this.expansionPartial,
+      partial: this.expansionPartial,
+      renderedNodeCount: this.currentGraph?.nodes.length ?? 0,
+      maxNodes: this.maxNodes,
     };
-    this.expandedClusterCache.delete(clusterId);
-    this.expandedClusterIds.delete(clusterId);
-    this.applyGraph(this.currentGraph, "cluster_collapse", clusterId);
-    this.onGraphSynced?.(this.currentGraph);
+  }
+
+  setKeepExpanded(keep: boolean): ExpansionState {
+    this.requireExpansionReady();
+    this.keepExpanded = keep;
+    if (!keep) this.expansionLodLevel = undefined;
+    else this.expansionLodLevel = this.baseResponse?.lod_level ?? 0;
+    this.requestSequence += 1;
+    this.refreshNow();
+    return this.getExpansionState();
+  }
+
+  expandCluster(
+    clusterId: string,
+    options: { fitToResponse?: boolean; focusNodeId?: string | null } = {},
+  ): Promise<ExpansionResult> {
+    return this.loadCluster(clusterId, options);
+  }
+
+  expandAll(): Promise<ExpansionResult> {
+    return this.loadGlobalExpansion(true);
+  }
+
+  collapseAll(): Promise<ExpansionResult> {
+    return this.loadGlobalExpansion(false);
+  }
+
+  private async loadGlobalExpansion(expand: boolean): Promise<ExpansionResult> {
+    this.requireExpansionReady();
+    const sequence = this.beginExpansion();
+    const query: GraphViewportQuery = {
+      dataset_id: this.datasetId,
+      layout_version: this.layoutVersion,
+      lod_level: expand ? this.lodTierCount - 1 : 0,
+      max_nodes: this.maxNodes,
+    };
+    const response = await this.readExpansion(this.client.readViewport(query), sequence);
+    if (!response) return this.expansionResult("superseded");
+    this.baseResponse = response;
+    this.lastViewportQuery = query;
+    this.lastRequestedLodLevel = query.lod_level;
+    this.expandedPatches.clear();
+    this.allExpanded = expand;
+    this.expansionLodLevel = query.lod_level ?? 0;
+    const graph = this.composeGraph();
+    this.applyGraph(graph, "viewport_sync");
+    this.onGraphSynced?.(graph, response);
+    return this.expansionResult();
+  }
+
+  collapseCluster(clusterId: string): ExpansionState {
+    this.requireExpansionReady();
+    this.beginExpansion();
+    this.expandedPatches.delete(clusterId);
+    const graph = this.composeGraph();
+    this.applyGraph(graph, "cluster_collapse", clusterId);
+    this.onGraphSynced?.(graph);
+    return this.getExpansionState();
+  }
+
+  private requireExpansionReady(): void {
+    if (!this.mounted || !this.baseResponse || this.replacingLayout) {
+      throw new Error("Expansion requires a loaded tree with no ancillary replacement in progress.");
+    }
+  }
+
+  private async readExpansion(
+    request: Promise<GraphViewportResponse>,
+    sequence: number,
+  ): Promise<GraphViewportResponse | null> {
+    try {
+      const response = await request;
+      return this.mounted && sequence === this.requestSequence ? response : null;
+    } catch (error) {
+      if (!this.mounted || sequence !== this.requestSequence) return null;
+      throw error;
+    }
+  }
+
+  private beginExpansion(): number {
+    if (this.debounceTimer !== null) window.clearTimeout(this.debounceTimer);
+    this.debounceTimer = null;
+    this.cancelFit?.();
+    return ++this.requestSequence;
+  }
+
+  private expansionResult(status?: "superseded"): ExpansionResult {
+    return { ...this.getExpansionState(), status: status ?? (this.expansionPartial ? "partial" : "complete") };
+  }
+
+  private composeGraph(): PositionedGraph {
+    const responses = [...this.expandedPatches.values()];
+    const settings = this.getRenderSettings?.();
+    const composed = composeExpandedViewport(
+      graphSnapshotFromViewportResponse(this.baseResponse!, settings),
+      responses.map((response) => graphSnapshotFromViewportResponse(response, settings)),
+      this.maxNodes,
+    );
+    this.expansionPartial =
+      composed.partial ||
+      this.baseResponse!.truncated ||
+      responses.some(
+        (response) =>
+          response.truncated ||
+          response.total_node_count > response.nodes.filter((node) => !node.is_representative).length,
+      );
+    this.currentGraph = composed.graph;
+    return composed.graph;
   }
 
   private scheduleViewportRefreshForCamera(): void {
     if (this.getPaused?.()) {
       return;
     }
-    if (this.isSmallTreeLoaded()) {
+    if ((this.keepExpanded && this.allExpanded) || this.isSmallTreeLoaded()) {
       return;
     }
-    const nextLodLevel = this.currentLodLevel();
+    const nextLodLevel = this.keepExpanded
+      ? (this.expansionLodLevel ?? this.currentLodLevel())
+      : this.currentLodLevel();
     const lodChanged = this.loadedInitialViewport && nextLodLevel !== this.lastRequestedLodLevel;
     if (!lodChanged && nextLodLevel === 0) {
       return;
@@ -384,8 +403,10 @@ export class ViewportSyncController {
 
   private async loadViewport(): Promise<void> {
     const sequence = ++this.requestSequence;
-    const finestTier = this.isKnownSmallTree() || this.isSmallTreeLoaded();
-    const forcedLodLevel = this.nextForcedLodLevel;
+    const pinned = this.keepExpanded && this.expansionLodLevel !== undefined;
+    const finestTier =
+      (this.keepExpanded && this.allExpanded) || (!pinned && (this.isKnownSmallTree() || this.isSmallTreeLoaded()));
+    const forcedLodLevel = this.nextForcedLodLevel ?? (this.keepExpanded ? this.expansionLodLevel : undefined);
     const fitResponse = this.fitNextResponse;
     this.nextForcedLodLevel = undefined;
     this.fitNextResponse = false;
@@ -410,13 +431,13 @@ export class ViewportSyncController {
       this.layoutVersion = response.layout_version;
       this.lastViewportQuery = query;
       this.totalNodeCount = response.total_node_count;
-      const graph = graphSnapshotFromViewportResponse(response, this.getRenderSettings?.());
       const wasInitialViewport = !this.loadedInitialViewport;
-      // A viewport response replaces the expanded snapshot. Its cached members
-      // must not block a later expansion when the representative reappears.
-      this.expandedClusterIds.clear();
-      this.expandedClusterCache.clear();
-      this.currentGraph = graph;
+      if (!this.keepExpanded) {
+        this.expandedPatches.clear();
+        this.allExpanded = false;
+      }
+      this.baseResponse = response;
+      const graph = this.composeGraph();
       this.applyGraph(graph, wasInitialViewport ? "initial_load" : "viewport_sync");
       if (fitResponse) {
         this.suppressCameraRefreshUntil = Date.now() + VIEWPORT_SYNC_INITIAL_FIT_DURATION_MS + this.debounceMs;
@@ -463,37 +484,45 @@ export class ViewportSyncController {
   private async loadCluster(
     clusterId: string,
     options: { fitToResponse?: boolean; focusNodeId?: string | null },
-    snapshot?: ExpandedClusterSnapshot,
-  ): Promise<void> {
-    if (this.replacingLayout) return;
-    const sequence = ++this.requestSequence;
-    try {
-      const response = await this.readCluster(clusterId, options.focusNodeId);
-      if (!this.mounted || sequence !== this.requestSequence) {
-        return;
-      }
-      this.layoutVersion = response.layout_version;
-      const patch = graphSnapshotFromViewportResponse(response, this.getRenderSettings?.());
-      this.currentGraph = this.currentGraph ? mergeGraphSnapshots(this.currentGraph, patch) : patch;
-      this.expandedClusterIds.add(clusterId);
-      if (snapshot) {
-        snapshot.memberIds = response.nodes.filter((node) => !node.is_representative).map((node) => node.id);
-        this.expandedClusterCache.set(clusterId, snapshot);
-      }
-      this.applyGraph(this.currentGraph, "cluster_expand", clusterId);
-      if (options.fitToResponse) {
-        this.suppressCameraRefreshUntil = Date.now() + VIEWPORT_SYNC_INITIAL_FIT_DURATION_MS + this.debounceMs;
-        this.cancelFit?.();
-        this.cancelFit = this.renderer.fitGraphSnapshot?.(patch, { resetFirst: false }) ?? null;
-      }
-      this.onGraphSynced?.(this.currentGraph, response);
-      this.onViewportLoaded?.(response);
-    } catch (error) {
-      if (!this.mounted || sequence !== this.requestSequence) {
-        return;
-      }
-      this.onError?.(error);
+  ): Promise<ExpansionResult> {
+    this.requireExpansionReady();
+    if (!clusterId) throw new Error("A cluster ID is required.");
+    if (this.expandedPatches.has(clusterId)) return this.expansionResult();
+    if ((this.currentGraph?.nodes.length ?? 0) >= this.maxNodes) {
+      this.expansionPartial = true;
+      return this.expansionResult();
     }
+    const sequence = this.beginExpansion();
+    const response = await this.readExpansion(this.readCluster(clusterId, options.focusNodeId), sequence);
+    if (!response) return this.expansionResult("superseded");
+    if (response.total_node_count === 0) throw new Error("The requested cluster has no available members.");
+    const settings = this.getRenderSettings?.();
+    const candidate = composeExpandedViewport(
+      graphSnapshotFromViewportResponse(this.baseResponse!, settings),
+      [...this.expandedPatches.values(), response].map((patch) => graphSnapshotFromViewportResponse(patch, settings)),
+      this.maxNodes,
+    );
+    const missingMembers = response.total_node_count > response.nodes.filter((node) => !node.is_representative).length;
+    if (response.truncated || missingMembers || candidate.partial) {
+      // Keep the summary intact rather than showing a full-group proxy alongside
+      // an incomplete subset of its members.
+      this.expansionPartial = true;
+      return this.expansionResult();
+    }
+    this.expandedPatches.set(clusterId, response);
+    this.expansionLodLevel = this.baseResponse?.lod_level ?? 0;
+    const graph = this.composeGraph();
+    this.applyGraph(graph, "cluster_expand", clusterId);
+    if (options.fitToResponse) {
+      this.suppressCameraRefreshUntil = Date.now() + VIEWPORT_SYNC_INITIAL_FIT_DURATION_MS + this.debounceMs;
+      this.cancelFit =
+        this.renderer.fitGraphSnapshot?.(graphSnapshotFromViewportResponse(response, this.getRenderSettings?.()), {
+          resetFirst: false,
+        }) ?? null;
+    }
+    this.onGraphSynced?.(graph, response);
+    this.onViewportLoaded?.(response);
+    return this.expansionResult();
   }
 
   private readCluster(
@@ -511,25 +540,6 @@ export class ViewportSyncController {
       lod_level: null,
       max_nodes: this.maxNodes,
     });
-  }
-
-  private captureClusterSnapshot(representativeId: string, graph = this.currentGraph): ExpandedClusterSnapshot | null {
-    const representative = graph?.nodes.find((node) => node.id === representativeId);
-    if (!graph || !representative) {
-      return null;
-    }
-    return {
-      representative: cloneNode(representative),
-      incidentEdges: graph.edges
-        .filter((edge) => edge.source === representativeId || edge.target === representativeId)
-        .map((edge) => ({
-          id: edge.id,
-          source: edge.source,
-          target: edge.target,
-          attributes: { ...(edge.attributes ?? {}) },
-        })),
-      memberIds: [],
-    };
   }
 
   private applyGraph(
@@ -568,15 +578,4 @@ export class ViewportSyncController {
       }).lod_level ?? null
     );
   }
-}
-
-function cloneNode(node: PositionedNode): PositionedNode {
-  return {
-    ...node,
-    attributes: node.attributes ? { ...node.attributes } : undefined,
-  };
-}
-
-function dedupeEdges(edges: PositionedEdge[]): PositionedEdge[] {
-  return Array.from(new Map(edges.map((edge) => [edge.id, edge])).values());
 }

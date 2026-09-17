@@ -69,13 +69,14 @@ def _result(operation: str = "cluster_expand") -> dict:
     return {
         "status": "success",
         "clock_domain": "browser_performance_now",
+        "interaction_protocol": "explicit-expansion-v1",
         "input_event": {
             "timestamp": 1.0,
-            "eventType": "click" if operation == "cluster_expand" else "dblclick",
+            "eventType": "dblclick" if operation == "viewport_navigation" else "click",
             "nativeEventType": "click"
             if operation != "viewport_navigation"
             else "dblclick",
-            "clickCount": 1 if operation == "cluster_expand" else 2,
+            "clickCount": 2 if operation == "viewport_navigation" else 1,
             "capturePhase": True,
             "stage": "graph-root",
             "targetClusterId": "target" if operation != "viewport_navigation" else None,
@@ -293,3 +294,15 @@ def test_audit_requires_the_frozen_execution_harness_git_commit() -> None:
     assert errors == []
     _audit_execution_provenance({"git": {"commit": "different"}}, errors)
     assert errors == ["execution_git_commit_mismatch"]
+
+
+def test_explicit_commands_do_not_reinterpret_historical_collapse_gestures() -> None:
+    result = _result("cluster_collapse")
+    result["input_event"]["eventType"] = "dblclick"
+    result["input_event"]["clickCount"] = 2
+    assert (
+        validate_result("cluster_collapse", {"cluster_id": "target"}, result)
+        == "validation_failure"
+    )
+    result.pop("interaction_protocol")
+    assert validate_result("cluster_collapse", {"cluster_id": "target"}, result) is None

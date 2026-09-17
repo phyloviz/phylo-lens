@@ -77,6 +77,14 @@ export default function bootstrapClientShell(baseUrl = DEFAULT_SERVER_BASE_URL):
     paletteSaveButton: getButton(ID_PALETTE_SAVE_BUTTON),
 
     displayOptionsSelect: getSelect(ID_DISPLAY_OPTIONS),
+    expansion: {
+      expandSelected: getButton("expand-selected"),
+      collapseSelected: getButton("collapse-selected"),
+      expandAll: getButton("expand-all"),
+      collapseAll: getButton("collapse-all"),
+      keepExpanded: getInput("keep-expanded"),
+      feedback: getOptionalElement("expansion-feedback"),
+    },
     lodPlayButton: getButton(ID_LOD_PLAY_BUTTON),
     lodPauseButton: getButton(ID_LOD_PAUSE_BUTTON),
     maxNodesInput: getInput(ID_MAX_NODES_INPUT),

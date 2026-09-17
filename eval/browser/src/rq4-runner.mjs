@@ -132,7 +132,12 @@ async function run(control) {
   if (control.operation !== "viewport_navigation")
     target = targetFrom(initial, control.target_cluster_id);
   if (control.operation === "cluster_collapse") {
-    await page.mouse.click(target.clientX, target.clientY);
+    const input = await page.evaluate(
+      (id) =>
+        window.phyloLensEvaluation.rq4.expansionControl(id, "cluster_expand"),
+      target.clusterId,
+    );
+    await page.mouse.click(input.clientX, input.clientY);
     expanded = await waitForEvent(
       "cluster_expand",
       target.clusterId,
@@ -159,6 +164,14 @@ async function run(control) {
       await page.waitForTimeout(control.input.setup_wheel_interval_ms ?? 70);
     }
     await page.waitForTimeout(control.setup_quiescence_ms);
+  }
+  if (control.operation !== "viewport_navigation") {
+    const input = await page.evaluate(
+      ({ id, operation }) =>
+        window.phyloLensEvaluation.rq4.expansionControl(id, operation),
+      { id: target.clusterId, operation: control.operation },
+    );
+    target = { ...target, ...input };
   }
   await page.evaluate(() => window.phyloLensEvaluation?.startFrameSampling());
   operationNetworkRequests = [];
@@ -189,7 +202,7 @@ async function run(control) {
   } else if (control.operation === "cluster_expand") {
     await page.mouse.click(target.clientX, target.clientY);
   } else {
-    await page.mouse.dblclick(target.clientX, target.clientY);
+    await page.mouse.click(target.clientX, target.clientY);
   }
   const reason =
     control.operation === "viewport_navigation"

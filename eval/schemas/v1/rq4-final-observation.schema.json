@@ -27,6 +27,7 @@
     "error"
   ],
   "properties": {
+    "interaction_protocol": {"enum": ["node-gestures-v1", "explicit-expansion-v1"]},
     "schema_version": { "const": "1" },
     "run_id": { "type": "string" },
     "experiment_id": { "const": "rq4-interactive-final-v020" },

@@ -1,0 +1,101 @@
+{
+  "ok": true,
+  "fixture": "navigation-6001-leaves.nwk",
+  "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36",
+  "records": [
+    {
+      "operation": "prepare",
+      "elapsedMs": 150.79999999701977,
+      "dataset_id": "navigation-6001-leaves.nwk",
+      "layout_version": "c2bfbb7fbad3a42c",
+      "node_count": 12001,
+      "edge_count": 12000,
+      "cluster_count": 4500,
+      "lod_tier_count": 2,
+      "layout_status": "ready",
+      "warnings": []
+    },
+    {
+      "operation": "expand",
+      "labels": false,
+      "nodes": 1514,
+      "elapsedMs": 64.10000000149012,
+      "cameraPreserved": true
+    },
+    {
+      "operation": "persistent expansion after fit and viewport replacement",
+      "labels": false,
+      "persistent": true
+    },
+    {
+      "operation": "collapse",
+      "labels": false,
+      "cameraPreserved": true
+    },
+    {
+      "operation": "pan beyond bounds / zoom / toggle",
+      "labels": false,
+      "cameraPreserved": true,
+      "viewport": {
+        "bounds": {
+          "xmin": 2.1674653178691865,
+          "xmax": 5.039734254932403,
+          "ymin": -0.5544538488879801,
+          "ymax": 0.5944537686571478
+        },
+        "cameraRatio": 0.6356645868021911
+      }
+    },
+    {
+      "operation": "expand",
+      "labels": true,
+      "nodes": 1514,
+      "elapsedMs": 21.299999997019768,
+      "cameraPreserved": true
+    },
+    {
+      "operation": "persistent expansion after fit and viewport replacement",
+      "labels": true,
+      "persistent": true
+    },
+    {
+      "operation": "collapse",
+      "labels": true,
+      "cameraPreserved": true
+    },
+    {
+      "operation": "pan beyond bounds / zoom / toggle",
+      "labels": true,
+      "cameraPreserved": true,
+      "viewport": {
+        "bounds": {
+          "xmin": 2.1674653178691865,
+          "xmax": 5.039734254932403,
+          "ymin": -0.5544538488879801,
+          "ymax": 0.5944537686571478
+        },
+        "cameraRatio": 0.6356645621184221
+      }
+    },
+    {
+      "operation": "expand all",
+      "keepExpanded": true,
+      "expandedClusterIds": [],
+      "allExpanded": false,
+      "partial": true,
+      "renderedNodeCount": 5000,
+      "maxNodes": 5000,
+      "status": "partial"
+    },
+    {
+      "operation": "collapse all",
+      "keepExpanded": true,
+      "expandedClusterIds": [],
+      "allExpanded": false,
+      "partial": false,
+      "renderedNodeCount": 1500,
+      "maxNodes": 5000,
+      "status": "complete"
+    }
+  ]
+}

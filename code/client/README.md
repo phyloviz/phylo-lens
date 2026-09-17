@@ -120,10 +120,34 @@ or browser credentials.
 ```ts
 interface PhyloLensView {
   load(options: PhyloLensLoadOptions): Promise<void>;
+  expandCluster(clusterId: string): Promise<ExpansionResult>;
+  collapseCluster(clusterId: string): ExpansionState;
+  expandAll(): Promise<ExpansionResult>;
+  collapseAll(): Promise<ExpansionResult>;
+  setKeepExpanded(keep: boolean): ExpansionState;
+  getExpansionState(): ExpansionState;
   exportPng(): Promise<Blob>;
   dispose(): void;
 }
 ```
+
+### Explicit expansion
+
+Click selects; double-click and the wheel zoom. Host applications can use
+`onNodeSelected` in `createPhyloLensView` options to receive
+`{ nodeId, clusterId, expandable }`, then invoke the expansion methods from their
+own controls. `onExpansionChanged` receives the resulting `ExpansionState` after
+graph updates.
+
+After loading, `view.setKeepExpanded(true)` pins the current detail tier while
+retaining expanded groups across viewport changes. `await view.expandAll()` requests
+all finest-detail nodes within the configured `lod.maxNodes` budget. Inspect the
+returned `status` (`complete`, `partial`, or `superseded`): a partial result must not
+be presented as a fully expanded tree. `await view.collapseAll()` returns to the
+coarsest tier. Disabling persistence resumes automatic detail selection.
+
+See [expansion commands and limits](../../docs/EXPAND_COLLAPSE.md) for state,
+concurrency and ancillary-update semantics.
 
 ### `load`
 

@@ -98,7 +98,7 @@ export default function createGraphNavigation({
       renderer.centerOnCoordinates?.(coordinates.x, coordinates.y) === true
     ) {
       if (coordinates.clusterId) {
-        getViewportSync()?.expandCluster(coordinates.clusterId, { fitToResponse: true, focusNodeId: nodeId });
+        await getViewportSync()?.expandCluster(coordinates.clusterId, { fitToResponse: true, focusNodeId: nodeId });
       } else {
         getViewportSync()?.refreshNow({ lodLevel: "finest", fitToResponse: true });
       }

@@ -69,11 +69,7 @@ export function createGraphWorkbench(
 
   renderer.setNodeClickHandler?.((clickState) => {
     state.focusedNodeId = clickState.nodeId;
-    viewportSync?.handleNodeClick(clickState);
     state.nodeClickedHandler?.(clickState);
-  });
-  renderer.setNodeDoubleClickHandler?.((clickState) => {
-    viewportSync?.handleNodeDoubleClick(clickState);
   });
 
   async function setLodRefreshPaused(paused: boolean): Promise<PositionedGraph | null> {
@@ -89,7 +85,19 @@ export function createGraphWorkbench(
     return state.currentGraph;
   }
 
+  const requireViewportSync = () => {
+    requirePreparedSession(state);
+    if (disposed || !viewportSync) throw new Error(ERR_NO_GRAPH_RENDERED);
+    return viewportSync;
+  };
+
   return {
+    expandCluster: (id) => requireViewportSync().expandCluster(id),
+    collapseCluster: (id) => requireViewportSync().collapseCluster(id),
+    expandAll: () => requireViewportSync().expandAll(),
+    collapseAll: () => requireViewportSync().collapseAll(),
+    setKeepExpanded: (keep) => requireViewportSync().setKeepExpanded(keep),
+    getExpansionState: () => requireViewportSync().getExpansionState(),
     renderNewick: (newick, datasetName, renderOptions) => {
       const generation = ++loadGeneration;
       return renderNewick({
