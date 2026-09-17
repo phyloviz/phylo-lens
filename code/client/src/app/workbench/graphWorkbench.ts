@@ -138,11 +138,11 @@ export function createGraphWorkbench(
       }
     },
 
-    exportPng: () => {
+    exportPng: (exportOptions) => {
       if (!renderer.exportPng) {
         throw new Error(ERR_GRAPH_PNG_EXPORT_UNAVAILABLE);
       }
-      return renderer.exportPng();
+      return renderer.exportPng(exportOptions);
     },
 
     applyMetadataFilters: filters.applyMetadataFilters,

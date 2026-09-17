@@ -77,6 +77,10 @@ export default function bootstrapClientShell(baseUrl = DEFAULT_SERVER_BASE_URL):
     paletteSaveButton: getButton(ID_PALETTE_SAVE_BUTTON),
 
     displayOptionsSelect: getSelect(ID_DISPLAY_OPTIONS),
+    edgeLabelPolicySelect: getSelect("edge-label-policy"),
+    exportScaleInput: getInput("export-scale"),
+    exportLabelSizeInput: getInput("export-label-size"),
+    exportButton: getButton("export-png"),
     expansion: {
       expandSelected: getButton("expand-selected"),
       collapseSelected: getButton("collapse-selected"),

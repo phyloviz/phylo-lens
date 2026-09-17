@@ -1,3 +1,4 @@
+import type { PngExportOptions } from "../../render/renderer.types";
 import type { ExpansionResult, ExpansionState } from "../../contracts/expansion";
 import type { AncillaryData, AncillaryField } from "../../contracts/ancillary";
 import type { AncillaryInputOptions } from "../../ancillary/ancillaryInput";
@@ -78,7 +79,7 @@ export interface GraphWorkbench {
 
   applyAncillaryData: (data: NonNullable<RenderNewickOptions["ancillaryData"]>) => Promise<GraphAncillaryResponse>;
 
-  exportPng: () => Promise<Blob>;
+  exportPng: (options?: PngExportOptions) => Promise<Blob>;
 
   applyMetadataFilters: (filterState: AncillaryFilterState) => PositionedGraph;
 

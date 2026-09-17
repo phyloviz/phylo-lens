@@ -29,7 +29,7 @@ import {
 } from "./shell/controls/lodControls";
 import metadataPieFieldControls from "./shell/controls/metadataPieFieldControls";
 import { getSelectedOptions } from "./shell/controls/selectOptions";
-import { readTextFile, resolveAncillaryFormat } from "./shell/inputs/fileInputs";
+import { downloadBlob, readTextFile, resolveAncillaryFormat } from "./shell/inputs/fileInputs";
 import eventBindings from "./shell/events/eventBindings";
 import searchController from "./shell/search/searchController";
 import regionSelection from "./shell/region/regionSelection";
@@ -92,6 +92,10 @@ export interface UiShellElements {
   paletteLoadInput?: HTMLInputElement;
   paletteSaveButton?: HTMLButtonElement;
   displayOptionsSelect?: HTMLSelectElement;
+  edgeLabelPolicySelect?: HTMLSelectElement;
+  exportScaleInput?: HTMLInputElement;
+  exportLabelSizeInput?: HTMLInputElement;
+  exportButton?: HTMLButtonElement;
   expansion?: ExpansionControlsElements;
   lodPlayButton?: HTMLButtonElement;
   lodPauseButton?: HTMLButtonElement;
@@ -143,6 +147,10 @@ export default function (options: UiShellOptions): UiShell {
     paletteLoadInput,
     paletteSaveButton,
     displayOptionsSelect,
+    edgeLabelPolicySelect,
+    exportScaleInput,
+    exportLabelSizeInput,
+    exportButton,
     lodPlayButton,
     lodPauseButton,
     maxNodesInput,
@@ -281,6 +289,8 @@ export default function (options: UiShellOptions): UiShell {
     bindings.on(paletteSaveButton, "click", () => {
       palette.save();
     });
+    bindings.on(edgeLabelPolicySelect, "change", handleDisplayOptionsChange);
+    bindings.on(exportButton, "click", () => void exportCurrentView());
     bindings.on(displayOptionsSelect, "change", () => {
       handleDisplayOptionsChange();
     });
@@ -491,7 +501,35 @@ export default function (options: UiShellOptions): UiShell {
   }
 
   function buildCurrentDisplayOptions() {
-    return buildDisplayOptions(getSelectedOptions(displayOptionsSelect));
+    const display = buildDisplayOptions(getSelectedOptions(displayOptionsSelect));
+    return edgeLabelPolicySelect
+      ? {
+          ...display,
+          edgeDistanceLabelPolicy: edgeLabelPolicySelect.value === "always" ? ("always" as const) : ("auto" as const),
+        }
+      : display;
+  }
+
+  async function exportCurrentView(): Promise<void> {
+    if (!lastRenderedGraph || !exportButton) {
+      setFailureStatus("load a tree before exporting");
+      return;
+    }
+    exportButton.disabled = true;
+    try {
+      const blob = await workbench.exportPng({
+        scale: Number(exportScaleInput?.value ?? 2),
+        edgeLabelSize: Number(exportLabelSizeInput?.value ?? 12),
+        edgeLabels: buildCurrentDisplayOptions().edgeDistanceLabels ? "all" : "none",
+        includeLegend: true,
+      });
+      downloadBlob("phylo-lens.png", blob);
+      setStatus("Exported PNG of the current slice and view.");
+    } catch (error) {
+      setFailureStatus(error instanceof Error ? error.message : "PNG export failed");
+    } finally {
+      exportButton.disabled = false;
+    }
   }
 
   function getSourceFormat(): SourceFormat {

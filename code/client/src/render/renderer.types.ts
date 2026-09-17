@@ -48,7 +48,25 @@ export interface RenderInteractiveAggregateTarget {
 export interface GraphDisplayOptions {
   nodeLabels?: boolean;
   edgeDistanceLabels?: boolean;
+  /** Auto retains the interactive zoom threshold; always shows enabled labels at every zoom. */
+  edgeDistanceLabelPolicy?: "auto" | "always";
   distanceWeightedEdges?: boolean;
+}
+
+/** Publication export of the currently loaded slice and camera, without loading more detail.
+ * Labels are forced at edge midpoints; collisions are not removed and viewport boundaries clip.
+ * Dense trees may need a larger image, fewer edgeIds, or a different layout before exporting.
+ * Scale multiplies viewport CSS dimensions (1–4); the optional slice legend adds height.
+ */
+export interface PngExportOptions {
+  scale?: number;
+  /** Current follows the live label policy; all ignores zoom; none hides distances. */
+  edgeLabels?: "current" | "all" | "none";
+  /** Label only these edge IDs; geometry is preserved. Omit to include every distance. */
+  edgeIds?: readonly string[];
+  /** Font size in logical pixels before scaling (6–72). */
+  edgeLabelSize?: number;
+  includeLegend?: boolean;
 }
 
 export interface GraphRenderer {
@@ -58,7 +76,7 @@ export interface GraphRenderer {
 
   // Return a PNG of the currently materialized renderer view. It must preserve
   // the active camera and graph rather than fitting, reloading, or mutating it.
-  exportPng?: () => Promise<Blob>;
+  exportPng?: (options?: PngExportOptions) => Promise<Blob>;
 
   setViewChangeHandler?: (handler: ((state: RenderViewportState) => void) | null) => void;
 

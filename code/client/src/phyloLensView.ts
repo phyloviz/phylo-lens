@@ -1,3 +1,4 @@
+import type { PngExportOptions } from "./render/renderer.types";
 import type { ExpansionState, ExpansionResult } from "./contracts/expansion";
 import type { AncillaryTableInput } from "./contracts/ancillary";
 import type { AncillaryInputOptions } from "./ancillary/ancillaryInput";
@@ -58,7 +59,7 @@ export interface PhyloLensView {
   /** Replace the visual mapping of a loaded tree and schedule a viewport refresh. */
   updateVisualMapping: (mapping: VisualMappingOptions) => void;
   applyAncillaryData: (data: AncillaryTableInput) => Promise<PhyloLensAncillaryResult>;
-  exportPng: () => Promise<Blob>;
+  exportPng: (options?: PngExportOptions) => Promise<Blob>;
   dispose: () => void;
 }
 
@@ -122,11 +123,11 @@ export function createPhyloLensView(options: PhyloLensViewOptions): PhyloLensVie
       }
       workbench.updateVisualMapping(mapping);
     },
-    exportPng: () => {
+    exportPng: (exportOptions) => {
       if (disposed) {
         throw new Error(ERR_PHYLO_LENS_VIEW_DISPOSED);
       }
-      return workbench.exportPng();
+      return workbench.exportPng(exportOptions);
     },
     dispose: () => {
       if (disposed) {
