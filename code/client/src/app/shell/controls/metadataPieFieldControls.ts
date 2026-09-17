@@ -5,9 +5,25 @@ import { getSelectedOptions } from "./selectOptions";
 
 export default function (select: HTMLSelectElement | undefined) {
   return {
+    setSelection: setSelection,
     updateOptions: updateOptions,
     toggleOption: toggleOption,
   };
+
+  // Seed explicit payload fields before metadata arrives; each new dataset starts
+  // with its own mapping instead of inheriting the previous dataset's selection.
+  function setSelection(fields: string[]): void {
+    if (!select) return;
+    select.replaceChildren(
+      ...fields.map((field) => {
+        const option = document.createElement("option");
+        option.value = field;
+        option.textContent = field;
+        option.selected = true;
+        return option;
+      }),
+    );
+  }
 
   function updateOptions(graph: PositionedGraph | null): void {
     if (!select) {
@@ -19,7 +35,7 @@ export default function (select: HTMLSelectElement | undefined) {
 
     const automaticOption = document.createElement("option");
     automaticOption.value = "";
-    automaticOption.textContent = "Auto pie fields";
+    automaticOption.textContent = "None — neutral nodes";
     select.appendChild(automaticOption);
 
     if (!graph) {
@@ -39,7 +55,8 @@ export default function (select: HTMLSelectElement | undefined) {
 
     select.disabled = keys.length === 0;
     [...select.options].forEach((option) => {
-      option.selected = previousValues.has(option.value);
+      option.selected =
+        previousValues.has(option.value) || (option.value === "" && !keys.some((key) => previousValues.has(key)));
     });
   }
 

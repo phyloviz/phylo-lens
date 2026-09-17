@@ -313,9 +313,23 @@ Behavior:
 - `palette` overrides the node-color palette;
 - `pie` controls pie attributes for aggregate nodes.
 
-When no color field is requested, the client prefers `region`, then the first
-non-numeric public metadata field. When no size field is requested, it prefers
-`profile_count` when available and otherwise uses `distance`.
+Without an explicit `colorField` or pie mapping, profile nodes use a neutral
+slate color. Metadata names such as `region`, `selected` or `founder` do not
+implicitly enable coloring in server viewport snapshots. LoD clusters retain
+their structural triangle styling. When no size field is requested, the client
+prefers `profile_count` when available and otherwise uses `distance`.
+
+In the demo, selecting a Pie Field enables metadata coloring and shows the
+active field above each distribution. Selecting `None — neutral nodes` clears
+both the color field and pies. Loading another dataset resets the selection and
+palette overrides; an explicit mapping in Advanced Ancillary JSON initializes
+the new selection.
+
+The selected-node panel shows the profile ID, represented isolate count and
+original isolate IDs independently of color selection. LoD clusters are labeled
+as clusters, with separate profile and isolate counts. Selection and the open
+ID list survive viewport refreshes; a selected node outside the current view
+shows an explicit message instead of stale details.
 
 ## Service compatibility errors
 

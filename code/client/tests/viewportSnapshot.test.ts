@@ -107,7 +107,7 @@ describe("viewportSnapshot", () => {
     expect(dense.nodes[0]?.attributes?.label).toBe("leaf-0");
   });
 
-  it("uses server-inferred metadata schema for viewport visual mapping", () => {
+  it("keeps metadata coloring neutral until a field is explicitly selected", () => {
     const graph = graphSnapshotFromViewportResponse(
       viewportResponse(
         [
@@ -120,7 +120,7 @@ describe("viewportSnapshot", () => {
       { visualMapping: {} },
     );
 
-    expect(graph.nodes[0]?.color).not.toBe("#93c5fd");
+    expect(graph.nodes[0]?.color).toBe("#64748b");
   });
 
   it("applies display toggles to edge attributes in the first viewport snapshot", () => {
