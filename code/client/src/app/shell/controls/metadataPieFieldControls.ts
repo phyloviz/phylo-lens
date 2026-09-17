@@ -1,4 +1,4 @@
-import { collectMetadataFieldSummaries } from "../../../components/ancillaryWheel";
+import { collectAncillaryFieldSummaries } from "../../../components/ancillaryWheel";
 import type { PositionedGraph } from "../../../contracts/positioned";
 import { formatPieFieldOption } from "../ancillary/categorySummaries";
 import { getSelectedOptions } from "./selectOptions";
@@ -43,7 +43,7 @@ export default function (select: HTMLSelectElement | undefined) {
       return;
     }
 
-    const summaries = collectMetadataFieldSummaries(graph);
+    const summaries = collectAncillaryFieldSummaries(graph);
     const keys = summaries.map((summary) => summary.key);
     summaries.forEach((summary) => {
       const option = document.createElement("option");

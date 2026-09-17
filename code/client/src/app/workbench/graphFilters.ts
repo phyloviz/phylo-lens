@@ -1,5 +1,5 @@
-import { EMPTY_METADATA_FILTER_STATE } from "../../ancillary/filterEngine";
-import type { MetadataFilterState } from "../../ancillary/metadataTypes";
+import { EMPTY_ANCILLARY_FILTER_STATE } from "../../ancillary/filterEngine";
+import type { AncillaryFilterState } from "../../ancillary/ancillaryTypes";
 import type { PositionedGraph } from "../../contracts/positioned";
 import type { VisualMappingOptions } from "../../render/mapping/visualMapping";
 import type { GraphDisplayOptions, GraphRenderer } from "../../render/renderer.types";
@@ -22,7 +22,7 @@ export default function createGraphFilters({ state, renderer, getViewportSync }:
     updateDisplayOptions: updateDisplayOptions,
   };
 
-  function applyMetadataFilters(filterState: MetadataFilterState): PositionedGraph {
+  function applyMetadataFilters(filterState: AncillaryFilterState): PositionedGraph {
     requirePreparedSession(state);
 
     // Filtering is applied inside the viewport sync via getRenderSettings; the
@@ -36,7 +36,7 @@ export default function createGraphFilters({ state, renderer, getViewportSync }:
   function clearMetadataFilters(): PositionedGraph {
     requirePreparedSession(state);
 
-    state.activeFilters = EMPTY_METADATA_FILTER_STATE;
+    state.activeFilters = EMPTY_ANCILLARY_FILTER_STATE;
     getViewportSync()?.refreshNow();
 
     return currentGraph(state);

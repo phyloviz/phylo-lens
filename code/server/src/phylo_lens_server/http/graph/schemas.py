@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field, model_validator
 
-from phylo_lens_server.domain.models import IsolateRecord
+from phylo_lens_server.domain.models import Isolate
 from phylo_lens_server.pipeline.models import LayoutStatus
 
 DEFAULT_MAX_VIEWPORT_NODES = 2_500
@@ -70,7 +70,7 @@ class GraphViewportQuery(BaseModel):
         return self
 
 
-class GraphMetadataField(BaseModel):
+class GraphAncillaryField(BaseModel):
     key: str
     type: str
 
@@ -84,7 +84,7 @@ class GraphViewportNode(BaseModel):
     member_count: int = Field(default=1, ge=1)
     is_representative: bool = False
     metadata: dict[str, str | float | bool | None] | None = None
-    isolates: list[IsolateRecord] = Field(default_factory=list)
+    isolates: list[Isolate] = Field(default_factory=list)
 
 
 class GraphViewportEdge(BaseModel):
@@ -114,7 +114,7 @@ class GraphViewportResponse(BaseModel):
     nodes: list[GraphViewportNode]
     edges: list[GraphViewportEdge]
     global_bounds: GraphLayoutBounds | None = None
-    metadata_schema: list[GraphMetadataField] = Field(default_factory=list)
+    metadata_schema: list[GraphAncillaryField] = Field(default_factory=list)
 
 
 class GraphRegionQuery(BaseModel):
@@ -151,7 +151,7 @@ class GraphRegionResponse(BaseModel):
     total_node_count: int
     nodes: list[GraphViewportNode]
     edges: list[GraphViewportEdge]
-    metadata_schema: list[GraphMetadataField] = Field(default_factory=list)
+    metadata_schema: list[GraphAncillaryField] = Field(default_factory=list)
     aggregated_metadata: dict[str, str | float | bool | None] = Field(
         default_factory=dict
     )

@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import { buildMetadataIndex, filterNodeIdsByFieldValues, getNodeMetadata } from "../src/ancillary/metadataIndex";
 import { METADATA_TYPE_NUMBER, METADATA_TYPE_STRING, SOURCE_FORMAT_NEWICK } from "../src/contracts/models";
-import type { CanonicalDataset } from "../src/contracts/models";
+import type { LegacyCanonicalDataset } from "../src/contracts/models";
 
-const DATASET: CanonicalDataset = {
+const DATASET: LegacyCanonicalDataset = {
   dataset_id: "meta-dataset",
   nodes: [{ id: "a" }, { id: "b" }, { id: "c" }],
   edges: [],

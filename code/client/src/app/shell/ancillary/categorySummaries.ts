@@ -1,4 +1,4 @@
-import { readNodeMetadata } from "../../../ancillary/metadataAccess";
+import { readNodeAncillaryValues, readNodeAnnotations } from "../../../ancillary/ancillaryAccess";
 import type { PositionedGraph } from "../../../contracts/positioned";
 import {
   categoryCountsForField,
@@ -27,12 +27,16 @@ export function formatPieFieldOption(summary: { key: string; uniqueValueCount: n
 export function buildCategorySummaries(graph: PositionedGraph, fieldKey: string): CategorySummary[] {
   const countsByCategory = new Map<string, number>();
   graph.nodes.forEach((node) => {
-    const metadata = readNodeMetadata(node.attributes);
+    const metadata = readNodeAncillaryValues(node.attributes);
     if (!metadata) {
       return;
     }
 
-    const categoryCounts = categoryCountsForField(metadata, fieldKey);
+    const categoryCounts = categoryCountsForField(
+      metadata,
+      fieldKey,
+      readNodeAnnotations(node.attributes).ancillarySummary,
+    );
     if (categoryCounts.length > 0) {
       categoryCounts.forEach((entry) => {
         countsByCategory.set(entry.category, (countsByCategory.get(entry.category) ?? 0) + entry.count);

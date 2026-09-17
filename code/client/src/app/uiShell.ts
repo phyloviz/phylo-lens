@@ -45,7 +45,7 @@ export const STATUS_RENDERING_PREFIX = "Rendering";
 export const STATUS_FAILED_PREFIX = "Failed";
 export const CATEGORY_COLOR_SAVE_FILENAME = "phyloviz-category-colors.txt";
 export const SELECTED_NODE_WHEEL_EMPTY_MESSAGE = "Click a node to view its ancillary distribution.";
-export const SELECT_PIE_FIELD_MESSAGE = "Select a metadata field to view its ancillary distribution.";
+export const SELECT_PIE_FIELD_MESSAGE = "Select an ancillary field to view its distribution.";
 
 // Re-export ancillary mode constants for external use.
 export {
@@ -336,8 +336,8 @@ export default function (options: UiShellOptions): UiShell {
       palette.setBaseVisualMapping(mapping);
       await workbench.renderNewick(content, datasetName || undefined, {
         sourceFormat,
-        metadataSchema: ancillaryPayload.metadata_schema,
-        metadataByNodeId: ancillaryPayload.metadata_by_node_id,
+        ancillarySchema: ancillaryPayload.ancillarySchema,
+        ancillaryByNodeId: ancillaryPayload.ancillaryByNodeId,
         ancillaryData,
         visualMapping: palette.getCurrentVisualMapping(),
         displayOptions: buildCurrentDisplayOptions(),

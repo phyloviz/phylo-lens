@@ -9,7 +9,7 @@ from math import isfinite
 from typing import Literal
 from urllib.parse import quote
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from phylo_lens_server.data.parsers import (
     ParsedEdge,
@@ -26,6 +26,8 @@ from phylo_lens_server.data.typing_profiles import (
     collapse_profile_graph,
     prepare_typing_profiles,
 )
+from phylo_lens_server.domain.ancillary import AncillaryData, AncillaryValue
+from phylo_lens_server.domain.legacy_metadata import decode_node_annotations
 from phylo_lens_server.domain.metadata_keys import (
     CATEGORY_COUNT_FIELD_PREFIX,
     PROFILE_COUNT_FIELD,
@@ -33,12 +35,12 @@ from phylo_lens_server.domain.metadata_keys import (
     public_metadata_schema_dataset,
 )
 from phylo_lens_server.domain.models import (
+    AncillaryField,
     CanonicalDataset,
     CanonicalEdge,
     CanonicalNode,
     DatasetSource,
-    IsolateRecord,
-    MetadataField,
+    Isolate,
 )
 from phylo_lens_server.domain.validators import validate_canonical_dataset
 from phylo_lens_server.pipeline.sfdp import SfdpOptions
@@ -91,7 +93,7 @@ class NormalizeOptions(BaseModel):
 
 
 class AncillaryDataRequest(BaseModel):
-    """Tabular node metadata supplied by users alongside graph/tree content."""
+    """Tabular ancillary observations supplied alongside graph/tree content."""
 
     content: str = Field(min_length=1)
     join_column: str = Field(min_length=1)
@@ -99,16 +101,44 @@ class AncillaryDataRequest(BaseModel):
 
 
 class NormalizeRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
     format: NormalizeFormat
     dataset_name: str = Field(default=DEFAULT_DATASET_NAME, min_length=1)
     content: str = Field(min_length=1)
     options: NormalizeOptions = Field(default_factory=NormalizeOptions)
-    metadata_schema: list[MetadataField] = Field(default_factory=list)
-    metadata_by_node_id: dict[str, dict[str, str | float | bool | None]] = Field(
-        default_factory=dict
+    ancillary_schema: list[AncillaryField] = Field(
+        default_factory=list, alias="metadata_schema"
+    )
+    ancillary_by_node_id: dict[str, AncillaryData] = Field(
+        default_factory=dict, alias="metadata_by_node_id"
     )
     ancillary_data: AncillaryDataRequest | None = None
     sfdp_options: SfdpOptions = Field(default_factory=SfdpOptions)
+
+    @model_validator(mode="before")
+    @classmethod
+    def reject_ambiguous_aliases(cls, data):
+        if isinstance(data, dict):
+            for current, legacy in (
+                ("ancillary_schema", "metadata_schema"),
+                ("ancillary_by_node_id", "metadata_by_node_id"),
+            ):
+                if current in data and legacy in data:
+                    raise ValueError(
+                        f"Supply {current} or deprecated {legacy}, not both."
+                    )
+        return data
+
+    @property
+    def metadata_schema(self):
+        """Deprecated compatibility accessor."""
+        return self.ancillary_schema
+
+    @property
+    def metadata_by_node_id(self):
+        """Deprecated compatibility accessor."""
+        return self.ancillary_by_node_id
 
 
 class NormalizeStats(BaseModel):
@@ -132,8 +162,8 @@ def normalize_dataset(
     """Parse input data and produce a validated deterministic canonical dataset."""
     ingest_start = time.perf_counter()
     _reject_reserved_metadata_keys(
-        request.metadata_schema,
-        request.metadata_by_node_id,
+        request.ancillary_schema,
+        request.ancillary_by_node_id,
     )
 
     typing_provenance: str | None = None
@@ -199,7 +229,7 @@ def normalize_dataset(
             )
         )
 
-    declared_metadata_types = _declared_metadata_types(request.metadata_schema)
+    declared_ancillary_types = _declared_ancillary_types(request.ancillary_schema)
     original_ids = {
         original: canonical
         for members in membership.values()
@@ -207,39 +237,37 @@ def normalize_dataset(
     }
     direct_metadata = {
         original_ids.get(key, key): value
-        for key, value in request.metadata_by_node_id.items()
+        for key, value in request.ancillary_by_node_id.items()
     }
-    if len(direct_metadata) != len(request.metadata_by_node_id):
+    if len(direct_metadata) != len(request.ancillary_by_node_id):
         raise ParseError("Direct metadata identifies the same isolate more than once.")
-    metadata_by_node_id = _coerce_metadata_by_declared_schema(
+    metadata_by_node_id = _coerce_ancillary_by_declared_schema(
         direct_metadata,
-        declared_metadata_types,
+        declared_ancillary_types,
     )
-    ancillary_rows_by_node_id: dict[
-        str, list[dict[str, str | float | bool | None]]
-    ] = {}
+    ancillary_rows_by_node_id: dict[str, list[AncillaryData]] = {}
     if request.ancillary_data is not None:
         (
             ancillary_metadata,
             ancillary_rows_by_node_id,
             ancillary_warnings,
-        ) = _parse_ancillary_metadata(
+        ) = _parse_ancillary_data(
             request.ancillary_data,
-            node_ids=_metadata_join_node_ids(
+            node_ids=_ancillary_join_node_ids(
                 request.format,
                 nodes=nodes,
                 edges=canonical_edges,
                 explicit_node_ids=parsed.explicit_node_ids,
             ),
-            declared_schema=request.metadata_schema,
+            declared_schema=request.ancillary_schema,
         )
-        metadata_by_node_id = _merge_node_metadata(
+        metadata_by_node_id = _merge_node_ancillary_data(
             metadata_by_node_id,
             ancillary_metadata,
         )
         warnings.extend(ancillary_warnings)
 
-    isolates_by_node_id: dict[str, list[IsolateRecord]] = {}
+    isolates_by_node_id: dict[str, list[Isolate]] = {}
     if membership:
         if set(metadata_by_node_id) - set(parsed.nodes):
             raise ParseError("Typing metadata references an unknown isolate.")
@@ -250,14 +278,12 @@ def normalize_dataset(
                     raise ParseError(
                         "Typing ancillary data must contain at most one row per isolate ID."
                     )
-                isolate_metadata = {
+                isolate_data = {
                     key: value
                     for key, value in metadata_by_node_id.get(canonical_id, {}).items()
                     if not is_internal_metadata_key(key)
                 }
-                isolates.append(
-                    IsolateRecord(id=original_id, metadata=isolate_metadata)
-                )
+                isolates.append(Isolate(id=original_id, ancillary_data=isolate_data))
             isolates_by_node_id[node_id] = isolates
         grouped = collapse_profile_graph(parsed, membership)
         nodes = [CanonicalNode(id=node_id) for node_id in grouped.nodes]
@@ -271,7 +297,7 @@ def normalize_dataset(
             for index, edge in enumerate(grouped.edges)
         ]
         ancillary_rows_by_node_id = {
-            node_id: [isolate.metadata for isolate in isolates]
+            node_id: [isolate.ancillary_data for isolate in isolates]
             for node_id, isolates in isolates_by_node_id.items()
         }
         metadata_by_node_id = {
@@ -281,7 +307,7 @@ def normalize_dataset(
         # Keep declared scalar summaries valid without losing original values
         # in per-isolate records and categorical counts.
         for node_id, rows in ancillary_rows_by_node_id.items():
-            for key, field_type in declared_metadata_types.items():
+            for key, field_type in declared_ancillary_types.items():
                 values = [row[key] for row in rows if row.get(key) is not None]
                 if not values:
                     continue
@@ -291,12 +317,12 @@ def normalize_dataset(
                     metadata_by_node_id[node_id][key] = None
 
     metadata_schema = _merge_metadata_schema(
-        request.metadata_schema,
+        request.ancillary_schema,
         metadata_by_node_id,
     )
-    metadata_by_node_id = _coerce_metadata_by_declared_schema(
+    metadata_by_node_id = _coerce_ancillary_by_declared_schema(
         metadata_by_node_id,
-        _declared_metadata_types(metadata_schema),
+        _declared_ancillary_types(metadata_schema),
     )
 
     dataset = CanonicalDataset(
@@ -304,8 +330,18 @@ def normalize_dataset(
         isolates_by_node_id=isolates_by_node_id,
         nodes=nodes,
         edges=canonical_edges,
-        metadata_schema=metadata_schema,
-        metadata_by_node_id=metadata_by_node_id,
+        ancillary_schema=[
+            field
+            for field in metadata_schema
+            if not is_internal_metadata_key(field.key)
+        ],
+        summary_schema=[
+            field for field in metadata_schema if is_internal_metadata_key(field.key)
+        ],
+        annotations_by_node_id={
+            node_id: decode_node_annotations(values)
+            for node_id, values in metadata_by_node_id.items()
+        },
         ancillary_rows_by_node_id=ancillary_rows_by_node_id,
         source=DatasetSource(
             format=request.format.value,
@@ -338,7 +374,7 @@ def normalize_dataset(
     )
 
 
-def _metadata_join_node_ids(
+def _ancillary_join_node_ids(
     format_name: NormalizeFormat,
     *,
     nodes: list[CanonicalNode],
@@ -353,14 +389,14 @@ def _metadata_join_node_ids(
     return node_ids
 
 
-def _parse_ancillary_metadata(
+def _parse_ancillary_data(
     ancillary_data: AncillaryDataRequest,
     *,
     node_ids: set[str],
-    declared_schema: list[MetadataField],
+    declared_schema: list[AncillaryField],
 ) -> tuple[
-    dict[str, dict[str, str | float | bool | None]],
-    dict[str, list[dict[str, str | float | bool | None]]],
+    dict[str, AncillaryData],
+    dict[str, list[AncillaryData]],
     list[str],
 ]:
     """Parse CSV/TSV ancillary metadata and join rows to canonical node ids."""
@@ -397,8 +433,8 @@ def _parse_ancillary_metadata(
     field_types = _infer_ancillary_field_types(
         [values for _, _, values in raw_rows],
     )
-    field_types.update(_declared_metadata_types(declared_schema))
-    rows_by_node_id: dict[str, list[dict[str, str | float | bool | None]]] = {}
+    field_types.update(_declared_ancillary_types(declared_schema))
+    rows_by_node_id: dict[str, list[AncillaryData]] = {}
     warnings: list[str] = []
 
     for row_index, join_value, values in raw_rows:
@@ -433,8 +469,8 @@ def _parse_ancillary_metadata(
 
 
 def _reject_reserved_metadata_keys(
-    metadata_schema: list[MetadataField],
-    metadata_by_node_id: dict[str, dict[str, str | float | bool | None]],
+    metadata_schema: list[AncillaryField],
+    metadata_by_node_id: dict[str, AncillaryData],
 ) -> None:
     for field in metadata_schema:
         _reject_reserved_metadata_key(field.key)
@@ -444,10 +480,10 @@ def _reject_reserved_metadata_keys(
             _reject_reserved_metadata_key(key)
 
 
-def _merge_node_metadata(
-    explicit_metadata: dict[str, dict[str, str | float | bool | None]],
-    ancillary_metadata: dict[str, dict[str, str | float | bool | None]],
-) -> dict[str, dict[str, str | float | bool | None]]:
+def _merge_node_ancillary_data(
+    explicit_metadata: dict[str, AncillaryData],
+    ancillary_metadata: dict[str, AncillaryData],
+) -> dict[str, AncillaryData]:
     """Merge metadata per node and field, preserving direct caller values."""
     merged = {
         node_id: dict(metadata) for node_id, metadata in ancillary_metadata.items()
@@ -470,10 +506,10 @@ def _reject_reserved_metadata_key(key: str) -> None:
 
 
 def _aggregate_ancillary_rows(
-    rows: list[dict[str, str | float | bool | None]],
-) -> dict[str, str | float | bool | None]:
+    rows: list[AncillaryData],
+) -> AncillaryData:
     """Aggregate multiple isolate rows onto one profile/ST node."""
-    metadata: dict[str, str | float | bool | None] = {
+    metadata: AncillaryData = {
         PROFILE_COUNT_FIELD: len(rows),
     }
     keys = {key for row in rows for key in row}
@@ -502,7 +538,7 @@ def _aggregate_ancillary_rows(
 
 
 def _unique_preserving_order(
-    values: list[str | float | bool | None],
+    values: list[AncillaryValue],
 ) -> list[str | float | bool]:
     unique_values: list[str | float | bool] = []
     seen: set[str] = set()
@@ -583,7 +619,7 @@ def _infer_ancillary_field_types(
 def _coerce_ancillary_value(
     value: str | None,
     metadata_type: str,
-) -> str | float | bool | None:
+) -> AncillaryValue:
     """Coerce one ancillary cell according to the inferred column type."""
     if value is None:
         return None
@@ -635,8 +671,8 @@ def _normalize_edge_distance(
 
 
 def _infer_metadata_schema(
-    metadata_by_node_id: dict[str, dict[str, str | float | bool | None]],
-) -> list[MetadataField]:
+    metadata_by_node_id: dict[str, AncillaryData],
+) -> list[AncillaryField]:
     """Infer metadata field types from node metadata dictionaries."""
     inferred: dict[str, str] = {}
     for metadata in metadata_by_node_id.values():
@@ -655,15 +691,15 @@ def _infer_metadata_schema(
                 inferred[key] = METADATA_TYPE_STRING
 
     return [
-        MetadataField(key=key, type=metadata_type)
+        AncillaryField(key=key, type=metadata_type)
         for key, metadata_type in sorted(inferred.items())
     ]
 
 
 def _merge_metadata_schema(
-    declared_schema: list[MetadataField],
-    metadata_by_node_id: dict[str, dict[str, str | float | bool | None]],
-) -> list[MetadataField]:
+    declared_schema: list[AncillaryField],
+    metadata_by_node_id: dict[str, AncillaryData],
+) -> list[AncillaryField]:
     """Preserve declared metadata fields while adding inferred fields for new keys."""
     inferred_schema = _infer_metadata_schema(metadata_by_node_id)
     if not declared_schema:
@@ -676,15 +712,15 @@ def _merge_metadata_schema(
     return [*declared_schema, *inferred_additions]
 
 
-def _declared_metadata_types(declared_schema: list[MetadataField]) -> dict[str, str]:
+def _declared_ancillary_types(declared_schema: list[AncillaryField]) -> dict[str, str]:
     """Return caller-declared metadata types keyed by field name."""
     return {field.key: field.type.value for field in declared_schema}
 
 
-def _coerce_metadata_by_declared_schema(
-    metadata_by_node_id: dict[str, dict[str, str | float | bool | None]],
+def _coerce_ancillary_by_declared_schema(
+    metadata_by_node_id: dict[str, AncillaryData],
     declared_types: dict[str, str],
-) -> dict[str, dict[str, str | float | bool | None]]:
+) -> dict[str, AncillaryData]:
     """Apply caller-declared scalar types to direct node metadata payloads."""
     if not declared_types:
         return dict(metadata_by_node_id)
@@ -703,9 +739,9 @@ def _coerce_metadata_by_declared_schema(
 
 
 def _coerce_metadata_value_by_type(
-    value: str | float | bool | None,
+    value: AncillaryValue,
     metadata_type: str,
-) -> str | float | bool | None:
+) -> AncillaryValue:
     if value is None:
         return None
     if metadata_type == METADATA_TYPE_STRING:
@@ -719,7 +755,7 @@ def _coerce_metadata_value_by_type(
     return value
 
 
-def _detect_metadata_type(value: str | float | bool | None) -> str:
+def _detect_metadata_type(value: AncillaryValue) -> str:
     """Map Python values to canonical metadata field types."""
     if value is None:
         return METADATA_TYPE_NULL

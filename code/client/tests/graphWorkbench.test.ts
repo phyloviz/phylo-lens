@@ -96,6 +96,30 @@ function createWorkbenchHarness(overrides: Partial<GraphClient> = {}) {
 }
 
 describe("graphWorkbench navigation", () => {
+  it("translates ancillary load options to the compatible API v1 request", async () => {
+    const { workbench, graphClient } = createWorkbenchHarness();
+    await workbench.renderNewick("(a:1)b;", "tree", {
+      ancillarySchema: [{ key: "country", type: "string" }],
+      ancillaryByNodeId: { a: { country: "PT" } },
+    });
+    expect(graphClient.prepareGraph).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata_schema: [{ key: "country", type: "string" }],
+        metadata_by_node_id: { a: { country: "PT" } },
+      }),
+    );
+    workbench.dispose();
+  });
+
+  it("rejects conflicting option names before submitting a prepare job", async () => {
+    const { workbench, graphClient } = createWorkbenchHarness();
+    await expect(
+      workbench.renderNewick("(a:1)b;", "tree", { ancillarySchema: [], metadataSchema: [] }),
+    ).rejects.toThrow("not both");
+    expect(graphClient.prepareGraph).not.toHaveBeenCalled();
+    workbench.dispose();
+  });
+
   it("resolves renderNewick only after prepare, first viewport, and renderer update", async () => {
     const events: string[] = [];
     const { renderer, workbench } = createWorkbenchHarness({

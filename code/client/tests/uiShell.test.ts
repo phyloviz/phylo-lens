@@ -68,7 +68,7 @@ function makeFakeWorkbench(
       nodeCount: 2,
       truncated: false,
       aggregatedMetadata: { country: "Portugal", score: 4 },
-      metadataSchema: [],
+      ancillarySchema: [],
     })),
     setRegionSelectedHandler: vi.fn((handler) => {
       regionSelectedHandler = handler;
@@ -92,7 +92,7 @@ describe("uiShell", () => {
     const select = document.createElement("select");
     select.multiple = true;
     input.value = "(A,B)Root;";
-    ancillaryInput.value = JSON.stringify({ metadata_schema: [], visual_mapping: { colorField: "country" } });
+    ancillaryInput.value = JSON.stringify({ ancillary_schema: [], visual_mapping: { colorField: "country" } });
     const workbench = makeFakeWorkbench({
       nodes: [{ id: "a", x: 0, y: 0, attributes: { metadata: { country: "Portugal" } } }],
       edges: [],

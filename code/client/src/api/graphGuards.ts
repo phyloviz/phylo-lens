@@ -11,9 +11,9 @@ import {
 import type {
   GraphIsolate,
   GraphLayoutStatus,
-  GraphMetadata,
-  GraphMetadataField,
-  GraphMetadataValue,
+  GraphAncillaryData,
+  GraphAncillaryField,
+  GraphAncillaryValue,
   GraphPrepareJob,
   GraphPrepareJobStatus,
   GraphPrepareResponse,
@@ -193,7 +193,7 @@ function isGraphSearchMatch(value: unknown): value is GraphSearchMatch {
   );
 }
 
-function isGraphMetadata(value: unknown): value is GraphMetadata {
+function isGraphMetadata(value: unknown): value is GraphAncillaryData {
   return isRecord(value) && Object.values(value).every(isGraphMetadataValue);
 }
 
@@ -201,7 +201,7 @@ function isOptionalMetadataByNodeId(value: unknown): boolean {
   return value === undefined || (isRecord(value) && Object.values(value).every(isGraphMetadata));
 }
 
-function isGraphMetadataValue(value: unknown): value is GraphMetadataValue {
+function isGraphMetadataValue(value: unknown): value is GraphAncillaryValue {
   return value === null || isString(value) || isBoolean(value) || isFiniteNumber(value);
 }
 
@@ -269,10 +269,10 @@ function isOptionalAncillaryDataRequest(value: unknown): boolean {
   );
 }
 
-function isOptionalGraphMetadataSchema(value: unknown): value is GraphMetadataField[] | undefined {
+function isOptionalGraphMetadataSchema(value: unknown): value is GraphAncillaryField[] | undefined {
   return value === undefined || isArrayOf(value, isGraphMetadataField);
 }
 
-function isGraphMetadataField(value: unknown): value is GraphMetadataField {
+function isGraphMetadataField(value: unknown): value is GraphAncillaryField {
   return isRecord(value) && isString(value.key) && isString(value.type);
 }

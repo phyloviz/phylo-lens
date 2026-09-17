@@ -1,6 +1,6 @@
 import {
   buildAncillaryWheelStats,
-  buildMetadataFieldWheelStats,
+  buildAncillaryFieldWheelStats,
   renderAncillaryWheel,
 } from "../../../components/ancillaryWheel";
 import type { PositionedGraph } from "../../../contracts/positioned";
@@ -101,7 +101,7 @@ export default function (options: AncillaryWheelsOptions) {
     }
 
     if (selectedFields.length > 0) {
-      return buildMetadataFieldWheelStats(graph, selectedFields[0] ?? "", {
+      return buildAncillaryFieldWheelStats(graph, selectedFields[0] ?? "", {
         includeNodeIds,
         palette,
         categoryColors,
@@ -131,7 +131,7 @@ export default function (options: AncillaryWheelsOptions) {
     heading.className = "ancillary-color-context";
     heading.textContent =
       fields.length === 0
-        ? "Metadata coloring: none"
+        ? "Ancillary coloring: none"
         : `${subject} · ${fields.length > 1 ? "Color combinations" : "Color field"}: ${fields.join(" × ")}`;
     const chart = document.createElement("div");
     renderAncillaryWheel(chart, buildStats(ids), emptyMessage(subject));

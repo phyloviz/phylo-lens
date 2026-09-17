@@ -77,7 +77,7 @@ createPhyloLensView
 PhyloLensView
 PhyloLensViewOptions
 PhyloLensLoadOptions
-MetadataField
+AncillaryField
 SourceFormat
 Viewport
 VisualMappingOptions
@@ -143,8 +143,8 @@ interface PhyloLensLoadOptions {
   content: string;
   name?: string;
   sourceFormat?: "newick" | "typing_data";
-  metadataSchema?: MetadataField[];
-  metadataByNodeId?: Record<
+  ancillarySchema?: AncillaryField[];
+  ancillaryByNodeId?: Record<
     string,
     Record<string, string | number | boolean | null>
   >;
@@ -170,8 +170,8 @@ interface PhyloLensLoadOptions {
 | `content` | yes | — | Raw Newick text or an allelic-profile matrix, according to `sourceFormat` |
 | `name` | no | `"uploaded-dataset"` | Dataset identifier submitted to the service |
 | `sourceFormat` | no | `"newick"` | Selects direct Newick parsing or PhyloLib typing-data processing |
-| `metadataSchema` | no | `[]` | Declares metadata keys and scalar types |
-| `metadataByNodeId` | no | `{}` | Direct metadata keyed by canonical node ID |
+| `ancillarySchema` | no | `[]` | Declares ancillary fields and scalar types |
+| `ancillaryByNodeId` | no | `{}` | Direct ancillary data keyed by node ID |
 | `ancillaryData` | no | — | CSV/TSV metadata joined by an explicit column |
 | `visualMapping` | no | library defaults | Controls node color, size and pie attributes |
 | `lod.maxNodes` | no | `6000` | Primary node budget used for viewport requests |
@@ -225,11 +225,11 @@ Newick tree enters the normal preparation pipeline.
 ```ts
 await view.load({
   content: "(P09:1,P12:2)R;",
-  metadataSchema: [
+  ancillarySchema: [
     { key: "country", type: "string" },
     { key: "year", type: "number" },
   ],
-  metadataByNodeId: {
+  ancillaryByNodeId: {
     p09: { country: "Portugal", year: 2024 },
     p12: { country: "Canada", year: 2023 },
   },
@@ -267,7 +267,7 @@ type SourceFormat = "newick" | "typing_data";
 
 type MetadataType = "string" | "number" | "boolean" | "null";
 
-interface MetadataField {
+interface AncillaryField {
   key: string;
   type: MetadataType;
 }
@@ -283,6 +283,35 @@ interface Viewport {
 `Viewport` remains exported because it is referenced by the reserved
 `lod.viewport` option. The current load path does not use that option to construct
 the initial API request.
+
+## Ancillary data and domain terminology
+
+`AncillaryData` is a record of user observations (country, year, etc.). An
+`Isolate` keeps its original `id` and `ancillaryData`. The internal node model
+separates `ancillaryData`, `ancillarySummary.categoryCounts`, and
+`profileSummary.isolateCount`; a missing count means unknown, not zero.
+A graph node may represent one profile shared by multiple isolates, or a LoD
+cluster containing multiple profiles. Neither a graph node nor a metadata row
+is automatically a distinct isolate.
+
+Prefer `ancillarySchema` and `ancillaryByNodeId` in `view.load`. Existing
+`metadataSchema`, `metadataByNodeId` and the exported `MetadataField` type remain
+supported as deprecated aliases. Supplying both names for the same option is an
+error. `ancillaryData` continues to accept a CSV/TSV table input; its shape is
+exported as `AncillaryTableInput`, distinct from an individual `AncillaryData`
+record.
+
+The API v1 wire format and SQL storage retain their `metadata_*` names. The
+client translates these at the boundary, so existing services/layouts remain
+readable. Advanced Ancillary JSON accepts `ancillary_schema` and
+`ancillary_by_node_id`, as well as the deprecated `metadata_*` names.
+Technical layout information and provenance are not ancillary data.
+
+Scalar values produced by grouping (for example, a concatenated set of countries)
+are stored in `AncillarySummary.values`, alongside category frequencies. Original
+per-isolate values remain in `Isolate` ancillary data. Flat legacy records with
+computed counts are decoded as node summaries; legacy records without counts
+remain direct ancillary values.
 
 ## Visual mapping
 

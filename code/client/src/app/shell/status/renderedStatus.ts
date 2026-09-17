@@ -1,3 +1,4 @@
+import { readNodeAnnotations } from "../../../ancillary/ancillaryAccess";
 import type { PositionedGraph } from "../../../contracts/positioned";
 
 export const STATUS_RENDERED_PREFIX = "Rendered";
@@ -8,8 +9,7 @@ export const STATUS_DEGRADED_LAYOUT_WARNING = "⚠ This stored layout was prepar
 export function buildRenderedStatus(graph: PositionedGraph): string {
   const parts = [`${graph.nodes.length} nodes`, `${graph.edges.length} edges`, lodTierLabel(graph)];
   const isolateCounts = graph.nodes.map((node) => {
-    const metadata = node.attributes?.metadata as Record<string, unknown> | undefined;
-    return metadata?.profile_count;
+    return readNodeAnnotations(node.attributes).profileSummary.isolateCount;
   });
   if (
     isolateCounts.length > 0 &&

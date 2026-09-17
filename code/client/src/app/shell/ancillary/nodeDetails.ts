@@ -1,4 +1,4 @@
-import { readNodeMetadata } from "../../../ancillary/metadataAccess";
+import { readNodeAnnotations } from "../../../ancillary/ancillaryAccess";
 import type { PositionedNode } from "../../../contracts/positioned";
 
 // A LoD representative combines profiles; it is not a single biological profile.
@@ -11,7 +11,7 @@ export function renderNodeDetails(container: HTMLElement, node: PositionedNode):
         record && typeof record === "object" && "id" in record && typeof record.id === "string" ? [record.id] : [],
       )
     : [];
-  const count = readNodeMetadata(node.attributes)?.profile_count;
+  const count = readNodeAnnotations(node.attributes).profileSummary.isolateCount;
   const isolateCount = typeof count === "number" && Number.isSafeInteger(count) && count > 0 ? count : ids.length;
   const heading = document.createElement("p");
   heading.className = "node-details-title";

@@ -1,6 +1,7 @@
+import type { AncillaryInputOptions } from "./ancillary/ancillaryInput";
 import { createGraphClient } from "./api/graphClient";
 import type { SfdpOptions } from "./api/graphContracts";
-import { SOURCE_FORMAT_NEWICK, type MetadataField, type SourceFormat, type Viewport } from "./contracts/models";
+import { SOURCE_FORMAT_NEWICK, type SourceFormat, type Viewport } from "./contracts/models";
 import rendererFactory from "./render/rendererFactory";
 import { RENDERER_KIND_SIGMA } from "./render/renderer.types";
 import type { VisualMappingOptions } from "./render/mapping/visualMapping";
@@ -20,17 +21,10 @@ export interface PhyloLensViewOptions {
   apiUrl: string;
 }
 
-export interface PhyloLensLoadOptions {
+export interface PhyloLensLoadOptions extends AncillaryInputOptions {
   content: string;
   name?: string;
   sourceFormat?: SourceFormat;
-  metadataSchema?: MetadataField[];
-  metadataByNodeId?: Record<string, Record<string, string | number | boolean | null>>;
-  ancillaryData?: {
-    format: "auto" | "csv" | "tsv";
-    content: string;
-    join_column: string;
-  };
   visualMapping?: VisualMappingOptions;
   sfdpOptions?: SfdpOptions;
   lod?: {

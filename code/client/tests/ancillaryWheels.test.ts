@@ -64,7 +64,7 @@ describe("ancillary node inspection", () => {
       "<b>Original B</b>",
     ]);
     expect(selected.querySelector("b")).toBeNull();
-    expect(selected.textContent).toContain("Metadata coloring: none");
+    expect(selected.textContent).toContain("Ancillary coloring: none");
   });
 
   it("keeps the selected profile and displays the active field and per-isolate distribution", () => {

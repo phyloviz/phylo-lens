@@ -1,3 +1,4 @@
+from phylo_lens_server.domain.ancillary import NodeAnnotations
 from phylo_lens_server.domain.models import (
     CanonicalDataset,
     CanonicalEdge,
@@ -63,7 +64,9 @@ def test_validate_canonical_dataset_rejects_missing_node_reference() -> None:
 def test_validate_canonical_dataset_rejects_schema_mismatch() -> None:
     """Ensure metadata value types must match declared metadata schema types."""
     dataset = _dataset()
-    dataset.metadata_by_node_id[NODE_B] = {METADATA_KEY_REGION: 10}
+    dataset.annotations_by_node_id[NODE_B] = NodeAnnotations(
+        ancillary_data={METADATA_KEY_REGION: 10}
+    )
 
     try:
         validate_canonical_dataset(dataset)

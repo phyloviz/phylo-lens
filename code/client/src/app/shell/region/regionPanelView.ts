@@ -1,4 +1,4 @@
-import type { GraphMetadataValue } from "../../../api/graphContracts";
+import type { GraphAncillaryValue } from "../../../api/graphContracts";
 import { type AncillaryWheelStats, renderAncillaryWheel } from "../../../components/ancillaryWheel";
 
 export const REGION_PANEL_EMPTY_MESSAGE = "Shift+drag (or enable Select region) on the canvas to isolate an area.";
@@ -6,7 +6,7 @@ export const REGION_PANEL_EMPTY_MESSAGE = "Shift+drag (or enable Select region) 
 export interface RegionPanelData {
   nodeCount: number;
   truncated: boolean;
-  aggregatedMetadata: Record<string, GraphMetadataValue>;
+  aggregatedMetadata: Record<string, GraphAncillaryValue>;
   wheelStats: AncillaryWheelStats | null;
 }
 
@@ -36,7 +36,7 @@ export function renderRegionPanel(container: HTMLElement, data: RegionPanelData 
   container.appendChild(buildAggregateTable(data.aggregatedMetadata));
 }
 
-function buildAggregateTable(aggregatedMetadata: Record<string, GraphMetadataValue>): HTMLElement {
+function buildAggregateTable(aggregatedMetadata: Record<string, GraphAncillaryValue>): HTMLElement {
   const entries = Object.entries(aggregatedMetadata).sort(([left], [right]) => left.localeCompare(right));
 
   if (entries.length === 0) {
@@ -67,7 +67,7 @@ function buildAggregateTable(aggregatedMetadata: Record<string, GraphMetadataVal
   return table;
 }
 
-function formatAggregateValue(value: GraphMetadataValue): string {
+function formatAggregateValue(value: GraphAncillaryValue): string {
   if (value === null) {
     return "—";
   }

@@ -1,3 +1,4 @@
+import { readNodeAncillaryValues } from "../../../../ancillary/ancillaryAccess";
 export function areStringArraysEqual(left: readonly string[], right: readonly string[]): boolean {
   if (left.length !== right.length) {
     return false;
@@ -30,7 +31,7 @@ export function firstAttributeValue(attributes: Record<string, unknown> | undefi
       return direct;
     }
 
-    const metadata = attributes.metadata;
+    const metadata = readNodeAncillaryValues(attributes);
     if (metadata && typeof metadata === "object") {
       const metadataValue = (metadata as Record<string, unknown>)[key];
       if (metadataValue !== undefined && metadataValue !== null) {

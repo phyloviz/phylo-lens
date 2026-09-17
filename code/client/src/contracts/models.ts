@@ -8,13 +8,12 @@ export const METADATA_TYPE_NULL = "null";
 
 export type SourceFormat = typeof SOURCE_FORMAT_NEWICK | typeof SOURCE_FORMAT_TYPING_DATA;
 
-export type MetadataType =
-  typeof METADATA_TYPE_STRING | typeof METADATA_TYPE_NUMBER | typeof METADATA_TYPE_BOOLEAN | typeof METADATA_TYPE_NULL;
-
-export interface MetadataField {
-  key: string;
-  type: MetadataType;
-}
+export type { AncillaryField, AncillaryType } from "./ancillary";
+import type { AncillaryField, AncillaryData, NodeAnnotations, Isolate } from "./ancillary";
+/** @deprecated Use AncillaryField. */
+export type MetadataField = AncillaryField;
+/** @deprecated Use AncillaryType. */
+export type MetadataType = import("./ancillary").AncillaryType;
 
 export interface CanonicalNode {
   id: string;
@@ -40,7 +39,8 @@ export interface DatasetSource {
   provenance?: string;
 }
 
-export interface CanonicalDataset {
+/** API v1 / persisted flat representation. Decode before using domain data. */
+export interface LegacyCanonicalDataset {
   isolates_by_node_id?: Record<
     string,
     Array<{ id: string; metadata: Record<string, string | number | boolean | null> }>
@@ -48,9 +48,20 @@ export interface CanonicalDataset {
   dataset_id: string;
   nodes: CanonicalNode[];
   edges: CanonicalEdge[];
-  metadata_schema: MetadataField[];
+  metadata_schema: AncillaryField[];
   metadata_by_node_id: Record<string, Record<string, string | number | boolean | null>>;
   ancillary_rows_by_node_id?: Record<string, Array<Record<string, string | number | boolean | null>>>;
+  source: DatasetSource;
+}
+
+export interface CanonicalDataset {
+  dataset_id: string;
+  nodes: CanonicalNode[];
+  edges: CanonicalEdge[];
+  ancillarySchema: AncillaryField[];
+  annotationsByNodeId: Record<string, NodeAnnotations>;
+  isolatesByNodeId?: Record<string, Isolate[]>;
+  ancillary_rows_by_node_id?: Record<string, AncillaryData[]>;
   source: DatasetSource;
 }
 
