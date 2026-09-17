@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Search regression</title>
+  </head>
+  <body>
+    <h1>Search regression</h1>
+    <label>Newick fixture <input id="fixture" type="file" /></label>
+    <button id="run">Run search regression</button>
+    <pre id="result" aria-live="polite">Ready</pre>
+    <div id="graph" style="width: 1000px; height: 500px"></div>
+    <script type="module" src="/tests/browser/searchRegression.ts"></script>
+  </body>
+</html>

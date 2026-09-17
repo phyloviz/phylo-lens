@@ -44,6 +44,9 @@ export interface PhyloLensAncillaryResult {
 }
 
 export interface PhyloLensView {
+  searchNodes: GraphWorkbench["searchNodes"];
+  focusNode: GraphWorkbench["focusNode"];
+  cancelPendingFocus: () => void;
   expandCluster: (clusterId: string) => Promise<ExpansionResult>;
   collapseCluster: (clusterId: string) => ExpansionState;
   expandAll: () => Promise<ExpansionResult>;
@@ -77,6 +80,9 @@ export function createPhyloLensView(options: PhyloLensViewOptions): PhyloLensVie
   };
 
   return {
+    searchNodes: (query) => activeWorkbench().searchNodes(query),
+    focusNode: (id, coordinates) => activeWorkbench().focusNode(id, coordinates),
+    cancelPendingFocus: () => activeWorkbench().cancelPendingFocus(),
     expandCluster: async (id) => activeWorkbench().expandCluster(id),
     collapseCluster: (id) => activeWorkbench().collapseCluster(id),
     expandAll: async () => activeWorkbench().expandAll(),
