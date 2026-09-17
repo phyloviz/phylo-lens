@@ -15,3 +15,10 @@ the grouping implementation is covered by the profile-membership regression test
 Real-PhyloLib integration requires the pinned service runtime. Unit tests also
 verify the normalized matrix supplied to the conversion boundary, independently
 of Java, Graphviz and Docker availability.
+
+## Compare a PHYLOViZ Online reference
+
+Use `scripts/audit-typing-reference.py` with a local typing TSV, an Online JSON
+export and the pinned PhyloLib JAR to compare all pairwise distances, profile
+membership and minimum spanning weights. See the [reference audit](../../docs/validation/typing-distance-reference.md)
+for the command, validation scope and the resolved 90/91 display discrepancy.
