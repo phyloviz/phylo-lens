@@ -5,7 +5,10 @@ export function readTextFile(file: File): Promise<string> {
 }
 
 export function downloadTextFile(filename: string, content: string): void {
-  const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+  downloadBlob(filename, new Blob([content], { type: "text/plain;charset=utf-8" }));
+}
+
+export function downloadBlob(filename: string, blob: Blob): void {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;

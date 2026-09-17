@@ -751,6 +751,35 @@
             <button id="region-select-toggle" type="button" aria-pressed="false">Select region</button>
           </label>
 
+          <label
+            >Distance label visibility
+            <select id="edge-label-policy">
+              <option value="auto">Automatic with zoom</option>
+              <option value="always">At every zoom</option>
+            </select>
+          </label>
+          <fieldset>
+            <legend>Publication PNG</legend>
+            <label
+              >Resolution multiplier
+              <input id="export-scale" type="number" min="1" max="4" step="1" value="2" />
+            </label>
+            <label
+              >Distance label size
+              <input id="export-label-size" type="number" min="6" max="72" value="12" />
+            </label>
+            <button id="export-png" type="button">Export PNG</button>
+            <details>
+              <summary>Export scope and limitations</summary>
+              <p>
+                Exports the current view of the loaded slice, with its category legend. Enabled distance labels are
+                included at every zoom. Increasing resolution redraws the figure; it does not load more nodes or expand
+                groups. Labels stay at edge midpoints and can overlap in dense trees or clip at the image boundary.
+                Increase label size for readability, adjust the view, or select fewer distances through the export API.
+                Legend counts describe the loaded slice, including nodes outside the visible frame.
+              </p>
+            </details>
+          </fieldset>
           <button type="submit">Normalize and Render</button>
         </form>
       </aside>

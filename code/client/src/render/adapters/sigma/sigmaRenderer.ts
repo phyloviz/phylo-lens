@@ -1,3 +1,4 @@
+import { exportSigmaPublication } from "./sigmaPublicationExport";
 import Graph from "graphology";
 import Sigma from "sigma";
 
@@ -5,6 +6,7 @@ import type { PositionedGraph } from "../../../contracts/positioned";
 import { RENDERER_KIND_SIGMA } from "../../renderer.types";
 import type {
   GraphDisplayOptions,
+  PngExportOptions,
   GraphRenderer,
   RenderContext,
   RenderInteractiveAggregateTarget,
@@ -229,10 +231,13 @@ export class SigmaRenderer implements GraphRenderer {
     }
   }
 
-  exportPng(): Promise<Blob> {
+  exportPng(options?: PngExportOptions): Promise<Blob> {
     if (!this.containerElement) {
       throw new Error(ERR_SIGMA_NOT_READY);
     }
+    if (options && this.sigma && this.graph && this.lastRenderedGraph)
+      return exportSigmaPublication(this.sigma, this.graph, this.lastRenderedGraph, this.rendererOptions, options);
+    this.sigma?.refresh();
     return exportCanvasLayersAsPng(this.containerElement.querySelectorAll("canvas"));
   }
 
@@ -661,7 +666,8 @@ export class SigmaRenderer implements GraphRenderer {
     }
 
     const shouldRender =
-      this.rendererOptions.display?.edgeDistanceLabels === true && viewState.edgeDistanceLabelsVisible;
+      this.rendererOptions.display?.edgeDistanceLabels === true &&
+      (this.rendererOptions.display.edgeDistanceLabelPolicy === "always" || viewState.edgeDistanceLabelsVisible);
 
     if (this.sigma.getSetting("renderEdgeLabels") !== shouldRender) {
       this.sigma.setSetting("renderEdgeLabels", shouldRender);
