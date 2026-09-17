@@ -1,3 +1,4 @@
+import type { ExpansionState, ExpansionResult } from "./contracts/expansion";
 import type { AncillaryTableInput } from "./contracts/ancillary";
 import type { AncillaryInputOptions } from "./ancillary/ancillaryInput";
 import { createGraphClient } from "./api/graphClient";
@@ -20,6 +21,8 @@ export const ERR_PHYLO_LENS_VIEW_DISPOSED = "PhyloLens view has been disposed.";
 export interface PhyloLensViewOptions {
   container: HTMLElement;
   apiUrl: string;
+  onNodeSelected?: (selection: { nodeId: string | null; clusterId: string | null; expandable: boolean }) => void;
+  onExpansionChanged?: (state: ExpansionState) => void;
 }
 
 export interface PhyloLensLoadOptions extends AncillaryInputOptions {
@@ -41,6 +44,13 @@ export interface PhyloLensAncillaryResult {
 }
 
 export interface PhyloLensView {
+  expandCluster: (clusterId: string) => Promise<ExpansionResult>;
+  collapseCluster: (clusterId: string) => ExpansionState;
+  expandAll: () => Promise<ExpansionResult>;
+  collapseAll: () => Promise<ExpansionResult>;
+  setKeepExpanded: (keep: boolean) => ExpansionState;
+  getExpansionState: () => ExpansionState;
+
   load: (options: PhyloLensLoadOptions) => Promise<void>;
   /** Replace the visual mapping of a loaded tree and schedule a viewport refresh. */
   updateVisualMapping: (mapping: VisualMappingOptions) => void;
@@ -52,8 +62,27 @@ export interface PhyloLensView {
 export function createPhyloLensView(options: PhyloLensViewOptions): PhyloLensView {
   const workbench = createWorkbench(options);
   let disposed = false;
+  workbench.setNodeClickedHandler((state) =>
+    options.onNodeSelected?.({
+      nodeId: state.nodeId,
+      clusterId: typeof state.attributes?.cluster_id === "string" ? state.attributes.cluster_id : null,
+      expandable: state.attributes?.is_cluster_proxy === true,
+    }),
+  );
+  workbench.setGraphRenderedHandler(() => options.onExpansionChanged?.(workbench.getExpansionState()));
+
+  const activeWorkbench = () => {
+    if (disposed) throw new Error(ERR_PHYLO_LENS_VIEW_DISPOSED);
+    return workbench;
+  };
 
   return {
+    expandCluster: async (id) => activeWorkbench().expandCluster(id),
+    collapseCluster: (id) => activeWorkbench().collapseCluster(id),
+    expandAll: async () => activeWorkbench().expandAll(),
+    collapseAll: async () => activeWorkbench().collapseAll(),
+    setKeepExpanded: (keep) => activeWorkbench().setKeepExpanded(keep),
+    getExpansionState: () => activeWorkbench().getExpansionState(),
     load: async ({ content, name, sourceFormat = SOURCE_FORMAT_NEWICK, ...loadOptions }) => {
       if (disposed) {
         throw new Error(ERR_PHYLO_LENS_VIEW_DISPOSED);

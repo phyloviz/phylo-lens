@@ -1,3 +1,4 @@
+import { expansionControls, type ExpansionControlsElements } from "./shell/controls/expansionControls";
 import type { GraphWorkbench, RenderNewickOptions } from "./workbench/graphWorkbench";
 import type { PositionedGraph } from "../contracts/positioned";
 import { SOURCE_FORMAT_NEWICK, SOURCE_FORMAT_TYPING_DATA, type SourceFormat } from "../contracts/models";
@@ -91,6 +92,7 @@ export interface UiShellElements {
   paletteLoadInput?: HTMLInputElement;
   paletteSaveButton?: HTMLButtonElement;
   displayOptionsSelect?: HTMLSelectElement;
+  expansion?: ExpansionControlsElements;
   lodPlayButton?: HTMLButtonElement;
   lodPauseButton?: HTMLButtonElement;
   maxNodesInput?: HTMLInputElement;
@@ -151,6 +153,7 @@ export default function (options: UiShellOptions): UiShell {
     regionSelectionPanel,
   } = options.elements;
 
+  const expansion = expansionControls(workbench, options.elements.expansion);
   let applyingAncillary = false;
   let loadingGraph = false;
   let lastRenderedGraph: PositionedGraph | null = null;
@@ -224,10 +227,13 @@ export default function (options: UiShellOptions): UiShell {
   // Attach submit handlers and set initial shell status.
   function mount(): void {
     setStatus(DEFAULT_STATUS_READY);
+    expansion.mount();
     workbench.setGraphRenderedHandler((graph) => {
       handleGraphRendered(graph);
     });
-    workbench.setNodeClickedHandler(({ nodeId }) => {
+    workbench.setNodeClickedHandler((state) => {
+      expansion.select(state);
+      const { nodeId } = state;
       if (nodeId === null) {
         wheels.resetSelectedNode();
         return;
@@ -357,6 +363,7 @@ export default function (options: UiShellOptions): UiShell {
     }
 
     loadingGraph = true;
+    expansion.setReady(false);
     updateApplyAncillaryButton();
     setStatus(`${STATUS_RENDERING_PREFIX}...`);
 
@@ -403,6 +410,7 @@ export default function (options: UiShellOptions): UiShell {
   // Remove shell event listeners and dispose rendering resources.
   function unmount(): void {
     bindings.clear();
+    expansion.dispose();
     workbench.setGraphRenderedHandler(null);
     workbench.setNodeClickedHandler(null);
     workbench.setRegionSelectedHandler(null);
@@ -421,6 +429,7 @@ export default function (options: UiShellOptions): UiShell {
   function handleGraphRendered(graph: PositionedGraph): void {
     setStatus(buildRenderedStatus(graph));
     lastRenderedGraph = graph;
+    expansion.setReady(true);
     updateApplyAncillaryButton();
     updateNodeSelector(
       ancillaryNodeSelect,

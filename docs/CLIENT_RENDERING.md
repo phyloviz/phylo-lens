@@ -223,8 +223,10 @@ Region selection is distinct from the normal semantic-zoom viewport:
 
 ## Cluster interaction
 
-A single click on an expandable representative requests cluster members. A
-double click collapses a previously expanded cluster from a client-side snapshot.
+A single click selects a node; double-click zooms. Explicit expansion controls
+and the public view API expand/collapse groups. Optional persistence pins the
+current LoD tier and retains patches across viewport requests; see
+[expansion commands and limits](EXPAND_COLLAPSE.md).
 
 The controller stores the representative and its incident coarse edges before
 expansion. On collapse, it removes members, restores the representative, and

@@ -135,10 +135,7 @@ describe("ViewportSyncController", () => {
     });
     controller.mount();
     await vi.advanceTimersByTimeAsync(0);
-    controller.handleNodeClick({
-      nodeId: "cluster-a",
-      attributes: { cluster_id: "cluster-a", is_cluster_proxy: true },
-    });
+    await controller.expandCluster("cluster-a");
     await vi.advanceTimersByTimeAsync(0);
     controller.refreshNow();
     await vi.advanceTimersByTimeAsync(0);
@@ -529,14 +526,148 @@ describe("ViewportSyncController", () => {
     controller.mount();
     await vi.advanceTimersByTimeAsync(0);
     const click = { nodeId: "cluster-a", attributes: { cluster_id: "cluster-a", is_cluster_proxy: true } };
-    controller.handleNodeClick(click);
+    await controller.expandCluster(click.nodeId);
     await Promise.resolve();
     controller.refreshNow();
     await vi.advanceTimersByTimeAsync(0);
-    controller.handleNodeClick(click);
+    await controller.expandCluster(click.nodeId);
     await Promise.resolve();
     expect(readViewport.mock.calls.filter(([query]) => query.cluster_id)).toHaveLength(2);
     expect(renderer.appliedGraphs.at(-1)?.nodes.map((node) => node.id)).toContain("a1");
+    controller.unmount();
+  });
+
+  it("keeps explicit patches across zoom-out queries until persistence is disabled", async () => {
+    const renderer = createRenderer();
+    const readViewport = vi.fn(async (query: GraphViewportQuery) =>
+      query.cluster_id ? clusterResponse() : viewportResponse({ lod_level: query.lod_level }),
+    );
+    const controller = new ViewportSyncController({
+      datasetId: "tree",
+      client: { readViewport },
+      renderer,
+      nodeCount: 10000,
+      lodTierCount: 4,
+    });
+    controller.mount();
+    await vi.advanceTimersByTimeAsync(0);
+    viewportState.cameraRatio = 0.1;
+    controller.refreshNow({ lodLevel: 2 });
+    await vi.advanceTimersByTimeAsync(0);
+    await controller.expandCluster("cluster-a");
+    controller.setKeepExpanded(true);
+    await vi.advanceTimersByTimeAsync(0);
+    viewportState.cameraRatio = 2;
+    renderer.emitViewChange();
+    await vi.advanceTimersByTimeAsync(120);
+    expect(readViewport).toHaveBeenLastCalledWith(expect.objectContaining({ lod_level: 2 }));
+    expect(renderer.appliedGraphs.at(-1)?.nodes.map((node) => node.id)).toContain("a1");
+    controller.collapseCluster("cluster-a");
+    expect(renderer.appliedGraphs.at(-1)?.nodes.map((node) => node.id)).not.toContain("a1");
+    controller.setKeepExpanded(false);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(readViewport).toHaveBeenLastCalledWith(expect.objectContaining({ lod_level: 0 }));
+    controller.unmount();
+  });
+
+  it("leaves a group's summary intact when its full expansion exceeds the budget", async () => {
+    const renderer = createRenderer();
+    const readViewport = vi.fn().mockResolvedValueOnce(viewportResponse()).mockResolvedValue(clusterResponse());
+    const controller = new ViewportSyncController({
+      datasetId: "tree",
+      client: { readViewport },
+      renderer,
+      maxNodes: 3,
+    });
+    controller.mount();
+    await vi.advanceTimersByTimeAsync(0);
+    const result = await controller.expandCluster("cluster-a");
+    expect(result).toMatchObject({ status: "partial", expandedClusterIds: [], renderedNodeCount: 2 });
+    expect(renderer.appliedGraphs.at(-1)?.nodes.map((node) => node.id)).toEqual(["root", "cluster-a"]);
+    controller.unmount();
+  });
+
+  it("reports partial expand-all results and enforces the rendered node budget", async () => {
+    const renderer = createRenderer();
+    const readViewport = vi
+      .fn()
+      .mockResolvedValueOnce(viewportResponse())
+      .mockResolvedValue(
+        viewportResponse({
+          ...clusterResponse(),
+          total_node_count: 10000,
+          truncated: true,
+          nodes: [...viewportResponse().nodes, ...clusterResponse().nodes],
+        }),
+      );
+    const controller = new ViewportSyncController({
+      datasetId: "tree",
+      client: { readViewport },
+      renderer,
+      maxNodes: 3,
+      lodTierCount: 4,
+    });
+    controller.mount();
+    await vi.advanceTimersByTimeAsync(0);
+    const result = await controller.expandAll();
+    expect(result).toMatchObject({ status: "partial", allExpanded: false, renderedNodeCount: 3, maxNodes: 3 });
+    expect(readViewport).toHaveBeenLastCalledWith(expect.objectContaining({ lod_level: 3, max_nodes: 3 }));
+    expect(readViewport.mock.calls.at(-1)?.[0]).not.toHaveProperty("xmin");
+    controller.unmount();
+  });
+
+  it("does not restore expansion when a pending response arrives after collapse", async () => {
+    const renderer = createRenderer();
+    let resolve: (response: GraphViewportResponse) => void = () => undefined;
+    const readViewport = vi
+      .fn()
+      .mockResolvedValueOnce(viewportResponse())
+      .mockImplementationOnce(
+        () =>
+          new Promise<GraphViewportResponse>((done) => {
+            resolve = done;
+          }),
+      );
+    const controller = new ViewportSyncController({ datasetId: "tree", client: { readViewport }, renderer });
+    controller.mount();
+    await vi.advanceTimersByTimeAsync(0);
+    const pending = controller.expandCluster("cluster-a");
+    controller.collapseCluster("cluster-a");
+    resolve(clusterResponse());
+    expect(await pending).toMatchObject({ status: "superseded", expandedClusterIds: [] });
+    expect(renderer.appliedGraphs.at(-1)?.nodes.map((node) => node.id)).not.toContain("a1");
+    controller.unmount();
+  });
+
+  it("retains a complete expand-all snapshot through zoom and ancillary replacement", async () => {
+    const renderer = createRenderer();
+    const readViewport = vi.fn(async (query: GraphViewportQuery) =>
+      viewportResponse({ layout_version: query.layout_version ?? "layout-1", lod_level: query.lod_level }),
+    );
+    const controller = new ViewportSyncController({
+      datasetId: "tree",
+      client: { readViewport },
+      renderer,
+      nodeCount: 10000,
+      lodTierCount: 4,
+    });
+    controller.mount();
+    await vi.advanceTimersByTimeAsync(0);
+    controller.setKeepExpanded(true);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(await controller.expandAll()).toMatchObject({ status: "complete", allExpanded: true });
+    const requests = readViewport.mock.calls.length;
+    viewportState.cameraRatio = 4;
+    renderer.emitViewChange();
+    await vi.advanceTimersByTimeAsync(500);
+    expect(readViewport).toHaveBeenCalledTimes(requests);
+    await controller.replaceLayoutVersion("ancillary-2");
+    expect(controller.getExpansionState().allExpanded).toBe(true);
+    expect(readViewport).toHaveBeenLastCalledWith(
+      expect.objectContaining({ lod_level: 3, layout_version: "ancillary-2" }),
+    );
+    expect(await controller.collapseAll()).toMatchObject({ allExpanded: false, expandedClusterIds: [] });
+    expect(readViewport).toHaveBeenLastCalledWith(expect.objectContaining({ lod_level: 0 }));
     controller.unmount();
   });
 
@@ -632,10 +763,7 @@ describe("ViewportSyncController", () => {
 
     controller.mount();
     await vi.advanceTimersByTimeAsync(0);
-    controller.handleNodeClick({
-      nodeId: "cluster-a",
-      attributes: renderer.appliedGraphs.at(-1)?.nodes.find((node) => node.id === "cluster-a")?.attributes,
-    });
+    await controller.expandCluster("cluster-a");
     await Promise.resolve();
 
     expect(readViewport).toHaveBeenLastCalledWith(expect.objectContaining({ cluster_id: "cluster-a" }));
@@ -647,11 +775,11 @@ describe("ViewportSyncController", () => {
     ).toEqual(["a1", "a2", "cluster-a", "root"]);
 
     readViewport.mockClear();
-    controller.handleNodeClick({ nodeId: "cluster-a", attributes: { cluster_id: "cluster-a" } });
+    await controller.expandCluster("cluster-a");
     await Promise.resolve();
     expect(readViewport).not.toHaveBeenCalled();
 
-    controller.handleNodeDoubleClick({ nodeId: "cluster-a", attributes: { cluster_id: "cluster-a" } });
+    controller.collapseCluster("cluster-a");
 
     expect(
       renderer.appliedGraphs
@@ -687,17 +815,11 @@ describe("ViewportSyncController", () => {
 
     controller.mount();
     await vi.advanceTimersByTimeAsync(0);
-    controller.handleNodeClick({
-      nodeId: "cluster-a",
-      attributes: { cluster_id: "cluster-a", member_count: 3 },
-    });
+    await controller.expandCluster("cluster-a");
     await Promise.resolve();
     readViewport.mockClear();
 
-    controller.handleNodeClick({
-      nodeId: "cluster-b",
-      attributes: { cluster_id: "cluster-b", member_count: 4 },
-    });
+    await controller.expandCluster("cluster-b");
     await Promise.resolve();
 
     expect(readViewport).toHaveBeenCalledOnce();
@@ -725,12 +847,9 @@ describe("ViewportSyncController", () => {
     viewportState = { bounds: { xmin: 1, xmax: 2, ymin: 3, ymax: 4 }, cameraRatio: 0.1 };
     renderer.emitViewChange();
     await vi.advanceTimersByTimeAsync(60);
-    controller.handleNodeClick({
-      nodeId: "cluster-a",
-      attributes: renderer.appliedGraphs.at(-1)?.nodes.find((node) => node.id === "cluster-a")?.attributes,
-    });
+    await controller.expandCluster("cluster-a");
     await Promise.resolve();
-    controller.handleNodeDoubleClick({ nodeId: "cluster-a", attributes: { cluster_id: "cluster-a" } });
+    controller.collapseCluster("cluster-a");
 
     expect(events.map((event) => event.sequence)).toEqual([1, 2, 3, 4]);
     expect(events.map((event) => event.reason)).toEqual([

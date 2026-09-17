@@ -67,7 +67,7 @@ button.addEventListener("click", async () => {
       const beforeExpansion = renderer.getViewportSyncState();
       previous = synced;
       const expandStart = performance.now();
-      controller.handleNodeClick({ nodeId: representative.id, attributes: representative.attributes });
+      await controller.expandCluster(String(representative.attributes?.cluster_id ?? representative.id));
       await waitForSync(previous);
       const expansionStable = JSON.stringify(beforeExpansion) === JSON.stringify(renderer.getViewportSyncState());
       records.push({
@@ -78,8 +78,21 @@ button.addEventListener("click", async () => {
         cameraPreserved: expansionStable,
       });
       if (!expansionStable) throw new Error("Expansion moved the camera.");
-      controller.collapseCluster(String(representative.attributes?.cluster_id ?? representative.id));
-      const collapseStable = JSON.stringify(beforeExpansion) === JSON.stringify(renderer.getViewportSyncState());
+      const clusterId = String(representative.attributes?.cluster_id ?? representative.id);
+      previous = synced;
+      controller.setKeepExpanded(true);
+      await waitForSync(previous);
+      renderer.fitGraphSnapshot(latest!, { resetFirst: false });
+      await wait(500);
+      previous = synced;
+      controller.refreshNow();
+      await waitForSync(previous);
+      const persistent = controller.getExpansionState().expandedClusterIds.includes(clusterId);
+      records.push({ operation: "persistent expansion after fit and viewport replacement", labels, persistent });
+      if (!persistent) throw new Error("Expansion was lost on viewport replacement.");
+      const beforeCollapse = renderer.getViewportSyncState();
+      controller.collapseCluster(clusterId);
+      const collapseStable = JSON.stringify(beforeCollapse) === JSON.stringify(renderer.getViewportSyncState());
       records.push({ operation: "collapse", labels, cameraPreserved: collapseStable });
       if (!collapseStable) throw new Error("Collapse moved the camera.");
       const focus = { ...latest!, nodes: latest!.nodes.slice(0, 10), edges: [] };
@@ -103,6 +116,15 @@ button.addEventListener("click", async () => {
       });
       if (!toggleStable) throw new Error("Label toggle moved the camera.");
     }
+    const allResult = await controller.expandAll();
+    records.push({ operation: "expand all", ...allResult });
+    if (allResult.renderedNodeCount > allResult.maxNodes) throw new Error("Expansion exceeded its budget.");
+    if (prepared.node_count > allResult.maxNodes && allResult.status !== "partial")
+      throw new Error("Partial expansion was not reported.");
+    const collapsed = await controller.collapseAll();
+    records.push({ operation: "collapse all", ...collapsed });
+    if (collapsed.allExpanded || collapsed.expandedClusterIds.length)
+      throw new Error("Explicit expansion was not cleared.");
     output.textContent = JSON.stringify(
       { ok: true, fixture: file.name, userAgent: navigator.userAgent, records },
       null,

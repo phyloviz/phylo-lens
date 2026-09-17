@@ -26,3 +26,5 @@ export type {
   NodeAnnotations,
   AncillaryTableInput,
 } from "./contracts/ancillary";
+
+export type { ExpansionState, ExpansionResult } from "./contracts/expansion";

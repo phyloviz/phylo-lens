@@ -120,26 +120,6 @@ export function graphSnapshotWithDisplayOptions(
   };
 }
 
-export function mergeGraphSnapshots(base: PositionedGraph, patch: PositionedGraph): PositionedGraph {
-  const nodes = new Map(base.nodes.map((node) => [node.id, node]));
-  const edges = new Map(base.edges.map((edge) => [edge.id, edge]));
-  patch.nodes.forEach((node) => nodes.set(node.id, node));
-  patch.edges.forEach((edge) => edges.set(edge.id, edge));
-  return {
-    nodes: Array.from(nodes.values()),
-    edges: Array.from(edges.values()).filter((edge) => nodes.has(edge.source) && nodes.has(edge.target)),
-    viewMeta: patch.viewMeta,
-  };
-}
-
-export function isExpandableRepresentative(attributes: Record<string, unknown> | undefined): boolean {
-  return (
-    attributes?.type === GRAPH_VIEWER_TRIANGLE_NODE_TYPE ||
-    attributes?.is_cluster_proxy === true ||
-    (typeof attributes?.member_count === "number" && attributes.member_count > 1)
-  );
-}
-
 function positionedNodeFromViewportNode(
   node: GraphViewportNode,
   visuals: ResolvedViewportVisuals | null,
