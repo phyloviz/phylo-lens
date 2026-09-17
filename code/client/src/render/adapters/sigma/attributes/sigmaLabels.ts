@@ -1,3 +1,4 @@
+import { readNodeAncillaryValues } from "../../../../ancillary/ancillaryAccess";
 import type { EdgeLabelDrawingFunction, NodeLabelDrawingFunction } from "sigma/rendering";
 import { isUnionNode } from "../../../mapping/unionNodes";
 import { SIGMA_DEFAULT_LABEL_COLOR } from "../sigmaRendering.constants";
@@ -16,7 +17,7 @@ export function deriveNodeLabel(nodeId: string, attributes: Record<string, unkno
     return "";
   }
 
-  const metadataCandidate = attributes?.metadata;
+  const metadataCandidate = readNodeAncillaryValues(attributes);
   if (metadataCandidate && typeof metadataCandidate === "object") {
     const metadata = metadataCandidate as Record<string, unknown>;
     const name = metadata.name;

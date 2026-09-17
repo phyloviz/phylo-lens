@@ -1,12 +1,12 @@
-import type { MetadataType, SourceFormat } from "../contracts/models";
+import type { AncillaryType, SourceFormat } from "../contracts/models";
 
 export type GraphPrepareJobStatus = "pending" | "ready" | "failed";
 
 export type GraphLayoutStatus = "pending" | "refining" | "ready" | "degraded" | "failed";
 
-export type GraphMetadataValue = string | number | boolean | null;
+export type GraphAncillaryValue = import("../contracts/ancillary").AncillaryValue;
 
-export type GraphMetadata = Record<string, GraphMetadataValue>;
+export type GraphAncillaryData = import("../contracts/ancillary").AncillaryData;
 
 /** Supported Graphviz SFDP overrides for a prepared layout. */
 export interface SfdpOptions {
@@ -20,9 +20,9 @@ export interface SfdpOptions {
   beautify?: boolean;
 }
 
-export interface GraphMetadataField {
+export interface GraphAncillaryField {
   key: string;
-  type: MetadataType;
+  type: AncillaryType;
 }
 
 export interface NormalizeRequest {
@@ -32,8 +32,8 @@ export interface NormalizeRequest {
   options?: {
     allow_self_loops?: boolean;
   };
-  metadata_schema?: GraphMetadataField[];
-  metadata_by_node_id?: Record<string, GraphMetadata>;
+  metadata_schema?: GraphAncillaryField[];
+  metadata_by_node_id?: Record<string, GraphAncillaryData>;
   ancillary_data?: {
     content: string;
     join_column: string;
@@ -92,7 +92,7 @@ export interface GraphPrepareErrorDetails {
 
 export interface GraphIsolate {
   id: string;
-  metadata: GraphMetadata;
+  metadata: GraphAncillaryData;
 }
 
 export interface GraphViewportNode {
@@ -103,7 +103,7 @@ export interface GraphViewportNode {
   layout_status: GraphLayoutStatus;
   member_count: number;
   is_representative: boolean;
-  metadata?: GraphMetadata | null;
+  metadata?: GraphAncillaryData | null;
   isolates?: GraphIsolate[];
 }
 
@@ -134,7 +134,7 @@ export interface GraphViewportResponse {
   nodes: GraphViewportNode[];
   edges: GraphViewportEdge[];
   global_bounds?: GraphLayoutBounds | null;
-  metadata_schema?: GraphMetadataField[];
+  metadata_schema?: GraphAncillaryField[];
 }
 
 export interface GraphRegionQuery {
@@ -155,8 +155,8 @@ export interface GraphRegionResponse {
   total_node_count: number;
   nodes: GraphViewportNode[];
   edges: GraphViewportEdge[];
-  metadata_schema?: GraphMetadataField[];
-  aggregated_metadata: GraphMetadata;
+  metadata_schema?: GraphAncillaryField[];
+  aggregated_metadata: GraphAncillaryData;
 }
 
 export interface GraphSearchQuery {
@@ -181,3 +181,8 @@ export interface GraphSearchResponse {
   matches: GraphSearchMatch[];
   total_count: number;
 }
+
+/** @deprecated API v1 terminology; use the Ancillary* aliases. */
+export type GraphMetadataValue = GraphAncillaryValue;
+export type GraphMetadata = GraphAncillaryData;
+export type GraphMetadataField = GraphAncillaryField;

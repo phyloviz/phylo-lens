@@ -1,13 +1,14 @@
+import { resolveAncillaryInput, type AncillaryInputOptions } from "../../../ancillary/ancillaryInput";
+import { decodeLegacyMetadata } from "../../../ancillary/legacyMetadata";
 import type {
-  GraphMetadataValue,
+  GraphAncillaryValue,
   GraphViewportEdge,
   GraphViewportNode,
   GraphViewportResponse,
 } from "../../../api/graphContracts";
-import type { MetadataField } from "../../../contracts/models";
 import type { PositionedEdge, PositionedGraph, PositionedNode } from "../../../contracts/positioned";
 import { hasActiveFilters, matchesFilterState } from "../../../ancillary/filterEngine";
-import type { MetadataFilterState } from "../../../ancillary/metadataTypes";
+import type { AncillaryFilterState } from "../../../ancillary/ancillaryTypes";
 import type { GraphDisplayOptions } from "../../../render/renderer.types";
 import {
   buildValueColorMap,
@@ -38,11 +39,9 @@ export const GRAPH_VIEWER_EDGE_COLOR = "#94a3b8";
 export const GRAPH_VIEWER_BASE_EDGE_SIZE = 1;
 export const GRAPH_VIEWER_TRIANGLE_NODE_TYPE = "triangle";
 
-export interface ViewportSyncSettings {
+export interface ViewportSyncSettings extends AncillaryInputOptions {
   visualMapping?: VisualMappingOptions;
-  filterState?: MetadataFilterState;
-  metadataSchema?: MetadataField[];
-  metadataByNodeId?: Record<string, Record<string, GraphMetadataValue>>;
+  filterState?: AncillaryFilterState;
   displayOptions?: GraphDisplayOptions;
 }
 
@@ -51,7 +50,7 @@ interface ResolvedViewportVisuals {
   sizeField: string;
   scale: SizeScale;
   palette: readonly string[];
-  colorForValue: (value: GraphMetadataValue | undefined) => string;
+  colorForValue: (value: GraphAncillaryValue | undefined) => string;
   numericStats?: { min: number; max: number };
   customSize: boolean;
   pie?: NonNullable<VisualMappingOptions["pie"]>;
@@ -198,8 +197,8 @@ function buildGraphViewportNodeAttributes(
     type: isRepresentative ? GRAPH_VIEWER_TRIANGLE_NODE_TYPE : undefined,
     borderColor: undefined,
     layout_status: node.layout_status,
-    ...(metadata ? { metadata } : {}),
-    ...(node.isolates ? { isolates: node.isolates } : {}),
+    annotations: decodeLegacyMetadata(metadata),
+    isolates: (node.isolates ?? []).map(({ id, metadata }) => ({ id, ancillaryData: metadata })),
     ...pieNodeAttributes(metadata, visuals, node.isolates?.map((isolate) => isolate.metadata) ?? []),
   };
 }
@@ -248,7 +247,7 @@ function resolveViewportVisuals(
   const scale = mapping.size?.scale ?? SIZE_SCALE_LINEAR;
   const palette = mapping.palette ?? DEFAULT_COLOR_PALETTE;
   const numericStats = computeSizeFieldStats(nodes, sizeField);
-  const stableColorValues = Object.values(settings?.metadataByNodeId ?? {}).map((metadata) =>
+  const stableColorValues = Object.values(resolveAncillaryInput(settings ?? {}).ancillaryByNodeId).map((metadata) =>
     colorField ? metadata[colorField] : undefined,
   );
   const colorForValue = buildValueColorMap(
@@ -271,7 +270,7 @@ function resolveViewportVisuals(
   };
 }
 
-function hasMetadataValue(value: GraphMetadataValue | undefined): boolean {
+function hasMetadataValue(value: GraphAncillaryValue | undefined): boolean {
   return value !== undefined && value !== null && value !== "";
 }
 
@@ -310,9 +309,9 @@ function nodeSizeForMemberCount(memberCount: number): number {
 }
 
 function pieNodeAttributes(
-  metadata: Record<string, GraphMetadataValue> | undefined,
+  metadata: Record<string, GraphAncillaryValue> | undefined,
   visuals: ResolvedViewportVisuals | null,
-  rows: Record<string, GraphMetadataValue>[] = [],
+  rows: Record<string, GraphAncillaryValue>[] = [],
 ): Record<string, unknown> {
   const pie = visuals?.pie;
   if (!pie || !metadata) {

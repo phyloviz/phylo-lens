@@ -68,8 +68,12 @@ def validate_canonical_dataset(
         if not allow_self_loops and edge.source == edge.target:
             errors.append(ERR_SELF_LOOP_TEMPLATE.format(edge_id=edge.id))
 
-    schema_keys = {field.key: field.type for field in dataset.metadata_schema}
-    for node_id, metadata in dataset.metadata_by_node_id.items():
+    schema_keys = {field.key: field.type for field in dataset.ancillary_schema}
+    for node_id, node_annotations in dataset.annotations_by_node_id.items():
+        metadata = {
+            **node_annotations.ancillary_summary.values,
+            **node_annotations.ancillary_data,
+        }
         if node_id not in node_id_set:
             errors.append(ERR_METADATA_UNKNOWN_NODE_TEMPLATE.format(node_id=node_id))
             continue

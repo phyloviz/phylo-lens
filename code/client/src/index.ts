@@ -13,3 +13,15 @@ export {
 export { type MetadataField, type SourceFormat, type Viewport } from "./contracts/models";
 export type { SfdpOptions } from "./api/graphContracts";
 export type { VisualMappingOptions } from "./render/mapping/visualMapping";
+
+export type {
+  AncillaryData,
+  AncillaryField,
+  AncillaryType,
+  AncillaryValue,
+  AncillarySummary,
+  ProfileSummary,
+  Isolate,
+  NodeAnnotations,
+  AncillaryTableInput,
+} from "./contracts/ancillary";

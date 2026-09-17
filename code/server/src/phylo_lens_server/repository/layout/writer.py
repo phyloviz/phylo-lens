@@ -194,7 +194,7 @@ def save_artifacts_to_connection(
                 artifacts.layout_version,
                 node_id,
                 isolate.id,
-                json.dumps(isolate.metadata),
+                json.dumps(isolate.ancillary_data),
             )
             for node_id, isolates in artifacts.dataset.isolates_by_node_id.items()
             for isolate in isolates
@@ -292,9 +292,7 @@ def _persist_metadata_to_connection(
     dataset_id = artifacts.dataset.dataset_id
     layout_version = artifacts.layout_version
     public_fields = tuple(
-        (field.key, str(field.type))
-        for field in artifacts.dataset.metadata_schema
-        if not is_internal_metadata_key(field.key)
+        (field.key, str(field.type)) for field in artifacts.dataset.ancillary_schema
     )
     public_keys = {key for key, _ in public_fields}
 

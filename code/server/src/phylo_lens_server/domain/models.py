@@ -2,16 +2,18 @@ from __future__ import annotations
 
 from enum import StrEnum
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from .ancillary import AncillaryData, AncillaryField, AncillaryType, NodeAnnotations
+from .legacy_metadata import (
+    decode_node_annotations,
+    encode_node_annotations,
+    is_summary_key,
+)
 
-class MetadataType(StrEnum):
-    """Supported scalar metadata types for canonical metadata contracts."""
-
-    STRING = "string"
-    NUMBER = "number"
-    BOOLEAN = "boolean"
-    NULL = "null"
+# Deprecated Python import aliases; new domain code uses Ancillary*.
+MetadataType = AncillaryType
+MetadataField = AncillaryField
 
 
 class SourceFormat(StrEnum):
@@ -19,13 +21,6 @@ class SourceFormat(StrEnum):
 
     NEWICK = "newick"
     TYPING_DATA = "typing_data"
-
-
-class MetadataField(BaseModel):
-    """Describe one metadata key and its canonical scalar type."""
-
-    key: str = Field(min_length=1)
-    type: MetadataType
 
 
 class CanonicalNode(BaseModel):
@@ -58,28 +53,90 @@ class DatasetSource(BaseModel):
     provenance: str | None = None
 
 
-class IsolateRecord(BaseModel):
-    """Original typing identifier and its per-isolate metadata."""
+class Isolate(BaseModel):
+    """An original isolate identity and its ancillary observations."""
+
+    model_config = ConfigDict(populate_by_name=True)
 
     id: str = Field(min_length=1)
-    metadata: dict[str, str | float | bool | None] = Field(default_factory=dict)
+    ancillary_data: AncillaryData = Field(default_factory=dict, alias="metadata")
+
+    @property
+    def metadata(self) -> AncillaryData:
+        """Deprecated compatibility accessor; use ancillary_data."""
+        return self.ancillary_data
+
+
+IsolateRecord = Isolate  # Deprecated import alias.
 
 
 class CanonicalDataset(BaseModel):
-    """Canonical graph-plus-metadata contract emitted by normalization workflows."""
+    """Graph topology, isolate membership, and separately typed annotations."""
 
     dataset_id: str = Field(min_length=1)
-    isolates_by_node_id: dict[str, list[IsolateRecord]] = Field(default_factory=dict)
+    isolates_by_node_id: dict[str, list[Isolate]] = Field(default_factory=dict)
     nodes: list[CanonicalNode]
     edges: list[CanonicalEdge]
-    metadata_schema: list[MetadataField] = Field(default_factory=list)
-    metadata_by_node_id: dict[str, dict[str, str | float | bool | None]] = Field(
+    ancillary_schema: list[AncillaryField] = Field(default_factory=list)
+    summary_schema: list[AncillaryField] = Field(default_factory=list)
+    annotations_by_node_id: dict[str, NodeAnnotations] = Field(default_factory=dict)
+    ancillary_rows_by_node_id: dict[str, list[AncillaryData]] = Field(
         default_factory=dict
     )
-    ancillary_rows_by_node_id: dict[str, list[dict[str, str | float | bool | None]]] = (
-        Field(default_factory=dict)
-    )
     source: DatasetSource
+
+    @model_validator(mode="before")
+    @classmethod
+    def accept_legacy_metadata(cls, data):
+        if not isinstance(data, dict):
+            return data
+        data = dict(data)
+        if "metadata_by_node_id" in data:
+            if "annotations_by_node_id" in data:
+                raise ValueError(
+                    "Supply annotations_by_node_id or legacy metadata_by_node_id, not both."
+                )
+            data["annotations_by_node_id"] = {
+                node_id: decode_node_annotations(values)
+                for node_id, values in data.pop("metadata_by_node_id").items()
+            }
+        if "metadata_schema" in data:
+            if "ancillary_schema" in data or "summary_schema" in data:
+                raise ValueError(
+                    "Supply ancillary_schema or legacy metadata_schema, not both."
+                )
+            fields = [
+                AncillaryField.model_validate(value)
+                for value in data.pop("metadata_schema")
+            ]
+            data["ancillary_schema"] = [
+                field for field in fields if not is_summary_key(field.key)
+            ]
+            data["summary_schema"] = [
+                field for field in fields if is_summary_key(field.key)
+            ]
+        return data
+
+    def model_copy(self, *, update=None, deep=False):
+        # Older in-process consumers may still copy using the API v1 field names.
+        return super().model_copy(
+            update=self.accept_legacy_metadata(update or {}), deep=deep
+        )
+
+    @property
+    def metadata_by_node_id(self) -> dict[str, AncillaryData]:
+        """Legacy snapshot for API v1 and existing persistence; do not mutate."""
+        return {
+            key: encode_node_annotations(value)
+            for key, value in self.annotations_by_node_id.items()
+        }
+
+    @property
+    def metadata_schema(self) -> list[AncillaryField]:
+        """Legacy flat schema, including computed fields when requested."""
+        return sorted(
+            [*self.ancillary_schema, *self.summary_schema], key=lambda field: field.key
+        )
 
 
 class DomainValidationError(Exception):

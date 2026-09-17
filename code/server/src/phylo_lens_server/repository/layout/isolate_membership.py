@@ -2,7 +2,7 @@
 
 import json
 
-from phylo_lens_server.domain.models import IsolateRecord
+from phylo_lens_server.domain.models import Isolate
 
 
 def load_isolates(connection, *, dataset_id, layout_version, node_ids, placeholder="?"):
@@ -19,9 +19,7 @@ def load_isolates(connection, *, dataset_id, layout_version, node_ids, placehold
     result = {}
     for row in rows:
         result.setdefault(row["node_id"], []).append(
-            IsolateRecord(
-                id=row["isolate_id"], metadata=json.loads(row["metadata_json"])
-            )
+            Isolate(id=row["isolate_id"], metadata=json.loads(row["metadata_json"]))
         )
     return {key: tuple(value) for key, value in result.items()}
 

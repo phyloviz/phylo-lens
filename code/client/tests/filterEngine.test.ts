@@ -3,10 +3,10 @@ import { describe, expect, it } from "vitest";
 import { EMPTY_METADATA_FILTER_STATE, filterGraphByMetadata } from "../src/ancillary/filterEngine";
 import type { MetadataFilterState } from "../src/ancillary/metadataTypes";
 import { buildMetadataIndex } from "../src/ancillary/metadataIndex";
-import type { CanonicalDataset } from "../src/contracts/models";
+import type { LegacyCanonicalDataset } from "../src/contracts/models";
 import type { PositionedGraph } from "../src/contracts/positioned";
 
-const DATASET: CanonicalDataset = {
+const DATASET: LegacyCanonicalDataset = {
   dataset_id: "d1",
   nodes: [{ id: "root" }, { id: "a" }, { id: "b" }, { id: "c" }],
   edges: [
