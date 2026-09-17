@@ -31,8 +31,12 @@ and the PostgreSQL driver.
 ```bash
 cd code/server
 python -m pip install -e '.[test,dev]'
+export PHYLO_LENS_PHYLOLIB_JAR=/absolute/path/to/PhyloLib-1.0.0.jar
 uvicorn phylo_lens_server.main:app --reload
 ```
+
+`typing_data` requests require `PHYLO_LENS_PHYLOLIB_JAR` during source
+execution. The Docker image supplies `/app/phylolib.jar` automatically.
 
 The console entry point is equivalent:
 
@@ -160,14 +164,13 @@ java -jar /app/phylolib.jar distance hamming \
   --dataset=ml:<profiles> \
   --out=symmetric:<matrix>
 
-java -jar /app/phylolib.jar algorithm goeburst \
+java -jar /app/phylolib.jar algorithm goeburstfullmst \
   --matrix=symmetric:<matrix> \
-  --out=newick:<tree> \
-  --lvs=3
+  --out=newick:<tree>
 ```
 
-PhyloLib may produce several `;`-terminated components. PhyloLens preserves them
-as one disconnected graph rather than introducing a synthetic root.
+Full MST uses all observed locus-variant levels and produces one spanning tree
+for valid typing profiles.
 
 Each PhyloLib subprocess is limited by
 `PHYLO_LENS_PHYLOLIB_TIMEOUT_SECONDS`. Graphviz `sfdp` has no default

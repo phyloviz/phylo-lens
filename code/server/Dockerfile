@@ -1,4 +1,4 @@
-FROM phyloviz/phylolib@sha256:f1cc154814efdf45cd38b3ae13e0434e74a7b6ee5ab0b31679e822841fbc5e17 AS graphviz-build
+FROM phyloviz/phylolib:1.0.1@sha256:099c4b4db34344e05492bd6eacba9dbc45f0d86087cee6c76c06ba43e3226c2f AS graphviz-build
 
 ARG GRAPHVIZ_VERSION=12.2.1
 ARG GRAPHVIZ_SHA256=242bc18942eebda6db4039f108f387ec97856fc91ba47f21e89341c34b554df8
@@ -39,7 +39,7 @@ RUN apk add --no-cache \
     && make install-strip \
     && rm -rf /tmp/gts.tar.gz /tmp/gts-source /tmp/graphviz.tar.gz /tmp/graphviz-source
 
-FROM phyloviz/phylolib@sha256:f1cc154814efdf45cd38b3ae13e0434e74a7b6ee5ab0b31679e822841fbc5e17
+FROM phyloviz/phylolib:1.0.1@sha256:099c4b4db34344e05492bd6eacba9dbc45f0d86087cee6c76c06ba43e3226c2f
 
 ARG VERSION=0.2.1
 ARG GRAPHVIZ_VERSION=12.2.1
@@ -47,7 +47,7 @@ ARG GRAPHVIZ_VERSION=12.2.1
 LABEL org.opencontainers.image.title="PhyloLens API service" \
       org.opencontainers.image.description="Computational API service for PhyloLens prepared layouts and viewport reads" \
       org.opencontainers.image.version="${VERSION}" \
-      org.opencontainers.image.base.name="phyloviz/phylolib@sha256:f1cc154814efdf45cd38b3ae13e0434e74a7b6ee5ab0b31679e822841fbc5e17" \
+      org.opencontainers.image.base.name="phyloviz/phylolib:1.0.1@sha256:099c4b4db34344e05492bd6eacba9dbc45f0d86087cee6c76c06ba43e3226c2f" \
       org.phylolens.phylolib.jar.path="/app/phylolib.jar"
 
 ENV PYTHONDONTWRITEBYTECODE=1 \

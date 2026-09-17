@@ -22,10 +22,11 @@ JAVA_COMMAND = "java"
 ENV_PHYLOLIB_JAR = "PHYLO_LENS_PHYLOLIB_JAR"
 ENV_PHYLOLIB_JAVA = "PHYLO_LENS_PHYLOLIB_JAVA"
 
-# Defaults: Hamming for allelic MLST, goeBURST lvs=3, then Newick
-# output feeding the existing parse_newick path.
+# Defaults: Hamming for allelic MLST, then goeBURST Full MST. Full MST uses
+# every observed locus-variant level, which is appropriate for cg/wgMLST data
+# and produces one connected tree rather than a threshold-limited forest.
 DEFAULT_DISTANCE_METHOD = "hamming"
-DEFAULT_GOEBURST_LVS = 3
+GOEBURST_FULL_MST_ALGORITHM = "goeburstfullmst"
 DATASET_FORMAT_ML = "ml"
 MATRIX_FORMAT_SYMMETRIC = "symmetric"
 TREE_FORMAT_NEWICK = "newick"
@@ -167,14 +168,12 @@ def typing_profiles_to_newick(
     profiles: str,
     *,
     distance_method: str = DEFAULT_DISTANCE_METHOD,
-    goeburst_lvs: int = DEFAULT_GOEBURST_LVS,
 ) -> str:
     """Convert an MLST/cgMLST allelic profile matrix into raw PhyloLib Newick.
 
     Runs two PhyloLib stages against a temp directory: ``distance`` (profiles ->
-    symmetric matrix) then ``algorithm goeburst`` (matrix -> Newick MST). The
-    returned text may be a *forest* — one ``;``-terminated tree per connected
-    component — which is normal for typing data. Raises
+    complete symmetric matrix) then ``algorithm goeburstfullmst`` (matrix ->
+    Newick MST). Raises
     :class:`TypingNormalizeError` when no PhyloLib runtime is available or either
     stage fails.
     """
@@ -204,10 +203,9 @@ def typing_profiles_to_newick(
         _run_phylolib_cli(
             [
                 "algorithm",
-                "goeburst",
+                GOEBURST_FULL_MST_ALGORITHM,
                 f"--matrix={matrix_ref}",
                 f"--out={tree_ref}",
-                f"--lvs={goeburst_lvs}",
             ],
             failure_reason=TYPING_PHYLOLIB_ALGORITHM_FAILED,
             failure_message=ERR_TYPING_ALGORITHM_FAILED,
@@ -232,20 +230,15 @@ def typing_profiles_to_graph(
     profiles: str,
     *,
     distance_method: str = DEFAULT_DISTANCE_METHOD,
-    goeburst_lvs: int = DEFAULT_GOEBURST_LVS,
 ) -> ParsedGraph:
-    """Convert typing profiles into a ParsedGraph, tolerating a goeBURST forest.
+    """Convert typing profiles into a ParsedGraph through goeBURST Full MST.
 
     Wraps :func:`typing_profiles_to_newick`, then delegates to the shared
-    ``parse_newick_forest`` path, which parses each ``;``-terminated component
-    and merges them into a single disconnected graph (no synthetic root).
-    Downstream clustering already partitions by connected component, so a forest
-    flows through unchanged. The generic forest warning is swapped for a
-    typing-specific one so an operator can tell where the components came from.
+    ``parse_newick_forest`` path. Full MST normally emits one connected tree;
+    the shared parser still handles a forest defensively if an upstream runtime
+    returns one.
     """
-    newick = typing_profiles_to_newick(
-        profiles, distance_method=distance_method, goeburst_lvs=goeburst_lvs
-    )
+    newick = typing_profiles_to_newick(profiles, distance_method=distance_method)
 
     parsed = parse_newick_forest(newick)
 
