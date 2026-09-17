@@ -7,6 +7,18 @@ export const STATUS_DEGRADED_LAYOUT_WARNING = "⚠ This stored layout was prepar
 
 export function buildRenderedStatus(graph: PositionedGraph): string {
   const parts = [`${graph.nodes.length} nodes`, `${graph.edges.length} edges`, lodTierLabel(graph)];
+  const isolateCounts = graph.nodes.map((node) => {
+    const metadata = node.attributes?.metadata as Record<string, unknown> | undefined;
+    return metadata?.profile_count;
+  });
+  if (
+    isolateCounts.length > 0 &&
+    isolateCounts.every(
+      (count): count is number => typeof count === "number" && Number.isSafeInteger(count) && count > 0,
+    )
+  ) {
+    parts.push(`${isolateCounts.reduce((sum, count) => sum + count, 0)} isolates represented`);
+  }
 
   if (typeof graph.viewMeta.sliceNodeCount === "number") {
     parts.push(`slice ${graph.viewMeta.sliceNodeCount} nodes`);
@@ -25,7 +37,13 @@ function statusWarnings(graph: PositionedGraph): string[] {
   const warnings: string[] = [];
   const prepareWarning = graph.viewMeta.layoutWarnings?.find((warning) => warning.trim().length > 0);
   if (prepareWarning) {
-    warnings.push(prepareWarning);
+    // The complete locus list stays in layoutWarnings/the prepare response.
+    // Keep the status useful even for datasets excluding thousands of loci,
+    // including responses cached before the compact status was introduced.
+    const locusList = prepareWarning.indexOf(" Excluded loci:");
+    warnings.push(
+      prepareWarning.startsWith("Excluded ") && locusList >= 0 ? prepareWarning.slice(0, locusList) : prepareWarning,
+    );
   }
   if (graph.viewMeta.layoutStatus === "degraded" && !isLayoutWarning(prepareWarning)) {
     warnings.push(STATUS_DEGRADED_LAYOUT_WARNING);
