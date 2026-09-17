@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field, model_validator
 
+from phylo_lens_server.domain.models import IsolateRecord
 from phylo_lens_server.pipeline.models import LayoutStatus
 
 DEFAULT_MAX_VIEWPORT_NODES = 2_500
@@ -83,6 +84,7 @@ class GraphViewportNode(BaseModel):
     member_count: int = Field(default=1, ge=1)
     is_representative: bool = False
     metadata: dict[str, str | float | bool | None] | None = None
+    isolates: list[IsolateRecord] = Field(default_factory=list)
 
 
 class GraphViewportEdge(BaseModel):

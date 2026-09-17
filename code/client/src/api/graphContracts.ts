@@ -90,6 +90,11 @@ export interface GraphPrepareErrorDetails {
   detail?: string | null;
 }
 
+export interface GraphIsolate {
+  id: string;
+  metadata: GraphMetadata;
+}
+
 export interface GraphViewportNode {
   id: string;
   cluster_id: string;
@@ -99,6 +104,7 @@ export interface GraphViewportNode {
   member_count: number;
   is_representative: boolean;
   metadata?: GraphMetadata | null;
+  isolates?: GraphIsolate[];
 }
 
 export interface GraphViewportEdge {

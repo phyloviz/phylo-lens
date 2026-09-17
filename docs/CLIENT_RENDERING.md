@@ -176,6 +176,14 @@ reach the renderer.
 Visual mappings do not change topology, LoD membership, or server queries.
 Changing a mapping re-applies renderer attributes to the current graph.
 
+Typing profile nodes use radius `3 * sqrt(isolate_count)` by default, so their
+area is proportional to isolate count and does not change with viewport contents.
+The linear `profile_count` mapping uses the same rule; an explicit logarithmic or
+other-field mapping overrides it. LoD triangles retain their separate size rule.
+Original isolate records are available on positioned-node attributes as
+`isolates`. Single-field pies use category counts, and multi-field pies use
+per-isolate records to preserve correlations between selected fields.
+
 ## Metadata filters
 
 Filters are applied locally to the currently loaded snapshot. The workbench

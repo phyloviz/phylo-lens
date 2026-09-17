@@ -44,6 +44,7 @@ def clear_dataset(
             "datasets",
             "cluster_edges",
             "node_metadata",
+            "profile_isolates",
             "cluster_metadata",
             "metadata_schema",
         ):
@@ -73,6 +74,7 @@ def clear_layout_version(
             "datasets",
             "cluster_edges",
             "node_metadata",
+            "profile_isolates",
             "cluster_metadata",
             "metadata_schema",
         ):
@@ -177,6 +179,27 @@ def save_artifacts_to_connection(
             ),
             graph_edge_rows(artifacts),
         )
+    execute_many(
+        connection,
+        _sql(
+            """insert into profile_isolates(dataset_id, layout_version, node_id, isolate_id, metadata_json)
+            values (?, ?, ?, ?, ?)
+            on conflict(dataset_id, layout_version, isolate_id) do update set
+                node_id = excluded.node_id, metadata_json = excluded.metadata_json""",
+            placeholder,
+        ),
+        (
+            (
+                artifacts.dataset.dataset_id,
+                artifacts.layout_version,
+                node_id,
+                isolate.id,
+                json.dumps(isolate.metadata),
+            )
+            for node_id, isolates in artifacts.dataset.isolates_by_node_id.items()
+            for isolate in isolates
+        ),
+    )
     _persist_metadata_to_connection(
         connection,
         artifacts,

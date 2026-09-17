@@ -12,6 +12,8 @@ from urllib.parse import quote
 from pydantic import BaseModel, Field
 
 from phylo_lens_server.data.parsers import (
+    ParsedEdge,
+    ParsedGraph,
     ParseError,
     parse_newick_forest,
     slugify_label,
@@ -19,6 +21,10 @@ from phylo_lens_server.data.parsers import (
 from phylo_lens_server.data.phylolib import (
     TypingNormalizeError,
     typing_profiles_to_graph,
+)
+from phylo_lens_server.data.typing_profiles import (
+    collapse_profile_graph,
+    prepare_typing_profiles,
 )
 from phylo_lens_server.domain.metadata_keys import (
     CATEGORY_COUNT_FIELD_PREFIX,
@@ -31,6 +37,7 @@ from phylo_lens_server.domain.models import (
     CanonicalEdge,
     CanonicalNode,
     DatasetSource,
+    IsolateRecord,
     MetadataField,
 )
 from phylo_lens_server.domain.validators import validate_canonical_dataset
@@ -129,14 +136,33 @@ def normalize_dataset(
         request.metadata_by_node_id,
     )
 
+    typing_provenance: str | None = None
+    membership: dict[str, list[tuple[str, str]]] = {}
+
     match request.format:
         case NormalizeFormat.NEWICK:
             parsed = parse_newick_forest(request.content)
         case NormalizeFormat.TYPING_DATA:
+            profiles = prepare_typing_profiles(request.content)
+            membership = profiles.membership()
+            typing_provenance = profiles.provenance
             try:
-                parsed = typing_profiles_to_graph(request.content)
+                if len(membership) == 1:
+                    ids = [
+                        node_id
+                        for members in membership.values()
+                        for _, node_id in members
+                    ]
+                    parsed = ParsedGraph(
+                        ids,
+                        [ParsedEdge(ids[0], node_id, 0) for node_id in ids[1:]],
+                        explicit_node_ids=set(ids),
+                    )
+                else:
+                    parsed = typing_profiles_to_graph(profiles.algorithm_content())
             except TypingNormalizeError as error:
                 raise ParseError(str(error)) from error
+            parsed.warnings.extend(profiles.warnings)
         case _:
             raise ParseError(ERR_UNSUPPORTED_FORMAT.format(format_name=request.format))
 
@@ -174,8 +200,19 @@ def normalize_dataset(
         )
 
     declared_metadata_types = _declared_metadata_types(request.metadata_schema)
+    original_ids = {
+        original: canonical
+        for members in membership.values()
+        for original, canonical in members
+    }
+    direct_metadata = {
+        original_ids.get(key, key): value
+        for key, value in request.metadata_by_node_id.items()
+    }
+    if len(direct_metadata) != len(request.metadata_by_node_id):
+        raise ParseError("Direct metadata identifies the same isolate more than once.")
     metadata_by_node_id = _coerce_metadata_by_declared_schema(
-        request.metadata_by_node_id,
+        direct_metadata,
         declared_metadata_types,
     )
     ancillary_rows_by_node_id: dict[
@@ -202,6 +239,57 @@ def normalize_dataset(
         )
         warnings.extend(ancillary_warnings)
 
+    isolates_by_node_id: dict[str, list[IsolateRecord]] = {}
+    if membership:
+        if set(metadata_by_node_id) - set(parsed.nodes):
+            raise ParseError("Typing metadata references an unknown isolate.")
+        for node_id, members in membership.items():
+            isolates = []
+            for original_id, canonical_id in members:
+                if len(ancillary_rows_by_node_id.get(canonical_id, [])) > 1:
+                    raise ParseError(
+                        "Typing ancillary data must contain at most one row per isolate ID."
+                    )
+                isolate_metadata = {
+                    key: value
+                    for key, value in metadata_by_node_id.get(canonical_id, {}).items()
+                    if not is_internal_metadata_key(key)
+                }
+                isolates.append(
+                    IsolateRecord(id=original_id, metadata=isolate_metadata)
+                )
+            isolates_by_node_id[node_id] = isolates
+        grouped = collapse_profile_graph(parsed, membership)
+        nodes = [CanonicalNode(id=node_id) for node_id in grouped.nodes]
+        canonical_edges = [
+            CanonicalEdge(
+                id=f"e_profile_{index}",
+                source=edge.source,
+                target=edge.target,
+                distance=edge.distance,
+            )
+            for index, edge in enumerate(grouped.edges)
+        ]
+        ancillary_rows_by_node_id = {
+            node_id: [isolate.metadata for isolate in isolates]
+            for node_id, isolates in isolates_by_node_id.items()
+        }
+        metadata_by_node_id = {
+            node_id: _aggregate_ancillary_rows(rows)
+            for node_id, rows in ancillary_rows_by_node_id.items()
+        }
+        # Keep declared scalar summaries valid without losing original values
+        # in per-isolate records and categorical counts.
+        for node_id, rows in ancillary_rows_by_node_id.items():
+            for key, field_type in declared_metadata_types.items():
+                values = [row[key] for row in rows if row.get(key) is not None]
+                if not values:
+                    continue
+                if field_type == METADATA_TYPE_NUMBER:
+                    metadata_by_node_id[node_id][key] = sum(values) / len(values)
+                elif field_type == METADATA_TYPE_BOOLEAN and len(set(values)) > 1:
+                    metadata_by_node_id[node_id][key] = None
+
     metadata_schema = _merge_metadata_schema(
         request.metadata_schema,
         metadata_by_node_id,
@@ -213,6 +301,7 @@ def normalize_dataset(
 
     dataset = CanonicalDataset(
         dataset_id=request.dataset_name,
+        isolates_by_node_id=isolates_by_node_id,
         nodes=nodes,
         edges=canonical_edges,
         metadata_schema=metadata_schema,
@@ -221,6 +310,7 @@ def normalize_dataset(
         source=DatasetSource(
             format=request.format.value,
             generated_at=datetime.now(UTC).isoformat(),
+            provenance=typing_provenance,
         ),
     )
 

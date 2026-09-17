@@ -9,6 +9,7 @@ import {
   isString,
 } from "../validation/guards";
 import type {
+  GraphIsolate,
   GraphLayoutStatus,
   GraphMetadata,
   GraphMetadataField,
@@ -148,7 +149,13 @@ function isGraphViewportNode(value: unknown): value is GraphViewportNode {
     isGraphLayoutStatus(value.layout_status) &&
     isFiniteNumber(value.member_count) &&
     isBoolean(value.is_representative) &&
-    (value.metadata == null || isGraphMetadata(value.metadata))
+    (value.metadata == null || isGraphMetadata(value.metadata)) &&
+    (value.isolates === undefined ||
+      isArrayOf(
+        value.isolates,
+        (isolate): isolate is GraphIsolate =>
+          isRecord(isolate) && isString(isolate.id) && isGraphMetadata(isolate.metadata),
+      ))
   );
 }
 

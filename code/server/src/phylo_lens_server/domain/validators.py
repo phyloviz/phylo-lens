@@ -44,6 +44,15 @@ def validate_canonical_dataset(
         errors.append(DUPLICATE_NODE_IDS_ERROR)
 
     edge_ids = [edge.id for edge in dataset.edges]
+    isolate_ids = []
+    for node_id, isolates in dataset.isolates_by_node_id.items():
+        if node_id not in node_id_set or not isolates:
+            errors.append(
+                "Isolate membership must reference an existing node and be non-empty."
+            )
+        isolate_ids.extend(isolate.id for isolate in isolates)
+    if len(isolate_ids) != len(set(isolate_ids)):
+        errors.append("An isolate ID belongs to more than one profile node.")
     if len(set(edge_ids)) != len(edge_ids):
         errors.append(DUPLICATE_EDGE_IDS_ERROR)
 

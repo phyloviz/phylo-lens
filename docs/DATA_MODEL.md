@@ -27,6 +27,7 @@ accepted by the preparation pipeline.
 | `metadata_schema` | `list[MetadataField]` | Public scalar metadata fields |
 | `metadata_by_node_id` | `dict[str, dict]` | Aggregated metadata for each node |
 | `ancillary_rows_by_node_id` | `dict[str, list[dict]]` | Original ancillary rows joined to each node |
+| `isolates_by_node_id` | `dict[str, list[IsolateRecord]]` | Original typing IDs and per-isolate metadata for each biological profile; empty for Newick |
 | `source` | `DatasetSource` | Source format, generation timestamp, and optional provenance |
 
 ### `CanonicalNode`
@@ -269,3 +270,22 @@ applications should depend only on:
 - the versioned HTTP schemas documented in [API reference](./API_REFERENCE.md).
 
 Database tables and internal dataclasses are not public compatibility contracts.
+
+## Profile membership persistence
+
+The additive `profile_isolates` table stores `(dataset_id, layout_version, node_id,
+isolate_id, metadata_json)` in SQLite and PostgreSQL. An isolate ID is unique
+within one dataset version. Membership and original metadata participate in the
+layout fingerprint, so old ungrouped layouts are not reused as grouped layouts.
+Dataset/version cleanup removes membership records with the other layout data.
+
+SQLite initializes the additive table when opening a store. Existing PostgreSQL
+deployments must rerun the documented schema initialization before using the new
+service; `create table if not exists` preserves existing data. Legacy datasets
+have no isolate records until re-prepared from their typing input.
+
+Finest-detail viewport and region nodes expose `isolates`, each containing `id`
+and `metadata`. LoD representatives covering multiple profiles omit the individual
+records (an empty list) while carrying summed profile/category counts. Their
+`member_count` continues to count canonical graph nodes, not isolates.
+Original-ID search returns the containing profile's ID and global coordinates.

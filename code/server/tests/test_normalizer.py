@@ -525,7 +525,11 @@ def test_typing_data_maps_phylolib_graph_into_pipeline(monkeypatch) -> None:
         )
     )
 
-    assert calls == [TYPING_PROFILES]
+    assert calls == [
+        TYPING_PROFILES.replace("\nA", "\na")
+        .replace("\nB", "\nb")
+        .replace("\nC", "\nc")
+    ]
     assert result.dataset.source.format == "typing_data"
     assert len(result.dataset.nodes) == len(
         normalize_dataset(

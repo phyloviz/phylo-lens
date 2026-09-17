@@ -41,6 +41,7 @@ def graph_viewport_response_from_result(
                 member_count=node.member_count,
                 is_representative=node.is_representative,
                 metadata=node.metadata,
+                isolates=list(node.isolates),
             )
             for node in result.nodes
         ],
@@ -91,6 +92,7 @@ def graph_region_response_from_result(
                 member_count=node.member_count,
                 is_representative=node.is_representative,
                 metadata=node.metadata,
+                isolates=list(node.isolates),
             )
             for node in result.nodes
         ],

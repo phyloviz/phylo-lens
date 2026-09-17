@@ -8,6 +8,7 @@ from dataclasses import replace
 from phylo_lens_server.database.sqlite import connect
 from phylo_lens_server.domain.metadata_keys import is_internal_metadata_key
 from phylo_lens_server.pipeline.models import SearchMatch, SearchReadResult
+from phylo_lens_server.repository.layout.isolate_membership import search_isolates
 
 SEARCH_SCORE_ID_EXACT = 100
 SEARCH_SCORE_ID_PREFIX = 60
@@ -52,6 +53,14 @@ def search_nodes(
             best=best,
         )
 
+        search_isolates(
+            connection,
+            dataset_id=dataset_id,
+            layout_version=layout_version,
+            needle=needle,
+            best=best,
+            record_match=_record_match,
+        )
         ordered = sorted(best.values(), key=lambda match: (-match.score, match.node_id))
         total_count = len(ordered)
         limited = list(ordered[:limit]) if limit >= 0 else list(ordered)
