@@ -1,67 +1,12 @@
-import type { AncillaryObservation } from "../../contracts/ancillary";
+import { pieDistribution } from "./pieDistribution";
+export * from "./pieDistribution";
 import { decodeLegacyMetadata } from "../../ancillary/legacyMetadata";
-import {
-  PIE_DISTRIBUTION_ATTRIBUTE,
-  MISSING_PIE_CATEGORY,
-  type AncillaryData,
-  type AncillaryRow,
-  type PieCategory,
-  type PieMappingOptions,
-} from "./pieMapping.types";
-import { categoryCountsForField, pieCategoricalAttributeKey } from "./pieCategoryCounts";
+import { type AncillaryData, type AncillaryRow, type PieCategory, type PieMappingOptions } from "./pieMapping.types";
+import { categoryCountsForField } from "./pieCategoryCounts";
 
 export * from "./pieMapping.types";
 export * from "./pieCategoryCounts";
 export * from "./pieColors";
-
-/** Each observation contributes once, including missing values and numeric categories. */
-export function pieDistribution(
-  observations: readonly AncillaryObservation[],
-  fields: readonly string[],
-): PieCategory[] {
-  const selected = [...new Set(fields.map((field) => field.trim()).filter(Boolean))].sort();
-  if (!selected.length) return [];
-  const counts = new Map<string, PieCategory>();
-  for (const { values, count } of observations) {
-    const categories = selected.map((field) => {
-      const value = values[field];
-      return value == null || String(value).trim() === "" ? null : String(value).trim();
-    });
-    const category =
-      selected.length === 1
-        ? (categories[0] ?? MISSING_PIE_CATEGORY)
-        : JSON.stringify(selected.map((field, index) => [field, categories[index]]));
-    const label =
-      selected.length === 1
-        ? categories[0] === "Missing"
-          ? '"Missing"'
-          : (categories[0] ?? "Missing")
-        : selected
-            .map(
-              (field, index) =>
-                `${field}: ${categories[index] === null ? "Missing" : JSON.stringify(categories[index])}`,
-            )
-            .join(" · ");
-    const key = pieCategoricalAttributeKey(selected.length === 1 ? selected[0] : JSON.stringify(selected), category);
-    const existing = counts.get(key);
-    counts.set(key, {
-      key,
-      category,
-      label,
-      value: (existing?.value ?? 0) + count,
-      missing: categories.every((value) => value === null),
-    });
-  }
-  return [...counts.values()].sort((a, b) => b.value - a.value || a.key.localeCompare(b.key));
-}
-
-export function observationsFromAttributes(attributes?: Record<string, unknown>): AncillaryObservation[] {
-  return (attributes?.ancillaryDistribution as AncillaryObservation[] | undefined) ?? [];
-}
-
-export function distributionFromAttributes(attributes?: Record<string, unknown>): PieCategory[] {
-  return (attributes?.[PIE_DISTRIBUTION_ATTRIBUTE] as PieCategory[] | undefined) ?? [];
-}
 
 // Thin adapters for renderer consumers that build attributes directly.
 export function buildPieAttributes(

@@ -67,7 +67,7 @@ export default function (options: VisualMappingPaletteOptions) {
   }
 
   function readControlColors(): void {
-    categoryColorOverrides = { ...categoryColorOverrides, ...controls.readSelectedColors() };
+    categoryColorOverrides = { ...categoryColorOverrides, ...controls.readSelectedColors(true) };
   }
 
   function applyControlChange(): void {

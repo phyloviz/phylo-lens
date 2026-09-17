@@ -1,3 +1,5 @@
+import { distributionForFields, distributionFromAttributes } from "./pieDistribution";
+import { readNodeAncillaryValues } from "../../ancillary/ancillaryAccess";
 import { deriveColor, DEFAULT_COLOR_PALETTE } from "./colorMapping";
 import {
   PIE_ATTRIBUTE_PREFIX,
@@ -7,8 +9,6 @@ import {
   PIE_PALETTE_ATTRIBUTE,
   MAX_PIE_SLICE_KEYS,
   DEFAULT_PIE_PALETTE,
-  PIE_DISTRIBUTION_ATTRIBUTE,
-  type PieCategory,
 } from "./pieMapping.types";
 
 export function detectPieSliceKeys(
@@ -85,11 +85,15 @@ export function resolvePieSliceColors(
     : (resolvePiePaletteFromNodes(nodes) ?? DEFAULT_COLOR_PALETTE);
   const overrides = collectPieCategoryColors(nodes);
   const categories = new Map(
-    nodes.flatMap((node) =>
-      ((node.attributes?.[PIE_DISTRIBUTION_ATTRIBUTE] as PieCategory[] | undefined) ?? []).map(
-        (slice) => [slice.key, slice] as const,
-      ),
-    ),
+    nodes.flatMap((node) => {
+      const stored = distributionFromAttributes(node.attributes);
+      const slices = stored.length
+        ? stored
+        : Object.keys(readNodeAncillaryValues(node.attributes)).flatMap((field) =>
+            distributionForFields(node.attributes, [field]),
+          );
+      return slices.map((slice) => [slice.key, slice] as const);
+    }),
   );
   return Object.fromEntries(
     sliceKeys.map((key) => {

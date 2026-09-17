@@ -15,11 +15,13 @@ export function composeExpandedViewport(base: PositionedGraph, patches: readonly
     patches.flatMap((patch) =>
       patch.nodes
         .filter((node) => node.attributes?.is_cluster_proxy !== true)
-        .map((node) => node.attributes?.cluster_id),
+        .map((node) => node.attributes?.cluster_id)
+        .filter((id): id is string => typeof id === "string"),
     ),
   );
   for (const [id, node] of nodes) {
-    if (node.attributes?.is_cluster_proxy === true && detailedClusters.has(node.attributes?.cluster_id))
+    const clusterId = node.attributes?.cluster_id;
+    if (node.attributes?.is_cluster_proxy === true && typeof clusterId === "string" && detailedClusters.has(clusterId))
       nodes.delete(id);
   }
   const partial = nodes.size > maxNodes;

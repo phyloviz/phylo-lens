@@ -47,6 +47,7 @@ export default function (container: HTMLElement | undefined) {
       const input = document.createElement("input");
       input.type = "color";
       input.value = color;
+      input.dataset.initialColor = input.value;
       input.dataset.categoryColor = category.category;
       input.disabled = category.key === PIE_OTHER_SLICE_KEY;
       input.setAttribute("aria-label", `${category.label} color`);
@@ -66,7 +67,7 @@ export default function (container: HTMLElement | undefined) {
     });
   }
 
-  function readSelectedColors(): Record<string, string> | undefined {
+  function readSelectedColors(changedOnly = false): Record<string, string> | undefined {
     if (!container) {
       return undefined;
     }
@@ -75,7 +76,7 @@ export default function (container: HTMLElement | undefined) {
     categoryColorInputs(container).forEach((input) => {
       const category = input.dataset.categoryColor;
       const color = input.value.trim();
-      if (category && !input.disabled && isHexColor(color)) {
+      if (category && !input.disabled && isHexColor(color) && (!changedOnly || color !== input.dataset.initialColor)) {
         colorsByCategory[category] = color;
       }
     });

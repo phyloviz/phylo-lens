@@ -1,3 +1,4 @@
+import { deriveColor } from "../src/render/mapping/colorMapping";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -82,7 +83,7 @@ describe("ancillaryWheel metadata distributions", () => {
     ]);
   });
 
-  it("splits multi-valued metadata when building selected field stats", () => {
+  it("treats a literal category as one observation", () => {
     // Given
     const graph: PositionedGraph = {
       ...GRAPH,
@@ -102,11 +103,8 @@ describe("ancillaryWheel metadata distributions", () => {
     const stats = buildMetadataFieldWheelStats(graph, "country");
 
     // Then
-    expect(stats?.total).toBe(2);
-    expect(stats?.slices.map((slice) => [slice.label, slice.value])).toEqual([
-      ["Portugal", 1],
-      ["Spain", 1],
-    ]);
+    expect(stats?.total).toBe(1);
+    expect(stats?.slices.map((slice) => [slice.label, slice.value])).toEqual([["Portugal;Spain", 1]]);
   });
 
   it("uses category count metadata for selected field stats", () => {
@@ -216,14 +214,12 @@ describe("ancillaryWheel metadata distributions", () => {
     const peru = overridden?.slices.find((slice) => slice.label === "Peru");
     const iceland = overridden?.slices.find((slice) => slice.label === "Iceland");
     expect(peru?.color).toBe("#123456");
-    // Only the overridden value changes; the rest keep their ranked colours.
-    expect(iceland?.color).toBe(DEFAULT_COLOR_PALETTE[0]);
+    // Only the overridden value changes; the rest keep their category colours.
+    expect(iceland?.color).toBe(deriveColor("Iceland", DEFAULT_COLOR_PALETTE));
   });
 
   it("reflects a live palette swap from the shell controls", () => {
-    // Swapping the palette must recolour the wheel: the most frequent value
-    // takes the new palette[0], mirroring how the tree re-ranks on the same
-    // palette. Guards the wheel against ignoring palette edits.
+    // The wheel and tree derive the same category colors from the selected palette.
     const nodes = [{ country: "Iceland" }, { country: "Iceland" }, { country: "Portugal" }].map((metadata, index) => ({
       id: `n${index}`,
       x: index,
@@ -245,8 +241,8 @@ describe("ancillaryWheel metadata distributions", () => {
     });
     const iceland = stats?.slices.find((slice) => slice.label === "Iceland");
     const portugal = stats?.slices.find((slice) => slice.label === "Portugal");
-    expect(iceland?.color).toBe("#111111");
-    expect(portugal?.color).toBe("#222222");
+    expect(iceland?.color).toBe(deriveColor("Iceland", swapped));
+    expect(portugal?.color).toBe(deriveColor("Portugal", swapped));
   });
 
   it("colors a single selected node by the value's ranked color", () => {

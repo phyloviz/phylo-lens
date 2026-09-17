@@ -1,7 +1,7 @@
 import type { PositionedGraph } from "../contracts/positioned";
 import { readNodeAncillaryValues } from "../ancillary/ancillaryAccess";
 import {
-  pieDistribution,
+  distributionForFields,
   observationsFromAttributes,
   distributionFromAttributes,
   detectPieSliceKeys,
@@ -43,12 +43,8 @@ export function buildAncillaryWheelStats(
   options: AncillaryWheelStatsOptions = {},
 ): AncillaryWheelStats | null {
   const nodes = graph.nodes.map((node) => {
-    const observations = observationsFromAttributes(node.attributes);
     const distribution = options.fields
-      ? pieDistribution(
-          observations.length ? observations : [{ values: readNodeAncillaryValues(node.attributes), count: 1 }],
-          options.fields,
-        )
+      ? distributionForFields(node.attributes, options.fields)
       : distributionFromAttributes(node.attributes);
     return {
       ...node,
