@@ -751,6 +751,32 @@
             <button id="region-select-toggle" type="button" aria-pressed="false">Select region</button>
           </label>
 
+          <fieldset>
+            <legend>Arrange branches</legend>
+            <button type="button" id="branch-root" disabled>Use selected node as arrangement root</button>
+            <button type="button" id="single-drag">Drag single nodes</button>
+            <button type="button" id="reset-layout">Reset manual positions</button>
+            <p id="drag-status">Drag one node at a time.</p>
+            <details>
+              <summary>Branch selection and position persistence</summary>
+              <p>
+                Click a node and choose it as the arrangement root, then drag any node to move its loaded branch away
+                from that root. Dragging the root moves the whole loaded component. The root is a visual choice, not a
+                biological ancestor. Branch mode requires a loaded root and an acyclic component.
+              </p>
+              <p>
+                Expand the desired detail and keep expansion before arranging. Only loaded members move. Positions
+                persist by node ID during this session, including when nodes leave and re-enter a slice. Collapsed
+                groups and their children retain separate edits; hidden children do not inherit a group move. Loading a
+                dataset or resetting restores server positions. Viewport queries still follow the original server
+                coordinates.
+              </p>
+              <p>
+                Dragging changes geometry only. Edge distances and topology stay unchanged. Geometric edge length does
+                not encode allelic distance; use distance labels. Distance-weighted edges change thickness, not length.
+              </p>
+            </details>
+          </fieldset>
           <label
             >Distance label visibility
             <select id="edge-label-policy">

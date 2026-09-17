@@ -1,3 +1,4 @@
+import type { DragSelection } from "../../renderer.types";
 import { exportSigmaPublication } from "./sigmaPublicationExport";
 import Graph from "graphology";
 import Sigma from "sigma";
@@ -66,6 +67,23 @@ export class SigmaRenderer implements GraphRenderer {
     this.cancelFit = null;
   };
   private graph: Graph | null = null;
+  private dragSelection: DragSelection = { kind: "node" };
+  private readonly manualPositions = new Map<string, { x: number; y: number }>();
+  private sourceSnapshot: PositionedGraph | null = null;
+
+  setDragSelection(selection: DragSelection): void {
+    this.dragController.reset();
+    this.dragSelection =
+      selection.kind === "group" ? { ...selection, nodeIds: [...selection.nodeIds] } : { ...selection };
+  }
+
+  resetLayoutEdits(): void {
+    this.dragController.reset();
+    this.manualPositions.clear();
+    this.dragSelection = { kind: "node" };
+    if (this.sourceSnapshot && this.sigma) this.applyGraphSnapshot(this.sourceSnapshot);
+  }
+
   private sigma: Sigma | null = null;
   private containerElement: HTMLElement | null = null;
   private pieSliceKeys: string[] = [];
@@ -112,6 +130,13 @@ export class SigmaRenderer implements GraphRenderer {
     });
     this.dragController = sigmaDragController({
       getGraph: () => this.graph,
+      getSelection: () => this.dragSelection,
+      isRegionSelectionEnabled: () => this.regionSelectModeEnabled,
+      onStart: () => {
+        this.cancelCameraFit();
+        this.forceMotion.stop();
+      },
+      onMoved: (positions) => positions.forEach((point, id) => this.manualPositions.set(id, point)),
       getSigma: () => this.sigma,
       suppressViewChangesFor: (durationMs) => this.suppressViewChangesFor(durationMs),
       suppressNodeClicksFor: (durationMs) => this.suppressNodeClicksFor(durationMs),
@@ -140,6 +165,9 @@ export class SigmaRenderer implements GraphRenderer {
       throw new Error(ERR_SIGMA_NOT_READY);
     }
 
+    this.dragController.reset();
+    this.sourceSnapshot = graph;
+    this.manualPositions.clear();
     this.forceMotion.stop();
     this.lastRenderedGraph = graph;
     this.graph.clear();
@@ -254,6 +282,9 @@ export class SigmaRenderer implements GraphRenderer {
     this.graphBounds = null;
     this.coordinateBounds = null;
     this.lastRenderedGraph = null;
+    this.sourceSnapshot = null;
+    this.manualPositions.clear();
+    this.dragSelection = { kind: "node" };
     this.selectedNodeId = null;
     this.highlightedNodeIds = null;
     this.dragController.reset();
@@ -283,6 +314,12 @@ export class SigmaRenderer implements GraphRenderer {
       throw new Error(ERR_SIGMA_NOT_READY);
     }
 
+    this.dragController.reset();
+    if (!options?.preservePositions) this.sourceSnapshot = graph;
+    graph = {
+      ...graph,
+      nodes: graph.nodes.map((node) => ({ ...node, ...this.manualPositions.get(node.id) })),
+    };
     if (options?.preservePositions) {
       graph = {
         ...graph,

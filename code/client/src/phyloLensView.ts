@@ -1,4 +1,4 @@
-import type { PngExportOptions } from "./render/renderer.types";
+import type { DragSelection, PngExportOptions } from "./render/renderer.types";
 import type { ExpansionState, ExpansionResult } from "./contracts/expansion";
 import type { AncillaryTableInput } from "./contracts/ancillary";
 import type { AncillaryInputOptions } from "./ancillary/ancillaryInput";
@@ -59,6 +59,8 @@ export interface PhyloLensView {
   /** Replace the visual mapping of a loaded tree and schedule a viewport refresh. */
   updateVisualMapping: (mapping: VisualMappingOptions) => void;
   applyAncillaryData: (data: AncillaryTableInput) => Promise<PhyloLensAncillaryResult>;
+  setDragSelection: (selection: DragSelection) => void;
+  resetLayoutEdits: () => void;
   exportPng: (options?: PngExportOptions) => Promise<Blob>;
   dispose: () => void;
 }
@@ -81,6 +83,8 @@ export function createPhyloLensView(options: PhyloLensViewOptions): PhyloLensVie
   };
 
   return {
+    setDragSelection: (selection) => activeWorkbench().setDragSelection(selection),
+    resetLayoutEdits: () => activeWorkbench().resetLayoutEdits(),
     searchNodes: (query) => activeWorkbench().searchNodes(query),
     focusNode: (id, coordinates) => activeWorkbench().focusNode(id, coordinates),
     cancelPendingFocus: () => activeWorkbench().cancelPendingFocus(),
