@@ -92,6 +92,10 @@ export interface UiShellElements {
   paletteLoadInput?: HTMLInputElement;
   paletteSaveButton?: HTMLButtonElement;
   displayOptionsSelect?: HTMLSelectElement;
+  branchRootButton?: HTMLButtonElement;
+  singleDragButton?: HTMLButtonElement;
+  resetLayoutButton?: HTMLButtonElement;
+  dragStatus?: HTMLElement;
   edgeLabelPolicySelect?: HTMLSelectElement;
   exportScaleInput?: HTMLInputElement;
   exportLabelSizeInput?: HTMLInputElement;
@@ -147,6 +151,10 @@ export default function (options: UiShellOptions): UiShell {
     paletteLoadInput,
     paletteSaveButton,
     displayOptionsSelect,
+    branchRootButton,
+    singleDragButton,
+    resetLayoutButton,
+    dragStatus,
     edgeLabelPolicySelect,
     exportScaleInput,
     exportLabelSizeInput,
@@ -226,6 +234,8 @@ export default function (options: UiShellOptions): UiShell {
     throw new Error(ERR_STATUS_ELEMENT_REQUIRED);
   }
 
+  let selectedDragRoot: string | null = null;
+
   return {
     mount: mount,
     renderCurrentInput: renderCurrentInput,
@@ -241,6 +251,8 @@ export default function (options: UiShellOptions): UiShell {
     });
     workbench.setNodeClickedHandler((state) => {
       expansion.select(state);
+      selectedDragRoot = state.nodeId;
+      if (branchRootButton) branchRootButton.disabled = state.nodeId === null;
       const { nodeId } = state;
       if (nodeId === null) {
         wheels.resetSelectedNode();
@@ -288,6 +300,19 @@ export default function (options: UiShellOptions): UiShell {
     });
     bindings.on(paletteSaveButton, "click", () => {
       palette.save();
+    });
+    bindings.on(branchRootButton, "click", () => {
+      if (!selectedDragRoot) return;
+      workbench.setDragSelection({ kind: "branch", rootId: selectedDragRoot });
+      if (dragStatus) dragStatus.textContent = `Drag branches away from arrangement root: ${selectedDragRoot}.`;
+    });
+    bindings.on(singleDragButton, "click", () => {
+      workbench.setDragSelection({ kind: "node" });
+      if (dragStatus) dragStatus.textContent = "Drag one node at a time.";
+    });
+    bindings.on(resetLayoutButton, "click", () => {
+      workbench.resetLayoutEdits();
+      resetDragControls();
     });
     bindings.on(edgeLabelPolicySelect, "change", handleDisplayOptionsChange);
     bindings.on(exportButton, "click", () => void exportCurrentView());
@@ -370,6 +395,7 @@ export default function (options: UiShellOptions): UiShell {
     }
 
     search.reset();
+    resetDragControls();
     loadingGraph = true;
     expansion.setReady(false);
     updateApplyAncillaryButton();
@@ -498,6 +524,12 @@ export default function (options: UiShellOptions): UiShell {
 
   function getSelectedMaxNodes(): number {
     return parseMaxNodes(maxNodesInput?.value);
+  }
+
+  function resetDragControls(): void {
+    selectedDragRoot = null;
+    if (branchRootButton) branchRootButton.disabled = true;
+    if (dragStatus) dragStatus.textContent = "Drag one node at a time.";
   }
 
   function buildCurrentDisplayOptions() {

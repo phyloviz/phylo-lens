@@ -69,7 +69,22 @@ export interface PngExportOptions {
   includeLegend?: boolean;
 }
 
+/** Arrangement only: a branch follows the loaded tree away from an explicit root.
+ * The root is not biological. Dragging it moves its entire loaded component.
+ * Missing roots and cyclic components cannot be dragged in branch mode.
+ * Groups move only when a selected member is grabbed. Unloaded IDs are ignored.
+ */
+export type DragSelection =
+  { kind: "node" } | { kind: "branch"; rootId: string } | { kind: "group"; nodeIds: readonly string[] };
+
 export interface GraphRenderer {
+  setDragSelection?: (selection: DragSelection) => void;
+  /** Restore server positions and single-node dragging. Edits are session-local, keyed by
+   * rendered node ID: retained on reload/filter/expansion, cleared on a new dataset.
+   * Proxies and their children have separate positions; hidden children do not inherit moves.
+   * Viewport queries still use server coordinates. Expand/fix detail before arranging a branch.
+   */
+  resetLayoutEdits?: () => void;
   mount: (context: RenderContext) => void;
   unmount: () => void;
   render: (graph: PositionedGraph) => void;
