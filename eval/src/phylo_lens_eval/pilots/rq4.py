@@ -246,7 +246,7 @@ def _repetition(
                 "browser": exp["browser"],
                 "content": content,
                 "name": exp["synthetic_dataset"]["id"],
-                "maxNodes": 100,
+                "maxNodes": 2000,
                 "operation": scenario["operation"],
                 "input": scenario.get("input", {}),
                 "target_cluster_id": scenario.get("target_cluster_id"),

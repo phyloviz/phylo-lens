@@ -238,6 +238,6 @@ def test_python_orchestrated_public_bootstrap_smoke(tmp_path) -> None:
         "cluster_expand",
         "cluster_collapse",
     }
-    assert all(row["status"] == "success" for row in rows)
+    assert all(row["status"] == "success" for row in rows), rows
     assert all(row["server_state_policy"] == POLICY for row in rows)
     assert all(Path(row["artifacts"]["screenshot"]).is_file() for row in rows)

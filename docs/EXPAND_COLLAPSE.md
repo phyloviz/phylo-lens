@@ -113,3 +113,8 @@ The RQ4 evaluation host now uses explicit command buttons for expand/collapse.
 New final observations carry `interaction_protocol: explicit-expansion-v1`;
 historical node-gesture observations retain their original validation semantics.
 Do not compare gesture timings across protocols without identifying this change.
+
+The RQ4 pilot uses a 2,000-node rendering budget so its initial coarse snapshot
+has room for a complete group expansion. The previous 100-node budget filled
+the initial slice and now correctly produces a partial result without expansion.
+Pilot timings with these different budgets must not be compared directly.
