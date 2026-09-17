@@ -16,10 +16,12 @@ export default function (container: HTMLElement | undefined) {
     graph,
     selectedFields,
     categoryColorOverrides,
+    palette,
   }: {
     graph: PositionedGraph | null;
     selectedFields: string[];
     categoryColorOverrides: Record<string, string>;
+    palette?: string[];
   }): void {
     if (!container) {
       return;
@@ -32,7 +34,8 @@ export default function (container: HTMLElement | undefined) {
       return;
     }
     const categories =
-      buildAncillaryWheelStats(graph, { fields: selectedFields, categoryColors: categoryColorOverrides })?.slices ?? [];
+      buildAncillaryWheelStats(graph, { fields: selectedFields, palette, categoryColors: categoryColorOverrides })
+        ?.slices ?? [];
     if (categories.length === 0) {
       appendEmptyMessage(container, "No categories");
       return;

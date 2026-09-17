@@ -1,6 +1,6 @@
 import type { GraphWorkbench } from "../../workbench/graphWorkbench";
 import type { PositionedGraph } from "../../../contracts/positioned";
-import type { VisualMappingOptions } from "../../../render/mapping/visualMapping";
+import { resolveMappingPalette, type VisualMappingOptions } from "../../../render/mapping/visualMapping";
 import { buildVisualMappingForControls } from "../controls/visualMappingControls";
 import { downloadTextFile, readTextFile } from "../inputs/fileInputs";
 import { parseCategoryColorPalette, serializeCategoryColorPalette } from "./categoryPalette";
@@ -49,6 +49,7 @@ export default function (options: VisualMappingPaletteOptions) {
 
   function setBaseVisualMapping(visualMapping: VisualMappingOptions): void {
     baseVisualMapping = visualMapping;
+    categoryColorOverrides = { ...visualMapping.pie?.categoryColors };
     currentVisualMapping = buildCurrentVisualMapping();
   }
 
@@ -63,6 +64,7 @@ export default function (options: VisualMappingPaletteOptions) {
       graph: options.getGraph(),
       selectedFields: options.getSelectedFields(),
       categoryColorOverrides,
+      palette: resolveMappingPalette(currentVisualMapping),
     });
   }
 
