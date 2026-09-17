@@ -44,6 +44,9 @@ export default function (select: HTMLSelectElement | undefined) {
     }
 
     const summaries = collectAncillaryFieldSummaries(graph);
+    for (const key of previousValues) {
+      if (key && !summaries.some((summary) => summary.key === key)) summaries.push({ key, uniqueValueCount: 0 });
+    }
     const keys = summaries.map((summary) => summary.key);
     summaries.forEach((summary) => {
       const option = document.createElement("option");

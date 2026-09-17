@@ -1,6 +1,6 @@
 import { buildAncillaryWheelStats, renderAncillaryWheel } from "../../../components/ancillaryWheel";
 import type { PositionedGraph } from "../../../contracts/positioned";
-import type { VisualMappingOptions } from "../../../render/mapping/visualMapping";
+import { resolveMappingPalette, type VisualMappingOptions } from "../../../render/mapping/visualMapping";
 import { renderNodeDetails } from "./nodeDetails";
 import { ANCILLARY_MODE_SELECTED, getAncillaryMode } from "./nodeSelector";
 
@@ -85,7 +85,7 @@ export default function (options: AncillaryWheelsOptions) {
     }
 
     const selectedFields = options.getSelectedFields();
-    const palette = options.getVisualMapping().palette;
+    const palette = resolveMappingPalette(options.getVisualMapping());
     const categoryColors = options.getCategoryColorOverrides();
 
     if (selectedFields.length)

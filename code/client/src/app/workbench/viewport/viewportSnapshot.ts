@@ -1,19 +1,13 @@
 import type { AncillaryObservation } from "../../../contracts/ancillary";
 import { type AncillaryInputOptions } from "../../../ancillary/ancillaryInput";
 import { decodeLegacyMetadata } from "../../../ancillary/legacyMetadata";
-import type {
-  GraphAncillaryValue,
-  GraphViewportEdge,
-  GraphViewportNode,
-  GraphViewportResponse,
-} from "../../../api/graphContracts";
+import type { GraphViewportEdge, GraphViewportNode, GraphViewportResponse } from "../../../api/graphContracts";
 import type { PositionedEdge, PositionedGraph, PositionedNode } from "../../../contracts/positioned";
 import { hasActiveFilters, matchesFilterState } from "../../../ancillary/filterEngine";
 import type { AncillaryFilterState } from "../../../ancillary/ancillaryTypes";
 import type { GraphDisplayOptions } from "../../../render/renderer.types";
 import {
-  deriveColor,
-  DEFAULT_COLOR_PALETTE,
+  resolveMappingPalette,
   DEFAULT_PROFILE_COUNT_FIELD,
   deriveSize,
   numericMetadataValue,
@@ -25,6 +19,8 @@ import {
 } from "../../../render/mapping/visualMapping";
 import {
   pieDistribution,
+  resolvePieCategoryColor,
+  type PieCategory,
   PIE_DISTRIBUTION_ATTRIBUTE,
   PIE_CATEGORY_COLORS_ATTRIBUTE,
   PIE_PALETTE_ATTRIBUTE,
@@ -34,7 +30,6 @@ export const DEFAULT_GRAPH_VIEWER_NODE_SIZE = 3;
 export const GRAPH_VIEWER_REPRESENTATIVE_BASE_SIZE = 3.5;
 export const GRAPH_VIEWER_REPRESENTATIVE_LOG_SIZE_FACTOR = 0.55;
 export const GRAPH_VIEWER_REPRESENTATIVE_MAX_SIZE = 6;
-export const GRAPH_VIEWER_REPRESENTATIVE_COLOR = "#b45309";
 export const GRAPH_VIEWER_NODE_COLOR = "#64748b";
 export const GRAPH_VIEWER_EDGE_COLOR = "#94a3b8";
 export const GRAPH_VIEWER_BASE_EDGE_SIZE = 1;
@@ -50,8 +45,8 @@ interface ResolvedViewportVisuals {
   colorField: string | undefined;
   sizeField: string;
   scale: SizeScale;
-  palette: readonly string[];
-  colorForValue: (value: GraphAncillaryValue | undefined) => string;
+  palette: string[];
+  categoryColors?: Record<string, string>;
   numericStats?: { min: number; max: number };
   customSize: boolean;
   pie?: NonNullable<VisualMappingOptions["pie"]>;
@@ -153,10 +148,14 @@ function buildGraphViewportNodeAttributes(
 ): Record<string, unknown> {
   const isRepresentative = node.member_count > 1;
   const metadata = node.metadata ?? undefined;
-  const mappedValue = visuals?.colorField ? metadata?.[visuals.colorField] : undefined;
-  const hasMappedValue = mappedValue !== undefined && mappedValue !== null && mappedValue !== "";
-  const roleColor = isRepresentative ? GRAPH_VIEWER_REPRESENTATIVE_COLOR : GRAPH_VIEWER_NODE_COLOR;
-  const color = visuals && hasMappedValue ? visuals.colorForValue(mappedValue) : roleColor;
+  const observations = nodeObservations(node);
+  const fields = visuals?.pie?.fields?.length ? visuals.pie.fields : visuals?.colorField ? [visuals.colorField] : [];
+  const distribution = pieDistribution(observations, fields);
+  // A mixed group has no single category color; keep its solid summary neutral.
+  const color =
+    visuals && distribution.length === 1
+      ? resolvePieCategoryColor(distribution[0], visuals.palette, visuals.categoryColors?.[distribution[0].category])
+      : GRAPH_VIEWER_NODE_COLOR;
   const size =
     !isRepresentative &&
     node.isolates?.length &&
@@ -180,8 +179,8 @@ function buildGraphViewportNodeAttributes(
     layout_status: node.layout_status,
     annotations: decodeLegacyMetadata(metadata),
     isolates: (node.isolates ?? []).map(({ id, metadata }) => ({ id, ancillaryData: metadata })),
-    ancillaryDistribution: nodeObservations(node),
-    ...pieNodeAttributes(visuals, nodeObservations(node)),
+    ancillaryDistribution: observations,
+    ...pieNodeAttributes(visuals, distribution),
   };
 }
 
@@ -230,10 +229,8 @@ function resolveViewportVisuals(
   const colorField = resolveColorField(mapping.colorField);
   const sizeField = mapping.size?.field ?? mapping.sizeField ?? resolveDefaultSizeField(viewportHasProfileCount(nodes));
   const scale = mapping.size?.scale ?? SIZE_SCALE_LINEAR;
-  const palette = mapping.palette ?? DEFAULT_COLOR_PALETTE;
+  const palette = resolveMappingPalette(mapping);
   const numericStats = computeSizeFieldStats(nodes, sizeField);
-  const colorForValue = (value: GraphAncillaryValue | undefined) =>
-    mapping.pie?.categoryColors?.[String(value)] ?? deriveColor(value, palette);
   const pie = mapping.pie && mapping.pie.enabled !== false ? mapping.pie : undefined;
 
   return {
@@ -242,7 +239,7 @@ function resolveViewportVisuals(
     sizeField,
     scale,
     palette,
-    colorForValue,
+    categoryColors: mapping.pie?.categoryColors,
     numericStats,
     pie,
   };
@@ -291,11 +288,10 @@ function nodeObservations(node: GraphViewportNode): AncillaryObservation[] {
 
 function pieNodeAttributes(
   visuals: ResolvedViewportVisuals | null,
-  observations: AncillaryObservation[],
+  distribution: PieCategory[],
 ): Record<string, unknown> {
   const pie = visuals?.pie;
-  if (!pie) return {};
-  const distribution = pieDistribution(observations, pie.fields ?? []);
+  if (!visuals || !pie?.fields?.length) return {};
   const colors = Object.fromEntries(
     distribution.flatMap((slice) => {
       const color = pie.categoryColors?.[slice.category];
@@ -306,7 +302,7 @@ function pieNodeAttributes(
     ...Object.fromEntries(distribution.map((slice) => [slice.key, slice.value])),
     [PIE_DISTRIBUTION_ATTRIBUTE]: distribution,
     [PIE_CATEGORY_COLORS_ATTRIBUTE]: colors,
-    [PIE_PALETTE_ATTRIBUTE]: pie.palette?.length ? pie.palette : visuals.palette,
+    [PIE_PALETTE_ATTRIBUTE]: visuals.palette,
   };
 }
 

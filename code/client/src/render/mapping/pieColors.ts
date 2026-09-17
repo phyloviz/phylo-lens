@@ -9,6 +9,7 @@ import {
   PIE_PALETTE_ATTRIBUTE,
   MAX_PIE_SLICE_KEYS,
   DEFAULT_PIE_PALETTE,
+  type PieCategory,
 } from "./pieMapping.types";
 
 export function detectPieSliceKeys(
@@ -99,11 +100,28 @@ export function resolvePieSliceColors(
     sliceKeys.map((key) => {
       if (key === PIE_OTHER_SLICE_KEY) return [key, PIE_OTHER_SLICE_COLOR];
       const slice = categories.get(key);
-      const requested = requestedCategoryColors?.[slice?.category ?? key] ?? overrides[key];
-      const override = requested && /^#[0-9a-fA-F]{6}$/.test(requested) ? requested : undefined;
-      return [key, override ?? (slice?.missing ? "#94a3b8" : deriveColor(slice?.category ?? key, palette))];
+      return [
+        key,
+        resolvePieCategoryColor(
+          slice ?? { category: key },
+          palette,
+          requestedCategoryColors?.[slice?.category ?? key] ?? overrides[key],
+        ),
+      ];
     }),
   );
+}
+
+export function resolvePieCategoryColor(
+  slice: Pick<PieCategory, "category" | "missing">,
+  palette: string[],
+  override?: string,
+): string {
+  return override && /^#[0-9a-fA-F]{6}$/.test(override)
+    ? override
+    : slice.missing
+      ? "#94a3b8"
+      : deriveColor(slice.category, palette);
 }
 
 export function collectPieCategoryColors(

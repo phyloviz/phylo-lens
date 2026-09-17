@@ -1,3 +1,4 @@
+import { DEFAULT_COLOR_PALETTE } from "./colorMapping";
 import type { PieMappingOptions } from "./pieMapping";
 
 export { UNION_NODE_COLOR, UNION_NODE_SIZE } from "./unionNodes";
@@ -33,6 +34,15 @@ export interface VisualMappingOptions {
   size?: SizeMappingOptions;
   palette?: string[];
   pie?: PieMappingOptions;
+}
+
+/** Pies, solid fills and legends use one palette, including pie-specific overrides. */
+export function resolveMappingPalette(mapping: VisualMappingOptions): string[] {
+  return mapping.pie?.palette?.length
+    ? mapping.pie.palette
+    : mapping.palette?.length
+      ? mapping.palette
+      : DEFAULT_COLOR_PALETTE;
 }
 
 // Metadata coloring is opt-in; schema order must not choose the scientific meaning of color.
