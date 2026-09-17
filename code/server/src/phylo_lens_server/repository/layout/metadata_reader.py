@@ -12,6 +12,7 @@ from phylo_lens_server.pipeline.models import (
     MetadataSchemaField,
     ViewportNode,
 )
+from phylo_lens_server.repository.layout.isolate_membership import load_isolates
 
 MetadataValue = str | float | bool | None
 MetadataMap = dict[str, MetadataValue]
@@ -170,6 +171,12 @@ def attach_node_metadata(
         layout_version=layout_version,
         cluster_ids=cluster_ids,
     )
+    isolates = load_isolates(
+        connection,
+        dataset_id=dataset_id,
+        layout_version=layout_version,
+        node_ids={node.node_id for node in nodes if node.member_count == 1},
+    )
     enriched: list[ViewportNode] = []
     for node in nodes:
         metadata = (
@@ -177,7 +184,9 @@ def attach_node_metadata(
             if node.is_representative
             else node_metadata.get(node.node_id)
         )
-        enriched.append(replace(node, metadata=metadata) if metadata else node)
+        enriched.append(
+            replace(node, metadata=metadata, isolates=isolates.get(node.node_id, ()))
+        )
     return tuple(enriched)
 
 

@@ -1,0 +1,55 @@
+{
+  "policy": "exclude_loci_with_zero",
+  "retained_loci": [
+    "L1",
+    "L2"
+  ],
+  "excluded_loci": [
+    "L3",
+    "L4"
+  ],
+  "ids": [
+    "iso-A",
+    "iso-B",
+    "iso-C",
+    "iso-D"
+  ],
+  "distance_matrix": [
+    [
+      0,
+      0,
+      1,
+      2
+    ],
+    [
+      0,
+      0,
+      1,
+      2
+    ],
+    [
+      1,
+      1,
+      0,
+      1
+    ],
+    [
+      2,
+      2,
+      1,
+      0
+    ]
+  ],
+  "profile_groups": [
+    [
+      "iso-A",
+      "iso-B"
+    ],
+    [
+      "iso-C"
+    ],
+    [
+      "iso-D"
+    ]
+  ]
+}

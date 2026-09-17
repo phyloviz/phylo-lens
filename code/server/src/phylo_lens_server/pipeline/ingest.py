@@ -150,6 +150,10 @@ def layout_version_for_dataset(
         ],
         "metadata_by_node_id": dataset.metadata_by_node_id,
         "ancillary_rows_by_node_id": dataset.ancillary_rows_by_node_id,
+        "isolates_by_node_id": {
+            node_id: [isolate.model_dump() for isolate in isolates]
+            for node_id, isolates in sorted(dataset.isolates_by_node_id.items())
+        },
         "source": {
             "format": dataset.source.format.value,
             "provenance": dataset.source.provenance,

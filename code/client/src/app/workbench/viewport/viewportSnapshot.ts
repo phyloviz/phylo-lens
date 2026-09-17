@@ -53,6 +53,7 @@ interface ResolvedViewportVisuals {
   palette: readonly string[];
   colorForValue: (value: GraphMetadataValue | undefined) => string;
   numericStats?: { min: number; max: number };
+  customSize: boolean;
   pie?: NonNullable<VisualMappingOptions["pie"]>;
 }
 
@@ -177,9 +178,13 @@ function buildGraphViewportNodeAttributes(
   const roleColor = isRepresentative ? GRAPH_VIEWER_REPRESENTATIVE_COLOR : deriveViewportNodeColor(node);
   const color = visuals && hasMappedValue ? visuals.colorForValue(mappedValue) : roleColor;
   const size =
-    visuals && visuals.numericStats
-      ? deriveSize(metadata?.[visuals.sizeField], visuals.numericStats, visuals.scale)
-      : nodeSizeForMemberCount(node.member_count);
+    !isRepresentative &&
+    node.isolates?.length &&
+    (!visuals?.customSize || (visuals.sizeField === DEFAULT_PROFILE_COUNT_FIELD && visuals.scale === SIZE_SCALE_LINEAR))
+      ? DEFAULT_GRAPH_VIEWER_NODE_SIZE * Math.sqrt(node.isolates.length)
+      : visuals && visuals.numericStats
+        ? deriveSize(metadata?.[visuals.sizeField], visuals.numericStats, visuals.scale)
+        : nodeSizeForMemberCount(node.member_count);
   const showNodeLabel = displayOptions?.nodeLabels !== false;
   return {
     x: node.x,
@@ -194,7 +199,8 @@ function buildGraphViewportNodeAttributes(
     borderColor: undefined,
     layout_status: node.layout_status,
     ...(metadata ? { metadata } : {}),
-    ...pieNodeAttributes(metadata, visuals),
+    ...(node.isolates ? { isolates: node.isolates } : {}),
+    ...pieNodeAttributes(metadata, visuals, node.isolates?.map((isolate) => isolate.metadata) ?? []),
   };
 }
 
@@ -253,6 +259,7 @@ function resolveViewportVisuals(
 
   return {
     colorField,
+    customSize: mapping.size !== undefined || mapping.sizeField !== undefined,
     sizeField,
     scale,
     palette,
@@ -324,6 +331,7 @@ function deriveViewportNodeColor(node: GraphViewportNode): string {
 function pieNodeAttributes(
   metadata: Record<string, GraphMetadataValue> | undefined,
   visuals: ResolvedViewportVisuals | null,
+  rows: Record<string, GraphMetadataValue>[] = [],
 ): Record<string, unknown> {
   const pie = visuals?.pie;
   if (!pie || !metadata) {
@@ -331,8 +339,8 @@ function pieNodeAttributes(
   }
 
   const excludedFields = [visuals.sizeField];
-  const pieAttributes = buildPieAttributes(metadata, pie, excludedFields, []);
-  const pieCategoryColors = buildPieCategoryColorAttributes(metadata, pie, excludedFields, []);
+  const pieAttributes = buildPieAttributes(metadata, pie, excludedFields, rows);
+  const pieCategoryColors = buildPieCategoryColorAttributes(metadata, pie, excludedFields, rows);
 
   return {
     ...pieAttributes,

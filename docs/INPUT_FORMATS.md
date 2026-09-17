@@ -117,7 +117,8 @@ phylogeny without an analysis that supports that interpretation.
 
 ### Table contract
 
-The content is passed to PhyloLib as an `ml:` dataset. It is expected to contain:
+The content is validated and filtered before being passed to PhyloLib as an
+`ml:` dataset. It must contain:
 
 - a header row;
 - one identifier column followed by locus columns;
@@ -136,6 +137,52 @@ ST3	8	9	10
 The first-column identifiers become graph node labels after goeBURST/Newick
 conversion. Locus names are used by PhyloLib when interpreting the profile
 matrix; they are not automatically exposed as node metadata.
+
+### Missing loci and validation
+
+For typing-data preparation, allele `0` denotes a missing locus. A locus is
+excluded from **every profile** if any profile has `0` at that locus. Hamming
+therefore uses one shared set of complete loci for all pairs, rather than
+ignoring different loci for different pairs. This is a change from passing the
+unfiltered table directly to PhyloLib.
+
+Warnings report the count and names of excluded loci and the retained count.
+Canonical source provenance records the policy and both locus lists; provenance
+participates in the layout fingerprint. Newick branch lengths are unaffected.
+
+Headers and profile identifiers must be non-empty and unique, all rows must
+have the header's column count, and blank cells are rejected (use `0` for a
+missing allele). A matrix with no comparable loci is rejected before PhyloLib.
+Alleles otherwise remain categorical strings; identifiers and duplicate profile
+rows are retained at the algorithm boundary. Equivalent profiles are grouped
+as described below.
+
+The synthetic [typing fixture](../examples/typing/README.md) provides a
+hand-checkable reference matrix. Compatibility with a specific PHYLOViZ Online
+run still requires validation against that run's input and settings.
+
+### Equivalent profiles and isolate identity
+
+After complete-locus filtering, identical allele vectors represent one profile.
+All input rows still reach PhyloLib, preserving their multiplicity during tree
+construction. Identifiers are normalized to safe Newick labels before conversion;
+original IDs are retained separately. Empty, structural (`union_...`) or colliding
+normalized identifiers are rejected rather than silently merged.
+
+The result is contracted using known profile membership, with the smallest
+canonical member ID naming each profile. Only edges internal to that known group
+are removed, and those edges must have distance zero. Zero-length Newick input
+branches are never contracted by this rule. A single unique profile needs no
+PhyloLib invocation and yields one node with no edges.
+
+Every typing row contributes one isolate, even without ancillary data. Each
+original ID and its metadata are retained in `isolates_by_node_id`; `profile_count`
+is the isolate count, not the number of matching ancillary rows. Typing ancillary
+input permits at most one row per original isolate ID. Direct metadata can use
+original IDs or canonical isolate IDs and overrides fields only for that isolate.
+Grouped category counts combine those per-isolate records. Declared numeric
+summaries use their mean and mixed declared booleans use null; original values
+remain available in the isolate records.
 
 ### Full MST output
 

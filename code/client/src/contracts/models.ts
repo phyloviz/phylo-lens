@@ -41,6 +41,10 @@ export interface DatasetSource {
 }
 
 export interface CanonicalDataset {
+  isolates_by_node_id?: Record<
+    string,
+    Array<{ id: string; metadata: Record<string, string | number | boolean | null> }>
+  >;
   dataset_id: string;
   nodes: CanonicalNode[];
   edges: CanonicalEdge[];

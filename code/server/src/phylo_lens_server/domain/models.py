@@ -58,10 +58,18 @@ class DatasetSource(BaseModel):
     provenance: str | None = None
 
 
+class IsolateRecord(BaseModel):
+    """Original typing identifier and its per-isolate metadata."""
+
+    id: str = Field(min_length=1)
+    metadata: dict[str, str | float | bool | None] = Field(default_factory=dict)
+
+
 class CanonicalDataset(BaseModel):
     """Canonical graph-plus-metadata contract emitted by normalization workflows."""
 
     dataset_id: str = Field(min_length=1)
+    isolates_by_node_id: dict[str, list[IsolateRecord]] = Field(default_factory=dict)
     nodes: list[CanonicalNode]
     edges: list[CanonicalEdge]
     metadata_schema: list[MetadataField] = Field(default_factory=list)

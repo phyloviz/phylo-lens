@@ -371,9 +371,10 @@ returned node count exceed the primary `max_nodes` read.
 | `cluster_id` | `string` | Prepared cluster containing the node at the selected tier |
 | `x`, `y` | `number` | Global prepared-layout coordinates |
 | `layout_status` | `LayoutStatus` | Status of the stored position |
-| `member_count` | integer ≥ 1 | Number of underlying nodes represented |
+| `member_count` | integer ≥ 1 | Number of canonical graph nodes represented; not the number of isolates sharing a profile |
 | `is_representative` | `boolean` | Whether the node is acting as a cluster representative |
 | `metadata` | object or omitted | Render metadata for the node or cluster. It includes caller-visible fields and may include internal aggregation keys that are absent from `metadata_schema`. |
+| `isolates` | array; defaults to `[]` | For an individual typing profile: original `{id, metadata}` records. Empty for Newick and multi-profile LoD representatives. Older services may omit it. |
 
 `GraphViewportEdge`:
 

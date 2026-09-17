@@ -36,6 +36,52 @@ function viewportResponse(
 }
 
 describe("viewportSnapshot", () => {
+  it("sizes a profile by isolate area independently of the visible slice", () => {
+    const single = viewportNode("single", { isolates: [{ id: "S", metadata: {} }] });
+    const grouped = viewportNode("grouped", {
+      isolates: Array.from({ length: 4 }, (_, index) => ({ id: `S${index}`, metadata: {} })),
+      metadata: { profile_count: 4 },
+    });
+    const graph = graphSnapshotFromViewportResponse(viewportResponse([single, grouped]));
+    expect(graph.nodes[1]?.size).toBe(2 * (graph.nodes[0]?.size ?? 0));
+    expect(graph.nodes[1]?.attributes?.type).toBeUndefined();
+    expect(graph.nodes[1]?.attributes?.isolates).toHaveLength(4);
+    const isolatedSlice = graphSnapshotFromViewportResponse(viewportResponse([grouped]), { visualMapping: {} });
+    expect(isolatedSlice.nodes[0]?.size).toBe(graph.nodes[1]?.size);
+    const demoDefault = graphSnapshotFromViewportResponse(viewportResponse([grouped]), {
+      visualMapping: { size: { field: "profile_count", scale: "linear" } },
+    });
+    expect(demoDefault.nodes[0]?.size).toBe(graph.nodes[1]?.size);
+  });
+
+  it("uses isolate counts for country pies and preserves multi-field correlations", () => {
+    const node = viewportNode("profile", {
+      metadata: {
+        profile_count: 2,
+        country: "Portugal;Spain",
+        year: "2020;2021",
+        __category_count__country__value__Portugal: 1,
+        __category_count__country__value__Spain: 1,
+      },
+      isolates: [
+        { id: "A", metadata: { country: "Portugal", year: 2020 } },
+        { id: "B", metadata: { country: "Spain", year: 2021 } },
+      ],
+    });
+    const single = graphSnapshotFromViewportResponse(viewportResponse([node]), {
+      visualMapping: { pie: { fields: ["country"] } },
+    });
+    const attributes = single.nodes[0]?.attributes ?? {};
+    const values = Object.entries(attributes).filter(([key]) => key.startsWith("pie__"));
+    expect(values.map(([, value]) => value)).toEqual([1, 1]);
+    const combined = graphSnapshotFromViewportResponse(viewportResponse([node]), {
+      visualMapping: { pie: { fields: ["country", "year"] } },
+    });
+    const combinations = Object.entries(combined.nodes[0]?.attributes ?? {}).filter(([key]) => key.startsWith("pie__"));
+    expect(combinations).toHaveLength(2);
+    expect(combinations.map(([, value]) => value)).toEqual([1, 1]);
+  });
+
   it("uses compact node sizes for opened server slices", () => {
     const graph = graphSnapshotFromViewportResponse(
       viewportResponse([

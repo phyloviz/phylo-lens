@@ -22,6 +22,10 @@ from phylo_lens_server.pipeline.models import (
 )
 from phylo_lens_server.repository.jobs.postgres import import_psycopg
 from phylo_lens_server.repository.layout import region_reader, writer
+from phylo_lens_server.repository.layout.isolate_membership import (
+    load_isolates,
+    search_isolates,
+)
 from phylo_lens_server.repository.layout.metadata_reader import (
     aggregate_cluster_metadata_by_node_ids,
     aggregate_layout_status,
@@ -298,6 +302,7 @@ def layout_tables() -> tuple[str, ...]:
         "prepared_clusters",
         "datasets",
         "node_metadata",
+        "profile_isolates",
         "cluster_metadata",
         "metadata_schema",
     )
@@ -389,6 +394,13 @@ def attach_node_metadata(
         layout_version=layout_version,
         cluster_ids=cluster_ids,
     )
+    isolates = load_isolates(
+        connection,
+        dataset_id=dataset_id,
+        layout_version=layout_version,
+        node_ids={node.node_id for node in nodes if node.member_count == 1},
+        placeholder="%s",
+    )
     enriched: list[ViewportNode] = []
     for node in nodes:
         metadata = (
@@ -396,7 +408,9 @@ def attach_node_metadata(
             if node.is_representative
             else node_metadata.get(node.node_id)
         )
-        enriched.append(replace(node, metadata=metadata) if metadata else node)
+        enriched.append(
+            replace(node, metadata=metadata, isolates=isolates.get(node.node_id, ()))
+        )
     return tuple(enriched)
 
 
@@ -1209,6 +1223,15 @@ def search_nodes(connection_context, *, dataset_id, layout_version, query, limit
                     score=SEARCH_SCORE_METADATA_VALUE,
                     matched_text=f"{node_id} {matched_value}",
                 )
+        search_isolates(
+            connection,
+            dataset_id=dataset_id,
+            layout_version=layout_version,
+            needle=normalized_query,
+            best=best,
+            record_match=record_match,
+            placeholder="%s",
+        )
         ordered = sorted(best.values(), key=lambda match: (-match.score, match.node_id))
         limited = list(ordered[:limit]) if limit >= 0 else list(ordered)
         locations = node_locations(
