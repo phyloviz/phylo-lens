@@ -5,6 +5,7 @@ from collections.abc import Iterable
 from dataclasses import replace
 from typing import Any
 
+from phylo_lens_server.data.normalizer import AncillaryDataRequest, AncillaryReplacement
 from phylo_lens_server.pipeline.models import (
     ClusterLayout,
     LayoutBounds,
@@ -21,7 +22,11 @@ from phylo_lens_server.pipeline.models import (
     ViewportReadResult,
 )
 from phylo_lens_server.repository.jobs.postgres import import_psycopg
-from phylo_lens_server.repository.layout import region_reader, writer
+from phylo_lens_server.repository.layout import (
+    ancillary_revision,
+    region_reader,
+    writer,
+)
 from phylo_lens_server.repository.layout.isolate_membership import (
     load_isolates,
     search_isolates,
@@ -52,6 +57,14 @@ class PostgresPreparedLayoutStore:
         self._dsn = dsn
         self._threshold_cache: dict[tuple[str, str], tuple[float, ...]] = {}
         self.path = dsn
+
+    def apply_ancillary_data(
+        self, dataset_id: str, layout_version: str, request: AncillaryDataRequest
+    ) -> tuple[str, AncillaryReplacement]:
+        with self._connect() as connection, connection.transaction():
+            return ancillary_revision.apply_replacement(
+                connection, dataset_id, layout_version, request, "%s"
+            )
 
     def clear_dataset(self, dataset_id: str) -> None:
         keys = [key for key in self._threshold_cache if key[0] == dataset_id]

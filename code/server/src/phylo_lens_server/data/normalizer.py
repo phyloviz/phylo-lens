@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import time
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
 from io import StringIO
@@ -26,7 +27,11 @@ from phylo_lens_server.data.typing_profiles import (
     collapse_profile_graph,
     prepare_typing_profiles,
 )
-from phylo_lens_server.domain.ancillary import AncillaryData, AncillaryValue
+from phylo_lens_server.domain.ancillary import (
+    AncillaryData,
+    AncillaryValue,
+    NodeAnnotations,
+)
 from phylo_lens_server.domain.legacy_metadata import decode_node_annotations
 from phylo_lens_server.domain.metadata_keys import (
     CATEGORY_COUNT_FIELD_PREFIX,
@@ -466,6 +471,79 @@ def _parse_ancillary_data(
         warnings.append(WARN_ANCILLARY_UNMATCHED_NODE_COUNT.format(count=missing_count))
 
     return metadata_by_node_id, rows_by_node_id, warnings
+
+
+@dataclass(frozen=True)
+class AncillaryReplacement:
+    schema: tuple[AncillaryField, ...]
+    annotations_by_node_id: dict[str, NodeAnnotations]
+    isolates_by_node_id: dict[str, list[Isolate]]
+    matched_node_count: int
+    warnings: tuple[str, ...]
+
+
+def normalize_ancillary_replacement(
+    request: AncillaryDataRequest,
+    node_ids: set[str],
+    isolates_by_node_id: dict[str, list[Isolate]],
+) -> AncillaryReplacement:
+    """Replace observations, preserving biological identity and profile membership."""
+    join_ids = (
+        {
+            isolate.id
+            for isolates in isolates_by_node_id.values()
+            for isolate in isolates
+        }
+        if isolates_by_node_id
+        else node_ids
+    )
+    values, rows, warnings = _parse_ancillary_data(
+        request, node_ids=join_ids, declared_schema=[]
+    )
+    if not values:
+        raise ParseError(
+            "Ancillary table does not match any isolates or nodes in this layout."
+        )
+    replacements: dict[str, list[Isolate]] = {}
+    matched_nodes = set(values)
+    if isolates_by_node_id:
+        if any(len(items) > 1 for items in rows.values()):
+            raise ParseError(
+                "Typing ancillary data must contain at most one row per isolate ID."
+            )
+        replacements = {
+            node_id: [
+                Isolate(id=isolate.id, ancillary_data=rows.get(isolate.id, [{}])[0])
+                for isolate in isolates
+            ]
+            for node_id, isolates in isolates_by_node_id.items()
+        }
+        matched_nodes = {
+            node_id
+            for node_id, isolates in isolates_by_node_id.items()
+            if any(isolate.id in rows for isolate in isolates)
+        }
+        values = {
+            node_id: _aggregate_ancillary_rows(
+                [isolate.ancillary_data for isolate in isolates]
+            )
+            for node_id, isolates in replacements.items()
+        }
+    schema = _merge_metadata_schema([], values)
+    values = _coerce_ancillary_by_declared_schema(
+        values, _declared_ancillary_types(schema)
+    )
+    return AncillaryReplacement(
+        schema=tuple(
+            field for field in schema if not is_internal_metadata_key(field.key)
+        ),
+        annotations_by_node_id={
+            key: decode_node_annotations(value) for key, value in values.items()
+        },
+        isolates_by_node_id=replacements,
+        matched_node_count=len(matched_nodes),
+        warnings=tuple(warnings),
+    )
 
 
 def _reject_reserved_metadata_keys(

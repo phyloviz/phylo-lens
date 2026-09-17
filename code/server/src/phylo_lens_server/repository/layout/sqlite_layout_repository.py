@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from contextlib import AbstractContextManager
+from contextlib import AbstractContextManager, closing
 from pathlib import Path
 
+from phylo_lens_server.data.normalizer import AncillaryDataRequest, AncillaryReplacement
 from phylo_lens_server.database.sqlite import (
     connect,
     database_path_for_root,
@@ -20,6 +21,7 @@ from phylo_lens_server.pipeline.models import (
     SearchReadResult,
     ViewportReadResult,
 )
+from phylo_lens_server.repository.layout import ancillary_revision
 
 from . import node_search, region_reader, viewport_reader, writer
 
@@ -34,6 +36,15 @@ class PreparedLayoutStore:
         self.path = self._database_path
         self._threshold_cache: dict[tuple[str, str], tuple[float, ...]] = {}
         initialize_schema(self._database_path)
+
+    def apply_ancillary_data(
+        self, dataset_id: str, layout_version: str, request: AncillaryDataRequest
+    ) -> tuple[str, AncillaryReplacement]:
+        with closing(connect(self._database_path)) as connection, connection:
+            connection.execute("begin immediate")
+            return ancillary_revision.apply_replacement(
+                connection, dataset_id, layout_version, request, "?"
+            )
 
     def clear_dataset(self, dataset_id: str) -> None:
         writer.clear_dataset(self._database_path, dataset_id, self._threshold_cache)

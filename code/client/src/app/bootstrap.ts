@@ -58,6 +58,7 @@ export default function bootstrapClientShell(baseUrl = DEFAULT_SERVER_BASE_URL):
 
     ancillaryInput: getTextArea(ID_ANCILLARY_INPUT),
     ancillaryFileInput: getInput(ID_ANCILLARY_FILE_INPUT),
+    applyAncillaryButton: getButton("apply-ancillary-button"),
     ancillaryJoinColumnInput: getInput(ID_ANCILLARY_JOIN_COLUMN_INPUT),
     ancillaryFormatSelect: getSelect(ID_ANCILLARY_FORMAT),
     ancillaryWheelContainer: getOptionalElement(ID_ANCILLARY_WHEEL),
@@ -66,6 +67,7 @@ export default function bootstrapClientShell(baseUrl = DEFAULT_SERVER_BASE_URL):
     ancillaryNodeSelect: getSelect(ID_ANCILLARY_NODE),
 
     metadataPieFieldSelect: getSelect(ID_METADATA_PIE_FIELD),
+    showNodePiesInput: getInput("show-node-pies"),
     metadataSizeFieldInput: getInput(ID_METADATA_SIZE_FIELD),
     metadataSizeScaleSelect: getSelect(ID_METADATA_SIZE_SCALE),
 

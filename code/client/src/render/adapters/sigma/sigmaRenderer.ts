@@ -264,11 +264,21 @@ export class SigmaRenderer implements GraphRenderer {
     };
   }
 
-  applyGraphSnapshot(graph: PositionedGraph): void {
+  applyGraphSnapshot(graph: PositionedGraph, options?: { preservePositions?: boolean }): void {
     if (!this.graph || !this.sigma) {
       throw new Error(ERR_SIGMA_NOT_READY);
     }
 
+    if (options?.preservePositions) {
+      graph = {
+        ...graph,
+        nodes: graph.nodes.map((node) =>
+          this.graph!.hasNode(node.id)
+            ? { ...node, x: this.graph!.getNodeAttribute(node.id, "x"), y: this.graph!.getNodeAttribute(node.id, "y") }
+            : node,
+        ),
+      };
+    }
     const cameraState = readCameraState(this.sigma);
     const previousCoordinateBounds = this.coordinateBounds;
     this.forceMotion.stop();

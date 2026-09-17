@@ -3,7 +3,10 @@ from __future__ import annotations
 import logging
 from time import perf_counter
 
-from phylo_lens_server.data.normalizer import NormalizeRequest, normalize_dataset
+from phylo_lens_server.data.normalizer import (
+    NormalizeRequest,
+    normalize_dataset,
+)
 from phylo_lens_server.domain.models import CanonicalDataset, CanonicalEdge
 from phylo_lens_server.http.graph.responses import (
     graph_region_response_from_result,
@@ -11,6 +14,8 @@ from phylo_lens_server.http.graph.responses import (
     graph_viewport_response_from_result,
 )
 from phylo_lens_server.http.graph.schemas import (
+    GraphAncillaryRequest,
+    GraphAncillaryResponse,
     GraphPrepareJob,
     GraphPrepareResponse,
     GraphPrepareStatus,
@@ -228,3 +233,17 @@ def resolve_layout_version(
     if resolved is None:
         raise PreparedLayoutNotFoundError(dataset_id)
     return resolved
+
+
+def apply_ancillary_data(
+    request: GraphAncillaryRequest, store: PreparedLayoutStore
+) -> GraphAncillaryResponse:
+    version, replacement = store.apply_ancillary_data(
+        request.dataset_id, request.layout_version, request.ancillary_data
+    )
+    return GraphAncillaryResponse(
+        dataset_id=request.dataset_id,
+        layout_version=version,
+        matched_node_count=replacement.matched_node_count,
+        warnings=list(replacement.warnings),
+    )

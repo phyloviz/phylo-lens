@@ -51,6 +51,7 @@ export function createGraphWorkbench(
   let loadGeneration = 0;
   let snapshotSequence = 0;
   let disposed = false;
+  let applyingAncillary = false;
   const replaceViewportSync = (controller: ViewportSyncController | null) => {
     viewportSync?.unmount();
     viewportSync = controller;
@@ -103,6 +104,29 @@ export function createGraphWorkbench(
         snapshotObserver,
         nextSnapshotSequence: () => ++snapshotSequence,
       });
+    },
+
+    applyAncillaryData: async (data) => {
+      const session = requirePreparedSession(state);
+      const controller = viewportSync;
+      if (disposed || !controller || !session.layoutVersion || !state.currentGraph || applyingAncillary) {
+        throw new Error("Cannot apply ancillary data to this view while another update is pending or after disposal.");
+      }
+      applyingAncillary = true;
+      try {
+        const result = await options.graphClient.applyAncillaryData({
+          dataset_id: session.datasetId,
+          layout_version: session.layoutVersion,
+          ancillary_data: data,
+        });
+        if (disposed || state.preparedSession !== session || viewportSync !== controller) {
+          throw new Error(ERR_GRAPH_LOAD_SUPERSEDED);
+        }
+        await controller.replaceLayoutVersion(result.layout_version);
+        return result;
+      } finally {
+        applyingAncillary = false;
+      }
     },
 
     exportPng: () => {
@@ -244,6 +268,7 @@ async function renderNewick({
     onGraphSynced: (graph, response) => {
       if (response && state.preparedSession) {
         state.preparedSession.ancillarySchema = response.metadata_schema ?? [];
+        state.preparedSession.layoutVersion = response.layout_version;
       }
       graph.viewMeta.lodTierCount = state.preparedSession?.lodTierCount;
       graph.viewMeta.layoutWarnings = state.preparedSession?.layoutWarnings;

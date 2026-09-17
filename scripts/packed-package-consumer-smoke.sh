@@ -16,7 +16,12 @@ cp -R "$REPO_ROOT/examples/public-library-host/." "$FIXTURE_DIR"
 
 # Compile both public naming generations from the tarball, not repository sources.
 cat > "$FIXTURE_DIR/src/ancillary-contracts.ts" <<'TS'
-import type { AncillaryData, AncillaryField, Isolate, MetadataField, PhyloLensLoadOptions } from "@phyloviz/phylo-lens";
+import type { AncillaryData, AncillaryField, Isolate, MetadataField, PhyloLensLoadOptions, PhyloLensView, AncillaryTableInput } from "@phyloviz/phylo-lens";
+export async function attach(view: PhyloLensView, table: AncillaryTableInput) {
+  const result = await view.applyAncillaryData(table);
+  view.updateVisualMapping({ pie: { enabled: true, fields: ["country"] } });
+  return result.matchedNodeCount;
+}
 const fields: AncillaryField[] = [{ key: "country", type: "string" }];
 const values: AncillaryData = { country: "PT" };
 export const isolate: Isolate = { id: "A", ancillaryData: values };

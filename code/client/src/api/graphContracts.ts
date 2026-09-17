@@ -182,6 +182,18 @@ export interface GraphSearchResponse {
   total_count: number;
 }
 
+export interface GraphAncillaryRequest {
+  dataset_id: string;
+  layout_version: string;
+  ancillary_data: NonNullable<NormalizeRequest["ancillary_data"]>;
+}
+
+export interface GraphAncillaryResponse {
+  dataset_id: string;
+  layout_version: string;
+  matched_node_count: number;
+  warnings: string[];
+}
 /** @deprecated API v1 terminology; use the Ancillary* aliases. */
 export type GraphMetadataValue = GraphAncillaryValue;
 export type GraphMetadata = GraphAncillaryData;

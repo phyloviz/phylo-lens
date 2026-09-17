@@ -1064,6 +1064,26 @@ describe("sigmaRenderer", () => {
     renderer.unmount();
   });
 
+  it("retains dragged positions while replacing ancillary presentation", () => {
+    document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
+    const renderer = new SigmaRenderer();
+    renderer.mount({ container: requireContainer() });
+    const snapshot: PositionedGraph = {
+      nodes: [{ id: "a", x: 0, y: 0, color: "#123456", size: 3 }],
+      edges: [],
+      viewMeta: { layout: "server", lodLevel: 0 },
+    };
+    renderer.applyGraphSnapshot(snapshot);
+    const graph = (renderer as unknown as { graph: Graph }).graph;
+    graph.mergeNodeAttributes("a", { x: 42, y: 17 });
+    renderer.applyGraphSnapshot(
+      { ...snapshot, nodes: [{ ...snapshot.nodes[0], color: "#abcdef" }] },
+      { preservePositions: true },
+    );
+    expect(graph.getNodeAttributes("a")).toMatchObject({ x: 42, y: 17, color: "#abcdef" });
+    renderer.unmount();
+  });
+
   it("rebuilds pie programs when category colors change", () => {
     document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
 

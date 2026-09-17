@@ -9,6 +9,7 @@ import {
   isString,
 } from "../validation/guards";
 import type {
+  GraphAncillaryResponse,
   GraphIsolate,
   GraphLayoutStatus,
   GraphAncillaryData,
@@ -275,4 +276,18 @@ function isOptionalGraphMetadataSchema(value: unknown): value is GraphAncillaryF
 
 function isGraphMetadataField(value: unknown): value is GraphAncillaryField {
   return isRecord(value) && isString(value.key) && isString(value.type);
+}
+
+export function isGraphAncillaryResponse(value: unknown): value is GraphAncillaryResponse {
+  return (
+    isRecord(value) &&
+    isString(value.dataset_id) &&
+    value.dataset_id.length > 0 &&
+    isString(value.layout_version) &&
+    value.layout_version.length > 0 &&
+    isFiniteNumber(value.matched_node_count) &&
+    Number.isInteger(value.matched_node_count) &&
+    value.matched_node_count > 0 &&
+    isArrayOf(value.warnings, isString)
+  );
 }

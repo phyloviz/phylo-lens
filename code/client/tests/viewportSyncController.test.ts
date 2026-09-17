@@ -106,6 +106,83 @@ describe("ViewportSyncController", () => {
     vi.restoreAllMocks();
   });
 
+  it("drops old viewport responses and refreshes expanded clusters when adopting ancillary data", async () => {
+    const renderer = createRenderer();
+    let resolveOld: (response: GraphViewportResponse) => void = () => undefined;
+    const readViewport = vi
+      .fn()
+      .mockResolvedValueOnce(viewportResponse())
+      .mockResolvedValueOnce(clusterResponse())
+      .mockImplementationOnce(
+        () =>
+          new Promise<GraphViewportResponse>((resolve) => {
+            resolveOld = resolve;
+          }),
+      )
+      .mockImplementation(async (query: GraphViewportQuery) => ({
+        ...(query.cluster_id ? clusterResponse() : viewportResponse()),
+        layout_version: "metadata-1",
+        nodes: (query.cluster_id ? clusterResponse() : viewportResponse()).nodes.map((node) => ({
+          ...node,
+          metadata: { country: "PT" },
+        })),
+      }));
+    const controller = new ViewportSyncController({
+      datasetId: "tree",
+      client: { readViewport },
+      renderer,
+      lodTierCount: 3,
+    });
+    controller.mount();
+    await vi.advanceTimersByTimeAsync(0);
+    controller.handleNodeClick({
+      nodeId: "cluster-a",
+      attributes: { cluster_id: "cluster-a", is_cluster_proxy: true },
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    controller.refreshNow();
+    await vi.advanceTimersByTimeAsync(0);
+    const fits = vi.mocked(renderer.fitGraphSnapshot!).mock.calls.length;
+    await controller.replaceLayoutVersion("metadata-1");
+    const appliedCount = renderer.appliedGraphs.length;
+    expect(renderer.appliedGraphs.at(-1)?.nodes.map((node) => node.id)).toContain("a1");
+    controller.collapseCluster("cluster-a");
+    resolveOld(viewportResponse());
+    await vi.advanceTimersByTimeAsync(0);
+    expect(renderer.appliedGraphs).toHaveLength(appliedCount + 1);
+    const collapsed = renderer.appliedGraphs.at(-1)!;
+    expect(collapsed.nodes.map((node) => node.id)).not.toContain("a1");
+    expect(collapsed.nodes.find((node) => node.id === "cluster-a")?.attributes?.annotations).toMatchObject({
+      ancillaryData: { country: "PT" },
+    });
+    expect(renderer.fitGraphSnapshot).toHaveBeenCalledTimes(fits);
+    expect(readViewport).toHaveBeenLastCalledWith(expect.objectContaining({ layout_version: "metadata-1" }));
+    controller.unmount();
+  });
+
+  it("does not apply a metadata viewport after disposal", async () => {
+    const renderer = createRenderer();
+    let resolveReplacement: (response: GraphViewportResponse) => void = () => undefined;
+    const readViewport = vi
+      .fn()
+      .mockResolvedValueOnce(viewportResponse())
+      .mockImplementationOnce(
+        () =>
+          new Promise<GraphViewportResponse>((resolve) => {
+            resolveReplacement = resolve;
+          }),
+      );
+    const controller = new ViewportSyncController({ datasetId: "tree", client: { readViewport }, renderer });
+    controller.mount();
+    await vi.advanceTimersByTimeAsync(0);
+    const pending = controller.replaceLayoutVersion("metadata-1");
+    const rejected = expect(pending).rejects.toThrow("superseded");
+    controller.unmount();
+    resolveReplacement(viewportResponse({ layout_version: "metadata-1" }));
+    await rejected;
+    expect(renderer.appliedGraphs).toHaveLength(1);
+  });
+
   it("loads viewport responses and applies renderer-neutral graph snapshots", async () => {
     const renderer = createRenderer();
     const readViewport = vi.fn(async () => viewportResponse());

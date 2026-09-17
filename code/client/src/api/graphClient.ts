@@ -1,5 +1,6 @@
 import { createHttpClient, type HttpClient } from "./httpClient";
 import {
+  isGraphAncillaryResponse,
   isGraphPrepareJob,
   isGraphPrepareResponse,
   isGraphPrepareStatus,
@@ -9,6 +10,8 @@ import {
   isNormalizeRequest,
 } from "./graphGuards";
 import type {
+  GraphAncillaryRequest,
+  GraphAncillaryResponse,
   GraphPrepareResponse,
   GraphPrepareStatus,
   GraphRegionQuery,
@@ -74,6 +77,14 @@ export function createGraphClient(options: GraphClientOptions) {
   return {
     prepareGraph: (request: NormalizeRequest, prepareOptions?: PrepareGraphOptions) =>
       prepareGraph(http, request, prepareOptions, ensureCompatible),
+
+    applyAncillaryData: async (request: GraphAncillaryRequest): Promise<GraphAncillaryResponse> => {
+      const response = await http.put<GraphAncillaryRequest, unknown>("/api/graph/ancillary", request);
+      if (!isGraphAncillaryResponse(response) || response.dataset_id !== request.dataset_id) {
+        throw new Error("Invalid graph ancillary response contract.");
+      }
+      return response;
+    },
 
     readViewport: (query: GraphViewportQuery) => readGraphViewport(http, query),
 

@@ -439,3 +439,39 @@ describe("graphClient", () => {
     ).rejects.toThrow(ERR_INVALID_GRAPH_PREPARE_JOB);
   });
 });
+
+it("sends an ancillary PUT without submitting a prepare job", async () => {
+  const response = { dataset_id: "tree", layout_version: "metadata-1", matched_node_count: 2, warnings: [] };
+  const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify(response)));
+  const client = createGraphClient({ baseUrl: BASE_URL, fetchImpl });
+  const request = {
+    dataset_id: "tree",
+    layout_version: "original",
+    ancillary_data: { content: "id,country\nA,PT", join_column: "id" },
+  };
+  await expect(client.applyAncillaryData(request)).resolves.toEqual(response);
+  expect(fetchImpl).toHaveBeenCalledTimes(1);
+  expect(fetchImpl).toHaveBeenCalledWith(
+    `${BASE_URL}/api/graph/ancillary`,
+    expect.objectContaining({ method: "PUT", body: JSON.stringify(request) }),
+  );
+});
+
+it.each([
+  { dataset_id: "other", layout_version: "v2", matched_node_count: 1, warnings: [] },
+  { dataset_id: "tree", layout_version: "", matched_node_count: 1, warnings: [] },
+  { dataset_id: "tree", layout_version: "v2", matched_node_count: 1.5, warnings: [] },
+  { dataset_id: "tree", layout_version: "v2", matched_node_count: 1, warnings: [42] },
+])("rejects malformed ancillary responses", async (response) => {
+  const client = createGraphClient({
+    baseUrl: BASE_URL,
+    fetchImpl: vi.fn().mockResolvedValue(new Response(JSON.stringify(response))),
+  });
+  await expect(
+    client.applyAncillaryData({
+      dataset_id: "tree",
+      layout_version: "original",
+      ancillary_data: { content: "id,country\nA,PT", join_column: "id" },
+    }),
+  ).rejects.toThrow("Invalid graph ancillary response");
+});

@@ -40,7 +40,12 @@ export function createHttpClient({ baseUrl, fetchImpl = safeFetch }: HttpClientO
     });
   }
 
+  function put<TRequest, TResponse>(path: string, body: TRequest): Promise<TResponse> {
+    return request<TResponse>(path, { method: "PUT", body: JSON.stringify(body) });
+  }
+
   return {
+    put,
     get,
     post,
   };

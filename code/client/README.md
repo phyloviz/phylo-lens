@@ -416,3 +416,58 @@ npm pack --dry-run
 
 The demo shell is a reference integration and test surface. It is not part of
 the public package API.
+
+## Hide or restore node pie charts
+
+In the reference demo, uncheck **Show node pie charts** to display solid nodes.
+Check it again to restore pies with the selected fields and palette. Metadata,
+filters, and ancillary summary wheels remain available.
+
+Host applications can change the mapping after `load()` completes:
+
+```ts
+view.updateVisualMapping({ pie: { enabled: false } });
+view.updateVisualMapping({ pie: { enabled: true, fields: ["country"] } });
+```
+
+`updateVisualMapping()` replaces the visual mapping; include any color, size,
+or palette settings you want to retain. It schedules a viewport refresh and
+returns immediately. It requires a loaded tree and throws after disposal.
+This changes presentation without deleting stored ancillary data or preparing
+the tree again.
+
+## Apply ancillary data after loading
+
+Upload a CSV/TSV table to an already loaded tree without preparing it again:
+
+```ts
+const result = await view.applyAncillaryData({
+  content: "id,country\nA,Portugal\nB,Canada\n",
+  format: "csv",
+  join_column: "id",
+});
+console.log(result.matchedNodeCount, result.warnings);
+view.updateVisualMapping({ pie: { enabled: true, fields: ["country"] } });
+```
+
+In the reference demo, choose an **Ancillary Table**, set its join column, then
+click **Apply table to current tree**. The action becomes available after loading.
+
+Applying a table replaces the node metadata and schema, including metadata
+supplied with the original load; omitted fields and unmatched nodes do not retain
+old values. The server keeps the previous version intact. Unknown identifiers
+produce warnings; a table with no matching nodes fails without changing the view.
+For typing datasets, identifiers match original isolate IDs; each isolate accepts
+at most one row. All isolate identities and profile counts survive replacement,
+including isolates without a matching row. Newick tables match canonical node IDs
+with the label slug fallback and may contain multiple rows per node.
+
+The promise resolves after the updated viewport is applied. Camera position,
+geometry (including dragged positions), display settings, and filters are retained.
+Expanded clusters and their collapse summaries are refreshed to the new revision. Select fields from the new table if the previous pie fields no longer
+exist. A failed upload or viewport fetch keeps the previous view usable.
+
+A second simultaneous upload is rejected. Loading another tree or disposing the
+view prevents a pending upload from being applied to that view; an already
+published server version may remain available. Uploads require the companion
+service to support `PUT /api/graph/ancillary`.

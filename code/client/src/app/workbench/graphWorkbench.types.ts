@@ -1,7 +1,12 @@
 import type { AncillaryData, AncillaryField } from "../../contracts/ancillary";
 import type { AncillaryInputOptions } from "../../ancillary/ancillaryInput";
 import type { GraphClient } from "../../api/graphClient";
-import type { GraphAncillaryField, GraphAncillaryValue, SfdpOptions } from "../../api/graphContracts";
+import type {
+  GraphAncillaryResponse,
+  GraphAncillaryField,
+  GraphAncillaryValue,
+  SfdpOptions,
+} from "../../api/graphContracts";
 import type { CanonicalDataset, SearchDatasetResponse, SourceFormat, Viewport } from "../../contracts/models";
 import type { PositionedGraph } from "../../contracts/positioned";
 import type { AncillaryIndex } from "../../ancillary/ancillaryIndex";
@@ -62,6 +67,8 @@ export type GraphNodeClickedHandler = (state: RenderNodeClickState) => void;
 
 export interface GraphWorkbench {
   renderNewick: (newick: string, datasetName?: string, options?: RenderNewickOptions) => Promise<PositionedGraph>;
+
+  applyAncillaryData: (data: NonNullable<RenderNewickOptions["ancillaryData"]>) => Promise<GraphAncillaryResponse>;
 
   exportPng: () => Promise<Blob>;
 

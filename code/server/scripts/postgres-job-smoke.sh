@@ -39,7 +39,7 @@ except ImportError as error:
         "Install it with: python -m pip install -e '.[postgres]'"
     ) from error
 
-from phylo_lens_server.data.normalizer import NormalizeRequest, normalize_dataset
+from phylo_lens_server.data.normalizer import AncillaryDataRequest, NormalizeRequest, normalize_dataset
 from phylo_lens_server.cli.prepare_worker import run_postgres_prepare_worker
 from phylo_lens_server.repository.jobs.postgres import (
     DURABLE_STATUS_READY,
@@ -113,5 +113,21 @@ viewport = layout_store.read_viewport(
 if len(viewport.nodes) != 4 or len(viewport.edges) != 3:
     raise SystemExit(f"Unexpected viewport result: {viewport}")
 
-print("postgres job smoke ok")
+table = AncillaryDataRequest(
+    content="id,country\nb,PT\nc,ES\n", join_column="id", format="csv",
+)
+revision, replacement = layout_store.apply_ancillary_data(
+    "postgres-smoke-tree", layout_version, table,
+)
+updated = layout_store.read_viewport(
+    dataset_id="postgres-smoke-tree", layout_version=revision,
+    xmin=None, xmax=None, ymin=None, ymax=None, max_nodes=50, lod_level=0,
+)
+assert replacement.matched_node_count == 2
+assert {(node.node_id, node.x, node.y) for node in updated.nodes} == {(node.node_id, node.x, node.y) for node in viewport.nodes}
+assert next(node for node in updated.nodes if node.node_id == "b").metadata["country"] == "PT"
+assert layout_store.apply_ancillary_data(
+    "postgres-smoke-tree", layout_version, table,
+)[0] == revision
+print("postgres job and ancillary revision smoke ok")
 PY

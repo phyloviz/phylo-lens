@@ -42,8 +42,11 @@ floating-point count serialization at the existing fingerprint boundary, even
 though domain summary counts are integers. A regression fixture checks a layout
 fingerprint captured before the refactor.
 
-## Follow-up feature
+## Attach ancillary data after rendering
 
-This prepares the model for #2 (attach ancillary data to an already rendered
-tree); it does not implement that feature. Adding or updating observations must
-remain distinct from changing isolate identity, profile membership or topology.
+`view.applyAncillaryData(table)` replaces observations on a prepared tree without
+recomputing distances, layout or profile membership. Typing tables join original
+isolate IDs and regenerate profile summaries from all members, including unmatched
+isolates whose ancillary values become empty. Newick tables join node IDs and may
+aggregate several rows per node. The server publishes an immutable revision in a
+single transaction; failures leave the source revision intact.
