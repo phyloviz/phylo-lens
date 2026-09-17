@@ -1,4 +1,5 @@
-import { resolveAncillaryInput, type AncillaryInputOptions } from "../../../ancillary/ancillaryInput";
+import type { AncillaryObservation } from "../../../contracts/ancillary";
+import { type AncillaryInputOptions } from "../../../ancillary/ancillaryInput";
 import { decodeLegacyMetadata } from "../../../ancillary/legacyMetadata";
 import type {
   GraphAncillaryValue,
@@ -11,7 +12,7 @@ import { hasActiveFilters, matchesFilterState } from "../../../ancillary/filterE
 import type { AncillaryFilterState } from "../../../ancillary/ancillaryTypes";
 import type { GraphDisplayOptions } from "../../../render/renderer.types";
 import {
-  buildValueColorMap,
+  deriveColor,
   DEFAULT_COLOR_PALETTE,
   DEFAULT_PROFILE_COUNT_FIELD,
   deriveSize,
@@ -23,8 +24,8 @@ import {
   type VisualMappingOptions,
 } from "../../../render/mapping/visualMapping";
 import {
-  buildPieAttributes,
-  buildPieCategoryColorAttributes,
+  pieDistribution,
+  PIE_DISTRIBUTION_ATTRIBUTE,
   PIE_CATEGORY_COLORS_ATTRIBUTE,
   PIE_PALETTE_ATTRIBUTE,
 } from "../../../render/mapping/pieMapping";
@@ -179,7 +180,8 @@ function buildGraphViewportNodeAttributes(
     layout_status: node.layout_status,
     annotations: decodeLegacyMetadata(metadata),
     isolates: (node.isolates ?? []).map(({ id, metadata }) => ({ id, ancillaryData: metadata })),
-    ...pieNodeAttributes(metadata, visuals, node.isolates?.map((isolate) => isolate.metadata) ?? []),
+    ancillaryDistribution: nodeObservations(node),
+    ...pieNodeAttributes(visuals, nodeObservations(node)),
   };
 }
 
@@ -210,7 +212,10 @@ function filteredViewportNodes(response: GraphViewportResponse, settings?: Viewp
   if (!filterState || !hasActiveFilters(filterState)) {
     return response.nodes;
   }
-  return response.nodes.filter((node) => matchesFilterState(node.metadata, filterState));
+  return response.nodes.flatMap((node) => {
+    const observations = nodeObservations(node).filter((row) => matchesFilterState(row.values, filterState));
+    return observations.length ? [{ ...node, ancillary_distribution: observations }] : [];
+  });
 }
 
 function resolveViewportVisuals(
@@ -227,15 +232,8 @@ function resolveViewportVisuals(
   const scale = mapping.size?.scale ?? SIZE_SCALE_LINEAR;
   const palette = mapping.palette ?? DEFAULT_COLOR_PALETTE;
   const numericStats = computeSizeFieldStats(nodes, sizeField);
-  const stableColorValues = Object.values(resolveAncillaryInput(settings ?? {}).ancillaryByNodeId).map((metadata) =>
-    colorField ? metadata[colorField] : undefined,
-  );
-  const colorForValue = buildValueColorMap(
-    stableColorValues.some(hasMetadataValue)
-      ? stableColorValues
-      : nodes.map((node) => (colorField ? node.metadata?.[colorField] : undefined)),
-    palette,
-  );
+  const colorForValue = (value: GraphAncillaryValue | undefined) =>
+    mapping.pie?.categoryColors?.[String(value)] ?? deriveColor(value, palette);
   const pie = mapping.pie && mapping.pie.enabled !== false ? mapping.pie : undefined;
 
   return {
@@ -248,10 +246,6 @@ function resolveViewportVisuals(
     numericStats,
     pie,
   };
-}
-
-function hasMetadataValue(value: GraphAncillaryValue | undefined): boolean {
-  return value !== undefined && value !== null && value !== "";
 }
 
 function viewportHasProfileCount(nodes: GraphViewportNode[]): boolean {
@@ -288,24 +282,31 @@ function nodeSizeForMemberCount(memberCount: number): number {
   return Math.min(GRAPH_VIEWER_REPRESENTATIVE_MAX_SIZE, GRAPH_VIEWER_REPRESENTATIVE_BASE_SIZE + boost);
 }
 
+function nodeObservations(node: GraphViewportNode): AncillaryObservation[] {
+  if (node.ancillary_distribution?.length) return node.ancillary_distribution;
+  if (node.isolates?.length) return node.isolates.map((isolate) => ({ values: isolate.metadata, count: 1 }));
+  const annotations = decodeLegacyMetadata(node.metadata ?? {});
+  return [{ values: { ...annotations.ancillarySummary.values, ...annotations.ancillaryData }, count: 1 }];
+}
+
 function pieNodeAttributes(
-  metadata: Record<string, GraphAncillaryValue> | undefined,
   visuals: ResolvedViewportVisuals | null,
-  rows: Record<string, GraphAncillaryValue>[] = [],
+  observations: AncillaryObservation[],
 ): Record<string, unknown> {
   const pie = visuals?.pie;
-  if (!pie || !metadata) {
-    return {};
-  }
-
-  const excludedFields = [visuals.sizeField];
-  const pieAttributes = buildPieAttributes(metadata, pie, excludedFields, rows);
-  const pieCategoryColors = buildPieCategoryColorAttributes(metadata, pie, excludedFields, rows);
-
+  if (!pie) return {};
+  const distribution = pieDistribution(observations, pie.fields ?? []);
+  const colors = Object.fromEntries(
+    distribution.flatMap((slice) => {
+      const color = pie.categoryColors?.[slice.category];
+      return color && /^#[0-9a-fA-F]{6}$/.test(color) ? [[slice.key, color]] : [];
+    }),
+  );
   return {
-    ...pieAttributes,
-    ...(Object.keys(pieCategoryColors).length > 0 ? { [PIE_CATEGORY_COLORS_ATTRIBUTE]: pieCategoryColors } : {}),
-    ...(pie.palette && pie.palette.length > 0 ? { [PIE_PALETTE_ATTRIBUTE]: pie.palette } : {}),
+    ...Object.fromEntries(distribution.map((slice) => [slice.key, slice.value])),
+    [PIE_DISTRIBUTION_ATTRIBUTE]: distribution,
+    [PIE_CATEGORY_COLORS_ATTRIBUTE]: colors,
+    [PIE_PALETTE_ATTRIBUTE]: pie.palette?.length ? pie.palette : visuals.palette,
   };
 }
 

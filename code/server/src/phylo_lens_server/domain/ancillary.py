@@ -36,3 +36,10 @@ class NodeAnnotations(BaseModel):
     ancillary_data: AncillaryData = Field(default_factory=dict)
     ancillary_summary: AncillarySummary = Field(default_factory=AncillarySummary)
     profile_summary: ProfileSummary = Field(default_factory=ProfileSummary)
+
+
+class AncillaryObservation(BaseModel):
+    """One joint ancillary row shared by count represented isolates."""
+
+    values: AncillaryData = Field(default_factory=dict)
+    count: PositiveCount

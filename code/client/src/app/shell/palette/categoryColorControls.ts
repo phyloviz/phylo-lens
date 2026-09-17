@@ -1,7 +1,6 @@
 import type { PositionedGraph } from "../../../contracts/positioned";
-import { DEFAULT_COLOR_PALETTE } from "../../../render/mapping/visualMapping";
-import { PIE_OTHER_SLICE_COLOR, PIE_OTHER_SLICE_LABEL } from "../../../render/mapping/pieMapping";
-import { buildCategorySummaries } from "../ancillary/categorySummaries";
+import { PIE_OTHER_SLICE_KEY } from "../../../render/mapping/pieMapping";
+import { buildAncillaryWheelStats } from "../../../components/ancillaryWheel";
 import { isHexColor } from "./categoryPalette";
 
 export const CATEGORY_COLOR_INPUT_SELECTOR = "[data-category-color]";
@@ -32,25 +31,15 @@ export default function (container: HTMLElement | undefined) {
       appendEmptyMessage(container, "Choose a pie field");
       return;
     }
-    if (selectedFields.length > 1) {
-      appendEmptyMessage(container, "Combination colors use the generated palette");
-      return;
-    }
-
-    const categories = buildCategorySummaries(graph, selectedField);
+    const categories =
+      buildAncillaryWheelStats(graph, { fields: selectedFields, categoryColors: categoryColorOverrides })?.slices ?? [];
     if (categories.length === 0) {
       appendEmptyMessage(container, "No categories");
       return;
     }
 
-    categories.forEach((category, index) => {
-      const color =
-        category.label === PIE_OTHER_SLICE_LABEL
-          ? PIE_OTHER_SLICE_COLOR
-          : (categoryColorOverrides[category.label] ??
-            category.color ??
-            DEFAULT_COLOR_PALETTE[index % DEFAULT_COLOR_PALETTE.length] ??
-            "#0f766e");
+    categories.forEach((category) => {
+      const color = category.color;
       const label = document.createElement("label");
       label.className = "category-color-row";
       label.title = category.label;
@@ -58,8 +47,8 @@ export default function (container: HTMLElement | undefined) {
       const input = document.createElement("input");
       input.type = "color";
       input.value = color;
-      input.dataset.categoryColor = category.label;
-      input.disabled = category.label === PIE_OTHER_SLICE_LABEL;
+      input.dataset.categoryColor = category.category;
+      input.disabled = category.key === PIE_OTHER_SLICE_KEY;
       input.setAttribute("aria-label", `${category.label} color`);
 
       const name = document.createElement("span");
@@ -68,7 +57,7 @@ export default function (container: HTMLElement | undefined) {
 
       const count = document.createElement("span");
       count.className = "category-color-count";
-      count.textContent = `n = ${category.count}, ${category.percentage.toFixed(1)}%`;
+      count.textContent = `n = ${category.value}, ${category.percentage.toFixed(1)}%`;
 
       label.appendChild(input);
       label.appendChild(name);

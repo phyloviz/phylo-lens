@@ -3,6 +3,7 @@ from __future__ import annotations
 from pydantic import BaseModel, Field, model_validator
 
 from phylo_lens_server.data.normalizer import AncillaryDataRequest
+from phylo_lens_server.domain.ancillary import AncillaryObservation
 from phylo_lens_server.domain.models import Isolate
 from phylo_lens_server.pipeline.models import LayoutStatus
 
@@ -86,6 +87,7 @@ class GraphViewportNode(BaseModel):
     is_representative: bool = False
     metadata: dict[str, str | float | bool | None] | None = None
     isolates: list[Isolate] = Field(default_factory=list)
+    ancillary_distribution: list[AncillaryObservation] = Field(default_factory=list)
 
 
 class GraphViewportEdge(BaseModel):

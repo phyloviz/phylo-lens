@@ -21,6 +21,7 @@ export type {
   AncillaryType,
   AncillaryValue,
   AncillarySummary,
+  AncillaryObservation,
   ProfileSummary,
   Isolate,
   NodeAnnotations,

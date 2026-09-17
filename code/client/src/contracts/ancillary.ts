@@ -27,3 +27,9 @@ export interface AncillaryTableInput {
   join_column: string;
   format: "auto" | "csv" | "tsv";
 }
+
+/** A joint observation shared by count represented isolates. */
+export interface AncillaryObservation {
+  values: AncillaryData;
+  count: number;
+}

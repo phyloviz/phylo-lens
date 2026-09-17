@@ -27,6 +27,9 @@ from phylo_lens_server.repository.layout import (
     region_reader,
     writer,
 )
+from phylo_lens_server.repository.layout.ancillary_distribution import (
+    load_cluster_distributions,
+)
 from phylo_lens_server.repository.layout.isolate_membership import (
     load_isolates,
     search_isolates,
@@ -414,6 +417,13 @@ def attach_node_metadata(
         node_ids={node.node_id for node in nodes if node.member_count == 1},
         placeholder="%s",
     )
+    distributions = load_cluster_distributions(
+        connection,
+        dataset_id=dataset_id,
+        layout_version=layout_version,
+        cluster_ids=cluster_ids,
+        placeholder="%s",
+    )
     enriched: list[ViewportNode] = []
     for node in nodes:
         metadata = (
@@ -422,7 +432,14 @@ def attach_node_metadata(
             else node_metadata.get(node.node_id)
         )
         enriched.append(
-            replace(node, metadata=metadata, isolates=isolates.get(node.node_id, ()))
+            replace(
+                node,
+                metadata=metadata,
+                isolates=isolates.get(node.node_id, ()),
+                ancillary_distribution=distributions.get(node.cluster_id, ())
+                if node.is_representative
+                else (),
+            )
         )
     return tuple(enriched)
 

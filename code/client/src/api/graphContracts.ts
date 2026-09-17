@@ -1,3 +1,4 @@
+import type { AncillaryObservation } from "../contracts/ancillary";
 import type { AncillaryType, SourceFormat } from "../contracts/models";
 
 export type GraphPrepareJobStatus = "pending" | "ready" | "failed";
@@ -105,6 +106,7 @@ export interface GraphViewportNode {
   is_representative: boolean;
   metadata?: GraphAncillaryData | null;
   isolates?: GraphIsolate[];
+  ancillary_distribution?: AncillaryObservation[];
 }
 
 export interface GraphViewportEdge {

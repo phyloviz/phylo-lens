@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal
 
+from phylo_lens_server.domain.ancillary import AncillaryObservation
 from phylo_lens_server.domain.models import CanonicalDataset, Isolate
 from phylo_lens_server.pipeline.sfdp import SfdpOptions
 
@@ -101,6 +102,7 @@ class ViewportNode:
     is_representative: bool = False
     metadata: dict[str, str | float | bool | None] | None = None
     isolates: tuple[Isolate, ...] = ()
+    ancillary_distribution: tuple[AncillaryObservation, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -137,6 +139,7 @@ class SearchMatch:
     cluster_id: str | None = None
     metadata: dict[str, str | float | bool | None] | None = None
     isolates: tuple[Isolate, ...] = ()
+    ancillary_distribution: tuple[AncillaryObservation, ...] = ()
     # Global layout coordinates for the matched node, resolved from
     # node_positions. Let the client fetch a bounded region around a search hit
     # so a node outside the current LoD slice can be centered and highlighted.

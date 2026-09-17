@@ -10,6 +10,18 @@ export function composeExpandedViewport(base: PositionedGraph, patches: readonly
     }
     for (const edge of patch.edges) edges.set(edge.id, edge);
   }
+  // Expanded members replace their summary; counting both would duplicate isolates.
+  const detailedClusters = new Set(
+    patches.flatMap((patch) =>
+      patch.nodes
+        .filter((node) => node.attributes?.is_cluster_proxy !== true)
+        .map((node) => node.attributes?.cluster_id),
+    ),
+  );
+  for (const [id, node] of nodes) {
+    if (node.attributes?.is_cluster_proxy === true && detailedClusters.has(node.attributes?.cluster_id))
+      nodes.delete(id);
+  }
   const partial = nodes.size > maxNodes;
   const rendered = [...nodes.values()].slice(0, maxNodes);
   const ids = new Set(rendered.map((node) => node.id));

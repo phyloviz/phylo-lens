@@ -1,13 +1,4 @@
-// Single source of truth for categorical value -> color mapping. Node fills,
-// on-node pies, and ancillary wheels all resolve a value's color through the
-// SAME frequency-ranked value->color map here, so the same metadata value is
-// painted identically everywhere and distinct values get distinct colors. Kept
-// as a dependency-free leaf module to avoid an import cycle between
-// visualMappings.ts and pieMapping.ts.
-
-// A palette of visually distinct hues, ordered so the most frequent values take
-// the boldest, most separable colours first. Sized to comfortably cover the
-// top-12 categories a wheel/legend shows before collapsing the rest to Others.
+// Shared categorical colors are independent of viewport frequencies.
 export const DEFAULT_COLOR_PALETTE = [
   "#f97316", // orange
   "#0ea5e9", // sky blue
@@ -27,60 +18,37 @@ export const DEFAULT_FALLBACK_COLOR = "#64748b";
 // Colour used for values ranked beyond the palette (the "Others" bucket).
 export const OTHERS_COLOR = "#d3d3d3";
 
-// Build a frequency-ranked value -> colour resolver from the full universe of
-// values (one entry per node occurrence, so frequency is captured). Values are
-// ranked most-frequent-first (ties broken by label) and assigned palette
-// colours in order; values ranked beyond the palette collapse to OTHERS_COLOR.
-// This is the shared map node fills, pies, and wheels all consult, guaranteeing
-// they agree per value while keeping the top categories visually distinct.
 export function buildValueColorMap(
   values: Array<string | number | boolean | null | undefined>,
   palette: string[],
 ): (value: string | number | boolean | null | undefined) => string {
-  const activePalette = palette.length > 0 ? palette : DEFAULT_COLOR_PALETTE;
-  const counts = new Map<string, number>();
-  for (const raw of values) {
-    if (raw === undefined || raw === null || raw === "") {
-      continue;
-    }
-    const value = String(raw);
-    counts.set(value, (counts.get(value) ?? 0) + 1);
-  }
-
-  const rankedValues = [...counts.entries()]
-    .sort(
-      ([leftLabel, leftCount], [rightLabel, rightCount]) =>
-        rightCount - leftCount || leftLabel.localeCompare(rightLabel),
-    )
-    .map(([label]) => label);
-
-  const colorByValue = new Map<string, string>();
-  rankedValues.forEach((value, rank) => {
-    colorByValue.set(value, rank < activePalette.length ? (activePalette[rank] as string) : OTHERS_COLOR);
-  });
-
-  return (value) => {
-    if (value === undefined || value === null || value === "") {
-      return DEFAULT_FALLBACK_COLOR;
-    }
-    return colorByValue.get(String(value)) ?? OTHERS_COLOR;
-  };
+  const colors = new Map(values.map((value) => [value, deriveColor(value, palette)]));
+  return (value) => colors.get(value) ?? deriveColor(value, palette);
 }
 
-// Derive a deterministic color from a single categorical value, used only as a
-// fallback when the full value universe is unavailable (e.g. a lone node with
-// no graph context). Prefer buildValueColorMap wherever the value set is known.
 export function deriveColor(rawValue: string | number | boolean | null | undefined, palette: string[]): string {
-  if (rawValue === undefined || rawValue === null || palette.length === 0) {
+  if (rawValue === undefined || rawValue === null || rawValue === "") {
     return DEFAULT_FALLBACK_COLOR;
   }
 
+  const activePalette = palette.length ? palette : DEFAULT_COLOR_PALETTE;
   const value = String(rawValue);
   let hash = 0;
   for (let index = 0; index < value.length; index += 1) {
     hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
   }
 
-  const paletteIndex = hash % palette.length;
-  return palette[paletteIndex] ?? DEFAULT_FALLBACK_COLOR;
+  const paletteIndex = hash % activePalette.length;
+  const seed = activePalette[paletteIndex] ?? DEFAULT_FALLBACK_COLOR;
+  // A secondary tone distinguishes values that share a palette slot without
+  // changing their colors when other categories enter or leave the viewport.
+  const tone = (((hash >>> 8) % 101) - 50) / 250;
+  return `#${[1, 3, 5]
+    .map((offset) => {
+      const channel = Number.parseInt(seed.slice(offset, offset + 2), 16);
+      return Math.round(tone < 0 ? channel * (1 + tone) : channel + (255 - channel) * tone)
+        .toString(16)
+        .padStart(2, "0");
+    })
+    .join("")}`;
 }
