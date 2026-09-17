@@ -488,7 +488,7 @@ export class ViewportSyncController {
     this.requireExpansionReady();
     if (!clusterId) throw new Error("A cluster ID is required.");
     if (this.expandedPatches.has(clusterId)) return this.expansionResult();
-    if ((this.currentGraph?.nodes.length ?? 0) >= this.maxNodes) {
+    if (!options.focusNodeId && (this.currentGraph?.nodes.length ?? 0) >= this.maxNodes) {
       this.expansionPartial = true;
       return this.expansionResult();
     }
@@ -503,7 +503,7 @@ export class ViewportSyncController {
       this.maxNodes,
     );
     const missingMembers = response.total_node_count > response.nodes.filter((node) => !node.is_representative).length;
-    if (response.truncated || missingMembers || candidate.partial) {
+    if (!options.focusNodeId && (response.truncated || missingMembers || candidate.partial)) {
       // Keep the summary intact rather than showing a full-group proxy alongside
       // an incomplete subset of its members.
       this.expansionPartial = true;

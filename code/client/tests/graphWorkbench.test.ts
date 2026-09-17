@@ -309,7 +309,7 @@ describe("graphWorkbench navigation", () => {
     }
   });
 
-  it("opens the matched cluster when search focus uses coordinates outside the current slice", async () => {
+  it("opens a partial matched cluster when search focus uses coordinates outside the current slice", async () => {
     const renderer: GraphRenderer = {
       mount: vi.fn(),
       unmount: vi.fn(),
@@ -347,7 +347,7 @@ describe("graphWorkbench navigation", () => {
         lod_level: null,
         zoom: 1,
         layout_status: "ready",
-        truncated: false,
+        truncated: true,
         total_node_count: 2,
         metadata_schema: [],
         nodes: [
