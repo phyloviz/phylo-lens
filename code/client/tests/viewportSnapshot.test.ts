@@ -1,4 +1,4 @@
-import { deriveColor } from "../src/render/mapping/colorMapping";
+import { deriveColor, DEFAULT_COLOR_PALETTE } from "../src/render/mapping/colorMapping";
 import { describe, expect, it } from "vitest";
 
 import type { GraphViewportNode, GraphViewportResponse } from "../src/api/graphContracts";
@@ -164,7 +164,7 @@ describe("viewportSnapshot", () => {
       settings,
     );
 
-    expect(firstSlice.nodes[0]?.color).toBe(deriveColor("Portugal"));
+    expect(firstSlice.nodes[0]?.color).toBe(deriveColor("Portugal", DEFAULT_COLOR_PALETTE));
     expect(secondSlice.nodes.find((node) => node.id === "a")?.color).toBe(firstSlice.nodes[0]?.color);
   });
 
