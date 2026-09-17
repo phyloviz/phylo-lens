@@ -67,6 +67,7 @@ function createWorkbenchHarness(overrides: Partial<GraphClient> = {}) {
     getViewportSyncState: vi.fn(() => viewportState),
     applyGraphSnapshot: vi.fn(),
     fitGraphSnapshot: vi.fn(() => null),
+    updateDisplayOptions: vi.fn(),
     setViewChangeHandler: vi.fn(),
     setNodeClickHandler: vi.fn(),
     setNodeDoubleClickHandler: vi.fn(),
@@ -95,6 +96,30 @@ function createWorkbenchHarness(overrides: Partial<GraphClient> = {}) {
 }
 
 describe("graphWorkbench navigation", () => {
+  it("translates ancillary load options to the compatible API v1 request", async () => {
+    const { workbench, graphClient } = createWorkbenchHarness();
+    await workbench.renderNewick("(a:1)b;", "tree", {
+      ancillarySchema: [{ key: "country", type: "string" }],
+      ancillaryByNodeId: { a: { country: "PT" } },
+    });
+    expect(graphClient.prepareGraph).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata_schema: [{ key: "country", type: "string" }],
+        metadata_by_node_id: { a: { country: "PT" } },
+      }),
+    );
+    workbench.dispose();
+  });
+
+  it("rejects conflicting option names before submitting a prepare job", async () => {
+    const { workbench, graphClient } = createWorkbenchHarness();
+    await expect(
+      workbench.renderNewick("(a:1)b;", "tree", { ancillarySchema: [], metadataSchema: [] }),
+    ).rejects.toThrow("not both");
+    expect(graphClient.prepareGraph).not.toHaveBeenCalled();
+    workbench.dispose();
+  });
+
   it("resolves renderNewick only after prepare, first viewport, and renderer update", async () => {
     const events: string[] = [];
     const { renderer, workbench } = createWorkbenchHarness({
@@ -117,6 +142,20 @@ describe("graphWorkbench navigation", () => {
     expect(events).toEqual(["prepare", "viewport", "renderer", "resolved"]);
   });
 
+  it("maps public SFDP options into the prepare request", async () => {
+    const { graphClient, workbench } = createWorkbenchHarness();
+
+    await workbench.renderNewick("(a:1,b:1)root;", "tree", {
+      sfdpOptions: { k: 0.5, overlap: "prism", prismIterations: 10, beautify: true },
+    });
+
+    expect(graphClient.prepareGraph).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sfdp_options: { k: 0.5, overlap: "prism", prismIterations: 10, beautify: true },
+      }),
+    );
+  });
+
   it("keeps initial display options when constructing the viewport session", async () => {
     const { renderer, workbench } = createWorkbenchHarness({
       readViewport: vi.fn(async () => ({
@@ -133,6 +172,42 @@ describe("graphWorkbench navigation", () => {
       },
     });
 
+    expect(renderer.applyGraphSnapshot).toHaveBeenCalledWith(
+      expect.objectContaining({
+        nodes: [expect.objectContaining({ attributes: expect.objectContaining({ label: "" }) })],
+        edges: [
+          expect.objectContaining({
+            attributes: expect.objectContaining({ label: "3", forceLabel: true, size: expect.any(Number) }),
+          }),
+        ],
+      }) as PositionedGraph,
+    );
+  });
+
+  it("applies display options to the live viewport without another request", async () => {
+    const { graphClient, renderer, workbench } = createWorkbenchHarness({
+      readViewport: vi.fn(async () => ({
+        ...viewportResponse(),
+        edges: [{ id: "tree-edge", source: "tree", target: "tree", distance: 3 }],
+      })),
+    } as Partial<GraphClient>);
+
+    await workbench.renderNewick("(a:1,b:1)root;", "tree");
+    vi.mocked(graphClient.readViewport).mockClear();
+    vi.mocked(renderer.applyGraphSnapshot).mockClear();
+
+    workbench.updateDisplayOptions({
+      nodeLabels: false,
+      edgeDistanceLabels: true,
+      distanceWeightedEdges: true,
+    });
+
+    expect(graphClient.readViewport).not.toHaveBeenCalled();
+    expect(renderer.updateDisplayOptions).toHaveBeenCalledWith({
+      nodeLabels: false,
+      edgeDistanceLabels: true,
+      distanceWeightedEdges: true,
+    });
     expect(renderer.applyGraphSnapshot).toHaveBeenCalledWith(
       expect.objectContaining({
         nodes: [expect.objectContaining({ attributes: expect.objectContaining({ label: "" }) })],
@@ -447,8 +522,15 @@ it("applies ancillary data without preparation or camera fitting and updates sub
   expect(readViewport).toHaveBeenLastCalledWith(expect.objectContaining({ layout_version: "metadata-1" }));
   expect(renderer.applyGraphSnapshot).toHaveBeenLastCalledWith(
     expect.objectContaining({
-      nodes: [expect.objectContaining({ attributes: expect.objectContaining({ metadata: { country: "Portugal" } }) })],
+      nodes: [
+        expect.objectContaining({
+          attributes: expect.objectContaining({
+            annotations: expect.objectContaining({ ancillaryData: { country: "Portugal" } }),
+          }),
+        }),
+      ],
     }),
+    { preservePositions: true },
   );
   await workbench.applyAncillaryData(ancillaryData);
   expect(applyAncillaryData).toHaveBeenLastCalledWith(expect.objectContaining({ layout_version: "metadata-1" }));

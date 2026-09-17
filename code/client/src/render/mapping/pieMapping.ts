@@ -1,7 +1,7 @@
 import {
   PIE_ATTRIBUTE_PREFIX,
   type AncillaryRow,
-  type MetadataRecord,
+  type AncillaryData,
   type PieMappingOptions,
 } from "./pieMapping.types";
 import {
@@ -17,7 +17,7 @@ export * from "./pieColors";
 
 // Build dynamic pie slice attributes from ancillary metadata.
 export function buildPieAttributes(
-  metadata: MetadataRecord,
+  metadata: AncillaryData,
   options: PieMappingOptions,
   excludedFields: string[] = [],
   ancillaryRows: AncillaryRow[] = [],
@@ -66,7 +66,7 @@ export function buildPieAttributes(
 }
 
 export function buildPieCategoryColorAttributes(
-  metadata: MetadataRecord,
+  metadata: AncillaryData,
   options: PieMappingOptions,
   excludedFields: string[] = [],
   ancillaryRows: AncillaryRow[] = [],

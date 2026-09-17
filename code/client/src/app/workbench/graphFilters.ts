@@ -1,5 +1,5 @@
-import { EMPTY_METADATA_FILTER_STATE } from "../../ancillary/filterEngine";
-import type { MetadataFilterState } from "../../ancillary/metadataTypes";
+import { EMPTY_ANCILLARY_FILTER_STATE } from "../../ancillary/filterEngine";
+import type { AncillaryFilterState } from "../../ancillary/ancillaryTypes";
 import type { PositionedGraph } from "../../contracts/positioned";
 import type { VisualMappingOptions } from "../../render/mapping/visualMapping";
 import type { GraphDisplayOptions, GraphRenderer } from "../../render/renderer.types";
@@ -22,7 +22,7 @@ export default function createGraphFilters({ state, renderer, getViewportSync }:
     updateDisplayOptions: updateDisplayOptions,
   };
 
-  function applyMetadataFilters(filterState: MetadataFilterState): PositionedGraph {
+  function applyMetadataFilters(filterState: AncillaryFilterState): PositionedGraph {
     requirePreparedSession(state);
 
     // Filtering is applied inside the viewport sync via getRenderSettings; the
@@ -36,7 +36,7 @@ export default function createGraphFilters({ state, renderer, getViewportSync }:
   function clearMetadataFilters(): PositionedGraph {
     requirePreparedSession(state);
 
-    state.activeFilters = EMPTY_METADATA_FILTER_STATE;
+    state.activeFilters = EMPTY_ANCILLARY_FILTER_STATE;
     getViewportSync()?.refreshNow();
 
     return currentGraph(state);
@@ -53,14 +53,10 @@ export default function createGraphFilters({ state, renderer, getViewportSync }:
   }
 
   // Apply presentation toggles (node labels, edge distance labels, distance-
-  // weighted edges) to the live LoD view. The renderer owns two concerns:
-  // updateDisplayOptions rebuilds Sigma settings (so the node-label toggle takes
-  // effect and the live viewer stays bound), and the persisted session options
-  // are re-read by getRenderSettings on the next viewport sync, which
-  // refreshNow forces immediately. We deliberately do NOT call
-  // renderer.render() here: under LoD that clears the live viewport graph and
-  // repopulates it from a stale coarse snapshot, resurfacing cluster-proxy
-  // triangles and freezing the sync loop.
+  // weighted edges) to the live LoD view. The renderer rebuilds its settings,
+  // while the sync controller derives a new snapshot from the current slice.
+  // This avoids a redundant viewport request and does not call renderer.render,
+  // which would replace the live LoD graph with a stale coarse snapshot.
   function updateDisplayOptions(displayOptions: GraphDisplayOptions): void {
     if (state.preparedSession) {
       state.preparedSession.displayOptions = {
@@ -69,7 +65,7 @@ export default function createGraphFilters({ state, renderer, getViewportSync }:
       };
     }
     renderer.updateDisplayOptions?.(displayOptions);
-    getViewportSync()?.refreshNow();
+    getViewportSync()?.updateDisplayOptions(state.preparedSession?.displayOptions ?? displayOptions);
   }
 }
 

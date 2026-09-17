@@ -79,7 +79,7 @@ export interface GraphRenderer {
 
   getViewportSyncState?: () => RenderViewportSyncState | null;
 
-  applyGraphSnapshot?: (graph: PositionedGraph) => void;
+  applyGraphSnapshot?: (graph: PositionedGraph, options?: { preservePositions?: boolean }) => void;
 
   getInteractiveAggregateTargets?: () => readonly RenderInteractiveAggregateTarget[];
 

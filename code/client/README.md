@@ -77,7 +77,7 @@ createPhyloLensView
 PhyloLensView
 PhyloLensViewOptions
 PhyloLensLoadOptions
-MetadataField
+AncillaryField
 SourceFormat
 Viewport
 VisualMappingOptions
@@ -143,8 +143,8 @@ interface PhyloLensLoadOptions {
   content: string;
   name?: string;
   sourceFormat?: "newick" | "typing_data";
-  metadataSchema?: MetadataField[];
-  metadataByNodeId?: Record<
+  ancillarySchema?: AncillaryField[];
+  ancillaryByNodeId?: Record<
     string,
     Record<string, string | number | boolean | null>
   >;
@@ -170,8 +170,8 @@ interface PhyloLensLoadOptions {
 | `content` | yes | — | Raw Newick text or an allelic-profile matrix, according to `sourceFormat` |
 | `name` | no | `"uploaded-dataset"` | Dataset identifier submitted to the service |
 | `sourceFormat` | no | `"newick"` | Selects direct Newick parsing or PhyloLib typing-data processing |
-| `metadataSchema` | no | `[]` | Declares metadata keys and scalar types |
-| `metadataByNodeId` | no | `{}` | Direct metadata keyed by canonical node ID |
+| `ancillarySchema` | no | `[]` | Declares ancillary fields and scalar types |
+| `ancillaryByNodeId` | no | `{}` | Direct ancillary data keyed by node ID |
 | `ancillaryData` | no | — | CSV/TSV metadata joined by an explicit column |
 | `visualMapping` | no | library defaults | Controls node color, size and pie attributes |
 | `lod.maxNodes` | no | `6000` | Primary node budget used for viewport requests |
@@ -215,8 +215,8 @@ await view.load({
 ```
 
 The service sends the profile matrix through the bundled PhyloLib JAR:
-Hamming distance is computed first, followed by goeBURST with `lvs=3`. The
-resulting Newick tree or forest enters the normal preparation pipeline.
+Hamming distance is computed first, followed by goeBURST Full MST. The resulting
+Newick tree enters the normal preparation pipeline.
 
 ## Metadata
 
@@ -225,11 +225,11 @@ resulting Newick tree or forest enters the normal preparation pipeline.
 ```ts
 await view.load({
   content: "(P09:1,P12:2)R;",
-  metadataSchema: [
+  ancillarySchema: [
     { key: "country", type: "string" },
     { key: "year", type: "number" },
   ],
-  metadataByNodeId: {
+  ancillaryByNodeId: {
     p09: { country: "Portugal", year: 2024 },
     p12: { country: "Canada", year: 2023 },
   },
@@ -267,7 +267,7 @@ type SourceFormat = "newick" | "typing_data";
 
 type MetadataType = "string" | "number" | "boolean" | "null";
 
-interface MetadataField {
+interface AncillaryField {
   key: string;
   type: MetadataType;
 }
@@ -283,6 +283,35 @@ interface Viewport {
 `Viewport` remains exported because it is referenced by the reserved
 `lod.viewport` option. The current load path does not use that option to construct
 the initial API request.
+
+## Ancillary data and domain terminology
+
+`AncillaryData` is a record of user observations (country, year, etc.). An
+`Isolate` keeps its original `id` and `ancillaryData`. The internal node model
+separates `ancillaryData`, `ancillarySummary.categoryCounts`, and
+`profileSummary.isolateCount`; a missing count means unknown, not zero.
+A graph node may represent one profile shared by multiple isolates, or a LoD
+cluster containing multiple profiles. Neither a graph node nor a metadata row
+is automatically a distinct isolate.
+
+Prefer `ancillarySchema` and `ancillaryByNodeId` in `view.load`. Existing
+`metadataSchema`, `metadataByNodeId` and the exported `MetadataField` type remain
+supported as deprecated aliases. Supplying both names for the same option is an
+error. `ancillaryData` continues to accept a CSV/TSV table input; its shape is
+exported as `AncillaryTableInput`, distinct from an individual `AncillaryData`
+record.
+
+The API v1 wire format and SQL storage retain their `metadata_*` names. The
+client translates these at the boundary, so existing services/layouts remain
+readable. Advanced Ancillary JSON accepts `ancillary_schema` and
+`ancillary_by_node_id`, as well as the deprecated `metadata_*` names.
+Technical layout information and provenance are not ancillary data.
+
+Scalar values produced by grouping (for example, a concatenated set of countries)
+are stored in `AncillarySummary.values`, alongside category frequencies. Original
+per-isolate values remain in `Isolate` ancillary data. Flat legacy records with
+computed counts are decoded as node summaries; legacy records without counts
+remain direct ancillary values.
 
 ## Visual mapping
 
@@ -313,9 +342,23 @@ Behavior:
 - `palette` overrides the node-color palette;
 - `pie` controls pie attributes for aggregate nodes.
 
-When no color field is requested, the client prefers `region`, then the first
-non-numeric public metadata field. When no size field is requested, it prefers
-`profile_count` when available and otherwise uses `distance`.
+Without an explicit `colorField` or pie mapping, profile nodes use a neutral
+slate color. Metadata names such as `region`, `selected` or `founder` do not
+implicitly enable coloring in server viewport snapshots. LoD clusters retain
+their structural triangle styling. When no size field is requested, the client
+prefers `profile_count` when available and otherwise uses `distance`.
+
+In the demo, selecting a Pie Field enables metadata coloring and shows the
+active field above each distribution. Selecting `None — neutral nodes` clears
+both the color field and pies. Loading another dataset resets the selection and
+palette overrides; an explicit mapping in Advanced Ancillary JSON initializes
+the new selection.
+
+The selected-node panel shows the profile ID, represented isolate count and
+original isolate IDs independently of color selection. LoD clusters are labeled
+as clusters, with separate profile and isolate counts. Selection and the open
+ID list survive viewport refreshes; a selected node outside the current view
+shows an explicit message instead of stale details.
 
 ## Service compatibility errors
 
@@ -414,13 +457,14 @@ Applying a table replaces the node metadata and schema, including metadata
 supplied with the original load; omitted fields and unmatched nodes do not retain
 old values. The server keeps the previous version intact. Unknown identifiers
 produce warnings; a table with no matching nodes fails without changing the view.
-Identifiers match persisted canonical node IDs, with the same label slug fallback
-used during initial ancillary import.
+For typing datasets, identifiers match original isolate IDs; each isolate accepts
+at most one row. All isolate identities and profile counts survive replacement,
+including isolates without a matching row. Newick tables match canonical node IDs
+with the label slug fallback and may contain multiple rows per node.
 
 The promise resolves after the updated viewport is applied. Camera position,
-geometry, display settings, and filters are retained. Expanded clusters return to
-the current viewport's LoD representation so cached summaries cannot restore old
-metadata. Select fields from the new table if the previous pie fields no longer
+geometry (including dragged positions), display settings, and filters are retained.
+Expanded clusters and their collapse summaries are refreshed to the new revision. Select fields from the new table if the previous pie fields no longer
 exist. A failed upload or viewport fetch keeps the previous view usable.
 
 A second simultaneous upload is rejected. Loading another tree or disposing the

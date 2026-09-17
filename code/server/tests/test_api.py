@@ -16,6 +16,7 @@ from phylo_lens_server.repository.jobs.local import PrepareJobRegistry
 from phylo_lens_server.repository.layout.sqlite_layout_repository import (
     PreparedLayoutStore,
 )
+from phylo_lens_server.services import graph_service
 from phylo_lens_server.utils.versions import API_VERSION, service_version
 
 SFDP_AVAILABLE = shutil.which(GRAPHVIZ_SFDP_COMMAND) is not None
@@ -141,6 +142,20 @@ def test_graph_prepare_materializes_layout_for_viewport_reads(client) -> None:
     )
 
 
+def test_graph_prepare_rejects_invalid_sfdp_options(client) -> None:
+    response = client.post(
+        ROUTE_GRAPH_PREPARE,
+        json={
+            "format": FORMAT_NEWICK,
+            "dataset_name": DATASET_API_TREE,
+            "content": WEIGHTED_TREE_CONTENT,
+            "sfdp_options": {"overlap": "unsupported"},
+        },
+    )
+
+    assert response.status_code == 422
+
+
 def test_graph_prepare_accepts_real_world_newick_labels_and_comments(client) -> None:
     status_body = prepare_and_wait(
         client,
@@ -210,6 +225,22 @@ def test_graph_search_missing_dataset_returns_not_found(client) -> None:
         json={"dataset_id": DATASET_UNKNOWN, "query": "x"},
     )
     assert response.status_code == STATUS_NOT_FOUND
+
+
+def test_unexpected_route_error_uses_shared_error_handler(client, monkeypatch) -> None:
+    def fail(*_args, **_kwargs):
+        raise RuntimeError("unexpected failure")
+
+    monkeypatch.setattr(graph_service, "read_graph_viewport", fail)
+
+    with TestClient(app, raise_server_exceptions=False) as error_client:
+        response = error_client.post(
+            ROUTE_GRAPH_VIEWPORT,
+            json={"dataset_id": DATASET_UNKNOWN, "max_nodes": 20},
+        )
+
+    assert response.status_code == 500
+    assert response.json() == {"detail": "Unexpected server error"}
 
 
 def test_graph_prepare_fails_with_structured_diagnostics_when_sfdp_is_missing(

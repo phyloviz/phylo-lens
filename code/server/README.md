@@ -31,8 +31,12 @@ and the PostgreSQL driver.
 ```bash
 cd code/server
 python -m pip install -e '.[test,dev]'
+export PHYLO_LENS_PHYLOLIB_JAR=/absolute/path/to/PhyloLib-1.0.0.jar
 uvicorn phylo_lens_server.main:app --reload
 ```
+
+`typing_data` requests require `PHYLO_LENS_PHYLOLIB_JAR` during source
+execution. The Docker image supplies `/app/phylolib.jar` automatically.
 
 The console entry point is equivalent:
 
@@ -160,14 +164,13 @@ java -jar /app/phylolib.jar distance hamming \
   --dataset=ml:<profiles> \
   --out=symmetric:<matrix>
 
-java -jar /app/phylolib.jar algorithm goeburst \
+java -jar /app/phylolib.jar algorithm goeburstfullmst \
   --matrix=symmetric:<matrix> \
-  --out=newick:<tree> \
-  --lvs=3
+  --out=newick:<tree>
 ```
 
-PhyloLib may produce several `;`-terminated components. PhyloLens preserves them
-as one disconnected graph rather than introducing a synthetic root.
+Full MST uses all observed locus-variant levels and produces one spanning tree
+for valid typing profiles.
 
 Each PhyloLib subprocess is limited by
 `PHYLO_LENS_PHYLOLIB_TIMEOUT_SECONDS`. Graphviz `sfdp` has no default
@@ -354,3 +357,29 @@ For internals, see:
 - [Server preparation pipeline](../../docs/SERVER_PIPELINE.md)
 - [Data model and persistence](../../docs/DATA_MODEL.md)
 - [CI and release process](../../docs/RELEASE.md)
+
+## Ancillary domain model and compatibility
+
+Canonical datasets now separate user observations (`ancillary_schema` and
+`annotations_by_node_id[*].ancillary_data`) from calculated category frequencies
+(`ancillary_summary.category_counts`) and represented isolate counts
+(`profile_summary.isolate_count`). `Isolate.ancillary_data` contains the original
+isolate observations. Topology, layout state and provenance remain separate.
+
+Normalization requests accept `ancillary_schema` / `ancillary_by_node_id` and
+the API v1 `metadata_schema` / `metadata_by_node_id` aliases. Sending both names
+for one option is rejected. API v1 responses and existing SQL column/table names
+are unchanged; compatibility adapters preserve the legacy numeric encoding used
+in layout fingerprints. This refactor does not require a database migration.
+
+Old Python domain imports (`MetadataField`, `MetadataType`, `IsolateRecord`) remain
+aliases. Canonical `metadata_by_node_id` is a deprecated, derived snapshot:
+mutate `annotations_by_node_id` instead. Native canonical serialization uses the
+new domain names; old canonical payloads remain accepted. See
+[the migration notes](../../docs/ancillary-domain.md).
+
+Scalar values produced by grouping (for example, a concatenated set of countries)
+are stored in `AncillarySummary.values`, alongside category frequencies. Original
+per-isolate values remain in `Isolate` ancillary data. Flat legacy records with
+computed counts are decoded as node summaries; legacy records without counts
+remain direct ancillary values.

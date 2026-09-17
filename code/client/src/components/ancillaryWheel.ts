@@ -1,5 +1,5 @@
 import type { PositionedGraph } from "../contracts/positioned";
-import { readNodeMetadata } from "../ancillary/metadataAccess";
+import { readNodeAncillaryValues, readNodeAnnotations } from "../ancillary/ancillaryAccess";
 import { buildValueColorMap, DEFAULT_COLOR_PALETTE } from "../render/mapping/colorMapping";
 import {
   categoryCountsForField,
@@ -41,7 +41,7 @@ export interface AncillaryWheelStatsOptions {
   categoryColors?: Record<string, string>;
 }
 
-export interface MetadataFieldSummary {
+export interface AncillaryFieldSummary {
   key: string;
   uniqueValueCount: number;
 }
@@ -118,7 +118,7 @@ export function buildAncillaryWheelStats(
 }
 
 // Aggregate one metadata field into a chart-friendly categorical distribution.
-export function buildMetadataFieldWheelStats(
+export function buildAncillaryFieldWheelStats(
   graph: PositionedGraph,
   fieldKey: string,
   options: AncillaryWheelStatsOptions = {},
@@ -165,12 +165,12 @@ function accumulateFieldCounts(
   fieldKey: string,
   countsByValue: Map<string, number>,
 ): void {
-  const metadata = readNodeMetadata(attributes);
+  const metadata = readNodeAncillaryValues(attributes);
   if (!metadata) {
     return;
   }
 
-  const categoryCounts = categoryCountsForField(metadata, fieldKey);
+  const categoryCounts = categoryCountsForField(metadata, fieldKey, readNodeAnnotations(attributes).ancillarySummary);
   if (categoryCounts.length > 0) {
     categoryCounts.forEach((entry) => {
       countsByValue.set(entry.category, (countsByValue.get(entry.category) ?? 0) + entry.count);
@@ -242,15 +242,15 @@ function collectFieldValues(graph: PositionedGraph, fieldKey: string): string[] 
 
 // Return metadata keys visible in the current graph snapshot.
 export function collectMetadataFieldKeys(graph: PositionedGraph): string[] {
-  return collectMetadataFieldSummaries(graph).map((summary) => summary.key);
+  return collectAncillaryFieldSummaries(graph).map((summary) => summary.key);
 }
 
 // Return metadata fields with approximate cardinality in the current graph.
-export function collectMetadataFieldSummaries(graph: PositionedGraph): MetadataFieldSummary[] {
+export function collectAncillaryFieldSummaries(graph: PositionedGraph): AncillaryFieldSummary[] {
   const valuesByKey = new Map<string, Set<string>>();
 
   graph.nodes.forEach((node) => {
-    const metadata = readNodeMetadata(node.attributes);
+    const metadata = readNodeAncillaryValues(node.attributes);
     if (!metadata) {
       return;
     }
@@ -359,3 +359,8 @@ function escapeHtml(input: string): string {
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
 }
+
+/** @deprecated Use the corresponding Ancillary* names. */
+export const buildMetadataFieldWheelStats = buildAncillaryFieldWheelStats;
+export const collectMetadataFieldSummaries = collectAncillaryFieldSummaries;
+export type MetadataFieldSummary = AncillaryFieldSummary;

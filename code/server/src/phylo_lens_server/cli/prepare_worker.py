@@ -94,6 +94,7 @@ def run_postgres_prepare_worker(
             try:
                 result = layout_worker.prepare_dataset(
                     claimed.dataset,
+                    sfdp_options=claimed.sfdp_options,
                     should_continue=lease_monitor.assert_owned,
                 )
                 result_payload = prepare_result_payload(result, claimed.warnings)

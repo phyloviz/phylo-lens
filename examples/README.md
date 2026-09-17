@@ -108,3 +108,9 @@ Keep repository fixtures:
 
 Large or licensed evaluation datasets should be acquired by reproducible scripts
 under the future `eval/` workflow rather than committed here.
+
+## Typing-data regression fixtures
+
+See [typing correctness fixtures](typing/README.md) for synthetic allelic profiles,
+matching ancillary data and a hand-checkable distance matrix covering missing
+loci and equivalent profiles.

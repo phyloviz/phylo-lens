@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 from phylo_lens_server.http.graph.schemas import (
+    GraphAncillaryField,
     GraphLayoutBounds,
-    GraphMetadataField,
     GraphRegionResponse,
     GraphSearchMatch,
     GraphSearchResponse,
@@ -41,6 +41,7 @@ def graph_viewport_response_from_result(
                 member_count=node.member_count,
                 is_representative=node.is_representative,
                 metadata=node.metadata,
+                isolates=list(node.isolates),
             )
             for node in result.nodes
         ],
@@ -66,7 +67,7 @@ def graph_viewport_response_from_result(
             else None
         ),
         metadata_schema=[
-            GraphMetadataField(key=field.key, type=field.type)
+            GraphAncillaryField(key=field.key, type=field.type)
             for field in result.metadata_schema
         ],
     )
@@ -91,6 +92,7 @@ def graph_region_response_from_result(
                 member_count=node.member_count,
                 is_representative=node.is_representative,
                 metadata=node.metadata,
+                isolates=list(node.isolates),
             )
             for node in result.nodes
         ],
@@ -106,7 +108,7 @@ def graph_region_response_from_result(
             for edge in result.edges
         ],
         metadata_schema=[
-            GraphMetadataField(key=field.key, type=field.type)
+            GraphAncillaryField(key=field.key, type=field.type)
             for field in result.metadata_schema
         ],
         aggregated_metadata=result.aggregated_metadata,

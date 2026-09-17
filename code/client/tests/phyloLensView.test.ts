@@ -103,6 +103,23 @@ describe("createPhyloLensView", () => {
     });
   });
 
+  it("exposes SFDP configuration through the public load API", async () => {
+    const view = createPhyloLensView({
+      container: document.createElement("div"),
+      apiUrl: "https://phylo-lens.example.test",
+    });
+
+    await view.load({
+      content: "(a:1)b;",
+      sfdpOptions: { overlap: "prism", quadtree: "fast" },
+    });
+
+    expect(mocks.renderNewick).toHaveBeenCalledWith("(a:1)b;", undefined, {
+      sourceFormat: "newick",
+      sfdpOptions: { overlap: "prism", quadtree: "fast" },
+    });
+  });
+
   it("makes dispose idempotent", () => {
     const view = createPhyloLensView({
       container: document.createElement("div"),

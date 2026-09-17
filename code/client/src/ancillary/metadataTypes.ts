@@ -1,24 +1,8 @@
-export type MetadataValue = string | number | boolean | null;
-
-export type NodeMetadata = Record<string, MetadataValue>;
-
-export interface CategoricalFieldFilter {
-  fieldKey: string;
-  acceptedValues: string[];
-}
-
-export interface NumericFieldFilter {
-  fieldKey: string;
-  min?: number;
-  max?: number;
-}
-
-export interface MetadataFilterState {
-  categorical: CategoricalFieldFilter[];
-  numeric: NumericFieldFilter[];
-}
-
-export interface NumericStats {
-  min: number;
-  max: number;
-}
+/** @deprecated Use ancillaryTypes and contracts/ancillary. */
+export type { AncillaryData as NodeMetadata, AncillaryValue as MetadataValue } from "../contracts/ancillary";
+export type {
+  AncillaryFilterState as MetadataFilterState,
+  CategoricalFieldFilter,
+  NumericFieldFilter,
+  NumericStats,
+} from "./ancillaryTypes";

@@ -1,3 +1,4 @@
+import type { AncillarySummary } from "../../contracts/ancillary";
 import {
   CATEGORY_COUNT_FIELD_PREFIX,
   CATEGORY_COUNT_FIELD_SEPARATOR,
@@ -5,7 +6,7 @@ import {
   PIE_FIELD_VALUE_SEPARATOR,
   type AncillaryRow,
   type CategoryCountEntry,
-  type MetadataRecord,
+  type AncillaryData,
 } from "./pieMapping.types";
 
 export function categoricalPieValues(value: string | number | boolean | null | undefined): string[] {
@@ -33,7 +34,15 @@ export function pieCategoricalAttributeKey(fieldKey: string, value: string): str
   return `${PIE_ATTRIBUTE_PREFIX}${safeAttributeToken(fieldKey)}${PIE_FIELD_VALUE_SEPARATOR}${safeAttributeToken(value)}`;
 }
 
-export function categoryCountsForField(metadata: MetadataRecord, fieldKey: string): CategoryCountEntry[] {
+export function categoryCountsForField(
+  metadata: AncillaryData,
+  fieldKey: string,
+  summary?: AncillarySummary,
+): CategoryCountEntry[] {
+  if (summary)
+    return Object.entries(summary.categoryCounts[fieldKey] ?? {})
+      .map(([category, count]) => ({ fieldKey, category, count }))
+      .sort((left, right) => right.count - left.count || left.category.localeCompare(right.category));
   return Object.entries(metadata)
     .map(([key, value]) => parseCategoryCountMetadataEntry(key, value))
     .filter((entry): entry is CategoryCountEntry => entry !== null && entry.fieldKey === fieldKey)

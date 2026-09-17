@@ -176,3 +176,15 @@ create index if not exists idx_graph_edges_endpoints
     on graph_edges(dataset_id, layout_version, source_node_id, target_node_id);
 create index if not exists idx_graph_edges_target_endpoints
     on graph_edges(dataset_id, layout_version, target_node_id, source_node_id);
+
+-- Isolate identity belongs to a biological profile, independently of LoD.
+create table if not exists profile_isolates(
+    dataset_id text not null,
+    layout_version text not null,
+    node_id text not null,
+    isolate_id text not null,
+    metadata_json text not null,
+    primary key(dataset_id, layout_version, isolate_id)
+);
+create index if not exists idx_profile_isolates_node
+    on profile_isolates(dataset_id, layout_version, node_id);

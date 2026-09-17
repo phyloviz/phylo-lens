@@ -13,6 +13,7 @@ from phylo_lens_server.domain.models import CanonicalDataset
 from phylo_lens_server.pipeline.ingest import layout_version_for_dataset
 from phylo_lens_server.pipeline.layout import GraphvizLayoutError
 from phylo_lens_server.pipeline.models import PreparedLayoutResult
+from phylo_lens_server.pipeline.sfdp import SfdpOptions
 from phylo_lens_server.repository.jobs.result_payload import prepare_result_payload
 
 PrepareJobStatus = Literal["pending", "ready", "failed"]
@@ -35,6 +36,8 @@ class PrepareWorker(Protocol):
     def submit_prepare_dataset(
         self,
         dataset: CanonicalDataset,
+        *,
+        sfdp_options: SfdpOptions | None = None,
     ) -> Future[PreparedLayoutResult]: ...
 
     def shutdown(self) -> None: ...
@@ -89,9 +92,10 @@ class PrepareJobRegistry:
         dataset: CanonicalDataset,
         warnings: tuple[str, ...] = (),
         *,
+        sfdp_options: SfdpOptions | None = None,
         reserved_capacity: bool = False,
     ) -> str:
-        layout_key = prepare_layout_key(dataset)
+        layout_key = prepare_layout_key(dataset, sfdp_options)
         with self._lock:
             reusable_job_id = self._reusable_job_id_locked(layout_key)
             if reusable_job_id is not None:
@@ -100,7 +104,10 @@ class PrepareJobRegistry:
                 raise PrepareQueueFullError(ERR_PREPARE_QUEUE_FULL)
 
             job_id = uuid.uuid4().hex
-            future = self._worker.submit_prepare_dataset(dataset)
+            future = self._worker.submit_prepare_dataset(
+                dataset,
+                sfdp_options=sfdp_options,
+            )
             self._futures[job_id] = future
             self._warnings[job_id] = warnings
             self._job_ids_by_layout_key[layout_key] = job_id
@@ -237,8 +244,11 @@ class PrepareJobRegistry:
                 self._job_ids_by_layout_key.pop(layout_key, None)
 
 
-def prepare_layout_key(dataset: CanonicalDataset) -> PrepareLayoutKey:
-    return (dataset.dataset_id, layout_version_for_dataset(dataset))
+def prepare_layout_key(
+    dataset: CanonicalDataset,
+    sfdp_options: SfdpOptions | None = None,
+) -> PrepareLayoutKey:
+    return (dataset.dataset_id, layout_version_for_dataset(dataset, sfdp_options))
 
 
 def is_reusable_future(future: Future[PreparedLayoutResult]) -> bool:

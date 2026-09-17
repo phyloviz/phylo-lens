@@ -71,7 +71,7 @@ export default function (options: VisualMappingPaletteOptions) {
   }
 
   function applyControlChange(): void {
-    currentVisualMapping = buildCurrentVisualMapping();
+    currentVisualMapping = buildCurrentVisualMapping(controls.readSelectedColors());
 
     if (!options.getGraph()) {
       options.onChanged();
@@ -126,13 +126,13 @@ export default function (options: VisualMappingPaletteOptions) {
     options.setStatus(`Saved ${categories.length} category colors`);
   }
 
-  function buildCurrentVisualMapping(): VisualMappingOptions {
+  function buildCurrentVisualMapping(categoryColors?: Record<string, string>): VisualMappingOptions {
     const mapping = buildVisualMappingForControls(
       baseVisualMapping,
       options.getSelectedFields(),
       options.getSizeFieldValue(),
       options.getSizeScaleValue(),
-      controls.readSelectedColors(),
+      categoryColors,
     );
     const enabled = options.getPiesEnabled?.();
     if (enabled !== undefined) {

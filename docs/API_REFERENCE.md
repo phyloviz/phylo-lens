@@ -372,9 +372,10 @@ returned node count exceed the primary `max_nodes` read.
 | `cluster_id` | `string` | Prepared cluster containing the node at the selected tier |
 | `x`, `y` | `number` | Global prepared-layout coordinates |
 | `layout_status` | `LayoutStatus` | Status of the stored position |
-| `member_count` | integer ≥ 1 | Number of underlying nodes represented |
+| `member_count` | integer ≥ 1 | Number of canonical graph nodes represented; not the number of isolates sharing a profile |
 | `is_representative` | `boolean` | Whether the node is acting as a cluster representative |
 | `metadata` | object or omitted | Render metadata for the node or cluster. It includes caller-visible fields and may include internal aggregation keys that are absent from `metadata_schema`. |
+| `isolates` | array; defaults to `[]` | For an individual typing profile: original `{id, metadata}` records. Empty for Newick and multi-profile LoD representatives. Older services may omit it. |
 
 `GraphViewportEdge`:
 
@@ -553,7 +554,11 @@ Success (`200`) is synchronous:
 
 The returned version contains the replacement node metadata and public schema.
 All previous metadata fields are replaced, including directly supplied metadata;
-unmatched nodes have no replacement metadata. The source version is unchanged.
+unmatched records have no replacement observations. The source version is unchanged.
+For typing datasets, rows join original isolate IDs, duplicate rows for one isolate
+are rejected, and all identities and profile counts are preserved. Category
+summaries are recomputed from the replacement observations. For Newick trees,
+rows join canonical node IDs and multiple rows per node are supported.
 Use the returned version for subsequent viewport, search, and region requests.
 The update reuses stored geometry and cluster memberships and rebuilds cluster
 metadata summaries. It does not invoke normalization of the tree, PhyloLib,

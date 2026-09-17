@@ -1,5 +1,8 @@
+import type { AncillaryTableInput } from "./contracts/ancillary";
+import type { AncillaryInputOptions } from "./ancillary/ancillaryInput";
 import { createGraphClient } from "./api/graphClient";
-import { SOURCE_FORMAT_NEWICK, type MetadataField, type SourceFormat, type Viewport } from "./contracts/models";
+import type { SfdpOptions } from "./api/graphContracts";
+import { SOURCE_FORMAT_NEWICK, type SourceFormat, type Viewport } from "./contracts/models";
 import rendererFactory from "./render/rendererFactory";
 import { RENDERER_KIND_SIGMA } from "./render/renderer.types";
 import type { VisualMappingOptions } from "./render/mapping/visualMapping";
@@ -19,29 +22,18 @@ export interface PhyloLensViewOptions {
   apiUrl: string;
 }
 
-export interface PhyloLensLoadOptions {
+export interface PhyloLensLoadOptions extends AncillaryInputOptions {
   content: string;
   name?: string;
   sourceFormat?: SourceFormat;
-  metadataSchema?: MetadataField[];
-  metadataByNodeId?: Record<string, Record<string, string | number | boolean | null>>;
-  ancillaryData?: {
-    format: "auto" | "csv" | "tsv";
-    content: string;
-    join_column: string;
-  };
   visualMapping?: VisualMappingOptions;
-  layout?: {
-    forceIterations?: number;
-  };
+  sfdpOptions?: SfdpOptions;
   lod?: {
     maxNodes?: number;
     lodHint?: number;
     viewport?: Viewport;
   };
 }
-
-export type PhyloLensAncillaryData = NonNullable<PhyloLensLoadOptions["ancillaryData"]>;
 
 export interface PhyloLensAncillaryResult {
   matchedNodeCount: number;
@@ -52,7 +44,7 @@ export interface PhyloLensView {
   load: (options: PhyloLensLoadOptions) => Promise<void>;
   /** Replace the visual mapping of a loaded tree and schedule a viewport refresh. */
   updateVisualMapping: (mapping: VisualMappingOptions) => void;
-  applyAncillaryData: (data: PhyloLensAncillaryData) => Promise<PhyloLensAncillaryResult>;
+  applyAncillaryData: (data: AncillaryTableInput) => Promise<PhyloLensAncillaryResult>;
   exportPng: () => Promise<Blob>;
   dispose: () => void;
 }

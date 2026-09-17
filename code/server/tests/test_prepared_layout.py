@@ -4,6 +4,7 @@ import subprocess
 from concurrent.futures import Future
 
 import pytest
+from pydantic import ValidationError
 
 from phylo_lens_server.data.normalizer import NormalizeRequest, normalize_dataset
 from phylo_lens_server.domain.models import (
@@ -12,6 +13,8 @@ from phylo_lens_server.domain.models import (
     MetadataField,
     MetadataType,
 )
+from phylo_lens_server.pipeline import ingest as ingest_pipeline
+from phylo_lens_server.pipeline.clustering import threshold_component_counts
 from phylo_lens_server.pipeline.ingest import (
     PreparedLayoutIngestError,
     layout_version_for_dataset,
@@ -20,17 +23,21 @@ from phylo_lens_server.pipeline.ingest import (
     representative_targets,
 )
 from phylo_lens_server.pipeline.layout import (
-    GLOBAL_TARGET_EDGE_LENGTH,
     GRAPHVIZ_SFDP_COMMAND,
     GraphvizLayoutError,
+    cluster_geometry,
     compute_prepared_layouts,
     graphviz_dot_payload,
     graphviz_sfdp_positions,
-    has_multiple_components,
-    normalize_global_positions,
     parse_graphviz_plain_positions,
 )
 from phylo_lens_server.pipeline.models import PreparedLayoutResult
+from phylo_lens_server.pipeline.sfdp import (
+    SfdpOptions,
+    SfdpOverlap,
+    SfdpQuadtree,
+    SfdpSmoothing,
+)
 from phylo_lens_server.pipeline.worker import (
     PreparedLayoutWorker,
     compute_prepared_edges,
@@ -147,41 +154,146 @@ def test_prepare_layout_artifacts_builds_distance_clusters_with_representatives(
     assert set(abc_cluster.boundary_edge_ids) == {"e_c_d_1", "e_c_e_1"}
 
 
-def test_has_multiple_components_distinguishes_tree_from_forest() -> None:
-    node_ids = ("a", "b", "c")
-    connected = (
-        CanonicalEdge(id="e1", source="a", target="b", distance=1.0),
-        CanonicalEdge(id="e2", source="b", target="c", distance=1.0),
+def test_default_sfdp_options_emit_phylolens_defaults_in_dot() -> None:
+    node_ids = ("a", "b")
+    edges = (CanonicalEdge(id="e1", source="a", target="b", distance=1.0),)
+
+    default_payload = graphviz_dot_payload(node_ids, edges)
+
+    assert default_payload == graphviz_dot_payload(node_ids, edges, SfdpOptions())
+    assert (
+        'graph [K=0.3, repulsiveforce=1, overlap="prism0", '
+        'overlap_scaling=-4, smoothing="spring", quadtree="normal", '
+        "beautify=false, pack=true, splines=false];"
+    ) in default_payload
+
+
+def test_sfdp_options_reach_generated_dot() -> None:
+    payload = graphviz_dot_payload(
+        ("a", "b"),
+        (CanonicalEdge(id="e1", source="a", target="b", distance=1.0),),
+        SfdpOptions(
+            k=0.75,
+            repulsiveForce=2.0,
+            overlap=SfdpOverlap.PRISM,
+            overlapScaling=-4.5,
+            smoothing=SfdpSmoothing.SPRING,
+            quadtree=SfdpQuadtree.FAST,
+            beautify=True,
+        ),
     )
-    forest = (CanonicalEdge(id="e1", source="a", target="b", distance=1.0),)
 
-    assert has_multiple_components(node_ids, connected) is False
-    # 'c' is an isolated singleton, mirroring a goeBURST forest export.
-    assert has_multiple_components(node_ids, forest) is True
+    assert "K=0.75" in payload
+    assert "repulsiveforce=2" in payload
+    assert 'overlap="prism0"' in payload
+    assert "overlap_scaling=-4.5" in payload
+    assert 'smoothing="spring"' in payload
+    assert 'quadtree="fast"' in payload
+    assert "beautify=true" in payload
 
 
-def test_dot_payload_packs_only_when_graph_is_disconnected() -> None:
-    """A forest lays each component out independently; a tree keeps overlap=scale.
-
-    ``overlap=scale`` runs global overlap removal that is pathological for a graph
-    with many disconnected components, so the payload must switch to a packed
-    per-component layout there while leaving the connected case unchanged.
-    """
-    node_ids = ("a", "b", "c")
-    connected = (
-        CanonicalEdge(id="e1", source="a", target="b", distance=1.0),
-        CanonicalEdge(id="e2", source="b", target="c", distance=1.0),
+@pytest.mark.parametrize(
+    ("prism_iterations", "expected_overlap"),
+    ((10, 'overlap="prism10"'), (100, 'overlap="prism100"')),
+)
+def test_prism_iterations_are_serialized_into_overlap(
+    prism_iterations: int,
+    expected_overlap: str,
+) -> None:
+    payload = graphviz_dot_payload(
+        ("a", "b"),
+        (CanonicalEdge(id="e1", source="a", target="b", distance=1.0),),
+        SfdpOptions(prismIterations=prism_iterations),
     )
-    forest = (CanonicalEdge(id="e1", source="a", target="b", distance=1.0),)
 
-    connected_payload = graphviz_dot_payload(node_ids, connected)
-    forest_payload = graphviz_dot_payload(node_ids, forest)
+    assert expected_overlap in payload
 
-    assert "overlap=scale" in connected_payload
-    assert "pack=true" not in connected_payload
-    assert "overlap=prism" in forest_payload
-    assert "pack=true" in forest_payload
-    assert "packmode=array" in forest_payload
+
+def test_scale_overlap_uses_defaults_without_prism_attributes() -> None:
+    payload = graphviz_dot_payload(
+        ("a", "b"),
+        (CanonicalEdge(id="e1", source="a", target="b", distance=1.0),),
+        SfdpOptions(overlap=SfdpOverlap.SCALE),
+    )
+
+    assert 'overlap="scale"' in payload
+    assert "overlap_scaling=" not in payload
+
+
+@pytest.mark.parametrize(
+    "options",
+    (
+        {"overlap": SfdpOverlap.SCALE, "prism_iterations": 10},
+        {"overlap": SfdpOverlap.SCALE, "overlap_scaling": -2.0},
+    ),
+)
+def test_scale_overlap_rejects_explicit_prism_configuration(
+    options: dict[str, object],
+) -> None:
+    with pytest.raises(ValidationError):
+        SfdpOptions(**options)
+
+
+@pytest.mark.parametrize(
+    "options",
+    (
+        {"overlap": "unsupported"},
+        {"smoothing": "blur"},
+        {"quadtree": "accurate"},
+        {"k": 0},
+        {"k": True},
+        {"k": "0.5"},
+        {"repulsiveForce": -0.1},
+        {"unexpected": True},
+    ),
+)
+def test_sfdp_options_reject_invalid_public_values(options: dict[str, object]) -> None:
+    with pytest.raises(ValidationError):
+        NormalizeRequest(
+            format=FORMAT_NEWICK,
+            content="(a:1,b:1)root;",
+            sfdp_options=options,
+        )
+
+
+def test_sfdp_options_change_layout_version() -> None:
+    dataset = _dataset()
+    default_version = layout_version_for_dataset(dataset)
+
+    variants = (
+        SfdpOptions(k=0.75),
+        SfdpOptions(repulsiveForce=2.0),
+        SfdpOptions(prismIterations=10),
+        SfdpOptions(overlap=SfdpOverlap.SCALE),
+        SfdpOptions(overlapScaling=-2.0),
+        SfdpOptions(smoothing=SfdpSmoothing.NONE),
+        SfdpOptions(quadtree=SfdpQuadtree.FAST),
+        SfdpOptions(beautify=True),
+    )
+
+    assert all(
+        layout_version_for_dataset(dataset, options) != default_version
+        for options in variants
+    )
+
+
+def test_equivalent_resolved_sfdp_options_share_layout_version() -> None:
+    dataset = _dataset()
+    explicit_defaults = SfdpOptions(
+        k=0.3,
+        repulsiveForce=1.0,
+        overlap=SfdpOverlap.PRISM,
+        prismIterations=0,
+        overlapScaling=-4.0,
+        smoothing=SfdpSmoothing.SPRING,
+        quadtree=SfdpQuadtree.NORMAL,
+        beautify=False,
+    )
+
+    assert layout_version_for_dataset(dataset) == layout_version_for_dataset(
+        dataset,
+        explicit_defaults,
+    )
 
 
 def test_prepare_layout_artifacts_uses_progressive_density_thresholds() -> None:
@@ -226,6 +338,53 @@ def test_prepare_layout_artifacts_materializes_singletons_at_each_lod() -> None:
     )
 
 
+def test_threshold_component_counts_tracks_successful_unions() -> None:
+    edges = [
+        CanonicalEdge(id="a-b", source="a", target="b", distance=1.0),
+        CanonicalEdge(id="b-c", source="b", target="c", distance=2.0),
+        CanonicalEdge(id="a-c", source="a", target="c", distance=3.0),
+    ]
+
+    counts = threshold_component_counts(("a", "b", "c", "d"), edges, (3.0, 2.0, 1.0))
+
+    assert [(count.threshold, count.component_count) for count in counts] == [
+        (3.0, 2),
+        (2.0, 2),
+        (1.0, 3),
+    ]
+
+
+def test_prepare_artifacts_sorts_edges_once_for_threshold_processing(
+    monkeypatch,
+) -> None:
+    calls = 0
+    original = ingest_pipeline.sort_edges_by_distance
+
+    def count_sorts(edges):
+        nonlocal calls
+        calls += 1
+        return original(edges)
+
+    monkeypatch.setattr(ingest_pipeline, "sort_edges_by_distance", count_sorts)
+
+    prepare_layout_artifacts(_dataset())
+
+    assert calls == 1
+
+
+def test_cluster_geometry_computes_bounds_and_radius_in_one_pass() -> None:
+    bounds, radius = cluster_geometry(
+        {"a": (1.0, 2.0), "b": (4.0, -2.0)},
+        (1.0, 2.0),
+    )
+
+    assert bounds.min_x == 1.0
+    assert bounds.max_x == 4.0
+    assert bounds.min_y == -2.0
+    assert bounds.max_y == 2.0
+    assert radius == 5.0
+
+
 @pytest.mark.skipif(
     not SFDP_AVAILABLE,
     reason=("Force-directed spread requires the Graphviz 'sfdp' binary."),
@@ -243,50 +402,6 @@ def test_open_force_tree_layout_spreads_branching_tree_on_both_axes() -> None:
     assert x_span > 0
     assert y_span > 0
     assert min(x_span, y_span) > max(x_span, y_span) * 0.2
-    assert max(x_span, y_span) > GLOBAL_TARGET_EDGE_LENGTH * 10
-
-
-def test_normalized_graphviz_positions_repair_single_axis_collapse() -> None:
-    positions = {
-        "a": (0.0, 0.0),
-        "b": (0.0, 1.0),
-        "c": (0.0, 2.0),
-        "d": (0.0, 3.0),
-    }
-
-    normalized = normalize_global_positions(
-        positions,
-        [(0, 1), (1, 2), (2, 3)],
-        GLOBAL_TARGET_EDGE_LENGTH,
-    )
-    xs = [position[0] for position in normalized.values()]
-    ys = [position[1] for position in normalized.values()]
-    x_span = max(xs) - min(xs)
-    y_span = max(ys) - min(ys)
-
-    assert x_span > 0.0
-    assert y_span > 0.0
-    assert min(x_span, y_span) > max(x_span, y_span) * 0.2
-
-
-def test_normalized_graphviz_positions_does_not_replace_point_collapse() -> None:
-    positions = {
-        "a": (0.0, 0.0),
-        "b": (0.0, 0.0),
-        "c": (0.0, 0.0),
-        "d": (0.0, 0.0),
-    }
-
-    normalized = normalize_global_positions(
-        positions,
-        [(0, 1), (1, 2), (2, 3)],
-        GLOBAL_TARGET_EDGE_LENGTH,
-    )
-    xs = [position[0] for position in normalized.values()]
-    ys = [position[1] for position in normalized.values()]
-
-    assert max(xs) - min(xs) == 0.0
-    assert max(ys) - min(ys) == 0.0
 
 
 def test_layout_fails_when_sfdp_is_missing_without_circular_fallback(
@@ -665,14 +780,18 @@ def test_prepared_layout_worker_can_run_on_background_thread(tmp_path) -> None:
 class RecordingPrepareWorker:
     def __init__(self) -> None:
         self.submitted_datasets: list[CanonicalDataset] = []
+        self.submitted_sfdp_options: list[SfdpOptions | None] = []
         self.futures: list[Future[PreparedLayoutResult]] = []
 
     def submit_prepare_dataset(
         self,
         dataset: CanonicalDataset,
+        *,
+        sfdp_options: SfdpOptions | None = None,
     ) -> Future[PreparedLayoutResult]:
         future: Future[PreparedLayoutResult] = Future()
         self.submitted_datasets.append(dataset)
+        self.submitted_sfdp_options.append(sfdp_options)
         self.futures.append(future)
         return future
 
@@ -688,9 +807,18 @@ class ImmediatelyCompletedPrepareWorker:
     def submit_prepare_dataset(
         self,
         dataset: CanonicalDataset,
+        *,
+        sfdp_options: SfdpOptions | None = None,
     ) -> Future[PreparedLayoutResult]:
         future: Future[PreparedLayoutResult] = Future()
-        future.set_result(_prepared_result(dataset))
+        future.set_result(
+            PreparedLayoutResult(
+                artifacts=prepare_layout_artifacts(
+                    dataset,
+                    sfdp_options=sfdp_options,
+                )
+            )
+        )
         return future
 
     def shutdown(self) -> None:
@@ -701,6 +829,8 @@ class ImmediatelyFailedPrepareWorker:
     def submit_prepare_dataset(
         self,
         dataset: CanonicalDataset,
+        *,
+        sfdp_options: SfdpOptions | None = None,
     ) -> Future[PreparedLayoutResult]:
         future: Future[PreparedLayoutResult] = Future()
         future.set_exception(RuntimeError("layout failed immediately"))
@@ -708,6 +838,21 @@ class ImmediatelyFailedPrepareWorker:
 
     def shutdown(self) -> None:
         pass
+
+
+def test_prepare_job_reuse_is_scoped_to_sfdp_layout_version() -> None:
+    worker = RecordingPrepareWorker()
+    registry = PrepareJobRegistry(worker)
+    dataset = _dataset()
+    first_options = SfdpOptions(k=0.5)
+
+    first_job_id = registry.submit(dataset, sfdp_options=first_options)
+    reused_job_id = registry.submit(dataset, sfdp_options=first_options)
+    changed_job_id = registry.submit(dataset, sfdp_options=SfdpOptions(k=0.75))
+
+    assert reused_job_id == first_job_id
+    assert changed_job_id != first_job_id
+    assert worker.submitted_sfdp_options == [first_options, SfdpOptions(k=0.75)]
 
 
 def _run_immediate_future_registry_case(kind: str, queue) -> None:

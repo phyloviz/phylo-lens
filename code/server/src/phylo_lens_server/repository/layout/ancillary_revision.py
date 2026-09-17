@@ -13,7 +13,13 @@ from datetime import UTC, datetime
 from itertools import groupby
 from typing import Any
 
-from phylo_lens_server.data.normalizer import AncillaryMetadata
+from phylo_lens_server.data.normalizer import (
+    AncillaryDataRequest,
+    AncillaryReplacement,
+    normalize_ancillary_replacement,
+)
+from phylo_lens_server.domain.legacy_metadata import encode_node_annotations
+from phylo_lens_server.domain.models import Isolate
 from phylo_lens_server.repository.layout.metadata_reader import (
     aggregate_cluster_metadata_by_node_ids,
 )
@@ -39,16 +45,31 @@ GEOMETRY_COLUMNS = {
 }
 
 
-def published_node_ids(
-    connection: Any, dataset_id: str, version: str, placeholder: str
-) -> set[str]:
+def apply_replacement(
+    connection,
+    dataset_id: str,
+    version: str,
+    request: AncillaryDataRequest,
+    placeholder: str,
+):
     require_published(connection, dataset_id, version, placeholder)
-    rows = connection.execute(
-        f"""select distinct node_id from node_positions
-            where dataset_id = {placeholder} and layout_version = {placeholder}""",
+    node_ids = {
+        row["node_id"]
+        for row in connection.execute(
+            f"select node_id from node_positions where dataset_id = {placeholder} and layout_version = {placeholder}",
+            (dataset_id, version),
+        )
+    }
+    isolates = {}
+    for row in connection.execute(
+        f"select node_id, isolate_id from profile_isolates where dataset_id = {placeholder} and layout_version = {placeholder} order by node_id, isolate_id",
         (dataset_id, version),
-    ).fetchall()
-    return {row["node_id"] for row in rows}
+    ):
+        isolates.setdefault(row["node_id"], []).append(Isolate(id=row["isolate_id"]))
+    replacement = normalize_ancillary_replacement(request, node_ids, isolates)
+    return publish_revision(
+        connection, dataset_id, version, replacement, placeholder
+    ), replacement
 
 
 def require_published(
@@ -68,18 +89,26 @@ def publish_revision(
     connection: Any,
     dataset_id: str,
     source_version: str,
-    metadata: AncillaryMetadata,
+    replacement: AncillaryReplacement,
     placeholder: str,
 ) -> str:
     status = require_published(connection, dataset_id, source_version, placeholder)
-    fields = tuple((field.key, str(field.type)) for field in metadata.schema)
+    by_node_id = {
+        key: encode_node_annotations(value)
+        for key, value in replacement.annotations_by_node_id.items()
+    }
+    fields = tuple((field.key, str(field.type)) for field in replacement.schema)
     payload = json.dumps(
         [
-            "ancillary-replacement-v1",
+            "ancillary-replacement-v2",
             dataset_id,
             source_version,
             fields,
-            metadata.by_node_id,
+            by_node_id,
+            {
+                key: [isolate.model_dump() for isolate in isolates]
+                for key, isolates in replacement.isolates_by_node_id.items()
+            },
         ],
         sort_keys=True,
         separators=(",", ":"),
@@ -118,7 +147,23 @@ def publish_revision(
             values ({p}, {p}, {p}, {p})""",
         (
             (dataset_id, version, node_id, json.dumps(values))
-            for node_id, values in metadata.by_node_id.items()
+            for node_id, values in by_node_id.items()
+        ),
+    )
+    _insert_many(
+        connection,
+        f"""insert into profile_isolates(dataset_id, layout_version, node_id, isolate_id, metadata_json)
+            values ({p}, {p}, {p}, {p}, {p})""",
+        (
+            (
+                dataset_id,
+                version,
+                node_id,
+                isolate.id,
+                json.dumps(isolate.ancillary_data),
+            )
+            for node_id, isolates in replacement.isolates_by_node_id.items()
+            for isolate in isolates
         ),
     )
     # Match preparation's precomputation budget. Other tiers aggregate lazily.
@@ -143,7 +188,7 @@ def publish_revision(
                 cluster_id,
                 aggregate_cluster_metadata_by_node_ids(
                     tuple(row["node_id"] for row in members),
-                    metadata.by_node_id,
+                    by_node_id,
                     fields,
                 ),
             )

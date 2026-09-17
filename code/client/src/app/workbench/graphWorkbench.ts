@@ -1,3 +1,4 @@
+import { resolveAncillaryInput } from "../../ancillary/ancillaryInput";
 import type { GraphClient } from "../../api/graphClient";
 import type { NormalizeRequest } from "../../api/graphContracts";
 import { SOURCE_FORMAT_NEWICK } from "../../contracts/models";
@@ -108,7 +109,7 @@ export function createGraphWorkbench(
     applyAncillaryData: async (data) => {
       const session = requirePreparedSession(state);
       const controller = viewportSync;
-      if (disposed || !controller || !state.currentGraph || applyingAncillary) {
+      if (disposed || !controller || !session.layoutVersion || !state.currentGraph || applyingAncillary) {
         throw new Error("Cannot apply ancillary data to this view while another update is pending or after disposal.");
       }
       applyingAncillary = true;
@@ -217,13 +218,15 @@ async function renderNewick({
   resetWorkbenchState(state);
   renderer.focusNode?.(null);
 
+  const ancillary = resolveAncillaryInput(options);
   const request: NormalizeRequest = {
     format: options.sourceFormat ?? SOURCE_FORMAT_NEWICK,
     dataset_name: datasetName,
     content: newick,
-    metadata_schema: options.metadataSchema ?? [],
-    metadata_by_node_id: options.metadataByNodeId ?? {},
+    metadata_schema: ancillary.ancillarySchema,
+    metadata_by_node_id: ancillary.ancillaryByNodeId,
     ancillary_data: options.ancillaryData,
+    sfdp_options: options.sfdpOptions,
   };
 
   if (!renderer.getViewportSyncState || !renderer.applyGraphSnapshot) {
@@ -238,13 +241,12 @@ async function renderNewick({
   state.preparedSession = {
     datasetId: preparedGraph.dataset_id,
     layoutVersion: preparedGraph.layout_version,
-    metadataSchema: options.metadataSchema ?? [],
-    metadataByNodeId: options.metadataByNodeId ?? {},
+    ancillarySchema: ancillary.ancillarySchema,
+    ancillaryByNodeId: ancillary.ancillaryByNodeId,
     ancillaryRowsByNodeId: {},
     visualMapping: options.visualMapping,
     displayOptions: options.displayOptions,
     layoutWarnings: preparedGraph.warnings,
-    layout: options.layout,
     lodTierCount: preparedGraph.lod_tier_count,
     lod: {
       maxNodes: options.lod?.maxNodes ?? DEFAULT_VIEW_SLICE_MAX_NODES,
@@ -265,7 +267,7 @@ async function renderNewick({
     getPaused: () => state.lodRefreshPaused,
     onGraphSynced: (graph, response) => {
       if (response && state.preparedSession) {
-        state.preparedSession.metadataSchema = response.metadata_schema ?? [];
+        state.preparedSession.ancillarySchema = response.metadata_schema ?? [];
         state.preparedSession.layoutVersion = response.layout_version;
       }
       graph.viewMeta.lodTierCount = state.preparedSession?.lodTierCount;
@@ -278,7 +280,8 @@ async function renderNewick({
     getRenderSettings: () => ({
       visualMapping: state.preparedSession?.visualMapping,
       filterState: state.activeFilters,
-      metadataSchema: state.preparedSession?.metadataSchema,
+      ancillarySchema: state.preparedSession?.ancillarySchema,
+      ancillaryByNodeId: state.preparedSession?.ancillaryByNodeId,
       displayOptions: state.preparedSession?.displayOptions,
     }),
   });

@@ -70,7 +70,7 @@ def client(store, monkeypatch):
     monkeypatch.setattr(graph_service, "normalize_dataset", forbidden)
     monkeypatch.setattr(graph_service, "prepare_graph_job", forbidden)
     app.dependency_overrides[get_prepared_layout_store] = lambda: store
-    with TestClient(app) as client:
+    with TestClient(app, raise_server_exceptions=False) as client:
         yield client
     app.dependency_overrides.pop(get_prepared_layout_store, None)
 
@@ -246,3 +246,81 @@ def test_cors_allows_ancillary_upload(monkeypatch):
         )
     assert response.status_code == 200
     assert response.headers["access-control-allow-origin"] == "https://host.example"
+
+
+@pytest.fixture
+def typing_store(store):
+    with connect(store.path) as db:
+        for node_id, isolate_id in (
+            ("A", "isolate-1"),
+            ("A", "isolate-2"),
+            ("B", "isolate-3"),
+        ):
+            db.execute(
+                "insert into profile_isolates values (?, ?, ?, ?, ?)",
+                (DATASET, SOURCE, node_id, isolate_id, json.dumps({"old": "value"})),
+            )
+    return store
+
+
+def test_grouped_profiles_retain_all_isolates_and_replace_observations(
+    client, typing_store
+):
+    response = client.put(
+        "/api/graph/ancillary",
+        json=request("id,country\nisolate-1,PT\nisolate-2,ES\nisolate-3,PT\n"),
+    )
+    assert response.status_code == 200, response.text
+    result = response.json()
+    assert result["matched_node_count"] == 2
+    query = {"dataset_id": DATASET, "layout_version": result["layout_version"]}
+    view = client.post("/api/graph/viewport", json={**query, "lod_level": 1}).json()
+    nodes = {node["id"]: node for node in view["nodes"]}
+    assert nodes["A"]["metadata"]["profile_count"] == 2
+    assert nodes["A"]["metadata"]["__category_count__country__value__PT"] == 1
+    assert nodes["A"]["metadata"]["__category_count__country__value__ES"] == 1
+    assert nodes["A"]["isolates"] == [
+        {"id": "isolate-1", "metadata": {"country": "PT"}},
+        {"id": "isolate-2", "metadata": {"country": "ES"}},
+    ]
+    search = client.post(
+        "/api/graph/search", json={**query, "query": "isolate-2"}
+    ).json()
+    assert search["matches"][0]["node_id"] == "A"
+    assert len(table_rows(typing_store, "profile_isolates", SOURCE)) == 3
+    second = client.put(
+        "/api/graph/ancillary",
+        json=request("id,site\nisolate-1,North\n", result["layout_version"]),
+    ).json()
+    second_view = client.post(
+        "/api/graph/viewport",
+        json={**query, "layout_version": second["layout_version"], "lod_level": 1},
+    ).json()
+    nodes = {node["id"]: node for node in second_view["nodes"]}
+    assert nodes["A"]["metadata"]["profile_count"] == 2
+    assert nodes["B"]["metadata"]["profile_count"] == 1
+    assert nodes["A"]["isolates"][1]["metadata"] == {}
+    assert "country" not in nodes["A"]["metadata"]
+    assert second["matched_node_count"] == 1
+
+
+def test_duplicate_isolate_rows_do_not_publish_a_revision(client, typing_store):
+    response = client.put(
+        "/api/graph/ancillary", json=request("id,country\nisolate-1,PT\nisolate-1,ES\n")
+    )
+    assert response.status_code == 400
+    assert "at most one row" in response.text
+    with connect(typing_store.path) as db:
+        assert db.execute("select count(*) from datasets").fetchone()[0] == 1
+
+
+def test_revision_fingerprint_preserves_assignment_to_individual_isolates(
+    client, typing_store
+):
+    first = client.put(
+        "/api/graph/ancillary", json=request("id,country\nisolate-1,PT\nisolate-2,ES\n")
+    ).json()
+    swapped = client.put(
+        "/api/graph/ancillary", json=request("id,country\nisolate-1,ES\nisolate-2,PT\n")
+    ).json()
+    assert first["layout_version"] != swapped["layout_version"]

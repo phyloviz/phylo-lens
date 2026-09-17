@@ -525,7 +525,11 @@ def test_typing_data_maps_phylolib_graph_into_pipeline(monkeypatch) -> None:
         )
     )
 
-    assert calls == [TYPING_PROFILES]
+    assert calls == [
+        TYPING_PROFILES.replace("\nA", "\na")
+        .replace("\nB", "\nb")
+        .replace("\nC", "\nc")
+    ]
     assert result.dataset.source.format == "typing_data"
     assert len(result.dataset.nodes) == len(
         normalize_dataset(
@@ -590,10 +594,10 @@ def test_typing_profiles_to_newick_prefers_local_phylolib_jar(
     assert commands[0][3:5] == ["distance", phylolib.DEFAULT_DISTANCE_METHOD]
     assert commands[0][5].startswith("--dataset=ml:")
     assert commands[0][6].startswith("--out=symmetric:")
-    assert commands[1][3:5] == ["algorithm", "goeburst"]
+    assert commands[1][3:5] == ["algorithm", phylolib.GOEBURST_FULL_MST_ALGORITHM]
     assert commands[1][5].startswith("--matrix=symmetric:")
     assert commands[1][6].startswith("--out=newick:")
-    assert commands[1][7] == f"--lvs={phylolib.DEFAULT_GOEBURST_LVS}"
+    assert len(commands[1]) == 7
 
 
 def test_typing_profiles_to_newick_reads_jar_output(monkeypatch, tmp_path) -> None:

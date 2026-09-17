@@ -4,7 +4,7 @@ from collections.abc import Callable
 from contextlib import AbstractContextManager, closing
 from pathlib import Path
 
-from phylo_lens_server.data.normalizer import AncillaryMetadata
+from phylo_lens_server.data.normalizer import AncillaryDataRequest, AncillaryReplacement
 from phylo_lens_server.database.sqlite import (
     connect,
     database_path_for_root,
@@ -37,19 +37,13 @@ class PreparedLayoutStore:
         self._threshold_cache: dict[tuple[str, str], tuple[float, ...]] = {}
         initialize_schema(self._database_path)
 
-    def ancillary_node_ids(self, dataset_id: str, layout_version: str) -> set[str]:
-        with closing(connect(self._database_path)) as connection, connection:
-            return ancillary_revision.published_node_ids(
-                connection, dataset_id, layout_version, "?"
-            )
-
-    def apply_ancillary_metadata(
-        self, dataset_id: str, layout_version: str, metadata: AncillaryMetadata
-    ) -> str:
+    def apply_ancillary_data(
+        self, dataset_id: str, layout_version: str, request: AncillaryDataRequest
+    ) -> tuple[str, AncillaryReplacement]:
         with closing(connect(self._database_path)) as connection, connection:
             connection.execute("begin immediate")
-            return ancillary_revision.publish_revision(
-                connection, dataset_id, layout_version, metadata, "?"
+            return ancillary_revision.apply_replacement(
+                connection, dataset_id, layout_version, request, "?"
             )
 
     def clear_dataset(self, dataset_id: str) -> None:

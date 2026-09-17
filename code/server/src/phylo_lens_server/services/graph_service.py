@@ -5,7 +5,6 @@ from time import perf_counter
 
 from phylo_lens_server.data.normalizer import (
     NormalizeRequest,
-    normalize_ancillary_data,
     normalize_dataset,
 )
 from phylo_lens_server.domain.models import CanonicalDataset, CanonicalEdge
@@ -57,13 +56,18 @@ def prepare_graph_job(
             job_id = registry.submit(
                 dataset,
                 submit_warnings,
+                sfdp_options=request.sfdp_options,
                 reserved_capacity=True,
             )
     else:
         normalized = normalize_dataset(request, expose_internal_schema=True)
         dataset, distance_warnings = ensure_graph_edge_distances(normalized.dataset)
         submit_warnings = (*normalized.warnings, *distance_warnings)
-        job_id = registry.submit(dataset, submit_warnings)
+        job_id = registry.submit(
+            dataset,
+            submit_warnings,
+            sfdp_options=request.sfdp_options,
+        )
     return GraphPrepareJob(
         job_id=job_id,
         status="pending",
@@ -234,14 +238,12 @@ def resolve_layout_version(
 def apply_ancillary_data(
     request: GraphAncillaryRequest, store: PreparedLayoutStore
 ) -> GraphAncillaryResponse:
-    node_ids = store.ancillary_node_ids(request.dataset_id, request.layout_version)
-    metadata = normalize_ancillary_data(request.ancillary_data, node_ids)
-    version = store.apply_ancillary_metadata(
-        request.dataset_id, request.layout_version, metadata
+    version, replacement = store.apply_ancillary_data(
+        request.dataset_id, request.layout_version, request.ancillary_data
     )
     return GraphAncillaryResponse(
         dataset_id=request.dataset_id,
         layout_version=version,
-        matched_node_count=len(metadata.by_node_id),
-        warnings=list(metadata.warnings),
+        matched_node_count=replacement.matched_node_count,
+        warnings=list(replacement.warnings),
     )

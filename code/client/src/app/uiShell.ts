@@ -45,7 +45,7 @@ export const STATUS_RENDERING_PREFIX = "Rendering";
 export const STATUS_FAILED_PREFIX = "Failed";
 export const CATEGORY_COLOR_SAVE_FILENAME = "phyloviz-category-colors.txt";
 export const SELECTED_NODE_WHEEL_EMPTY_MESSAGE = "Click a node to view its ancillary distribution.";
-export const SELECT_PIE_FIELD_MESSAGE = "Select a metadata field to view its ancillary distribution.";
+export const SELECT_PIE_FIELD_MESSAGE = "Select an ancillary field to view its distribution.";
 
 // Re-export ancillary mode constants for external use.
 export {
@@ -168,6 +168,7 @@ export default function (options: UiShellOptions): UiShell {
     getSizeScaleValue: () => metadataSizeScaleSelect?.value,
     onChanged: () => {
       wheels.renderOverview();
+      wheels.refreshSelectedNode();
     },
     setStatus,
     setFailureStatus,
@@ -360,13 +361,23 @@ export default function (options: UiShellOptions): UiShell {
     setStatus(`${STATUS_RENDERING_PREFIX}...`);
 
     try {
+      wheels.resetSelectedNode();
       const ancillaryPayload = parseAncillaryPayload(ancillaryRaw);
       const ancillaryData = await getAncillaryDataInput();
-      palette.setBaseVisualMapping(ancillaryPayload.visual_mapping ?? {});
+      const mapping = ancillaryPayload.visual_mapping ?? {};
+      pieFieldControls.setSelection(
+        mapping.pie?.enabled !== false && mapping.pie?.fields?.length
+          ? mapping.pie.fields
+          : mapping.colorField
+            ? [mapping.colorField]
+            : [],
+      );
+      palette.reset();
+      palette.setBaseVisualMapping(mapping);
       await workbench.renderNewick(content, datasetName || undefined, {
         sourceFormat,
-        metadataSchema: ancillaryPayload.metadata_schema,
-        metadataByNodeId: ancillaryPayload.metadata_by_node_id,
+        ancillarySchema: ancillaryPayload.ancillarySchema,
+        ancillaryByNodeId: ancillaryPayload.ancillaryByNodeId,
         ancillaryData,
         visualMapping: palette.getCurrentVisualMapping(),
         displayOptions: buildCurrentDisplayOptions(),
@@ -420,7 +431,7 @@ export default function (options: UiShellOptions): UiShell {
     updateNodeSelectionVisibility();
     updateLodPlaybackControls(isLodGraph(graph));
     wheels.renderOverview();
-    wheels.resetSelectedNode();
+    wheels.refreshSelectedNode();
     region.reset();
   }
 

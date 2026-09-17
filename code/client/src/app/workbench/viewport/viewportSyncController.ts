@@ -1,5 +1,5 @@
 import type { GraphClient } from "../../../api/graphClient";
-import type { GraphViewportResponse } from "../../../api/graphContracts";
+import type { GraphViewportQuery, GraphViewportResponse } from "../../../api/graphContracts";
 import type { PositionedEdge, PositionedGraph, PositionedNode } from "../../../contracts/positioned";
 import type { GraphRenderer, RenderNodeClickState } from "../../../render/renderer.types";
 import {
@@ -17,6 +17,7 @@ import {
 } from "./viewportQuery";
 import {
   graphSnapshotFromViewportResponse,
+  graphSnapshotWithDisplayOptions,
   isExpandableRepresentative,
   mergeGraphSnapshots,
   type ViewportSyncSettings,
@@ -86,6 +87,7 @@ export class ViewportSyncController {
   private replacingLayout = false;
   private refreshAfterReplacement = false;
   private loadedInitialViewport = false;
+  private lastViewportQuery: GraphViewportQuery | null = null;
   private lastRequestedLodLevel: number | null | undefined;
   private nextForcedLodLevel: number | undefined;
   private fitNextResponse = false;
@@ -169,8 +171,10 @@ export class ViewportSyncController {
   }
 
   async replaceLayoutVersion(version: string): Promise<void> {
-    if (!this.mounted || !this.loadedInitialViewport || this.replacingLayout) {
-      throw new Error("Cannot replace metadata before the view is ready or while another replacement is pending.");
+    if (!this.mounted || !this.loadedInitialViewport || !this.lastViewportQuery || this.replacingLayout) {
+      throw new Error(
+        "Cannot replace ancillary data before the view is ready or while another replacement is pending.",
+      );
     }
     this.replacingLayout = true;
     this.nextForcedLodLevel = undefined;
@@ -180,36 +184,52 @@ export class ViewportSyncController {
       window.clearTimeout(this.debounceTimer);
       this.debounceTimer = null;
     }
-    // A metadata update must never refit the camera, including a pending initial fit.
+    // An ancillary update must never refit the camera, including a pending initial fit.
     if (this.initialFitTimer !== null) {
       window.clearTimeout(this.initialFitTimer);
       this.initialFitTimer = null;
     }
-    const query = buildGraphViewportQuery({
-      datasetId: this.datasetId,
-      layoutVersion: version,
-      viewState: this.renderer.getViewportSyncState?.() ?? null,
-      maxNodes: this.maxNodes,
-      forceFinestTier: this.isKnownSmallTree() || this.isSmallTreeLoaded(),
-      lodTierCount: this.lodTierCount,
-      currentLodLevel: this.lastRequestedLodLevel ?? null,
-    });
+    const query = { ...this.lastViewportQuery, layout_version: version };
     try {
-      const response = await this.client.readViewport(query);
+      const expanded = [...this.expandedClusterIds];
+      const [response, ...patches] = await Promise.all([
+        this.client.readViewport(query),
+        ...expanded.map((clusterId) => this.readCluster(clusterId, undefined, version)),
+      ]);
       if (!this.mounted || sequence !== this.requestSequence) {
-        throw new Error("Metadata update was superseded by a newer view.");
+        throw new Error("Ancillary update was superseded by a newer view.");
       }
-      if (response.layout_version !== version || response.dataset_id !== this.datasetId) {
-        throw new Error("Metadata viewport returned a different layout.");
+      if (
+        [response, ...patches].some((item) => item.layout_version !== version || item.dataset_id !== this.datasetId)
+      ) {
+        throw new Error("Ancillary viewport returned a different layout.");
       }
-      const graph = graphSnapshotFromViewportResponse(response, this.getRenderSettings?.());
+      let graph = graphSnapshotFromViewportResponse(response, this.getRenderSettings?.());
+      const snapshots = new Map<string, ExpandedClusterSnapshot>();
+      for (const [index, patch] of patches.entries()) {
+        const clusterId = expanded[index];
+        const previous = this.expandedClusterCache.get(clusterId);
+        const snapshot = previous && this.captureClusterSnapshot(previous.representative.id, graph);
+        if (snapshot) {
+          snapshot.memberIds = patch.nodes.filter((node) => !node.is_representative).map((node) => node.id);
+          snapshots.set(clusterId, snapshot);
+        }
+        graph = mergeGraphSnapshots(graph, graphSnapshotFromViewportResponse(patch, this.getRenderSettings?.()));
+      }
+      graph.viewMeta = { ...graph.viewMeta, lodLevel: response.lod_level ?? 0 };
       this.layoutVersion = version;
       this.lastRequestedLodLevel = query.lod_level;
       this.totalNodeCount = response.total_node_count;
+      this.lastViewportQuery = query;
       this.expandedClusterIds.clear();
+      expanded.forEach((clusterId) => this.expandedClusterIds.add(clusterId));
       this.expandedClusterCache.clear();
+      snapshots.forEach((snapshot, clusterId) => {
+        this.expandedClusterCache.set(clusterId, snapshot);
+        this.expandedClusterIds.add(clusterId);
+      });
       this.currentGraph = graph;
-      this.applyGraph(graph, "viewport_sync");
+      this.applyGraph(graph, "viewport_sync", null, true);
       this.onGraphSynced?.(graph, response);
       this.onViewportLoaded?.(response);
     } finally {
@@ -219,6 +239,15 @@ export class ViewportSyncController {
         this.scheduleViewportRefresh(0);
       }
     }
+  }
+
+  updateDisplayOptions(displayOptions: ViewportSyncSettings["displayOptions"]): void {
+    if (!this.currentGraph) {
+      return;
+    }
+    this.currentGraph = graphSnapshotWithDisplayOptions(this.currentGraph, displayOptions);
+    this.applyGraph(this.currentGraph, "viewport_sync");
+    this.onGraphSynced?.(this.currentGraph);
   }
 
   handleNodeClick(state: RenderNodeClickState): void {
@@ -373,6 +402,7 @@ export class ViewportSyncController {
         return;
       }
       this.layoutVersion = response.layout_version;
+      this.lastViewportQuery = query;
       this.totalNodeCount = response.total_node_count;
       const graph = graphSnapshotFromViewportResponse(response, this.getRenderSettings?.());
       const wasInitialViewport = !this.loadedInitialViewport;
@@ -433,10 +463,10 @@ export class ViewportSyncController {
       this.layoutVersion = response.layout_version;
       const patch = graphSnapshotFromViewportResponse(response, this.getRenderSettings?.());
       this.currentGraph = this.currentGraph ? mergeGraphSnapshots(this.currentGraph, patch) : patch;
+      this.expandedClusterIds.add(clusterId);
       if (snapshot) {
         snapshot.memberIds = response.nodes.filter((node) => !node.is_representative).map((node) => node.id);
         this.expandedClusterCache.set(clusterId, snapshot);
-        this.expandedClusterIds.add(clusterId);
       }
       this.applyGraph(this.currentGraph, "cluster_expand", clusterId);
       if (options.fitToResponse) {
@@ -453,11 +483,15 @@ export class ViewportSyncController {
     }
   }
 
-  private readCluster(clusterId: string, focusNodeId?: string | null): Promise<GraphViewportResponse> {
+  private readCluster(
+    clusterId: string,
+    focusNodeId?: string | null,
+    version = this.layoutVersion,
+  ): Promise<GraphViewportResponse> {
     const viewState = this.renderer.getViewportSyncState?.() ?? null;
     return this.client.readViewport({
       dataset_id: this.datasetId,
-      layout_version: this.layoutVersion ?? null,
+      layout_version: version ?? null,
       cluster_id: clusterId,
       focus_node_id: focusNodeId ?? null,
       zoom: displayZoomForCameraRatio(viewState?.cameraRatio ?? 1),
@@ -466,8 +500,7 @@ export class ViewportSyncController {
     });
   }
 
-  private captureClusterSnapshot(representativeId: string): ExpandedClusterSnapshot | null {
-    const graph = this.currentGraph;
+  private captureClusterSnapshot(representativeId: string, graph = this.currentGraph): ExpandedClusterSnapshot | null {
     const representative = graph?.nodes.find((node) => node.id === representativeId);
     if (!graph || !representative) {
       return null;
@@ -486,11 +519,17 @@ export class ViewportSyncController {
     };
   }
 
-  private applyGraph(graph: PositionedGraph, reason: SnapshotApplicationReason, clusterId: string | null = null): void {
+  private applyGraph(
+    graph: PositionedGraph,
+    reason: SnapshotApplicationReason,
+    clusterId: string | null = null,
+    preservePositions = false,
+  ): void {
     if (!this.renderer.applyGraphSnapshot) {
       throw new Error("Viewport sync requires a renderer that can apply graph snapshots.");
     }
-    this.renderer.applyGraphSnapshot(graph);
+    if (preservePositions) this.renderer.applyGraphSnapshot(graph, { preservePositions: true });
+    else this.renderer.applyGraphSnapshot(graph);
     notifySnapshotApplied({
       observer: this.snapshotObserver,
       sequence: this.snapshotObserver ? (this.nextSnapshotSequence?.() ?? 0) : 0,

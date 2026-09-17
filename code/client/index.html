@@ -564,6 +564,19 @@
           margin: 0 auto;
         }
       }
+      .node-details-title,
+      .ancillary-color-context {
+        font-weight: 600;
+        overflow-wrap: anywhere;
+      }
+      .node-isolate-list {
+        max-height: 12rem;
+        overflow: auto;
+        overflow-wrap: anywhere;
+      }
+      .node-isolate-details {
+        margin-bottom: 1rem;
+      }
     </style>
   </head>
   <body>
@@ -638,13 +651,13 @@
           </div>
 
           <button id="apply-ancillary-button" type="button" disabled>Apply table to current tree</button>
-          <p>Applying a table replaces the current metadata while keeping the tree layout.</p>
+          <p>Applying a table replaces the current ancillary data while keeping the tree layout.</p>
 
           <label hidden>
             Advanced Ancillary JSON (optional)
             <textarea
               id="ancillary-input"
-              placeholder='{"metadata_by_node_id":{"a":{"country":"Portugal"}}}'
+              placeholder='{"ancillary_by_node_id":{"a":{"country":"Portugal"}}}'
             ></textarea>
           </label>
 
@@ -671,7 +684,7 @@
             <label>
               Pie Field
               <select id="metadata-pie-field" multiple size="5" disabled>
-                <option value="">Auto pie fields</option>
+                <option value="">None — neutral nodes</option>
               </select>
             </label>
             <label>
@@ -713,7 +726,7 @@
           <div class="search-controls">
             <label>
               Search
-              <input id="search-input" type="search" placeholder="Node id or metadata" />
+              <input id="search-input" type="search" placeholder="Node ID or ancillary data" />
             </label>
             <button id="search-button" type="button">Search</button>
           </div>

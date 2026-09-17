@@ -10,10 +10,12 @@ from phylo_lens_server.pipeline.ingest import prepare_layout_artifacts
 from phylo_lens_server.pipeline.layout import compute_prepared_layouts
 from phylo_lens_server.pipeline.models import (
     LayoutStatus,
+    PreparedCluster,
     PreparedEdge,
     PreparedLayoutArtifacts,
     PreparedLayoutResult,
 )
+from phylo_lens_server.pipeline.sfdp import SfdpOptions
 from phylo_lens_server.repository.layout.sqlite_layout_repository import (
     PreparedLayoutStore,
 )
@@ -39,10 +41,11 @@ class PreparedLayoutWorker:
         self,
         dataset: CanonicalDataset,
         *,
+        sfdp_options: SfdpOptions | None = None,
         should_continue: Callable[[], bool] | None = None,
     ) -> PreparedLayoutResult:
         with self._stage("lod_construction"):
-            artifacts = prepare_layout_artifacts(dataset)
+            artifacts = prepare_layout_artifacts(dataset, sfdp_options=sfdp_options)
         ensure_should_continue(should_continue)
         with self._stage("persistence.clear"):
             self.store.clear_layout_version(
@@ -137,8 +140,14 @@ class PreparedLayoutWorker:
     def submit_prepare_dataset(
         self,
         dataset: CanonicalDataset,
+        *,
+        sfdp_options: SfdpOptions | None = None,
     ) -> Future[PreparedLayoutResult]:
-        return self.executor.submit(self.prepare_dataset, dataset)
+        return self.executor.submit(
+            self.prepare_dataset,
+            dataset,
+            sfdp_options=sfdp_options,
+        )
 
     def shutdown(self) -> None:
         if self._owns_executor and self._executor is not None:
@@ -153,21 +162,13 @@ def compute_prepared_edges(
     artifacts: PreparedLayoutArtifacts,
 ) -> tuple[PreparedEdge, ...]:
     prepared_by_key: dict[tuple[int, str, str], PreparedEdge] = {}
-    thresholds = tuple(
-        sorted(
-            {
-                cluster.threshold
-                for cluster in artifacts.clusters
-                if cluster.threshold is not None
-            },
-            reverse=True,
-        )
-    )
+    clusters_by_threshold: dict[float, list[PreparedCluster]] = {}
+    for cluster in artifacts.clusters:
+        if cluster.threshold is not None:
+            clusters_by_threshold.setdefault(cluster.threshold, []).append(cluster)
 
-    for lod_level, threshold in enumerate(thresholds):
-        clusters = tuple(
-            cluster for cluster in artifacts.clusters if cluster.threshold == threshold
-        )
+    for lod_level, threshold in enumerate(sorted(clusters_by_threshold, reverse=True)):
+        clusters = clusters_by_threshold[threshold]
         node_to_rep = {
             node_id: cluster.representative_node_id
             for cluster in clusters

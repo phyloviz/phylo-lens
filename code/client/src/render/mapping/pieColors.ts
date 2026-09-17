@@ -1,4 +1,4 @@
-import { readNodeMetadata } from "../../ancillary/metadataAccess";
+import { readNodeAnnotations, ancillaryValues } from "../../ancillary/ancillaryAccess";
 import { buildValueColorMap, DEFAULT_COLOR_PALETTE } from "./colorMapping";
 import {
   PIE_ATTRIBUTE_PREFIX,
@@ -9,7 +9,7 @@ import {
   MAX_PIE_SLICE_KEYS,
   DEFAULT_PIE_PALETTE,
 } from "./pieMapping.types";
-import { categoricalPieValues, parseCategoryCountMetadataEntry, pieCategoricalAttributeKey } from "./pieCategoryCounts";
+import { categoricalPieValues, pieCategoricalAttributeKey } from "./pieCategoryCounts";
 
 export function detectPieSliceKeys(
   nodes: Array<{ attributes?: Record<string, unknown> }>,
@@ -182,20 +182,18 @@ function sliceValuesByKey(nodes: Array<{ attributes?: Record<string, unknown> }>
   };
 
   nodes.forEach((node) => {
-    const metadata = readNodeMetadata(node.attributes);
-    if (!metadata) {
-      return;
-    }
-    Object.entries(metadata).forEach(([metadataKey, rawValue]) => {
-      const categoryEntry = parseCategoryCountMetadataEntry(metadataKey, rawValue);
-      if (categoryEntry) {
-        record(categoryEntry.fieldKey, categoryEntry.category, categoryEntry.count);
-        return;
+    const annotations = readNodeAnnotations(node.attributes);
+    const ancillaryData = ancillaryValues(annotations);
+    const { ancillarySummary } = annotations;
+    const fields = new Set([...Object.keys(ancillaryData), ...Object.keys(ancillarySummary.categoryCounts)]);
+    for (const fieldKey of fields) {
+      const counts = ancillarySummary.categoryCounts[fieldKey];
+      if (counts) {
+        Object.entries(counts).forEach(([category, count]) => record(fieldKey, category, count));
+      } else {
+        categoricalPieValues(ancillaryData[fieldKey]).forEach((category) => record(fieldKey, category, 1));
       }
-      categoricalPieValues(rawValue).forEach((category) => {
-        record(metadataKey, category, 1);
-      });
-    });
+    }
   });
 
   return { fieldBySliceKey: fieldByKey, valueBySliceKey: valueByKey, valuesByField };

@@ -1,3 +1,5 @@
+import type { AncillaryData } from "../../contracts/ancillary";
+export type { AncillaryData } from "../../contracts/ancillary";
 export const PIE_ATTRIBUTE_PREFIX = "pie__";
 export const PIE_PALETTE_ATTRIBUTE = "__pie_palette";
 export const PIE_CATEGORY_COLORS_ATTRIBUTE = "__pie_category_colors";
@@ -30,8 +32,9 @@ export interface PieMappingOptions {
   categoryColors?: Record<string, string>;
 }
 
-export type MetadataRecord = Record<string, string | number | boolean | null>;
-export type AncillaryRow = Record<string, string | number | boolean | null>;
+/** @deprecated Use AncillaryData. */
+export type MetadataRecord = AncillaryData;
+export type AncillaryRow = AncillaryData;
 
 export interface CategoryCountEntry {
   fieldKey: string;

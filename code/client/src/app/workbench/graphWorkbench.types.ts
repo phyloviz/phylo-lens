@@ -1,9 +1,16 @@
+import type { AncillaryData, AncillaryField } from "../../contracts/ancillary";
+import type { AncillaryInputOptions } from "../../ancillary/ancillaryInput";
 import type { GraphClient } from "../../api/graphClient";
-import type { GraphAncillaryResponse, GraphMetadataField, GraphMetadataValue } from "../../api/graphContracts";
+import type {
+  GraphAncillaryResponse,
+  GraphAncillaryField,
+  GraphAncillaryValue,
+  SfdpOptions,
+} from "../../api/graphContracts";
 import type { CanonicalDataset, SearchDatasetResponse, SourceFormat, Viewport } from "../../contracts/models";
 import type { PositionedGraph } from "../../contracts/positioned";
-import type { MetadataIndexData } from "../../ancillary/metadataIndex";
-import type { MetadataFilterState } from "../../ancillary/metadataTypes";
+import type { AncillaryIndex } from "../../ancillary/ancillaryIndex";
+import type { AncillaryFilterState } from "../../ancillary/ancillaryTypes";
 import type { VisualMappingOptions } from "../../render/mapping/visualMapping";
 import type {
   GraphDisplayOptions,
@@ -23,31 +30,24 @@ export interface RegionSelectionResult {
   nodeIds: string[];
   nodeCount: number;
   truncated: boolean;
-  aggregatedMetadata: Record<string, GraphMetadataValue>;
-  metadataSchema: GraphMetadataField[];
+  aggregatedMetadata: Record<string, GraphAncillaryValue>;
+  metadataSchema: GraphAncillaryField[];
 }
 
 export type RegionSelectedHandler = (bounds: RenderViewportBounds) => void;
 
-export interface RenderNewickOptions {
+export interface RenderNewickOptions extends AncillaryInputOptions {
   // Source family of `content`: "newick" parses the text directly; "typing_data"
   // routes an allelic-profile matrix through the server's PhyloLib tree build.
   // Defaults to "newick" when unset so existing callers are unaffected.
   sourceFormat?: SourceFormat;
-  metadataSchema?: CanonicalDataset["metadata_schema"];
-  metadataByNodeId?: CanonicalDataset["metadata_by_node_id"];
-  ancillaryData?: {
-    format: "auto" | "csv" | "tsv";
-    content: string;
-    join_column: string;
-  };
   visualMapping?: VisualMappingOptions;
   // Seed presentation toggles with the render request. This keeps the first
   // viewport snapshot consistent with selections made before loading a graph.
   displayOptions?: GraphDisplayOptions;
-  layout?: {
-    forceIterations?: number;
-  };
+  // Optional SFDP overrides are sent with preparation. Omitted fields defer to
+  // Graphviz's defaults.
+  sfdpOptions?: SfdpOptions;
   lod?: {
     maxNodes?: number;
     lodHint?: number;
@@ -72,7 +72,7 @@ export interface GraphWorkbench {
 
   exportPng: () => Promise<Blob>;
 
-  applyMetadataFilters: (filterState: MetadataFilterState) => PositionedGraph;
+  applyMetadataFilters: (filterState: AncillaryFilterState) => PositionedGraph;
 
   clearMetadataFilters: () => PositionedGraph;
 
@@ -115,9 +115,9 @@ export interface GraphWorkbench {
 
 export interface PreparedDatasetSession {
   datasetId: string;
-  layoutVersion: string;
-  metadataSchema: CanonicalDataset["metadata_schema"];
-  metadataByNodeId: CanonicalDataset["metadata_by_node_id"];
+  layoutVersion?: string;
+  ancillarySchema: AncillaryField[];
+  ancillaryByNodeId: Record<string, AncillaryData>;
   ancillaryRowsByNodeId: CanonicalDataset["ancillary_rows_by_node_id"];
   visualMapping?: VisualMappingOptions;
   // Presentation toggles applied during viewport sync (node labels, edge
@@ -125,7 +125,6 @@ export interface PreparedDatasetSession {
   displayOptions?: GraphDisplayOptions;
   // Prepare-time warnings, surfaced by the shell on every slice.
   layoutWarnings?: string[];
-  layout?: RenderNewickOptions["layout"];
   // Total precomputed LoD tiers for the dataset (from the prepare response).
   // Surfaced in the status bar as "LoD tier X/Y" so semantic-zoom transitions
   // are observable.
@@ -140,9 +139,9 @@ export interface PreparedDatasetSession {
 export interface GraphWorkbenchState {
   currentSliceDataset: CanonicalDataset | null;
   currentGraph: PositionedGraph | null;
-  metadataIndex: MetadataIndexData | null;
-  metadataIndexSignature: string | null;
-  activeFilters: MetadataFilterState;
+  ancillaryIndex: AncillaryIndex | null;
+  ancillaryIndexSignature: string | null;
+  activeFilters: AncillaryFilterState;
   preparedSession: PreparedDatasetSession | null;
   pendingViewRefreshId: number | null;
   lodRefreshPaused: boolean;
