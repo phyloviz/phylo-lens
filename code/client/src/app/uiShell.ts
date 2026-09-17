@@ -256,10 +256,6 @@ export default function (options: UiShellOptions): UiShell {
       palette.renderControls();
       palette.applyControlChange();
     };
-    const handleCategoryColorChange = () => {
-      palette.readControlColors();
-      palette.applyControlChange();
-    };
     bindings.on(ancillaryModeSelect, "change", handleAncillaryModeChange);
     bindings.on(ancillaryNodeSelect, "change", () => {
       wheels.renderOverview();
@@ -275,7 +271,7 @@ export default function (options: UiShellOptions): UiShell {
     bindings.on(metadataSizeScaleSelect, "change", () => {
       palette.applyControlChange();
     });
-    bindings.on(paletteControlsContainer, "input", handleCategoryColorChange);
+    bindings.on(paletteControlsContainer, "input", palette.applyControlChange);
     bindings.on(paletteLoadButton, "click", () => {
       paletteLoadInput?.click();
     });

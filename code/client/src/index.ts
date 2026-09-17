@@ -29,3 +29,6 @@ export type {
 } from "./contracts/ancillary";
 
 export type { ExpansionState, ExpansionResult } from "./contracts/expansion";
+
+export type { PieMappingOptions, PieCategoryGrouping } from "./render/mapping/pieMapping.types";
+export { pieDistribution } from "./render/mapping/pieDistribution";

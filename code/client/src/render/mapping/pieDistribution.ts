@@ -1,6 +1,11 @@
 import type { AncillaryObservation, AncillaryData } from "../../contracts/ancillary";
 import { readNodeAnnotations, readNodeAncillaryValues } from "../../ancillary/ancillaryAccess";
-import { PIE_DISTRIBUTION_ATTRIBUTE, MISSING_PIE_CATEGORY, type PieCategory } from "./pieMapping.types";
+import {
+  PIE_DISTRIBUTION_ATTRIBUTE,
+  MISSING_PIE_CATEGORY,
+  type PieCategory,
+  type PieCategoryGrouping,
+} from "./pieMapping.types";
 import { categoryCountsForField, pieCategoricalAttributeKey } from "./pieCategoryCounts";
 
 /** Each observation contributes once, including missing values and numeric categories. */
@@ -8,7 +13,7 @@ export function pieDistribution(
   observations: readonly AncillaryObservation[],
   fields: readonly string[],
 ): PieCategory[] {
-  const selected = [...new Set(fields.map((field) => field.trim()).filter(Boolean))].sort();
+  const selected = normalizedPieFields(fields);
   if (!selected.length) return [];
   const counts = new Map<string, PieCategory>();
   for (const { values, count } of observations) {
@@ -22,8 +27,8 @@ export function pieDistribution(
         : JSON.stringify(selected.map((field, index) => [field, categories[index]]));
     const label =
       selected.length === 1
-        ? categories[0] === "Missing"
-          ? '"Missing"'
+        ? ["Missing", "Other", "Others", "Other (grouped)"].includes(categories[0] ?? "")
+          ? JSON.stringify(categories[0])
           : (categories[0] ?? "Missing")
         : selected
             .map(
@@ -31,7 +36,7 @@ export function pieDistribution(
                 `${field}: ${categories[index] === null ? "Missing" : JSON.stringify(categories[index])}`,
             )
             .join(" · ");
-    const key = pieCategoricalAttributeKey(selected.length === 1 ? selected[0] : JSON.stringify(selected), category);
+    const key = pieCategoryKey(selected, category);
     const existing = counts.get(key);
     counts.set(key, {
       key,
@@ -72,4 +77,22 @@ export function distributionForFields(
       );
   }
   return pieDistribution([{ values: readNodeAncillaryValues(attributes), count: 1 }], fields);
+}
+
+export function normalizedPieFields(fields: readonly string[]): string[] {
+  return [...new Set(fields.map((field) => field.trim()).filter(Boolean))].sort();
+}
+
+export function pieCategoryKey(fields: readonly string[], category: string): string {
+  const selected = normalizedPieFields(fields);
+  return pieCategoricalAttributeKey(selected.length === 1 ? selected[0] : JSON.stringify(selected), category);
+}
+
+export function pieGroupingForFields(
+  fields: readonly string[],
+  grouping: PieCategoryGrouping = {},
+): PieCategoryGrouping {
+  return Object.fromEntries(
+    Object.entries(grouping).map(([category, mode]) => [pieCategoryKey(fields, category), mode]),
+  );
 }

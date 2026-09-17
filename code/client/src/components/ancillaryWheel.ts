@@ -2,6 +2,9 @@ import type { PositionedGraph } from "../contracts/positioned";
 import { readNodeAncillaryValues } from "../ancillary/ancillaryAccess";
 import {
   distributionForFields,
+  pieGroupingForFields,
+  PIE_GROUPING_ATTRIBUTE,
+  type PieCategoryGrouping,
   observationsFromAttributes,
   distributionFromAttributes,
   detectPieSliceKeys,
@@ -14,11 +17,7 @@ import {
   type PieCategory,
 } from "../render/mapping/pieMapping";
 
-export interface AncillaryWheelSliceStat {
-  key: string;
-  category: string;
-  label: string;
-  value: number;
+export interface AncillaryWheelSliceStat extends PieCategory {
   percentage: number;
   color: string;
 }
@@ -32,6 +31,8 @@ export interface AncillaryWheelStatsOptions {
   fields?: string[];
   palette?: string[];
   categoryColors?: Record<string, string>;
+  categoryGrouping?: PieCategoryGrouping;
+  groupCategories?: boolean;
 }
 export interface AncillaryFieldSummary {
   key: string;
@@ -42,6 +43,9 @@ export function buildAncillaryWheelStats(
   graph: PositionedGraph,
   options: AncillaryWheelStatsOptions = {},
 ): AncillaryWheelStats | null {
+  const grouping = options.categoryGrouping
+    ? pieGroupingForFields(options.fields ?? [], options.categoryGrouping)
+    : undefined;
   const nodes = graph.nodes.map((node) => {
     const distribution = options.fields
       ? distributionForFields(node.attributes, options.fields)
@@ -55,12 +59,16 @@ export function buildAncillaryWheelStats(
             ),
             ...Object.fromEntries(distribution.map((slice) => [slice.key, slice.value])),
             [PIE_DISTRIBUTION_ATTRIBUTE]: distribution,
+            ...(grouping ? { [PIE_GROUPING_ATTRIBUTE]: grouping } : {}),
           }
         : node.attributes,
     };
   });
   // The same displayed keys drive the GPU and every legend, including Other.
-  const keys = detectPieSliceKeys(nodes);
+  const keys =
+    options.groupCategories === false
+      ? [...new Set(nodes.flatMap((node) => distributionFromAttributes(node.attributes).map((slice) => slice.key)))]
+      : detectPieSliceKeys(nodes);
   const displayed = new Set(keys);
   const colors = resolvePieSliceColors(nodes, keys, options.palette, options.categoryColors);
   const totals = new Map<string, PieCategory>();

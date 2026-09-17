@@ -94,6 +94,7 @@ export default function (options: AncillaryWheelsOptions) {
         includeNodeIds,
         palette,
         categoryColors,
+        categoryGrouping: options.getVisualMapping().pie?.categoryGrouping,
       });
 
     return null;

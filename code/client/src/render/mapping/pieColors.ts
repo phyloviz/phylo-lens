@@ -3,6 +3,8 @@ import { readNodeAncillaryValues } from "../../ancillary/ancillaryAccess";
 import { deriveColor, DEFAULT_COLOR_PALETTE } from "./colorMapping";
 import {
   PIE_ATTRIBUTE_PREFIX,
+  PIE_GROUPING_ATTRIBUTE,
+  type PieCategoryGrouping,
   PIE_CATEGORY_COLORS_ATTRIBUTE,
   PIE_OTHER_SLICE_COLOR,
   PIE_OTHER_SLICE_KEY,
@@ -24,7 +26,7 @@ export function detectPieSliceKeys(
     }
 
     Object.keys(attributes).forEach((key) => {
-      if (!key.startsWith(PIE_ATTRIBUTE_PREFIX)) {
+      if (!key.startsWith(PIE_ATTRIBUTE_PREFIX) || key === PIE_OTHER_SLICE_KEY) {
         return;
       }
 
@@ -35,19 +37,35 @@ export function detectPieSliceKeys(
     });
   });
 
-  const sortedKeys = [...totalsByKey.entries()]
-    .sort(([leftKey, leftTotal], [rightKey, rightTotal]) => rightTotal - leftTotal || leftKey.localeCompare(rightKey))
-    .map(([key]) => key);
-  const safeLimit = Math.max(0, maxSliceKeys);
-  const hasOverflow = sortedKeys.length > safeLimit;
-  const displayedKeyLimit = hasOverflow ? Math.max(0, safeLimit - 1) : safeLimit;
-  const topKeys = sortedKeys.slice(0, displayedKeyLimit);
+  const grouping = nodes.find((node) => node.attributes?.[PIE_GROUPING_ATTRIBUTE])?.attributes?.[
+    PIE_GROUPING_ATTRIBUTE
+  ] as PieCategoryGrouping | undefined;
+  return selectPieSliceKeys(totalsByKey, grouping, maxSliceKeys);
+}
 
-  if (hasOverflow && safeLimit > 0) {
-    topKeys.push(PIE_OTHER_SLICE_KEY);
-  }
-
-  return topKeys.sort((left, right) => left.localeCompare(right));
+/** Separate choices reserve stable slots; automatic choices rank current-view counts. */
+export function selectPieSliceKeys(
+  totals: ReadonlyMap<string, number>,
+  grouping: PieCategoryGrouping = {},
+  capacity = MAX_PIE_SLICE_KEYS,
+): string[] {
+  const limit = Math.max(0, Math.min(MAX_PIE_SLICE_KEYS, Math.floor(capacity)));
+  if (!limit) return [];
+  const separate = Object.keys(grouping)
+    .filter((key) => grouping[key] === "separate")
+    .sort();
+  const reserved = separate.slice(0, Math.max(0, limit - 1));
+  const reservedSet = new Set(reserved);
+  const automatic = [...totals.keys()]
+    .filter((key) => !grouping[key])
+    .sort((a, b) => (totals.get(b) ?? 0) - (totals.get(a) ?? 0) || a.localeCompare(b));
+  const hasGrouped = [...totals.keys()].some(
+    (key) => grouping[key] === "other" || (grouping[key] === "separate" && !reservedSet.has(key)),
+  );
+  const needsOther = hasGrouped || reserved.length + automatic.length > limit;
+  const displayed = [...reserved, ...automatic.slice(0, Math.max(0, limit - reserved.length - Number(needsOther)))];
+  if (needsOther) displayed.push(PIE_OTHER_SLICE_KEY);
+  return displayed.sort((a, b) => a.localeCompare(b));
 }
 
 export function buildPiePalette(count: number, requestedPalette?: string[]): string[] {
