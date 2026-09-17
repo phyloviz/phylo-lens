@@ -83,10 +83,8 @@ export interface GraphRenderer {
 
   getInteractiveAggregateTargets?: () => readonly RenderInteractiveAggregateTarget[];
 
-  fitGraphSnapshot?: (
-    graph: PositionedGraph,
-    options?: { resetFirst?: boolean },
-  ) => ReturnType<typeof window.setTimeout> | null;
+  // Returns a cancellation function for pending and active camera motion.
+  fitGraphSnapshot?: (graph: PositionedGraph, options?: { resetFirst?: boolean }) => (() => void) | null;
 
   // Enable/disable region (box) selection mode. While enabled a plain drag on
   // the canvas draws a selection box; Shift+drag works regardless of the toggle.

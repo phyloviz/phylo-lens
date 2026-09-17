@@ -466,6 +466,80 @@ describe("ViewportSyncController", () => {
     expect(renderer.appliedGraphs[0]?.nodes).toEqual([]);
   });
 
+  it("invalidates an in-flight viewport as soon as a newer camera query is scheduled", async () => {
+    const renderer = createRenderer();
+    const pending: Array<(response: GraphViewportResponse) => void> = [];
+    const readViewport = vi.fn(() => new Promise<GraphViewportResponse>((resolve) => pending.push(resolve)));
+    const controller = new ViewportSyncController({
+      datasetId: "tree",
+      client: { readViewport },
+      renderer,
+      lodTierCount: 4,
+      nodeCount: 10000,
+    });
+    controller.mount();
+    await vi.advanceTimersByTimeAsync(0);
+    pending.shift()!(viewportResponse());
+    await Promise.resolve();
+    viewportState.cameraRatio = 0.1;
+    renderer.emitViewChange();
+    await vi.advanceTimersByTimeAsync(60);
+    const applied = renderer.appliedGraphs.length;
+    viewportState.bounds = { xmin: 100, xmax: 200, ymin: -200, ymax: -100 };
+    renderer.emitViewChange();
+    pending.shift()!(viewportResponse({ nodes: [] }));
+    await Promise.resolve();
+    expect(renderer.appliedGraphs).toHaveLength(applied);
+    await vi.advanceTimersByTimeAsync(120);
+    pending.shift()!(viewportResponse({ nodes: [] }));
+    await Promise.resolve();
+    expect(renderer.appliedGraphs).toHaveLength(applied + 1);
+    controller.unmount();
+  });
+
+  it("fetches the final camera position when input interrupts a fitted response", async () => {
+    const renderer = createRenderer();
+    const readViewport = vi.fn().mockResolvedValue(viewportResponse());
+    const controller = new ViewportSyncController({
+      datasetId: "tree",
+      client: { readViewport },
+      renderer,
+      lodTierCount: 4,
+      nodeCount: 10000,
+    });
+    controller.mount();
+    await vi.advanceTimersByTimeAsync(0);
+    controller.refreshNow({ fitToResponse: true });
+    await vi.advanceTimersByTimeAsync(0);
+    const requests = readViewport.mock.calls.length;
+    viewportState = { bounds: { xmin: 100, xmax: 200, ymin: -200, ymax: -100 }, cameraRatio: 0.1 };
+    renderer.emitViewChange();
+    await vi.advanceTimersByTimeAsync(500);
+    expect(readViewport).toHaveBeenCalledTimes(requests + 1);
+    expect(readViewport).toHaveBeenLastCalledWith(expect.objectContaining({ xmin: 50, xmax: 250 }));
+    controller.unmount();
+  });
+
+  it("can expand a representative again after navigation replaces its expanded snapshot", async () => {
+    const renderer = createRenderer();
+    const readViewport = vi.fn(async (query: GraphViewportQuery) =>
+      query.cluster_id ? clusterResponse() : viewportResponse(),
+    );
+    const controller = new ViewportSyncController({ datasetId: "tree", client: { readViewport }, renderer });
+    controller.mount();
+    await vi.advanceTimersByTimeAsync(0);
+    const click = { nodeId: "cluster-a", attributes: { cluster_id: "cluster-a", is_cluster_proxy: true } };
+    controller.handleNodeClick(click);
+    await Promise.resolve();
+    controller.refreshNow();
+    await vi.advanceTimersByTimeAsync(0);
+    controller.handleNodeClick(click);
+    await Promise.resolve();
+    expect(readViewport.mock.calls.filter(([query]) => query.cluster_id)).toHaveLength(2);
+    expect(renderer.appliedGraphs.at(-1)?.nodes.map((node) => node.id)).toContain("a1");
+    controller.unmount();
+  });
+
   it("ignores stale responses after unmount", async () => {
     const renderer = createRenderer();
     let resolveResponse: (response: GraphViewportResponse) => void = () => undefined;

@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Navigation regression</title>
+  </head>
+  <body>
+    <h1>Navigation regression</h1>
+    <button id="run">Run navigation regression</button>
+    <label>Newick fixture <input id="fixture" type="file" /></label>
+    <button id="run-newick">Run Newick navigation</button>
+    <pre id="newick-result" aria-live="polite">No fixture loaded</pre>
+    <pre id="result" aria-live="polite">Ready</pre>
+    <div id="graph" style="width: 1000px; height: 400px"></div>
+    <script type="module" src="/tests/browser/navigationRegression.ts"></script>
+  </body>
+</html>
