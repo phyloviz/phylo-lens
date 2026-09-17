@@ -19,8 +19,11 @@ import {
 } from "../../../render/mapping/visualMapping";
 import {
   pieDistribution,
+  pieGroupingForFields,
+  PIE_GROUPING_ATTRIBUTE,
   resolvePieCategoryColor,
   type PieCategory,
+  type PieCategoryGrouping,
   PIE_DISTRIBUTION_ATTRIBUTE,
   PIE_CATEGORY_COLORS_ATTRIBUTE,
   PIE_PALETTE_ATTRIBUTE,
@@ -47,6 +50,7 @@ interface ResolvedViewportVisuals {
   scale: SizeScale;
   palette: string[];
   categoryColors?: Record<string, string>;
+  grouping: PieCategoryGrouping;
   numericStats?: { min: number; max: number };
   customSize: boolean;
   pie?: NonNullable<VisualMappingOptions["pie"]>;
@@ -240,6 +244,7 @@ function resolveViewportVisuals(
     scale,
     palette,
     categoryColors: mapping.pie?.categoryColors,
+    grouping: pieGroupingForFields(mapping.pie?.fields ?? [], mapping.pie?.categoryGrouping),
     numericStats,
     pie,
   };
@@ -301,6 +306,7 @@ function pieNodeAttributes(
   return {
     ...Object.fromEntries(distribution.map((slice) => [slice.key, slice.value])),
     [PIE_DISTRIBUTION_ATTRIBUTE]: distribution,
+    [PIE_GROUPING_ATTRIBUTE]: visuals.grouping,
     [PIE_CATEGORY_COLORS_ATTRIBUTE]: colors,
     [PIE_PALETTE_ATTRIBUTE]: visuals.palette,
   };

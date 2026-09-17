@@ -1,3 +1,4 @@
+import { normalizedPieFields, type PieCategoryGrouping } from "../../../render/mapping/pieMapping";
 import type { GraphWorkbench } from "../../workbench/graphWorkbench";
 import type { PositionedGraph } from "../../../contracts/positioned";
 import { resolveMappingPalette, type VisualMappingOptions } from "../../../render/mapping/visualMapping";
@@ -25,6 +26,9 @@ export default function (options: VisualMappingPaletteOptions) {
   let baseVisualMapping: VisualMappingOptions = {};
   let currentVisualMapping: VisualMappingOptions = {};
   let categoryColorOverrides: Record<string, string> = {};
+  const groupingByFields = new Map<string, PieCategoryGrouping>();
+  const fieldKey = (fields: string[]) => JSON.stringify(normalizedPieFields(fields));
+  const currentGrouping = () => groupingByFields.get(fieldKey(options.getSelectedFields())) ?? {};
   const controls = categoryColorControls(options.container);
 
   return {
@@ -33,7 +37,6 @@ export default function (options: VisualMappingPaletteOptions) {
     setBaseVisualMapping: setBaseVisualMapping,
     reset: reset,
     renderControls: renderControls,
-    readControlColors: readControlColors,
     applyControlChange: applyControlChange,
     load: load,
     save: save,
@@ -49,12 +52,14 @@ export default function (options: VisualMappingPaletteOptions) {
 
   function setBaseVisualMapping(visualMapping: VisualMappingOptions): void {
     baseVisualMapping = visualMapping;
+    groupingByFields.set(fieldKey(options.getSelectedFields()), { ...visualMapping.pie?.categoryGrouping });
     categoryColorOverrides = { ...visualMapping.pie?.categoryColors };
     currentVisualMapping = buildCurrentVisualMapping();
   }
 
   function reset(): void {
     baseVisualMapping = {};
+    groupingByFields.clear();
     currentVisualMapping = {};
     categoryColorOverrides = {};
   }
@@ -65,15 +70,18 @@ export default function (options: VisualMappingPaletteOptions) {
       selectedFields: options.getSelectedFields(),
       categoryColorOverrides,
       palette: resolveMappingPalette(currentVisualMapping),
+      categoryGrouping: currentGrouping(),
     });
   }
 
-  function readControlColors(): void {
+  function readControls(): void {
+    const { fields, grouping } = controls.readGrouping();
+    groupingByFields.set(fieldKey(fields), grouping);
     categoryColorOverrides = { ...categoryColorOverrides, ...controls.readSelectedColors(true) };
   }
 
   function applyControlChange(): void {
-    readControlColors();
+    readControls();
     currentVisualMapping = buildCurrentVisualMapping(categoryColorOverrides);
 
     if (!options.getGraph()) {
@@ -137,6 +145,12 @@ export default function (options: VisualMappingPaletteOptions) {
       options.getSizeScaleValue(),
       categoryColors,
     );
+    if (mapping.pie) {
+      const grouping = currentGrouping();
+      mapping.pie = { ...mapping.pie };
+      if (Object.keys(grouping).length) mapping.pie.categoryGrouping = grouping;
+      else delete mapping.pie.categoryGrouping;
+    }
     const enabled = options.getPiesEnabled?.();
     if (enabled !== undefined) {
       mapping.pie = { ...mapping.pie, enabled };
