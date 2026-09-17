@@ -85,6 +85,48 @@ function makeFakeWorkbench(
 }
 
 describe("uiShell", () => {
+  it("starts each dataset from its explicit mapping and clears old metadata coloring", async () => {
+    const form = document.createElement("form");
+    const input = document.createElement("textarea");
+    const ancillaryInput = document.createElement("textarea");
+    const select = document.createElement("select");
+    select.multiple = true;
+    input.value = "(A,B)Root;";
+    ancillaryInput.value = JSON.stringify({ metadata_schema: [], visual_mapping: { colorField: "country" } });
+    const workbench = makeFakeWorkbench({
+      nodes: [{ id: "a", x: 0, y: 0, attributes: { metadata: { country: "Portugal" } } }],
+      edges: [],
+      viewMeta: { layout: "server", lodLevel: 0 },
+    });
+    const shell = uiShell({
+      workbench,
+      elements: {
+        form,
+        newickInput: input,
+        ancillaryInput,
+        metadataPieFieldSelect: select,
+        status: document.createElement("div"),
+      },
+    });
+    shell.mount();
+    await shell.renderCurrentInput();
+    expect(select.value).toBe("country");
+    expect(workbench.renderNewick).toHaveBeenLastCalledWith(
+      "(A,B)Root;",
+      undefined,
+      expect.objectContaining({ visualMapping: expect.objectContaining({ colorField: "country" }) }),
+    );
+    ancillaryInput.value = "";
+    await shell.renderCurrentInput();
+    expect(select.value).toBe("");
+    expect(workbench.renderNewick).toHaveBeenLastCalledWith(
+      "(A,B)Root;",
+      undefined,
+      expect.objectContaining({ visualMapping: {} }),
+    );
+    shell.unmount();
+  });
+
   it("updates status after successful render", async () => {
     document.body.innerHTML = `
       <form id="render-form"></form>

@@ -5,6 +5,7 @@ import {
 } from "../../../components/ancillaryWheel";
 import type { PositionedGraph } from "../../../contracts/positioned";
 import type { VisualMappingOptions } from "../../../render/mapping/visualMapping";
+import { renderNodeDetails } from "./nodeDetails";
 import { ANCILLARY_MODE_SELECTED, getAncillaryMode } from "./nodeSelector";
 
 export interface AncillaryWheelsOptions {
@@ -21,7 +22,10 @@ export interface AncillaryWheelsOptions {
 }
 
 export default function (options: AncillaryWheelsOptions) {
+  let selectedNodeId: string | null = null;
+
   return {
+    refreshSelectedNode: () => (selectedNodeId ? renderSelectedNode(selectedNodeId) : resetSelectedNode()),
     renderOverview: renderOverview,
     renderSelectedNode: renderSelectedNode,
     resetSelectedNode: resetSelectedNode,
@@ -43,7 +47,7 @@ export default function (options: AncillaryWheelsOptions) {
       return;
     }
 
-    renderAncillaryWheel(options.overviewContainer, buildStats(), emptyMessage());
+    renderDistribution(options.overviewContainer, undefined, "Current view");
   }
 
   function renderSelectedNode(nodeId: string): void {
@@ -52,19 +56,25 @@ export default function (options: AncillaryWheelsOptions) {
       return;
     }
 
-    const nodeExists = graph.nodes.some((node) => node.id === nodeId);
-    if (!nodeExists) {
+    const keepIdsOpen = selectedNodeId === nodeId && options.selectedNodeContainer.querySelector("details")?.open;
+    selectedNodeId = nodeId;
+    const node = graph.nodes.find((candidate) => candidate.id === nodeId);
+    if (!node) {
+      renderAncillaryWheel(options.selectedNodeContainer, null, `Node '${nodeId}' is outside the current view.`);
       return;
     }
 
-    renderAncillaryWheel(
-      options.selectedNodeContainer,
-      buildStats(new Set([nodeId])),
-      emptyMessage(`Node '${nodeId}'`),
-    );
+    options.selectedNodeContainer.replaceChildren();
+    renderNodeDetails(options.selectedNodeContainer, node);
+    const details = options.selectedNodeContainer.querySelector("details");
+    if (details) details.open = Boolean(keepIdsOpen);
+    const distribution = document.createElement("div");
+    options.selectedNodeContainer.append(distribution);
+    renderDistribution(distribution, new Set([nodeId]), `Node '${nodeId}'`);
   }
 
   function resetSelectedNode(): void {
+    selectedNodeId = null;
     if (!options.selectedNodeContainer) {
       return;
     }
@@ -112,11 +122,20 @@ export default function (options: AncillaryWheelsOptions) {
       return;
     }
 
-    renderAncillaryWheel(
-      options.overviewContainer,
-      buildStats(new Set([selectedId])),
-      emptyMessage(`Node '${selectedId}'`),
-    );
+    renderDistribution(options.overviewContainer, new Set([selectedId]), `Node '${selectedId}'`);
+  }
+
+  function renderDistribution(container: HTMLElement, ids: Set<string> | undefined, subject: string): void {
+    const fields = options.getSelectedFields();
+    const heading = document.createElement("p");
+    heading.className = "ancillary-color-context";
+    heading.textContent =
+      fields.length === 0
+        ? "Metadata coloring: none"
+        : `${subject} · ${fields.length > 1 ? "Color combinations" : "Color field"}: ${fields.join(" × ")}`;
+    const chart = document.createElement("div");
+    renderAncillaryWheel(chart, buildStats(ids), emptyMessage(subject));
+    container.replaceChildren(heading, chart);
   }
 
   function emptyMessage(subject?: string): string {

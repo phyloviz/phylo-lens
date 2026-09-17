@@ -161,6 +161,7 @@ export default function (options: UiShellOptions): UiShell {
     getSizeScaleValue: () => metadataSizeScaleSelect?.value,
     onChanged: () => {
       wheels.renderOverview();
+      wheels.refreshSelectedNode();
     },
     setStatus,
     setFailureStatus,
@@ -320,9 +321,19 @@ export default function (options: UiShellOptions): UiShell {
     setStatus(`${STATUS_RENDERING_PREFIX}...`);
 
     try {
+      wheels.resetSelectedNode();
       const ancillaryPayload = parseAncillaryPayload(ancillaryRaw);
       const ancillaryData = await getAncillaryDataInput();
-      palette.setBaseVisualMapping(ancillaryPayload.visual_mapping ?? {});
+      const mapping = ancillaryPayload.visual_mapping ?? {};
+      pieFieldControls.setSelection(
+        mapping.pie?.enabled !== false && mapping.pie?.fields?.length
+          ? mapping.pie.fields
+          : mapping.colorField
+            ? [mapping.colorField]
+            : [],
+      );
+      palette.reset();
+      palette.setBaseVisualMapping(mapping);
       await workbench.renderNewick(content, datasetName || undefined, {
         sourceFormat,
         metadataSchema: ancillaryPayload.metadata_schema,
@@ -376,7 +387,7 @@ export default function (options: UiShellOptions): UiShell {
     updateNodeSelectionVisibility();
     updateLodPlaybackControls(isLodGraph(graph));
     wheels.renderOverview();
-    wheels.resetSelectedNode();
+    wheels.refreshSelectedNode();
     region.reset();
   }
 

@@ -1,5 +1,3 @@
-import type { MetadataField } from "../../contracts/models";
-import { isCategoryCountMetadataKey } from "./pieMapping";
 import type { PieMappingOptions } from "./pieMapping";
 
 export { UNION_NODE_COLOR, UNION_NODE_SIZE } from "./unionNodes";
@@ -17,7 +15,6 @@ export const MIN_NODE_SIZE = 4;
 // difference between linear and logarithmic scaling is visible on the canvas
 // (a narrow 3-10px span made both scales look nearly identical).
 export const MAX_NODE_SIZE = 22;
-export const DEFAULT_COLOR_FIELD = "region";
 export const DEFAULT_SIZE_FIELD = "distance";
 export const DEFAULT_PROFILE_COUNT_FIELD = "profile_count";
 export const SIZE_SCALE_LINEAR = "linear";
@@ -38,25 +35,9 @@ export interface VisualMappingOptions {
   pie?: PieMappingOptions;
 }
 
-export function resolveColorField(metadataSchema: MetadataField[], requestedColorField: string | undefined): string {
-  if (requestedColorField) {
-    return requestedColorField;
-  }
-
-  const schemaKeys = new Set(metadataSchema.map((field) => field.key));
-  if (schemaKeys.has(DEFAULT_COLOR_FIELD)) {
-    return DEFAULT_COLOR_FIELD;
-  }
-
-  const fallbackField = metadataSchema.find(
-    (field) =>
-      field.type !== "number" &&
-      field.type !== "null" &&
-      field.key !== DEFAULT_PROFILE_COUNT_FIELD &&
-      !isCategoryCountMetadataKey(field.key),
-  );
-
-  return fallbackField?.key ?? DEFAULT_COLOR_FIELD;
+// Metadata coloring is opt-in; schema order must not choose the scientific meaning of color.
+export function resolveColorField(requestedColorField: string | undefined): string | undefined {
+  return requestedColorField?.trim() || undefined;
 }
 
 // Pick the default size field when no explicit size mapping is set. Prefer the

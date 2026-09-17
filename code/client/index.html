@@ -564,6 +564,19 @@
           margin: 0 auto;
         }
       }
+      .node-details-title,
+      .ancillary-color-context {
+        font-weight: 600;
+        overflow-wrap: anywhere;
+      }
+      .node-isolate-list {
+        max-height: 12rem;
+        overflow: auto;
+        overflow-wrap: anywhere;
+      }
+      .node-isolate-details {
+        margin-bottom: 1rem;
+      }
     </style>
   </head>
   <body>
@@ -664,7 +677,7 @@
             <label>
               Pie Field
               <select id="metadata-pie-field" multiple size="5" disabled>
-                <option value="">Auto pie fields</option>
+                <option value="">None — neutral nodes</option>
               </select>
             </label>
             <label>

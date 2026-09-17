@@ -38,6 +38,8 @@ export function buildVisualMappingForControls(
   }
 
   if (selectedFields.length === 0) {
+    delete mapping.colorField;
+    delete mapping.pie;
     return mapping;
   }
 

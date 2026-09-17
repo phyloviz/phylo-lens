@@ -33,7 +33,7 @@ export const GRAPH_VIEWER_REPRESENTATIVE_BASE_SIZE = 3.5;
 export const GRAPH_VIEWER_REPRESENTATIVE_LOG_SIZE_FACTOR = 0.55;
 export const GRAPH_VIEWER_REPRESENTATIVE_MAX_SIZE = 6;
 export const GRAPH_VIEWER_REPRESENTATIVE_COLOR = "#b45309";
-export const GRAPH_VIEWER_NODE_COLOR = "#93c5fd";
+export const GRAPH_VIEWER_NODE_COLOR = "#64748b";
 export const GRAPH_VIEWER_EDGE_COLOR = "#94a3b8";
 export const GRAPH_VIEWER_BASE_EDGE_SIZE = 1;
 export const GRAPH_VIEWER_TRIANGLE_NODE_TYPE = "triangle";
@@ -47,7 +47,7 @@ export interface ViewportSyncSettings {
 }
 
 interface ResolvedViewportVisuals {
-  colorField: string;
+  colorField: string | undefined;
   sizeField: string;
   scale: SizeScale;
   palette: readonly string[];
@@ -62,7 +62,7 @@ export function graphSnapshotFromViewportResponse(
   settings?: ViewportSyncSettings,
 ): PositionedGraph {
   const nodes = filteredViewportNodes(response, settings);
-  const visuals = resolveViewportVisuals(nodes, response.metadata_schema ?? [], settings);
+  const visuals = resolveViewportVisuals(nodes, settings);
   const liveNodeIds = new Set(nodes.map((node) => node.id));
   const displayOptions = settings?.displayOptions;
 
@@ -173,9 +173,9 @@ function buildGraphViewportNodeAttributes(
 ): Record<string, unknown> {
   const isRepresentative = node.member_count > 1;
   const metadata = node.metadata ?? undefined;
-  const mappedValue = visuals ? metadata?.[visuals.colorField] : undefined;
+  const mappedValue = visuals?.colorField ? metadata?.[visuals.colorField] : undefined;
   const hasMappedValue = mappedValue !== undefined && mappedValue !== null && mappedValue !== "";
-  const roleColor = isRepresentative ? GRAPH_VIEWER_REPRESENTATIVE_COLOR : deriveViewportNodeColor(node);
+  const roleColor = isRepresentative ? GRAPH_VIEWER_REPRESENTATIVE_COLOR : GRAPH_VIEWER_NODE_COLOR;
   const color = visuals && hasMappedValue ? visuals.colorForValue(mappedValue) : roleColor;
   const size =
     !isRepresentative &&
@@ -236,7 +236,6 @@ function filteredViewportNodes(response: GraphViewportResponse, settings?: Viewp
 
 function resolveViewportVisuals(
   nodes: GraphViewportNode[],
-  responseMetadataSchema: MetadataField[],
   settings?: ViewportSyncSettings,
 ): ResolvedViewportVisuals | null {
   const mapping = settings?.visualMapping;
@@ -244,15 +243,18 @@ function resolveViewportVisuals(
     return null;
   }
 
-  const metadataSchema = responseMetadataSchema.length > 0 ? responseMetadataSchema : (settings?.metadataSchema ?? []);
-  const colorField = resolveColorField(metadataSchema, mapping.colorField);
+  const colorField = resolveColorField(mapping.colorField);
   const sizeField = mapping.size?.field ?? mapping.sizeField ?? resolveDefaultSizeField(viewportHasProfileCount(nodes));
   const scale = mapping.size?.scale ?? SIZE_SCALE_LINEAR;
   const palette = mapping.palette ?? DEFAULT_COLOR_PALETTE;
   const numericStats = computeSizeFieldStats(nodes, sizeField);
-  const stableColorValues = Object.values(settings?.metadataByNodeId ?? {}).map((metadata) => metadata[colorField]);
+  const stableColorValues = Object.values(settings?.metadataByNodeId ?? {}).map((metadata) =>
+    colorField ? metadata[colorField] : undefined,
+  );
   const colorForValue = buildValueColorMap(
-    stableColorValues.some(hasMetadataValue) ? stableColorValues : nodes.map((node) => node.metadata?.[colorField]),
+    stableColorValues.some(hasMetadataValue)
+      ? stableColorValues
+      : nodes.map((node) => (colorField ? node.metadata?.[colorField] : undefined)),
     palette,
   );
   const pie = mapping.pie && mapping.pie.enabled !== false ? mapping.pie : undefined;
@@ -307,27 +309,6 @@ function nodeSizeForMemberCount(memberCount: number): number {
   return Math.min(GRAPH_VIEWER_REPRESENTATIVE_MAX_SIZE, GRAPH_VIEWER_REPRESENTATIVE_BASE_SIZE + boost);
 }
 
-function deriveViewportNodeColor(node: GraphViewportNode): string {
-  const metadata = node.metadata ?? undefined;
-  if (isTruthyMetadata(metadata, ["selected", "is_selected"])) {
-    return "#dc2626";
-  }
-  const role = normalizeRoleValue(firstMetadataValue(metadata, ["phyloviz_role", "st_role", "node_role", "role"]));
-  if (
-    role === "group_founder" ||
-    isTruthyMetadata(metadata, ["group_founder", "is_group_founder", "founder", "is_founder"])
-  ) {
-    return "#86efac";
-  }
-  if (
-    role === "subgroup_founder" ||
-    isTruthyMetadata(metadata, ["subgroup_founder", "sub_group_founder", "is_subgroup_founder", "is_sub_group_founder"])
-  ) {
-    return "#15803d";
-  }
-  return GRAPH_VIEWER_NODE_COLOR;
-}
-
 function pieNodeAttributes(
   metadata: Record<string, GraphMetadataValue> | undefined,
   visuals: ResolvedViewportVisuals | null,
@@ -354,31 +335,6 @@ function edgeSizeForDistance(distance: number | null | undefined, baseSize: numb
     return baseSize;
   }
   return baseSize + Math.log1p(distance) * 0.75;
-}
-
-function firstMetadataValue(
-  metadata: Record<string, GraphMetadataValue> | undefined,
-  keys: readonly string[],
-): GraphMetadataValue | undefined {
-  return keys.map((key) => metadata?.[key]).find((value) => value !== undefined);
-}
-
-function isTruthyMetadata(metadata: Record<string, GraphMetadataValue> | undefined, keys: readonly string[]): boolean {
-  return keys.some((key) => {
-    const value = metadata?.[key];
-    return (
-      value === true ||
-      value === 1 ||
-      (typeof value === "string" && ["true", "1", "yes", "y"].includes(value.toLowerCase()))
-    );
-  });
-}
-
-function normalizeRoleValue(value: GraphMetadataValue | undefined): string {
-  return String(value ?? "")
-    .trim()
-    .toLowerCase()
-    .replace(/[\s-]+/g, "_");
 }
 
 function numberAttribute(value: unknown): number | undefined {
