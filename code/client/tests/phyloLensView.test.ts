@@ -38,6 +38,9 @@ vi.mock("../src/app/workbench/graphWorkbench", () => ({
     collapseCluster: mocks.collapseCluster,
     getExpansionState: mocks.getExpansionState,
     setKeepExpanded: mocks.setKeepExpanded,
+    setInteractionFeedbackHandler: vi.fn(),
+    setMotionEnabled: vi.fn(),
+    isMotionEnabled: vi.fn(() => true),
     setNodeClickedHandler: vi.fn(),
     setGraphRenderedHandler: vi.fn(),
     renderNewick: mocks.renderNewick,
@@ -261,4 +264,21 @@ it("exposes expansion results and prevents operations after disposal", async () 
   await expect(view.expandAll()).rejects.toThrow(ERR_PHYLO_LENS_VIEW_DISPOSED);
   await expect(view.collapseAll()).rejects.toThrow(ERR_PHYLO_LENS_VIEW_DISPOSED);
   expect(() => view.collapseCluster("group")).toThrow(ERR_PHYLO_LENS_VIEW_DISPOSED);
+});
+
+it("exposes motion preference and feedback without allowing calls after disposal", () => {
+  const feedback = vi.fn();
+  const view = createPhyloLensView({
+    container: document.createElement("div"),
+    apiUrl: "",
+    onInteractionFeedback: feedback,
+  });
+  const workbench = vi.mocked(createGraphWorkbench).mock.results.at(-1)!.value;
+  view.setMotionEnabled(false);
+  expect(workbench.setMotionEnabled).toHaveBeenCalledWith(false);
+  expect(workbench.setInteractionFeedbackHandler).toHaveBeenCalledWith(feedback);
+  expect(view.isMotionEnabled()).toBe(true);
+  view.dispose();
+  expect(() => view.setMotionEnabled(true)).toThrow(ERR_PHYLO_LENS_VIEW_DISPOSED);
+  expect(() => view.isMotionEnabled()).toThrow(ERR_PHYLO_LENS_VIEW_DISPOSED);
 });

@@ -36,6 +36,21 @@ export default function createGraphNavigation({
   async function selectRegion(bounds: RenderViewportBounds): Promise<RegionSelectionResult> {
     const session = requirePreparedSession(state);
 
+    // The server cannot select a rectangle in a deformed layout. Select the loaded
+    // display explicitly; its ancillary wheel is built from these same node IDs.
+    const displayed = renderer.getDisplayedNodesInBounds?.(bounds);
+    if (displayed) {
+      const nodeIds = [...displayed];
+      renderer.setHighlightedNodes?.(new Set(nodeIds));
+      return {
+        nodeIds,
+        nodeCount: nodeIds.length,
+        truncated: false,
+        aggregatedMetadata: {},
+        metadataSchema: [],
+        scope: "display",
+      };
+    }
     const response = await graphClient.readRegion({
       dataset_id: session.datasetId,
       layout_version: session.layoutVersion ?? null,

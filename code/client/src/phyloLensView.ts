@@ -23,6 +23,7 @@ export interface PhyloLensViewOptions {
   container: HTMLElement;
   apiUrl: string;
   onNodeSelected?: (selection: { nodeId: string | null; clusterId: string | null; expandable: boolean }) => void;
+  onInteractionFeedback?: (message: string) => void;
   onExpansionChanged?: (state: ExpansionState) => void;
 }
 
@@ -59,6 +60,8 @@ export interface PhyloLensView {
   /** Replace the visual mapping of a loaded tree and schedule a viewport refresh. */
   updateVisualMapping: (mapping: VisualMappingOptions) => void;
   applyAncillaryData: (data: AncillaryTableInput) => Promise<PhyloLensAncillaryResult>;
+  setMotionEnabled: (enabled: boolean) => void;
+  isMotionEnabled: () => boolean;
   setDragSelection: (selection: DragSelection) => void;
   resetLayoutEdits: () => void;
   exportPng: (options?: PngExportOptions) => Promise<Blob>;
@@ -68,6 +71,7 @@ export interface PhyloLensView {
 export function createPhyloLensView(options: PhyloLensViewOptions): PhyloLensView {
   const workbench = createWorkbench(options);
   let disposed = false;
+  workbench.setInteractionFeedbackHandler(options.onInteractionFeedback ?? null);
   workbench.setNodeClickedHandler((state) =>
     options.onNodeSelected?.({
       nodeId: state.nodeId,
@@ -83,6 +87,8 @@ export function createPhyloLensView(options: PhyloLensViewOptions): PhyloLensVie
   };
 
   return {
+    setMotionEnabled: (enabled) => activeWorkbench().setMotionEnabled(enabled),
+    isMotionEnabled: () => activeWorkbench().isMotionEnabled(),
     setDragSelection: (selection) => activeWorkbench().setDragSelection(selection),
     resetLayoutEdits: () => activeWorkbench().resetLayoutEdits(),
     searchNodes: (query) => activeWorkbench().searchNodes(query),

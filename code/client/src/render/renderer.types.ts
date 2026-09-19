@@ -78,11 +78,18 @@ export type DragSelection =
   { kind: "node" } | { kind: "branch"; rootId: string } | { kind: "group"; nodeIds: readonly string[] };
 
 export interface GraphRenderer {
+  setMotionEnabled?: (enabled: boolean) => void;
+  isMotionEnabled?: () => boolean;
+  setInteractionFeedbackHandler?: (handler: ((message: string) => void) | null) => void;
+  setManipulationHandler?: (handler: ((active: boolean) => void) | null) => void;
+  isManipulating?: () => boolean;
+  getDisplayedNodesInBounds?: (bounds: RenderViewportBounds) => readonly string[];
   setDragSelection?: (selection: DragSelection) => void;
   /** Restore server positions and single-node dragging. Edits are session-local, keyed by
    * rendered node ID: retained on reload/filter/expansion, cleared on a new dataset.
-   * Proxies and their children have separate positions; hidden children do not inherit moves.
-   * Viewport queries still use server coordinates. Expand/fix detail before arranging a branch.
+   * Children inherit a moved proxy's offset when expanded; collapse uses the children's mean offset.
+   * Motion and manual moves are bounded to 10% of the global span per axis. Queries include that halo.
+   * Reset pauses motion and restores server coordinates. Region selection uses the loaded display.
    */
   resetLayoutEdits?: () => void;
   mount: (context: RenderContext) => void;

@@ -72,8 +72,10 @@ function clusterResponse(): GraphViewportResponse {
 function createRenderer(): GraphRenderer & {
   appliedGraphs: PositionedGraph[];
   emitViewChange: () => void;
+  emitManipulation: (active: boolean) => void;
 } {
   let viewHandler: (() => void) | null = null;
+  let manipulationHandler: ((active: boolean) => void) | null = null;
   const renderer = {
     appliedGraphs: [] as PositionedGraph[],
     mount: vi.fn(),
@@ -88,6 +90,10 @@ function createRenderer(): GraphRenderer & {
     }),
     fitGraphSnapshot: vi.fn(() => null),
     emitViewChange: () => viewHandler?.(),
+    setManipulationHandler: (handler: ((active: boolean) => void) | null) => {
+      manipulationHandler = handler;
+    },
+    emitManipulation: (active: boolean) => manipulationHandler?.(active),
   };
   return renderer;
 }
@@ -104,6 +110,42 @@ describe("ViewportSyncController", () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
+  });
+
+  it("invalidates in-flight responses and defers refresh until manipulation ends", async () => {
+    const renderer = createRenderer();
+    let resolveLate: (response: GraphViewportResponse) => void = () => undefined;
+    const readViewport = vi
+      .fn()
+      .mockResolvedValueOnce(viewportResponse())
+      .mockImplementationOnce(
+        () =>
+          new Promise<GraphViewportResponse>((resolve) => {
+            resolveLate = resolve;
+          }),
+      )
+      .mockResolvedValue(viewportResponse({ lod_level: 1 }));
+    const controller = new ViewportSyncController({
+      datasetId: "tree",
+      renderer,
+      client: { readViewport },
+      lodTierCount: 2,
+    });
+    controller.mount();
+    await vi.advanceTimersByTimeAsync(0);
+    controller.refreshNow();
+    await vi.advanceTimersByTimeAsync(0);
+    renderer.emitManipulation(true);
+    controller.refreshNow({ lodLevel: 1 });
+    resolveLate(viewportResponse({ nodes: [] }));
+    await vi.advanceTimersByTimeAsync(500);
+    expect(renderer.appliedGraphs).toHaveLength(1);
+    expect(readViewport).toHaveBeenCalledTimes(2);
+    renderer.emitManipulation(false);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(readViewport).toHaveBeenCalledTimes(3);
+    expect(renderer.appliedGraphs.at(-1)?.viewMeta.lodLevel).toBe(1);
+    controller.unmount();
   });
 
   it("drops old viewport responses and refreshes expanded clusters when adopting ancillary data", async () => {

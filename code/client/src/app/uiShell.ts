@@ -94,6 +94,11 @@ export interface UiShellElements {
   paletteLoadInput?: HTMLInputElement;
   paletteSaveButton?: HTMLButtonElement;
   displayOptionsSelect?: HTMLSelectElement;
+  motionInput?: HTMLInputElement;
+  branchRootButton?: HTMLButtonElement;
+  singleDragButton?: HTMLButtonElement;
+  resetLayoutButton?: HTMLButtonElement;
+  dragStatus?: HTMLElement;
   edgeLabelPolicySelect?: HTMLSelectElement;
   exportScaleInput?: HTMLSelectElement;
   exportLabelSizeInput?: HTMLInputElement;
@@ -151,6 +156,11 @@ export default function (options: UiShellOptions): UiShell {
     paletteLoadInput,
     paletteSaveButton,
     displayOptionsSelect,
+    motionInput,
+    branchRootButton,
+    singleDragButton,
+    resetLayoutButton,
+    dragStatus,
     edgeLabelPolicySelect,
     exportScaleInput,
     exportLabelSizeInput,
@@ -226,6 +236,8 @@ export default function (options: UiShellOptions): UiShell {
     throw new Error(ERR_NEWICK_INPUT_REQUIRED);
   }
 
+  let selectedDragRoot: string | null = null;
+
   if (!statusElement) {
     throw new Error(ERR_STATUS_ELEMENT_REQUIRED);
   }
@@ -239,6 +251,10 @@ export default function (options: UiShellOptions): UiShell {
   // Attach submit handlers and set initial shell status.
   function mount(): void {
     setStatus(DEFAULT_STATUS_READY);
+    if (motionInput) motionInput.checked = workbench.isMotionEnabled?.() ?? true;
+    workbench.setInteractionFeedbackHandler?.((message) => {
+      if (dragStatus) dragStatus.textContent = message;
+    });
     expansion.mount();
     workbench.setGraphRenderedHandler((graph) => {
       handleGraphRendered(graph);
@@ -292,6 +308,23 @@ export default function (options: UiShellOptions): UiShell {
     });
     bindings.on(paletteSaveButton, "click", () => {
       palette.save();
+    });
+    bindings.on(motionInput, "change", () => {
+      workbench.setMotionEnabled(motionInput!.checked);
+    });
+    bindings.on(branchRootButton, "click", () => {
+      if (!selectedDragRoot) return;
+      workbench.setDragSelection({ kind: "branch", rootId: selectedDragRoot });
+      if (dragStatus) dragStatus.textContent = `Drag branches away from arrangement root: ${selectedDragRoot}.`;
+    });
+    bindings.on(singleDragButton, "click", () => {
+      workbench.setDragSelection({ kind: "node" });
+      if (dragStatus) dragStatus.textContent = "Direct dragging: connected nodes react while Motion is on.";
+    });
+    bindings.on(resetLayoutButton, "click", () => {
+      workbench.resetLayoutEdits();
+      if (motionInput) motionInput.checked = false;
+      resetDragControls();
     });
     bindings.on(edgeLabelPolicySelect, "change", handleDisplayOptionsChange);
     bindings.on(exportButton, "click", () => void exportCurrentView());
@@ -433,6 +466,7 @@ export default function (options: UiShellOptions): UiShell {
     bindings.clear();
     expansion.dispose();
     workbench.setGraphRenderedHandler(null);
+    workbench.setInteractionFeedbackHandler?.(null);
     workbench.setNodeClickedHandler(null);
     workbench.setRegionSelectedHandler(null);
     workbench.dispose();
@@ -510,6 +544,12 @@ export default function (options: UiShellOptions): UiShell {
 
   function getSelectedMaxNodes(): number {
     return parseMaxNodes(maxNodesInput?.value);
+  }
+
+  function resetDragControls(): void {
+    selectedDragRoot = null;
+    if (branchRootButton) branchRootButton.disabled = true;
+    if (dragStatus) dragStatus.textContent = "Direct dragging: connected nodes react while Motion is on.";
   }
 
   function buildCurrentDisplayOptions() {

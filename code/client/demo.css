@@ -751,3 +751,41 @@ button:disabled {
     grid-template-columns: 1fr;
   }
 }
+
+.motion-card {
+  min-width: 0;
+}
+
+.motion-card .checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+
+.motion-card input[type="checkbox"] {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--accent);
+}
+
+.motion-card .help-details > .section-body {
+  margin-top: 12px;
+}
+
+.motion-card .button-stack {
+  gap: 8px;
+}
+
+.motion-card button {
+  width: 100%;
+  min-width: 0;
+  white-space: normal;
+}
+
+.motion-card .control-feedback {
+  overflow-wrap: anywhere;
+}

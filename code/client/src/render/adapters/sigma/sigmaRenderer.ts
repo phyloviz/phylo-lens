@@ -1,3 +1,4 @@
+import { DisplayPositions, type Point } from "./motion/displayPositions";
 import type { DragSelection } from "../../renderer.types";
 import { exportSigmaPublication } from "./sigmaPublicationExport";
 import Graph from "graphology";
@@ -68,7 +69,54 @@ export class SigmaRenderer implements GraphRenderer {
   };
   private graph: Graph | null = null;
   private dragSelection: DragSelection = { kind: "node" };
-  private readonly manualPositions = new Map<string, { x: number; y: number }>();
+  private readonly positions = new DisplayPositions();
+  private readonly dragPins = new Map<string, Point>();
+  private manipulationHandler: ((active: boolean) => void) | null = null;
+  private feedbackHandler: ((message: string) => void) | null = null;
+  private transitioning = false;
+  private selectingRegion = false;
+  private transitionFrame: number | null = null;
+  private pendingSnapshot: { graph: PositionedGraph; options?: { preservePositions?: boolean } } | null = null;
+
+  setMotionEnabled(enabled: boolean): void {
+    this.forceMotion.setEnabled(enabled);
+  }
+  isMotionEnabled(): boolean {
+    return this.forceMotion.isEnabled();
+  }
+  setInteractionFeedbackHandler(handler: ((message: string) => void) | null): void {
+    this.feedbackHandler = handler;
+  }
+  setManipulationHandler(handler: ((active: boolean) => void) | null): void {
+    this.manipulationHandler = handler;
+  }
+  isManipulating(): boolean {
+    return this.dragPins.size > 0 || this.transitioning || this.selectingRegion;
+  }
+  getDisplayedNodesInBounds(bounds: RenderViewportBounds): readonly string[] {
+    return (
+      this.graph?.filterNodes(
+        (_id, a) => a.x >= bounds.xmin && a.x <= bounds.xmax && a.y >= bounds.ymin && a.y <= bounds.ymax,
+      ) ?? []
+    );
+  }
+  private captureDisplayPositions(): void {
+    this.graph?.forEachNode((id, attributes) => this.positions.set(id, { x: attributes.x, y: attributes.y }));
+  }
+
+  private finishManipulation(): void {
+    const pending = this.pendingSnapshot;
+    this.pendingSnapshot = null;
+    if (pending) this.applyGraphSnapshot(pending.graph, pending.options);
+    this.manipulationHandler?.(this.isManipulating());
+  }
+  private cancelTransition(): void {
+    if (this.transitionFrame !== null) cancelAnimationFrame(this.transitionFrame);
+    this.transitionFrame = null;
+    this.transitioning = false;
+    this.forceMotion.suspend(false);
+  }
+
   private sourceSnapshot: PositionedGraph | null = null;
 
   setDragSelection(selection: DragSelection): void {
@@ -78,10 +126,14 @@ export class SigmaRenderer implements GraphRenderer {
   }
 
   resetLayoutEdits(): void {
+    this.pendingSnapshot = null;
+    this.setMotionEnabled(false);
+    this.cancelTransition();
     this.dragController.reset();
-    this.manualPositions.clear();
+    this.positions.clear();
     this.dragSelection = { kind: "node" };
-    if (this.sourceSnapshot && this.sigma) this.applyGraphSnapshot(this.sourceSnapshot);
+    if (this.sourceSnapshot && this.sigma) this.applyGraphSnapshot(this.sourceSnapshot, { preservePositions: false });
+    this.manipulationHandler?.(false);
   }
 
   private sigma: Sigma | null = null;
@@ -127,16 +179,38 @@ export class SigmaRenderer implements GraphRenderer {
     this.piechartOptions = options.piechart ?? {};
     this.forceMotion = createSigmaForceMotion(options.forceMotion, {
       onTick: () => this.updateClusterTriangleRotations(),
+      constrain: (id, attributes) => {
+        const pin = this.dragPins.get(id);
+        const previous = this.positions.get(id) ?? (attributes as Point);
+        const step = this.positions.limit * 0.02;
+        const candidate = pin ?? {
+          x: previous.x + Math.max(-step, Math.min(step, attributes.x - previous.x)),
+          y: previous.y + Math.max(-step, Math.min(step, attributes.y - previous.y)),
+        };
+        return { ...attributes, ...this.positions.set(id, candidate) };
+      },
     });
     this.dragController = sigmaDragController({
       getGraph: () => this.graph,
       getSelection: () => this.dragSelection,
       isRegionSelectionEnabled: () => this.regionSelectModeEnabled,
-      onStart: () => {
+      onStart: (ids) => {
         this.cancelCameraFit();
-        this.forceMotion.stop();
+        this.captureDisplayPositions();
+        this.cancelTransition();
+        ids.forEach((id) => this.dragPins.set(id, this.positions.get(id)!));
+        this.manipulationHandler?.(true);
       },
-      onMoved: (positions) => positions.forEach((point, id) => this.manualPositions.set(id, point)),
+      translate: (members, delta) => this.positions.translate(members, delta),
+      onUnavailable: (message) => this.feedbackHandler?.(message),
+      onMoved: (positions) =>
+        positions.forEach((point, id) => {
+          this.dragPins.set(id, this.positions.set(id, point));
+        }),
+      onEnd: () => {
+        this.dragPins.clear();
+        this.finishManipulation();
+      },
       getSigma: () => this.sigma,
       suppressViewChangesFor: (durationMs) => this.suppressViewChangesFor(durationMs),
       suppressNodeClicksFor: (durationMs) => this.suppressNodeClicksFor(durationMs),
@@ -145,6 +219,19 @@ export class SigmaRenderer implements GraphRenderer {
       getSigma: () => this.sigma,
       getContainer: () => this.containerElement,
       isModeEnabled: () => this.regionSelectModeEnabled,
+      onStart: () => {
+        this.cancelCameraFit();
+        this.captureDisplayPositions();
+        this.cancelTransition();
+        this.selectingRegion = true;
+        this.forceMotion.suspend(true);
+        this.manipulationHandler?.(true);
+      },
+      onEnd: () => {
+        this.selectingRegion = false;
+        this.forceMotion.suspend(false);
+        this.finishManipulation();
+      },
       onRegionSelected: (bounds) => this.regionSelectedHandler?.(bounds),
       suppressNodeClicksFor: (durationMs) => this.suppressNodeClicksFor(durationMs),
     });
@@ -165,9 +252,10 @@ export class SigmaRenderer implements GraphRenderer {
       throw new Error(ERR_SIGMA_NOT_READY);
     }
 
+    this.cancelTransition();
     this.dragController.reset();
     this.sourceSnapshot = graph;
-    this.manualPositions.clear();
+    this.positions.clear();
     this.forceMotion.stop();
     this.lastRenderedGraph = graph;
     this.graph.clear();
@@ -182,7 +270,8 @@ export class SigmaRenderer implements GraphRenderer {
     addPositionedEdges(this.graph, graph, this.rendererOptions);
     this.updateClusterTriangleRotations();
     this.sigma.refresh();
-    this.forceMotion.start(this.graph, graph);
+    this.positions.ingest(graph);
+    this.forceMotion.start(this.graph);
     this.updateEdgeLabelVisibility(this.readSemanticViewState());
   }
 
@@ -271,7 +360,10 @@ export class SigmaRenderer implements GraphRenderer {
 
   // Drop container and graph references when renderer is detached.
   unmount(): void {
-    this.forceMotion.stop();
+    this.cancelTransition();
+    this.forceMotion.dispose();
+    this.pendingSnapshot = null;
+    this.manipulationHandler = null;
     this.unbindSigmaHandlers();
     this.sigma?.kill();
     this.sigma = null;
@@ -283,7 +375,7 @@ export class SigmaRenderer implements GraphRenderer {
     this.coordinateBounds = null;
     this.lastRenderedGraph = null;
     this.sourceSnapshot = null;
-    this.manualPositions.clear();
+    this.positions.clear();
     this.dragSelection = { kind: "node" };
     this.selectedNodeId = null;
     this.highlightedNodeIds = null;
@@ -303,8 +395,15 @@ export class SigmaRenderer implements GraphRenderer {
     if (!this.sigma) {
       return null;
     }
+    const bounds = this.currentViewportBounds();
+    const halo = this.positions.limit;
     return {
-      bounds: this.currentViewportBounds(),
+      bounds: {
+        xmin: bounds.xmin - halo,
+        xmax: bounds.xmax + halo,
+        ymin: bounds.ymin - halo,
+        ymax: bounds.ymax + halo,
+      },
       cameraRatio: this.currentCameraRatio(),
     };
   }
@@ -314,25 +413,36 @@ export class SigmaRenderer implements GraphRenderer {
       throw new Error(ERR_SIGMA_NOT_READY);
     }
 
-    this.dragController.reset();
-    if (!options?.preservePositions) this.sourceSnapshot = graph;
-    graph = {
-      ...graph,
-      nodes: graph.nodes.map((node) => ({ ...node, ...this.manualPositions.get(node.id) })),
-    };
-    if (options?.preservePositions) {
+    if (this.dragPins.size || this.selectingRegion) {
+      this.pendingSnapshot = { graph, options };
+      return;
+    }
+    const wasTransitioning = this.transitioning;
+    this.cancelTransition();
+    this.forceMotion.stop();
+    const previousLod = this.sourceSnapshot?.viewMeta.lodLevel;
+    const previousPositions = new Map<string, Point>();
+    this.graph.forEachNode((id, a) => {
+      const point = { x: a.x, y: a.y };
+      previousPositions.set(id, point);
+      if (options?.preservePositions) this.positions.set(id, point);
+    });
+    this.sourceSnapshot = graph;
+    const planned = this.positions.ingest(graph);
+    graph = { ...graph, nodes: planned.nodes };
+    const lodChanged = previousLod !== undefined && previousLod !== graph.viewMeta.lodLevel;
+    const targets = new Map(graph.nodes.map((node) => [node.id, { x: node.x, y: node.y }]));
+    if (wasTransitioning || lodChanged || planned.origins.size) {
       graph = {
         ...graph,
-        nodes: graph.nodes.map((node) =>
-          this.graph!.hasNode(node.id)
-            ? { ...node, x: this.graph!.getNodeAttribute(node.id, "x"), y: this.graph!.getNodeAttribute(node.id, "y") }
-            : node,
-        ),
+        nodes: graph.nodes.map((node) => ({
+          ...node,
+          ...this.positions.constrain(node.id, planned.origins.get(node.id) ?? previousPositions.get(node.id) ?? node),
+        })),
       };
     }
     const cameraState = readCameraState(this.sigma);
     const previousCoordinateBounds = this.coordinateBounds;
-    this.forceMotion.stop();
     this.lastRenderedGraph = graph;
     this.graph.clear();
     this.graphBounds = deriveGraphBounds(graph.nodes);
@@ -366,6 +476,42 @@ export class SigmaRenderer implements GraphRenderer {
       restoreCameraState(this.sigma, cameraState);
     }
     this.updateEdgeLabelVisibility(this.readSemanticViewState());
+    if (wasTransitioning || lodChanged || planned.origins.size) this.animatePositions(targets);
+    else {
+      this.forceMotion.start(this.graph);
+      this.manipulationHandler?.(false);
+    }
+  }
+
+  private animatePositions(targets: ReadonlyMap<string, Point>): void {
+    if (!this.graph) return;
+    const starts = new Map(this.graph.mapNodes((id, a) => [id, { x: a.x, y: a.y }] as const));
+    this.transitioning = true;
+    this.forceMotion.suspend(true);
+    this.manipulationHandler?.(true);
+    const start = performance.now();
+    const tick = (now: number) => {
+      if (!this.graph) return;
+      const t = Math.min(1, (now - start) / 240),
+        eased = t * t * (3 - 2 * t);
+      targets.forEach((target, id) => {
+        const from = starts.get(id)!;
+        this.graph!.mergeNodeAttributes(id, {
+          x: from.x + (target.x - from.x) * eased,
+          y: from.y + (target.y - from.y) * eased,
+        });
+      });
+      this.sigma?.refresh();
+      if (t < 1) this.transitionFrame = requestAnimationFrame(tick);
+      else {
+        this.transitionFrame = null;
+        this.transitioning = false;
+        this.forceMotion.start(this.graph);
+        this.forceMotion.suspend(false);
+        this.manipulationHandler?.(false);
+      }
+    };
+    this.transitionFrame = requestAnimationFrame(tick);
   }
 
   getInteractiveAggregateTargets(): readonly RenderInteractiveAggregateTarget[] {

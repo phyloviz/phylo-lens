@@ -1,10 +1,8 @@
 import type Graph from "graphology";
 import forceAtlas2, { type ForceAtlas2Settings } from "graphology-layout-forceatlas2";
 import ForceAtlas2Supervisor from "graphology-layout-forceatlas2/worker.js";
+import type { Attributes } from "graphology-types";
 
-import { LAYOUT_FORCE, type PositionedGraph } from "../../../../contracts/positioned";
-
-export const DEFAULT_FORCE_MOTION_DURATION_MS = 4_000;
 export const DEFAULT_FORCE_MOTION_SETTINGS: ForceAtlas2Settings = {
   adjustSizes: false,
   barnesHutOptimize: true,
@@ -13,80 +11,62 @@ export const DEFAULT_FORCE_MOTION_SETTINGS: ForceAtlas2Settings = {
   scalingRatio: 18,
   slowDown: 10,
 };
-
 export interface SigmaForceMotionOptions {
   enabled?: boolean;
-  durationMs?: number;
   settings?: ForceAtlas2Settings;
 }
-
 export interface SigmaForceMotionCallbacks {
   onTick?: () => void;
+  constrain?: (id: string, attributes: Attributes) => Attributes;
 }
 
+/** Motion is user-controlled and independent of server/client layout provenance. */
 export default function createSigmaForceMotion(
   options: SigmaForceMotionOptions = {},
   callbacks: SigmaForceMotionCallbacks = {},
-): {
-  start: (graph: Graph, positionedGraph: PositionedGraph) => void;
-  stop: () => void;
-} {
+) {
   let supervisor: ForceAtlas2Supervisor | null = null;
-  let stopTimerId: number | null = null;
-  let tickFrameId: number | null = null;
-
-  return {
-    start: start,
-    stop: stop,
-  };
-
-  function start(graph: Graph, positionedGraph: PositionedGraph): void {
-    stop();
-
-    if (options.enabled === false || !isForceMotionLayout(positionedGraph) || graph.order < 2 || graph.size < 1) {
-      return;
-    }
-
-    supervisor = new ForceAtlas2Supervisor(graph, {
-      settings: {
-        ...forceAtlas2.inferSettings(graph),
-        ...DEFAULT_FORCE_MOTION_SETTINGS,
-        ...options.settings,
-      },
-    });
-    supervisor.start();
-    tick();
-
-    const durationMs = options.durationMs ?? DEFAULT_FORCE_MOTION_DURATION_MS;
-    if (durationMs > 0) {
-      stopTimerId = window.setTimeout(() => {
-        stopTimerId = null;
-        stop();
-      }, durationMs);
-    }
-  }
+  let graph: Graph | null = null;
+  let enabled = options.enabled !== false;
+  let suspended = false;
+  const updated = () => callbacks.onTick?.();
 
   function stop(): void {
-    if (stopTimerId !== null) {
-      window.clearTimeout(stopTimerId);
-      stopTimerId = null;
-    }
-
-    if (tickFrameId !== null) {
-      window.cancelAnimationFrame(tickFrameId);
-      tickFrameId = null;
-    }
-
     supervisor?.kill();
     supervisor = null;
+    graph?.off("eachNodeAttributesUpdated", updated);
   }
-
-  function tick(): void {
-    callbacks.onTick?.();
-    tickFrameId = window.requestAnimationFrame(tick);
+  function resume(): void {
+    if (!enabled || suspended || !graph || graph.order < 2 || !graph.size || supervisor) return;
+    supervisor = new ForceAtlas2Supervisor(graph, {
+      settings: { ...forceAtlas2.inferSettings(graph), ...DEFAULT_FORCE_MOTION_SETTINGS, ...options.settings },
+      getEdgeWeight: () => 1,
+      outputReducer: callbacks.constrain,
+    });
+    graph.on("eachNodeAttributesUpdated", updated);
+    supervisor.start();
   }
-}
-
-function isForceMotionLayout(graph: PositionedGraph): boolean {
-  return graph.viewMeta.layout === LAYOUT_FORCE;
+  return {
+    start: (next: Graph) => {
+      stop();
+      graph = next;
+      resume();
+    },
+    stop,
+    setEnabled: (value: boolean) => {
+      enabled = value;
+      if (value) resume();
+      else stop();
+    },
+    isEnabled: () => enabled,
+    suspend: (value: boolean) => {
+      suspended = value;
+      if (value) stop();
+      else resume();
+    },
+    dispose: () => {
+      stop();
+      graph = null;
+    },
+  };
 }

@@ -12,7 +12,10 @@ interface Options {
   getSigma: () => Sigma | null;
   getSelection: () => DragSelection;
   isRegionSelectionEnabled: () => boolean;
-  onStart: () => void;
+  onStart: (ids: readonly string[]) => void;
+  onEnd: () => void;
+  onUnavailable: (message: string) => void;
+  translate: (members: ReadonlyMap<string, Point>, delta: Point) => ReadonlyMap<string, Point>;
   onMoved: (positions: ReadonlyMap<string, Point>) => void;
   suppressViewChangesFor: (durationMs: number) => void;
   suppressNodeClicksFor: (durationMs: number) => void;
@@ -31,9 +34,11 @@ export default function (options: Options) {
     members.forEach((member, id) => {
       if (graph?.hasNode(id)) graph.setNodeAttribute(id, "fixed", member.fixed);
     });
+    const active = origin !== null;
     members.clear();
     origin = null;
     moved = false;
+    if (active) options.onEnd();
   }
 
   function start(payload: NodeEvent): void {
@@ -41,9 +46,13 @@ export default function (options: Options) {
     const sigma = options.getSigma();
     if (!graph || !sigma || options.isRegionSelectionEnabled() || payload.event.original?.shiftKey) return;
     reset();
-    const ids = dragMembers(graph, payload.node, options.getSelection());
-    if (!ids.length) return;
-    options.onStart();
+    const selection = resolveDragMembers(graph, payload.node, options.getSelection());
+    if (selection.error) {
+      options.onUnavailable(selection.error);
+      payload.event.preventSigmaDefault?.();
+      return;
+    }
+    const ids = selection.nodeIds;
     members = new Map(
       ids.map((id) => [
         id,
@@ -58,6 +67,7 @@ export default function (options: Options) {
     panning = sigma.getSetting("enableCameraPanning");
     sigma.setSetting("enableCameraPanning", false);
     ids.forEach((id) => graph.setNodeAttribute(id, "fixed", true));
+    options.onStart(ids);
     payload.preventSigmaDefault?.();
     payload.event.preventSigmaDefault?.();
   }
@@ -69,12 +79,8 @@ export default function (options: Options) {
     const point = sigma.viewportToGraph(event);
     const delta = { x: point.x - origin.x, y: point.y - origin.y };
     if (!delta.x && !delta.y) return;
-    const positions = new Map<string, Point>();
-    members.forEach((member, id) => {
-      const position = { x: member.x + delta.x, y: member.y + delta.y };
-      graph.mergeNodeAttributes(id, position);
-      positions.set(id, position);
-    });
+    const positions = options.translate(members, delta);
+    positions.forEach((position, id) => graph.mergeNodeAttributes(id, position));
     options.onMoved(positions);
     moved = true;
     options.suppressViewChangesFor(250);
@@ -108,32 +114,41 @@ export default function (options: Options) {
   };
 }
 
-function dragMembers(graph: Graph, grabbed: string, selection: DragSelection): string[] {
-  if (!graph.hasNode(grabbed)) return [];
+export function resolveDragMembers(
+  graph: Graph,
+  grabbed: string,
+  selection: DragSelection,
+): { nodeIds: string[]; error?: string } {
+  if (!graph.hasNode(grabbed)) return { nodeIds: [], error: "This node is no longer loaded." };
   switch (selection.kind) {
     case "node":
-      return [grabbed];
+      return { nodeIds: [grabbed] };
     case "group":
       return selection.nodeIds.includes(grabbed)
-        ? [...new Set(selection.nodeIds)].filter((id) => graph.hasNode(id))
-        : [];
+        ? { nodeIds: [...new Set(selection.nodeIds)].filter((id) => graph.hasNode(id)) }
+        : { nodeIds: [], error: "Drag a member of the selected group, or switch to direct dragging." };
     case "branch": {
-      if (!graph.hasNode(selection.rootId)) return [];
+      if (!graph.hasNode(selection.rootId))
+        return {
+          nodeIds: [],
+          error: "The arrangement root is not loaded. Choose a visible root or use direct dragging.",
+        };
       const parent = new Map<string, string | null>([[selection.rootId, null]]);
       const queue = [selection.rootId];
       for (let i = 0; i < queue.length; i++) {
         const id = queue[i];
         for (const neighbor of graph.neighbors(id)) {
           if (neighbor === parent.get(id)) continue;
-          if (parent.has(neighbor)) return []; // No unambiguous branch in a cyclic component.
+          if (parent.has(neighbor))
+            return { nodeIds: [], error: "This component contains a cycle; choose a group or use direct dragging." };
           parent.set(neighbor, id);
           queue.push(neighbor);
         }
       }
-      if (!parent.has(grabbed)) return [];
+      if (!parent.has(grabbed)) return { nodeIds: [], error: "This node is disconnected from the arrangement root." };
       const selected = new Set([grabbed]);
       for (const id of queue) if (selected.has(parent.get(id) ?? "")) selected.add(id);
-      return [...selected];
+      return { nodeIds: [...selected] };
     }
   }
 }

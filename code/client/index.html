@@ -181,6 +181,51 @@
                 </button>
                 <p class="field-help">Draw a box over the graph to inspect the nodes and ancillary distribution.</p>
               </section>
+
+              <section class="control-card motion-card" aria-labelledby="motion-heading">
+                <h3 id="motion-heading">Motion and arrangement</h3>
+                <label class="checkbox-row">
+                  <input id="motion-enabled" type="checkbox" checked />
+                  <span>Motion</span>
+                </label>
+                <button type="button" id="reset-layout">Reset to server layout</button>
+                <p id="drag-status" role="status" aria-live="polite">
+                  Direct dragging: connected nodes react while Motion is on.
+                </p>
+                <details>
+                  <summary>Advanced branch dragging</summary>
+                  <button type="button" id="branch-root" disabled>Use selected node as arrangement root</button>
+                  <button type="button" id="single-drag">Direct dragging</button>
+                  <p>
+                    Click a node and choose it as the arrangement root, then drag a node to translate its loaded branch.
+                    This root is a visual choice, not a biological ancestor. Missing roots, disconnected nodes and
+                    cycles show a message instead of guessing membership.
+                  </p>
+                </details>
+                <details>
+                  <summary>Motion, positions and detail changes</summary>
+                  <p>
+                    Server positions appear first, then Motion relaxes the loaded graph in a worker. Turn Motion off to
+                    freeze positions and arrange nodes or groups precisely. Reset pauses Motion and restores the server
+                    layout.
+                  </p>
+                  <p>
+                    Display positions persist within this load. Both simulation and manual dragging stay within 10% of
+                    the global span per axis from server positions; viewport queries include this margin. LoD refresh
+                    waits while dragging or selecting a region. Detail changes blend positions; expanding a moved group
+                    introduces children from its displayed position and inherits its offset. Collapse uses the mean
+                    child offset. Motion resumes only if enabled.
+                  </p>
+                  <p>
+                    Region selection counts loaded nodes at their displayed positions, including collapsed groups; it
+                    does not select hidden members individually. Dense queries can still be limited by the node budget.
+                  </p>
+                  <p>
+                    Only display geometry changes. Topology and edge distances remain unchanged. Geometric lengths do
+                    not encode allelic distances; use distance labels.
+                  </p>
+                </details>
+              </section>
             </div>
           </section>
 
