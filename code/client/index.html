@@ -752,28 +752,43 @@
           </label>
 
           <fieldset>
-            <legend>Arrange branches</legend>
-            <button type="button" id="branch-root" disabled>Use selected node as arrangement root</button>
-            <button type="button" id="single-drag">Drag single nodes</button>
-            <button type="button" id="reset-layout">Reset manual positions</button>
-            <p id="drag-status">Drag one node at a time.</p>
+            <legend>Motion and arrangement</legend>
+            <label><input id="motion-enabled" type="checkbox" checked /> Motion</label>
+            <button type="button" id="reset-layout">Reset to server layout</button>
+            <p id="drag-status" role="status" aria-live="polite">
+              Direct dragging: connected nodes react while Motion is on.
+            </p>
             <details>
-              <summary>Branch selection and position persistence</summary>
+              <summary>Advanced branch dragging</summary>
+              <button type="button" id="branch-root" disabled>Use selected node as arrangement root</button>
+              <button type="button" id="single-drag">Direct dragging</button>
               <p>
-                Click a node and choose it as the arrangement root, then drag any node to move its loaded branch away
-                from that root. Dragging the root moves the whole loaded component. The root is a visual choice, not a
-                biological ancestor. Branch mode requires a loaded root and an acyclic component.
+                Click a node and choose it as the arrangement root, then drag a node to translate its loaded branch.
+                This root is a visual choice, not a biological ancestor. Missing roots, disconnected nodes and cycles
+                show a message instead of guessing membership.
+              </p>
+            </details>
+            <details>
+              <summary>Motion, positions and detail changes</summary>
+              <p>
+                Server positions appear first, then Motion relaxes the loaded graph in a worker. Turn Motion off to
+                freeze positions and arrange nodes or groups precisely. Reset pauses Motion and restores the server
+                layout.
               </p>
               <p>
-                Expand the desired detail and keep expansion before arranging. Only loaded members move. Positions
-                persist by node ID during this session, including when nodes leave and re-enter a slice. Collapsed
-                groups and their children retain separate edits; hidden children do not inherit a group move. Loading a
-                dataset or resetting restores server positions. Viewport queries still follow the original server
-                coordinates.
+                Display positions persist within this load. Both simulation and manual dragging stay within 10% of the
+                global span per axis from server positions; viewport queries include this margin. LoD refresh waits
+                while dragging or selecting a region. Detail changes blend positions; expanding a moved group introduces
+                children from its displayed position and inherits its offset. Collapse uses the mean child offset.
+                Motion resumes only if enabled.
               </p>
               <p>
-                Dragging changes geometry only. Edge distances and topology stay unchanged. Geometric edge length does
-                not encode allelic distance; use distance labels. Distance-weighted edges change thickness, not length.
+                Region selection counts loaded nodes at their displayed positions, including collapsed groups; it does
+                not select hidden members individually. Dense queries can still be limited by the node budget.
+              </p>
+              <p>
+                Only display geometry changes. Topology and edge distances remain unchanged. Geometric lengths do not
+                encode allelic distances; use distance labels.
               </p>
             </details>
           </fieldset>

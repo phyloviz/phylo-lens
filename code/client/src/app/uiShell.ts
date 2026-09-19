@@ -92,6 +92,7 @@ export interface UiShellElements {
   paletteLoadInput?: HTMLInputElement;
   paletteSaveButton?: HTMLButtonElement;
   displayOptionsSelect?: HTMLSelectElement;
+  motionInput?: HTMLInputElement;
   branchRootButton?: HTMLButtonElement;
   singleDragButton?: HTMLButtonElement;
   resetLayoutButton?: HTMLButtonElement;
@@ -151,6 +152,7 @@ export default function (options: UiShellOptions): UiShell {
     paletteLoadInput,
     paletteSaveButton,
     displayOptionsSelect,
+    motionInput,
     branchRootButton,
     singleDragButton,
     resetLayoutButton,
@@ -245,6 +247,10 @@ export default function (options: UiShellOptions): UiShell {
   // Attach submit handlers and set initial shell status.
   function mount(): void {
     setStatus(DEFAULT_STATUS_READY);
+    if (motionInput) motionInput.checked = workbench.isMotionEnabled?.() ?? true;
+    workbench.setInteractionFeedbackHandler?.((message) => {
+      if (dragStatus) dragStatus.textContent = message;
+    });
     expansion.mount();
     workbench.setGraphRenderedHandler((graph) => {
       handleGraphRendered(graph);
@@ -301,6 +307,9 @@ export default function (options: UiShellOptions): UiShell {
     bindings.on(paletteSaveButton, "click", () => {
       palette.save();
     });
+    bindings.on(motionInput, "change", () => {
+      workbench.setMotionEnabled(motionInput!.checked);
+    });
     bindings.on(branchRootButton, "click", () => {
       if (!selectedDragRoot) return;
       workbench.setDragSelection({ kind: "branch", rootId: selectedDragRoot });
@@ -308,10 +317,11 @@ export default function (options: UiShellOptions): UiShell {
     });
     bindings.on(singleDragButton, "click", () => {
       workbench.setDragSelection({ kind: "node" });
-      if (dragStatus) dragStatus.textContent = "Drag one node at a time.";
+      if (dragStatus) dragStatus.textContent = "Direct dragging: connected nodes react while Motion is on.";
     });
     bindings.on(resetLayoutButton, "click", () => {
       workbench.resetLayoutEdits();
+      if (motionInput) motionInput.checked = false;
       resetDragControls();
     });
     bindings.on(edgeLabelPolicySelect, "change", handleDisplayOptionsChange);
@@ -447,6 +457,7 @@ export default function (options: UiShellOptions): UiShell {
     bindings.clear();
     expansion.dispose();
     workbench.setGraphRenderedHandler(null);
+    workbench.setInteractionFeedbackHandler?.(null);
     workbench.setNodeClickedHandler(null);
     workbench.setRegionSelectedHandler(null);
     workbench.dispose();
@@ -529,7 +540,7 @@ export default function (options: UiShellOptions): UiShell {
   function resetDragControls(): void {
     selectedDragRoot = null;
     if (branchRootButton) branchRootButton.disabled = true;
-    if (dragStatus) dragStatus.textContent = "Drag one node at a time.";
+    if (dragStatus) dragStatus.textContent = "Direct dragging: connected nodes react while Motion is on.";
   }
 
   function buildCurrentDisplayOptions() {
