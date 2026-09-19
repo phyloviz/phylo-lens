@@ -1,4 +1,5 @@
-import forceAtlas2 from "graphology-layout-forceatlas2";
+import { createElasticSimulation } from "../src/render/adapters/sigma/motion/elasticSimulation";
+import type { MotionCommand, MotionFrame } from "../src/render/adapters/sigma/motion/elastic.worker";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 let lastSigmaOptions: Record<string, unknown> | null = null;
@@ -22,7 +23,8 @@ let lastCamera: {
 } | null = null;
 let downHandler: ((payload: { node: string; event: { x: number; y: number } }) => void) | null = null;
 const mouseHandlers = new Map<string, Set<(payload: { x: number; y: number }) => void>>();
-let motionReducer: ((id: string, attributes: Record<string, unknown>) => Record<string, unknown>) | undefined;
+let emitMotion: ((positions: number[]) => void) | undefined;
+let pumpMotion: ((iterations: number) => void) | undefined;
 let lastStageClickHandler: (() => void) | null = null;
 let lastNodeClickHandler: ((payload: { node?: string; event?: { node?: string } }) => void) | null = null;
 let lastNodeDoubleClickHandler: ((payload: { node?: string; event?: { node?: string } }) => void) | null = null;
@@ -39,22 +41,31 @@ let animationFrameId = 0;
 let graphToViewportPoint = (point: { x: number; y: number }) => point;
 let viewportToFramedGraphPoint = (point: { x: number; y: number }) => point;
 
-vi.mock("graphology-layout-forceatlas2/worker.js", () => ({
-  default: class FakeForceSupervisor {
-    constructor(
-      _graph: unknown,
-      options?: { settings?: Record<string, number>; outputReducer?: typeof motionReducer },
-    ) {
-      lastForceMotionSettings = options?.settings ?? null;
-      motionReducer = options?.outputReducer;
+vi.mock("../src/render/adapters/sigma/motion/elastic.worker?worker&inline", () => ({
+  default: class {
+    onmessage: ((event: { data: MotionFrame }) => void) | null = null;
+    simulation: ReturnType<typeof createElasticSimulation> | undefined;
+    revision = 0;
+    constructor() {
+      emitMotion = (positions) =>
+        this.onmessage?.({ data: { positions: new Float64Array(positions), revision: this.revision, settled: false } });
+      pumpMotion = (iterations) => {
+        this.simulation!.tick(iterations);
+        this.onmessage?.({
+          data: { positions: this.simulation!.positions(), revision: this.revision, settled: false },
+        });
+      };
     }
-
-    start() {
-      forceMotionStarts += 1;
+    postMessage(data: MotionCommand) {
+      this.revision = data.revision;
+      if (data.type === "start") {
+        forceMotionStarts++;
+        lastForceMotionSettings = { ...data.settings };
+        this.simulation = createElasticSimulation(data.graph, data.settings);
+      } else this.simulation?.pin(data.points, data.released);
     }
-
-    kill() {
-      forceMotionKills += 1;
+    terminate() {
+      forceMotionKills++;
     }
   },
 }));
@@ -276,7 +287,7 @@ describe("sigmaRenderer", () => {
     lastCamera?.setState({ ratio: 2 });
 
     expect(renderer.getViewportSyncState()).toEqual({
-      bounds: { xmin: -1, xmax: 301, ymin: -1, ymax: 201 },
+      bounds: { xmin: 0, xmax: 300, ymin: 0, ymax: 200 },
       cameraRatio: 2,
     });
 
@@ -459,12 +470,7 @@ describe("sigmaRenderer", () => {
     expect(forceMotionStarts).toBe(2);
     expect(forceMotionKills).toBe(1);
     expect(lastForceMotionSettings).toMatchObject({
-      adjustSizes: false,
-      barnesHutOptimize: true,
-      strongGravityMode: false,
-      gravity: 0.02,
-      scalingRatio: 18,
-      slowDown: 10,
+      // Defaults are applied inside the worker.
     });
 
     renderer.unmount();
@@ -475,7 +481,7 @@ describe("sigmaRenderer", () => {
 
     const renderer = new SigmaRenderer({
       forceMotion: {
-        settings: { gravity: 0.5, scalingRatio: 24 },
+        settings: { anchorStrength: 0.05, linkStrength: 0.4 },
       },
     });
     renderer.mount({ container: requireContainer() });
@@ -489,9 +495,8 @@ describe("sigmaRenderer", () => {
     });
 
     expect(lastForceMotionSettings).toMatchObject({
-      gravity: 0.5,
-      scalingRatio: 24,
-      slowDown: 10,
+      anchorStrength: 0.05,
+      linkStrength: 0.4,
     });
 
     renderer.unmount();
@@ -575,8 +580,7 @@ describe("sigmaRenderer", () => {
       viewMeta: { layout: "force", lodLevel: 0 },
     });
 
-    lastGraph?.setNodeAttribute("root", "x", 10);
-    lastGraph?.emit("eachNodeAttributesUpdated", {});
+    emitMotion?.([10, 0, 0, 10]);
 
     expect(lastGraph?.getNodeAttribute("cluster", "triangleRotation")).toBeCloseTo(Math.atan2(-10, 10));
 
@@ -1134,8 +1138,7 @@ describe("sigmaRenderer", () => {
     mouseHandlers.get("mousemovebody")?.forEach((handler) => handler({ x: 4, y: 3 }));
     expect(renderer.isManipulating()).toBe(true);
     expect(forceMotionKills).toBe(0);
-    expect(motionReducer?.("a", { x: 100, y: 100 })).toMatchObject({ x: 4, y: 3 });
-    forceAtlas2.assign(graph, { iterations: 10, outputReducer: motionReducer });
+    pumpMotion?.(10);
     expect(graph.getNodeAttributes("a")).toMatchObject({ x: 4, y: 3 });
     expect(graph.getNodeAttribute("b", "x")).not.toBe(20);
     expect(graph.getEdgeAttribute("ab", "distance")).toBe(7);
@@ -1192,7 +1195,7 @@ describe("sigmaRenderer", () => {
     renderer.applyGraphSnapshot({ ...fine, viewMeta: { ...fine.viewMeta, lodLevel: 1 } });
     expect(renderer.isManipulating()).toBe(true);
     animationFrameCallback?.(performance.now() + 300);
-    expect(graph.getNodeAttributes("a")).toMatchObject({ x: 24, y: 3 });
+    expect(graph.getNodeAttributes("a")).toMatchObject({ x: 19, y: 0 });
     renderer.unmount();
   });
 

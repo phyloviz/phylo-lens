@@ -30,6 +30,7 @@ import {
 import metadataPieFieldControls from "./shell/controls/metadataPieFieldControls";
 import { getSelectedOptions } from "./shell/controls/selectOptions";
 import { downloadBlob, readTextFile, resolveAncillaryFormat } from "./shell/inputs/fileInputs";
+import { ancillaryJoinColumnPicker } from "./shell/inputs/ancillaryJoinColumn";
 import eventBindings from "./shell/events/eventBindings";
 import searchController from "./shell/search/searchController";
 import regionSelection from "./shell/region/regionSelection";
@@ -78,7 +79,7 @@ export interface UiShellElements {
   ancillaryInput?: HTMLTextAreaElement;
   ancillaryFileInput?: HTMLInputElement;
   applyAncillaryButton?: HTMLButtonElement;
-  ancillaryJoinColumnInput?: HTMLInputElement;
+  ancillaryJoinColumnInput?: HTMLInputElement | HTMLSelectElement;
   ancillaryFormatSelect?: HTMLSelectElement;
   status: HTMLElement;
   ancillaryWheelContainer?: HTMLElement;
@@ -180,6 +181,12 @@ export default function (options: UiShellOptions): UiShell {
   let loadingGraph = false;
   let lastRenderedGraph: PositionedGraph | null = null;
   const bindings = eventBindings();
+  const joinColumnPicker = ancillaryJoinColumnPicker({
+    fileInput: ancillaryFileInput,
+    columnInput: ancillaryJoinColumnInput,
+    formatSelect: ancillaryFormatSelect,
+    onError: setFailureStatus,
+  });
   const pieFieldControls = metadataPieFieldControls(metadataPieFieldSelect);
   const palette = visualMappingPalette({
     workbench,
@@ -251,6 +258,9 @@ export default function (options: UiShellOptions): UiShell {
   // Attach submit handlers and set initial shell status.
   function mount(): void {
     setStatus(DEFAULT_STATUS_READY);
+    void joinColumnPicker.refresh();
+    bindings.on(ancillaryFileInput, "change", () => void joinColumnPicker.refresh());
+    bindings.on(ancillaryFormatSelect, "change", () => void joinColumnPicker.refresh());
     if (motionInput) motionInput.checked = workbench.isMotionEnabled?.() ?? true;
     workbench.setInteractionFeedbackHandler?.((message) => {
       if (dragStatus) dragStatus.textContent = message;
@@ -261,6 +271,8 @@ export default function (options: UiShellOptions): UiShell {
     });
     workbench.setNodeClickedHandler((state) => {
       expansion.select(state);
+      selectedDragRoot = state.nodeId;
+      if (branchRootButton) branchRootButton.disabled = state.nodeId === null;
       const { nodeId } = state;
       if (nodeId === null) {
         wheels.resetSelectedNode();
@@ -415,6 +427,7 @@ export default function (options: UiShellOptions): UiShell {
     }
 
     search.reset();
+    resetDragControls();
     loadingGraph = true;
     expansion.setReady(false);
     updateApplyAncillaryButton();
@@ -462,6 +475,7 @@ export default function (options: UiShellOptions): UiShell {
 
   // Remove shell event listeners and dispose rendering resources.
   function unmount(): void {
+    joinColumnPicker.dispose();
     search.reset();
     bindings.clear();
     expansion.dispose();
@@ -606,6 +620,7 @@ export default function (options: UiShellOptions): UiShell {
   }
 
   async function getAncillaryDataInput(): Promise<RenderNewickOptions["ancillaryData"] | undefined> {
+    await joinColumnPicker.whenReady();
     const file = ancillaryFileInput?.files?.[0];
     if (!file) {
       return undefined;
@@ -617,7 +632,7 @@ export default function (options: UiShellOptions): UiShell {
     }
 
     return {
-      content: await readTextFile(file),
+      content: (await readTextFile(file)).replace(/^\uFEFF/, ""),
       join_column: joinColumn,
       format: resolveAncillaryFormat(ancillaryFormatSelect?.value, file.name),
     };

@@ -789,3 +789,11 @@ button:disabled {
 .motion-card .control-feedback {
   overflow-wrap: anywhere;
 }
+
+.motion-card .help-details[open] > summary {
+  margin-bottom: 10px;
+}
+
+.motion-card .help-details > button + button {
+  margin-top: 8px;
+}

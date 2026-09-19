@@ -1,3 +1,4 @@
+import { retainMovedNodes } from "./retainMovedNodes";
 import type { ExpansionState, ExpansionResult } from "../../../contracts/expansion";
 import { composeExpandedViewport } from "./expandedViewport";
 import type { GraphClient } from "../../../api/graphClient";
@@ -458,9 +459,17 @@ export class ViewportSyncController {
     this.lastRequestedLodLevel = query.lod_level;
 
     try {
-      const response = await this.client.readViewport(query);
+      let response = await this.client.readViewport(query);
       if (!this.mounted || sequence !== this.requestSequence) {
         return;
+      }
+      if (!fitResponse) {
+        response = retainMovedNodes(
+          response,
+          this.baseResponse,
+          this.renderer.getVisibleDisplacedNodeIds?.() ?? [],
+          this.maxNodes,
+        );
       }
       this.layoutVersion = response.layout_version;
       this.lastViewportQuery = query;

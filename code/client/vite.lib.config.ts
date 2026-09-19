@@ -12,7 +12,7 @@ import { defineConfig } from "vite";
 const EXTERNAL_RUNTIME_DEPENDENCIES = [
   "sigma",
   "graphology",
-  "graphology-layout-forceatlas2",
+  "d3-force",
   "@sigma/node-border",
   "@sigma/node-piechart",
 ];

@@ -26,6 +26,14 @@ Local source execution requires:
 The published Docker image includes Python, Graphviz, Java, the PhyloLib JAR,
 and the PostgreSQL driver.
 
+Newick forests may contain isolated nodes. Graphviz's spring smoother assumes
+every node has a non-self neighbour and can abort on singleton components.
+PhyloLens sends only edge-bearing components to SFDP with the requested settings,
+then places isolated nodes in a deterministic grid beside the resulting bounds.
+All nodes and edges are retained; no artificial links are added. An entirely
+edgeless forest uses the grid directly. Layout pipeline v2 invalidates older
+cached layouts to ensure this handling takes effect.
+
 ## Install and run from source
 
 ```bash
@@ -131,14 +139,14 @@ The smoke test verifies:
 
 ## API overview
 
-| Method | Path | Purpose |
-| --- | --- | --- |
-| `GET` | `/health` | Liveness and service/API version information |
-| `POST` | `/api/graph/prepare` | Normalize input and submit asynchronous layout preparation |
-| `GET` | `/api/graph/prepare/{job_id}` | Poll a preparation job |
-| `POST` | `/api/graph/viewport` | Read a bounded graph slice at a requested LoD tier |
-| `POST` | `/api/graph/region` | Read a finest-detail rectangular subgraph and metadata summary |
-| `POST` | `/api/graph/search` | Search node identifiers and metadata across a prepared layout |
+| Method | Path                          | Purpose                                                        |
+| ------ | ----------------------------- | -------------------------------------------------------------- |
+| `GET`  | `/health`                     | Liveness and service/API version information                   |
+| `POST` | `/api/graph/prepare`          | Normalize input and submit asynchronous layout preparation     |
+| `GET`  | `/api/graph/prepare/{job_id}` | Poll a preparation job                                         |
+| `POST` | `/api/graph/viewport`         | Read a bounded graph slice at a requested LoD tier             |
+| `POST` | `/api/graph/region`           | Read a finest-detail rectangular subgraph and metadata summary |
+| `POST` | `/api/graph/search`           | Search node identifiers and metadata across a prepared layout  |
 
 See the [HTTP API reference](../../docs/API_REFERENCE.md) for request and
 response models, defaults, validation and examples.
@@ -240,26 +248,26 @@ not apply DDL while serving traffic.
 
 ### Service and storage
 
-| Variable | Default | Description |
-| --- | --- | --- |
-| `PHYLO_LENS_DATA_DIR` | unset | Local-mode data root. The Docker image sets `/data`. |
-| `PHYLO_LENS_PREPARED_LAYOUT_STORE_DIR` | system temporary directory | Explicit local SQLite store directory. Overrides `PHYLO_LENS_DATA_DIR`. |
-| `PHYLO_LENS_MAX_ACTIVE_PREPARE_JOBS` | unlimited | Positive integer limit for distinct active local jobs. Duplicate layout submissions reuse existing work. |
-| `PHYLO_LENS_PREPARE_JOB_BACKEND` | `local` | `local` or `postgres`. |
-| `PHYLO_LENS_POSTGRES_DSN` | unset | Required for PostgreSQL mode, schema initialization and external workers. |
-| `PHYLO_LENS_CORS_ORIGINS` | empty | Comma-separated browser origins allowed to call the service directly. |
+| Variable                               | Default                    | Description                                                                                              |
+| -------------------------------------- | -------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `PHYLO_LENS_DATA_DIR`                  | unset                      | Local-mode data root. The Docker image sets `/data`.                                                     |
+| `PHYLO_LENS_PREPARED_LAYOUT_STORE_DIR` | system temporary directory | Explicit local SQLite store directory. Overrides `PHYLO_LENS_DATA_DIR`.                                  |
+| `PHYLO_LENS_MAX_ACTIVE_PREPARE_JOBS`   | unlimited                  | Positive integer limit for distinct active local jobs. Duplicate layout submissions reuse existing work. |
+| `PHYLO_LENS_PREPARE_JOB_BACKEND`       | `local`                    | `local` or `postgres`.                                                                                   |
+| `PHYLO_LENS_POSTGRES_DSN`              | unset                      | Required for PostgreSQL mode, schema initialization and external workers.                                |
+| `PHYLO_LENS_CORS_ORIGINS`              | empty                      | Comma-separated browser origins allowed to call the service directly.                                    |
 
 CORS permits `GET`, `POST`, and `PUT` with the `Content-Type` header. Credentials and
 cookies are disabled. An empty origin list is the safe production default.
 
 ### External processes
 
-| Variable | Default | Description |
-| --- | --- | --- |
-| `PHYLO_LENS_PHYLOLIB_JAR` | unset in source execution | Readable PhyloLib JAR path. The image sets `/app/phylolib.jar`. |
-| `PHYLO_LENS_PHYLOLIB_JAVA` | `java` | Java executable. The image sets `/opt/java/openjdk/bin/java`. |
-| `PHYLO_LENS_PHYLOLIB_TIMEOUT_SECONDS` | `300` | Positive timeout for each PhyloLib subprocess. |
-| `PHYLO_LENS_GRAPHVIZ_SFDP_TIMEOUT_SECONDS` | unset (unlimited) | Optional positive wall-clock timeout for the Graphviz `sfdp` layout subprocess. |
+| Variable                                   | Default                   | Description                                                                     |
+| ------------------------------------------ | ------------------------- | ------------------------------------------------------------------------------- |
+| `PHYLO_LENS_PHYLOLIB_JAR`                  | unset in source execution | Readable PhyloLib JAR path. The image sets `/app/phylolib.jar`.                 |
+| `PHYLO_LENS_PHYLOLIB_JAVA`                 | `java`                    | Java executable. The image sets `/opt/java/openjdk/bin/java`.                   |
+| `PHYLO_LENS_PHYLOLIB_TIMEOUT_SECONDS`      | `300`                     | Positive timeout for each PhyloLib subprocess.                                  |
+| `PHYLO_LENS_GRAPHVIZ_SFDP_TIMEOUT_SECONDS` | unset (unlimited)         | Optional positive wall-clock timeout for the Graphviz `sfdp` layout subprocess. |
 
 PhyloLens requests Graphviz `sfdp` for every non-trivial global layout and waits
 for it to complete by default; this work may be expensive. Missing, non-zero,
@@ -270,12 +278,12 @@ fallback.
 
 ### PostgreSQL worker
 
-| Variable | Default | Description |
-| --- | --- | --- |
-| `PHYLO_LENS_WORKER_ID` | generated host-qualified ID | Stable worker identifier. |
-| `PHYLO_LENS_WORKER_LEASE_SECONDS` | `300` | Job lease duration. Heartbeats run at approximately one third of this value. |
-| `PHYLO_LENS_WORKER_POLL_INTERVAL_SECONDS` | `2` | Delay between empty queue polls. |
-| `PHYLO_LENS_WORKER_MAX_JOBS` | unlimited | Optional positive job count before the worker exits. Useful for controlled recycling and tests. |
+| Variable                                  | Default                     | Description                                                                                     |
+| ----------------------------------------- | --------------------------- | ----------------------------------------------------------------------------------------------- |
+| `PHYLO_LENS_WORKER_ID`                    | generated host-qualified ID | Stable worker identifier.                                                                       |
+| `PHYLO_LENS_WORKER_LEASE_SECONDS`         | `300`                       | Job lease duration. Heartbeats run at approximately one third of this value.                    |
+| `PHYLO_LENS_WORKER_POLL_INTERVAL_SECONDS` | `2`                         | Delay between empty queue polls.                                                                |
+| `PHYLO_LENS_WORKER_MAX_JOBS`              | unlimited                   | Optional positive job count before the worker exits. Useful for controlled recycling and tests. |
 
 ## Browser integration
 

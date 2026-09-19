@@ -79,7 +79,9 @@
                   <div class="two-column-controls">
                     <label>
                       Join column
-                      <input id="ancillary-join-column-input" type="text" value="isolate" />
+                      <select id="ancillary-join-column-input" disabled>
+                        <option value="">Choose an ancillary table first</option>
+                      </select>
                     </label>
 
                     <label>
@@ -95,7 +97,10 @@
                   <button id="apply-ancillary-button" class="secondary-button full-width" type="button" disabled>
                     Apply table to current tree
                   </button>
-                  <p class="field-help">Replaces the current ancillary data without recomputing the tree layout.</p>
+                  <p class="field-help">
+                    Choose the column whose values match the tree's node IDs. Applying the table replaces the current
+                    ancillary data without recomputing the tree layout.
+                  </p>
                 </div>
               </details>
 
@@ -188,33 +193,35 @@
                   <input id="motion-enabled" type="checkbox" checked />
                   <span>Motion</span>
                 </label>
-                <button type="button" id="reset-layout">Reset to server layout</button>
-                <p id="drag-status" role="status" aria-live="polite">
+                <button class="secondary-button" type="button" id="reset-layout">Reset to server layout</button>
+                <p class="control-feedback" id="drag-status" role="status" aria-live="polite">
                   Direct dragging: connected nodes react while Motion is on.
                 </p>
-                <details>
+                <details class="help-details">
                   <summary>Advanced branch dragging</summary>
-                  <button type="button" id="branch-root" disabled>Use selected node as arrangement root</button>
-                  <button type="button" id="single-drag">Direct dragging</button>
+                  <button class="secondary-button" type="button" id="branch-root" disabled>
+                    Use selected node as arrangement root
+                  </button>
+                  <button class="secondary-button" type="button" id="single-drag">Direct dragging</button>
                   <p>
                     Click a node and choose it as the arrangement root, then drag a node to translate its loaded branch.
                     This root is a visual choice, not a biological ancestor. Missing roots, disconnected nodes and
                     cycles show a message instead of guessing membership.
                   </p>
                 </details>
-                <details>
+                <details class="help-details">
                   <summary>Motion, positions and detail changes</summary>
                   <p>
-                    Server positions appear first, then Motion relaxes the loaded graph in a worker. Turn Motion off to
-                    freeze positions and arrange nodes or groups precisely. Reset pauses Motion and restores the server
-                    layout.
+                    Server positions appear first, then Motion allows connected nodes to react to dragging in a worker
+                    and settle. Turn Motion off to freeze positions and arrange nodes or groups precisely. Reset pauses
+                    Motion and restores the server layout.
                   </p>
                   <p>
-                    Display positions persist within this load. Both simulation and manual dragging stay within 10% of
-                    the global span per axis from server positions; viewport queries include this margin. LoD refresh
-                    waits while dragging or selecting a region. Detail changes blend positions; expanding a moved group
-                    introduces children from its displayed position and inherits its offset. Collapse uses the mean
-                    child offset. Motion resumes only if enabled.
+                    Drag freely in both directions. Positions are remembered for up to 20,000 recently loaded nodes;
+                    older off-screen positions may be forgotten. Viewport queries include the current displacement.
+                    Dense views remain subject to the node budget. Motion cools when idle and wakes when you drag.
+                    Detail-tier changes blend back toward server positions. Expanding a known cluster introduces its
+                    children from the displayed cluster. Motion resumes only if enabled.
                   </p>
                   <p>
                     Region selection counts loaded nodes at their displayed positions, including collapsed groups; it

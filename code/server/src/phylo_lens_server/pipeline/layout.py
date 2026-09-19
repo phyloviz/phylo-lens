@@ -4,7 +4,7 @@ import shlex
 import shutil
 import subprocess
 from dataclasses import dataclass
-from math import hypot
+from math import ceil, hypot, sqrt
 
 from phylo_lens_server.config.settings import graphviz_sfdp_timeout_seconds
 from phylo_lens_server.domain.models import CanonicalDataset, CanonicalEdge
@@ -124,6 +124,29 @@ def graphviz_sfdp_positions(
     edges: tuple[CanonicalEdge, ...],
     options: SfdpOptions | None = None,
 ) -> dict[str, tuple[float, float]]:
+    # Graphviz's spring smoother asserts that every node has a non-self
+    # neighbour. SFDP invokes it even for singleton components of a forest.
+    # Lay out the edge-bearing components normally, then place isolated nodes
+    # outside their bounds. Never add artificial edges or discard isolates.
+    known_ids = set(node_ids)
+    connected_ids = {
+        node_id
+        for edge in edges
+        if edge.source in known_ids
+        and edge.target in known_ids
+        and edge.source != edge.target
+        for node_id in (edge.source, edge.target)
+    }
+    isolated_ids = tuple(sorted(known_ids - connected_ids))
+    layout_node_ids = tuple(node_id for node_id in node_ids if node_id in connected_ids)
+    if not layout_node_ids:
+        return _place_isolated_nodes({}, isolated_ids)
+    layout_edges = tuple(
+        edge
+        for edge in edges
+        if edge.source in connected_ids and edge.target in connected_ids
+    )
+
     if shutil.which(GRAPHVIZ_SFDP_COMMAND) is None:
         raise _layout_error(
             "Graphviz 'sfdp' was not found on PATH.",
@@ -135,7 +158,7 @@ def graphviz_sfdp_positions(
     try:
         completed = subprocess.run(
             [GRAPHVIZ_SFDP_COMMAND, "-Tplain"],
-            input=graphviz_dot_payload(node_ids, edges, options),
+            input=graphviz_dot_payload(layout_node_ids, layout_edges, options),
             text=True,
             capture_output=True,
             check=True,
@@ -167,12 +190,37 @@ def graphviz_sfdp_positions(
             detail=str(error),
         ) from error
 
-    if set(positions) != set(node_ids):
+    if set(positions) != connected_ids:
         raise _layout_error(
             "Graphviz 'sfdp' returned incomplete output.",
-            detail=f"Expected {len(node_ids)} nodes, got {len(positions)}.",
+            detail=f"Expected {len(layout_node_ids)} nodes, got {len(positions)}.",
         )
 
+    return _place_isolated_nodes(positions, isolated_ids)
+
+
+def _place_isolated_nodes(
+    positions: dict[str, tuple[float, float]],
+    isolated_ids: tuple[str, ...],
+) -> dict[str, tuple[float, float]]:
+    """Pack a deterministic grid beside SFDP geometry, preserving its positions."""
+    if not isolated_ids:
+        return positions
+    if positions:
+        xs, ys = zip(*positions.values())
+        span = max(max(xs) - min(xs), max(ys) - min(ys), 1.0)
+        # Graphviz plain coordinates use inches; point nodes are 0.04 wide.
+        spacing = max(0.12, span / sqrt(len(positions)))
+        origin_x, origin_y = max(xs) + 2 * spacing, min(ys)
+    else:
+        spacing = 1.0
+        origin_x = origin_y = 0.0
+    columns = ceil(sqrt(len(isolated_ids)))
+    for index, node_id in enumerate(isolated_ids):
+        positions[node_id] = (
+            origin_x + (index % columns) * spacing,
+            origin_y + (index // columns) * spacing,
+        )
     return positions
 
 

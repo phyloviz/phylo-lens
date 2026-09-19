@@ -76,6 +76,17 @@ export class SigmaRenderer implements GraphRenderer {
   private transitioning = false;
   private selectingRegion = false;
   private transitionFrame: number | null = null;
+  private zoomPointer: Point | null = null;
+  private transitionAnchor: { ids: string[]; screen: Point } | null = null;
+  private readonly trackZoomPointer = (event: WheelEvent) => {
+    const rect = this.containerElement?.getBoundingClientRect();
+    if (rect) this.zoomPointer = { x: event.clientX - rect.left, y: event.clientY - rect.top };
+    if (this.transitioning) {
+      this.captureDisplayPositions();
+      this.cancelTransition();
+      this.finishManipulation();
+    }
+  };
   private pendingSnapshot: { graph: PositionedGraph; options?: { preservePositions?: boolean } } | null = null;
 
   setMotionEnabled(enabled: boolean): void {
@@ -93,6 +104,14 @@ export class SigmaRenderer implements GraphRenderer {
   isManipulating(): boolean {
     return this.dragPins.size > 0 || this.transitioning || this.selectingRegion;
   }
+  getVisibleDisplacedNodeIds(): readonly string[] {
+    const bounds = this.currentViewportBounds();
+    return this.getDisplayedNodesInBounds(bounds).filter((id) => {
+      const home = this.positions.reference(id),
+        display = this.positions.get(id);
+      return home && display && Math.hypot(home.x - display.x, home.y - display.y) > 1e-9;
+    });
+  }
   getDisplayedNodesInBounds(bounds: RenderViewportBounds): readonly string[] {
     return (
       this.graph?.filterNodes(
@@ -104,6 +123,10 @@ export class SigmaRenderer implements GraphRenderer {
     this.graph?.forEachNode((id, attributes) => this.positions.set(id, { x: attributes.x, y: attributes.y }));
   }
 
+  private sendDragPins(): void {
+    this.forceMotion.setPins([...this.dragPins].map(([id, point]) => ({ id, ...point })));
+  }
+
   private finishManipulation(): void {
     const pending = this.pendingSnapshot;
     this.pendingSnapshot = null;
@@ -113,6 +136,7 @@ export class SigmaRenderer implements GraphRenderer {
   private cancelTransition(): void {
     if (this.transitionFrame !== null) cancelAnimationFrame(this.transitionFrame);
     this.transitionFrame = null;
+    this.transitionAnchor = null;
     this.transitioning = false;
     this.forceMotion.suspend(false);
   }
@@ -179,16 +203,10 @@ export class SigmaRenderer implements GraphRenderer {
     this.piechartOptions = options.piechart ?? {};
     this.forceMotion = createSigmaForceMotion(options.forceMotion, {
       onTick: () => this.updateClusterTriangleRotations(),
-      constrain: (id, attributes) => {
-        const pin = this.dragPins.get(id);
-        const previous = this.positions.get(id) ?? (attributes as Point);
-        const step = this.positions.limit * 0.02;
-        const candidate = pin ?? {
-          x: previous.x + Math.max(-step, Math.min(step, attributes.x - previous.x)),
-          y: previous.y + Math.max(-step, Math.min(step, attributes.y - previous.y)),
-        };
-        return { ...attributes, ...this.positions.set(id, candidate) };
-      },
+      onError: (message) => this.feedbackHandler?.(message),
+      reference: (id) => this.positions.reference(id),
+      anchor: (id) => this.positions.anchor(id),
+      constrain: (id, point) => this.positions.set(id, this.dragPins.get(id) ?? point),
     });
     this.dragController = sigmaDragController({
       getGraph: () => this.graph,
@@ -199,16 +217,19 @@ export class SigmaRenderer implements GraphRenderer {
         this.captureDisplayPositions();
         this.cancelTransition();
         ids.forEach((id) => this.dragPins.set(id, this.positions.get(id)!));
+        this.sendDragPins();
         this.manipulationHandler?.(true);
       },
       translate: (members, delta) => this.positions.translate(members, delta),
       onUnavailable: (message) => this.feedbackHandler?.(message),
-      onMoved: (positions) =>
-        positions.forEach((point, id) => {
-          this.dragPins.set(id, this.positions.set(id, point));
-        }),
+      onMoved: (positions) => {
+        positions.forEach((point, id) => this.dragPins.set(id, this.positions.arrange(id, point)));
+        this.sendDragPins();
+      },
       onEnd: () => {
+        const released = [...this.dragPins].map(([id, point]) => ({ id, ...point }));
         this.dragPins.clear();
+        this.forceMotion.setPins([], released);
         this.finishManipulation();
       },
       getSigma: () => this.sigma,
@@ -396,13 +417,13 @@ export class SigmaRenderer implements GraphRenderer {
       return null;
     }
     const bounds = this.currentViewportBounds();
-    const halo = this.positions.limit;
+    const halo = this.positions.queryPadding();
     return {
       bounds: {
-        xmin: bounds.xmin - halo,
-        xmax: bounds.xmax + halo,
-        ymin: bounds.ymin - halo,
-        ymax: bounds.ymax + halo,
+        xmin: bounds.xmin - halo.x,
+        xmax: bounds.xmax + halo.x,
+        ymin: bounds.ymin - halo.y,
+        ymax: bounds.ymax + halo.y,
       },
       cameraRatio: this.currentCameraRatio(),
     };
@@ -432,6 +453,7 @@ export class SigmaRenderer implements GraphRenderer {
     graph = { ...graph, nodes: planned.nodes };
     const lodChanged = previousLod !== undefined && previousLod !== graph.viewMeta.lodLevel;
     const targets = new Map(graph.nodes.map((node) => [node.id, { x: node.x, y: node.y }]));
+    this.transitionAnchor = lodChanged ? this.chooseTransitionAnchor(graph) : null;
     if (wasTransitioning || lodChanged || planned.origins.size) {
       graph = {
         ...graph,
@@ -469,6 +491,7 @@ export class SigmaRenderer implements GraphRenderer {
     this.updateClusterTriangleRotations();
     this.syncPieProgramsFromGraph();
     this.applyHighlighting();
+    this.captureDisplayPositions();
     this.sigma.refresh();
     this.sigma.scheduleRender();
     if (cameraState) {
@@ -496,22 +519,77 @@ export class SigmaRenderer implements GraphRenderer {
         eased = t * t * (3 - 2 * t);
       targets.forEach((target, id) => {
         const from = starts.get(id)!;
-        this.graph!.mergeNodeAttributes(id, {
-          x: from.x + (target.x - from.x) * eased,
-          y: from.y + (target.y - from.y) * eased,
-        });
+        this.graph!.mergeNodeAttributes(
+          id,
+          this.positions.set(id, {
+            x: from.x + (target.x - from.x) * eased,
+            y: from.y + (target.y - from.y) * eased,
+          }),
+        );
       });
       this.sigma?.refresh();
+      this.preserveTransitionFocus();
       if (t < 1) this.transitionFrame = requestAnimationFrame(tick);
       else {
         this.transitionFrame = null;
         this.transitioning = false;
+        this.transitionAnchor = null;
         this.forceMotion.start(this.graph);
         this.forceMotion.suspend(false);
         this.manipulationHandler?.(false);
+        this.emitViewChange(this.readSemanticViewState());
       }
     };
     this.transitionFrame = requestAnimationFrame(tick);
+  }
+
+  private chooseTransitionAnchor(next: PositionedGraph): { ids: string[]; screen: Point } | null {
+    if (!this.graph || !this.sigma) return null;
+    const dimensions = this.sigma.getDimensions();
+    const focus = this.zoomPointer ?? { x: dimensions.width / 2, y: dimensions.height / 2 };
+    const nextIds = new Set(next.nodes.map((n) => n.id));
+    const nextClusters = new Map<string, string[]>();
+    for (const node of next.nodes) {
+      const cluster = node.attributes?.cluster_id;
+      if (typeof cluster === "string") {
+        const ids = nextClusters.get(cluster) ?? [];
+        ids.push(node.id);
+        nextClusters.set(cluster, ids);
+      }
+    }
+    let best: { ids: string[]; screen: Point } | null = null,
+      distance = Infinity;
+    this.graph.forEachNode((id, a) => {
+      const ids = nextIds.has(id) ? [id] : (nextClusters.get(a.cluster_id) ?? []);
+      if (!ids.length) return; // Never guess parentage between unrelated tiers.
+      const screen = this.sigma!.graphToViewport({ x: a.x, y: a.y });
+      const d = Math.hypot(screen.x - focus.x, screen.y - focus.y);
+      if (d < distance) {
+        best = { ids, screen };
+        distance = d;
+      }
+    });
+    return best;
+  }
+
+  private preserveTransitionFocus(): void {
+    const anchor = this.transitionAnchor,
+      sigma = this.sigma,
+      graph = this.graph;
+    if (!anchor || !sigma || !graph) return;
+    const point = anchor.ids.reduce(
+      (p, id) => {
+        const a = graph.getNodeAttributes(id);
+        return { x: p.x + a.x / anchor.ids.length, y: p.y + a.y / anchor.ids.length };
+      },
+      { x: 0, y: 0 },
+    );
+    const camera = sigma.getCamera(),
+      cameraState = camera.getState();
+    const options = { cameraState };
+    const current = sigma.viewportToFramedGraph(sigma.graphToViewport(point, options), options);
+    const desired = sigma.viewportToFramedGraph(anchor.screen, options);
+    camera.setState({ x: cameraState.x + current.x - desired.x, y: cameraState.y + current.y - desired.y });
   }
 
   getInteractiveAggregateTargets(): readonly RenderInteractiveAggregateTarget[] {
@@ -696,6 +774,7 @@ export class SigmaRenderer implements GraphRenderer {
   }
 
   private bindSigmaHandlers(): void {
+    this.containerElement?.addEventListener("wheel", this.trackZoomPointer, { capture: true, passive: true });
     for (const event of ["pointerdown", "wheel", "touchstart"]) {
       this.containerElement?.addEventListener(event, this.cancelCameraFit, { capture: true, passive: true });
     }
@@ -708,6 +787,7 @@ export class SigmaRenderer implements GraphRenderer {
   }
 
   private unbindSigmaHandlers(): void {
+    this.containerElement?.removeEventListener("wheel", this.trackZoomPointer, true);
     this.cancelCameraFit();
     for (const event of ["pointerdown", "wheel", "touchstart"]) {
       this.containerElement?.removeEventListener(event, this.cancelCameraFit, true);
@@ -825,6 +905,7 @@ export class SigmaRenderer implements GraphRenderer {
   }
 
   private emitViewChange(viewState: SigmaSemanticViewState | null): void {
+    if (this.transitioning) return;
     if (this.suppressNextViewChange) {
       this.suppressNextViewChange = false;
       return;

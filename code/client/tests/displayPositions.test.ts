@@ -23,7 +23,7 @@ describe("separate server and display positions", () => {
     expect(positions.ingest(source).nodes[0]).toMatchObject({ x: 25, y: 3 });
     expect(source.nodes[0]).toMatchObject({ x: 20, y: 0 });
   });
-  it("bounds manual translation coherently and non-finite worker output safely", () => {
+  it("allows coherent unrestricted manual translation and rejects non-finite worker output", () => {
     const positions = new DisplayPositions();
     positions.ingest(snapshot(node("a", 20), node("b", 40)));
     positions.set("a", { x: 28, y: 0 });
@@ -34,9 +34,9 @@ describe("separate server and display positions", () => {
       ]),
       { x: 100, y: 5 },
     );
-    expect(moved.get("a")).toEqual({ x: 30, y: 5 });
-    expect(moved.get("b")).toEqual({ x: 42, y: 5 });
-    expect(positions.set("a", { x: Infinity, y: NaN })).toEqual({ x: 20, y: 0 });
+    expect(moved.get("a")).toEqual({ x: 128, y: 5 });
+    expect(moved.get("b")).toEqual({ x: 140, y: 5 });
+    expect(positions.set("a", { x: Infinity, y: NaN })).toEqual({ x: 28, y: 0 });
   });
   it("expands children from a moved proxy and preserves residual edits on re-expansion", () => {
     const positions = new DisplayPositions(),
@@ -68,4 +68,24 @@ describe("separate server and display positions", () => {
     positions.clear();
     expect(positions.ingest(source).nodes[0]).toMatchObject({ x: 20, y: 0 });
   });
+});
+
+it("pads queries by the actual displacement, including off-screen position history", () => {
+  const positions = new DisplayPositions();
+  positions.ingest(snapshot(node("a", 20)));
+  positions.arrange("a", { x: 300, y: -150 });
+  positions.ingest(snapshot());
+  expect(positions.queryPadding()).toEqual({ x: 282, y: 152 });
+  expect(positions.ingest(snapshot(node("a", 20))).nodes[0]).toMatchObject({ x: 300, y: -150 });
+});
+
+it("returns shared nodes to server coordinates on a tier change, not an ordinary refresh", () => {
+  const positions = new DisplayPositions(),
+    graph = snapshot(node("a", 20));
+  positions.ingest(graph);
+  positions.arrange("a", { x: 50, y: 30 });
+  expect(positions.ingest(graph).nodes[0]).toMatchObject({ x: 50, y: 30 });
+  const next = positions.ingest({ ...graph, viewMeta: { ...graph.viewMeta, lodLevel: 1 } });
+  expect(next.nodes[0]).toMatchObject({ x: 20, y: 0 });
+  expect(positions.anchor("a")).toEqual({ x: 20, y: 0 });
 });
