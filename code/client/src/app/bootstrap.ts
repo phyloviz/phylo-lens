@@ -9,8 +9,10 @@ export const DEFAULT_SERVER_BASE_URL = "";
 export const ID_RENDER_FORM = "render-form";
 export const ID_NEWICK_INPUT = "newick-input";
 export const ID_NEWICK_FILE_INPUT = "newick-file-input";
+export const ID_NEWICK_SOURCE_CONTROLS = "newick-source-controls";
 export const ID_SOURCE_FORMAT = "source-format";
 export const ID_TYPING_FILE_INPUT = "typing-file-input";
+export const ID_TYPING_SOURCE_CONTROLS = "typing-source-controls";
 export const ID_DATASET_NAME_INPUT = "dataset-name-input";
 export const ID_ANCILLARY_INPUT = "ancillary-input";
 export const ID_ANCILLARY_FILE_INPUT = "ancillary-file-input";
@@ -52,8 +54,10 @@ export default function bootstrapClientShell(baseUrl = DEFAULT_SERVER_BASE_URL):
     graphRoot: requireElement(ID_GRAPH_ROOT, ERR_MISSING_GRAPH_ROOT),
 
     newickFileInput: getInput(ID_NEWICK_FILE_INPUT),
+    newickSourceControls: getOptionalElement(ID_NEWICK_SOURCE_CONTROLS),
     sourceFormatSelect: getSelect(ID_SOURCE_FORMAT),
     typingFileInput: getInput(ID_TYPING_FILE_INPUT),
+    typingSourceControls: getOptionalElement(ID_TYPING_SOURCE_CONTROLS),
     datasetNameInput: getInput(ID_DATASET_NAME_INPUT),
 
     ancillaryInput: getTextArea(ID_ANCILLARY_INPUT),
@@ -77,12 +81,8 @@ export default function bootstrapClientShell(baseUrl = DEFAULT_SERVER_BASE_URL):
     paletteSaveButton: getButton(ID_PALETTE_SAVE_BUTTON),
 
     displayOptionsSelect: getSelect(ID_DISPLAY_OPTIONS),
-    branchRootButton: getButton("branch-root"),
-    singleDragButton: getButton("single-drag"),
-    resetLayoutButton: getButton("reset-layout"),
-    dragStatus: getOptionalElement("drag-status"),
     edgeLabelPolicySelect: getSelect("edge-label-policy"),
-    exportScaleInput: getInput("export-scale"),
+    exportScaleInput: getSelect("export-scale"),
     exportLabelSizeInput: getInput("export-label-size"),
     exportButton: getButton("export-png"),
     expansion: {
