@@ -69,7 +69,29 @@ export interface PngExportOptions {
   includeLegend?: boolean;
 }
 
+/** Arrangement only: a branch follows the loaded tree away from an explicit root.
+ * The root is not biological. Dragging it moves its entire loaded component.
+ * Missing roots and cyclic components cannot be dragged in branch mode.
+ * Groups move only when a selected member is grabbed. Unloaded IDs are ignored.
+ */
+export type DragSelection =
+  { kind: "node" } | { kind: "branch"; rootId: string } | { kind: "group"; nodeIds: readonly string[] };
+
 export interface GraphRenderer {
+  setMotionEnabled?: (enabled: boolean) => void;
+  isMotionEnabled?: () => boolean;
+  setInteractionFeedbackHandler?: (handler: ((message: string) => void) | null) => void;
+  setManipulationHandler?: (handler: ((active: boolean) => void) | null) => void;
+  isManipulating?: () => boolean;
+  getDisplayedNodesInBounds?: (bounds: RenderViewportBounds) => readonly string[];
+  setDragSelection?: (selection: DragSelection) => void;
+  /** Restore server positions and single-node dragging. Edits are session-local, keyed by
+   * rendered node ID: retained on reload/filter/expansion, cleared on a new dataset.
+   * Children inherit a moved proxy's offset when expanded; collapse uses the children's mean offset.
+   * Motion and manual moves are bounded to 10% of the global span per axis. Queries include that halo.
+   * Reset pauses motion and restores server coordinates. Region selection uses the loaded display.
+   */
+  resetLayoutEdits?: () => void;
   mount: (context: RenderContext) => void;
   unmount: () => void;
   render: (graph: PositionedGraph) => void;

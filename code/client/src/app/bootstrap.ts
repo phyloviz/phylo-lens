@@ -77,6 +77,11 @@ export default function bootstrapClientShell(baseUrl = DEFAULT_SERVER_BASE_URL):
     paletteSaveButton: getButton(ID_PALETTE_SAVE_BUTTON),
 
     displayOptionsSelect: getSelect(ID_DISPLAY_OPTIONS),
+    motionInput: getInput("motion-enabled"),
+    branchRootButton: getButton("branch-root"),
+    singleDragButton: getButton("single-drag"),
+    resetLayoutButton: getButton("reset-layout"),
+    dragStatus: getOptionalElement("drag-status"),
     edgeLabelPolicySelect: getSelect("edge-label-policy"),
     exportScaleInput: getInput("export-scale"),
     exportLabelSizeInput: getInput("export-label-size"),

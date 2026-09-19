@@ -1,4 +1,4 @@
-import type { PngExportOptions } from "../../render/renderer.types";
+import type { DragSelection, PngExportOptions } from "../../render/renderer.types";
 import type { ExpansionResult, ExpansionState } from "../../contracts/expansion";
 import type { AncillaryData, AncillaryField } from "../../contracts/ancillary";
 import type { AncillaryInputOptions } from "../../ancillary/ancillaryInput";
@@ -29,6 +29,7 @@ import type {
 // selection. Node ids feed the canvas highlight; aggregated metadata feeds the
 // region stats panel.
 export interface RegionSelectionResult {
+  scope?: "display";
   nodeIds: string[];
   nodeCount: number;
   truncated: boolean;
@@ -79,6 +80,11 @@ export interface GraphWorkbench {
 
   applyAncillaryData: (data: NonNullable<RenderNewickOptions["ancillaryData"]>) => Promise<GraphAncillaryResponse>;
 
+  setMotionEnabled: (enabled: boolean) => void;
+  isMotionEnabled: () => boolean;
+  setInteractionFeedbackHandler: (handler: ((message: string) => void) | null) => void;
+  setDragSelection: (selection: DragSelection) => void;
+  resetLayoutEdits: () => void;
   exportPng: (options?: PngExportOptions) => Promise<Blob>;
 
   applyMetadataFilters: (filterState: AncillaryFilterState) => PositionedGraph;
