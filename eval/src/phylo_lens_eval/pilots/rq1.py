@@ -59,7 +59,7 @@ def main() -> None:
     parser.add_argument("--results-root", type=Path)
     args = parser.parse_args()
     try:
-        run(args)
+        print(run(args))
     except ConfigurationError as error:
         parser.error(str(error))
 

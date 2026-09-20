@@ -73,4 +73,56 @@ describe("elastic motion on a prepared layout", () => {
     const positions = sim.positions();
     expect(Math.hypot(positions[2] - positions[0], positions[3] - positions[1])).toBeGreaterThan(3.9);
   });
+
+  it("scales collision radius with relative visual node size", () => {
+    const graph: MotionGraph = {
+      nodes: [
+        {
+          id: "small",
+          x: 0,
+          y: 0,
+          referenceX: 0,
+          referenceY: 0,
+          anchorX: 0,
+          anchorY: 0,
+          size: 1,
+        },
+        {
+          id: "large",
+          x: 0,
+          y: 0,
+          referenceX: 0,
+          referenceY: 0,
+          anchorX: 0,
+          anchorY: 0,
+          size: 4,
+        },
+        {
+          id: "median",
+          x: 100,
+          y: 0,
+          referenceX: 100,
+          referenceY: 0,
+          anchorX: 100,
+          anchorY: 0,
+          size: 2,
+        },
+      ],
+      links: [],
+    };
+
+    const sim = createElasticSimulation(graph, {
+      anchorStrength: 0,
+      collisionRadius: 1,
+      collisionStrength: 1,
+      collisionIterations: 4,
+    });
+
+    sim.tick(20);
+
+    const positions = sim.positions();
+    const distance = Math.hypot(positions[2] - positions[0], positions[3] - positions[1]);
+
+    expect(distance).toBeGreaterThan(2.4);
+  });
 });

@@ -45,6 +45,7 @@ export default function createSigmaForceMotion(
       worker = active;
       const ids = graph.nodes();
       const indices = new Map(ids.map((id, i) => [id, i]));
+
       active.onmessage = ({ data }: MessageEvent<MotionFrame>) => {
         if (worker !== active || data.revision < minimumRevision || !graph) return;
         graph.updateEachNodeAttributes(
@@ -63,6 +64,7 @@ export default function createSigmaForceMotion(
           callbacks.onError?.("Motion stopped because its worker failed. You can still arrange nodes with Motion off.");
         }
       };
+
       send({
         type: "start",
         revision,
@@ -71,6 +73,7 @@ export default function createSigmaForceMotion(
           nodes: graph.mapNodes((id, a) => {
             const reference = callbacks.reference(id) ?? (a as Point),
               anchor = callbacks.anchor(id) ?? (a as Point);
+
             return {
               id,
               x: a.x,
@@ -79,11 +82,13 @@ export default function createSigmaForceMotion(
               referenceY: reference.y,
               anchorX: anchor.x,
               anchorY: anchor.y,
+              size: typeof a.size === "number" && Number.isFinite(a.size) && a.size > 0 ? a.size : undefined,
             };
           }),
           links: graph.mapEdges((_id, _a, source, target) => ({ source, target })),
         },
       });
+
       if (pins.length) send({ type: "pin", revision, points: pins, released: [] });
     } catch (error) {
       stop();

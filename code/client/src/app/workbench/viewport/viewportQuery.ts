@@ -3,8 +3,8 @@ import type { RenderViewportBounds, RenderViewportSyncState } from "../../../ren
 
 export const DEFAULT_GRAPH_VIEWER_DEBOUNCE_MS = 120;
 export const GRAPH_VIEWER_LOD_CHANGE_DEBOUNCE_MS = 60;
-export const DEFAULT_GRAPH_VIEWER_MAX_NODES = 5_000;
-export const GRAPH_VIEWER_SMALL_TREE_NODE_THRESHOLD = 6_000;
+export const DEFAULT_GRAPH_VIEWER_MAX_NODES = 6_000;
+export const GRAPH_VIEWER_SMALL_TREE_NODE_THRESHOLD = 2_500;
 export const GRAPH_VIEWER_VIEWPORT_PADDING_RATIO = 0.5;
 export const GRAPH_VIEWER_DETAIL_RATIO_THRESHOLD = 0.8;
 export const GRAPH_VIEWER_LOD_RATIO_STEP = 0.4;

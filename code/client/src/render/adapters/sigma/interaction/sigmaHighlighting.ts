@@ -38,7 +38,8 @@ export default function applySigmaHighlighting({
 
   sigma.setSetting("nodeReducer", (nodeId, data) => {
     const outsideHighlight = highlightedNodeIds !== null && !highlightedNodeIds.has(nodeId);
-    const selected = nodeId === selectedNodeId && !isRepresentativeNode(data);
+    const representative = isRepresentativeNode(data);
+    const selected = nodeId === selectedNodeId;
     const nextData = outsideHighlight ? { ...data, color: SIGMA_REGION_DIMMED_NODE_COLOR, label: "" } : data;
 
     if (!selected) {
@@ -50,8 +51,12 @@ export default function applySigmaHighlighting({
       ...nextData,
       color: PHYLOVIZ_NODE_SELECTED_COLOR,
       size: Math.max(baseSize * SELECTED_NODE_SCALE_FACTOR, baseSize + SELECTED_NODE_SIZE_BOOST),
-      type: SIGMA_NODE_TYPE_BORDER,
-      borderColor: PHYLOVIZ_NODE_SELECTED_BORDER_COLOR,
+      ...(representative
+        ? {}
+        : {
+            type: SIGMA_NODE_TYPE_BORDER,
+            borderColor: PHYLOVIZ_NODE_SELECTED_BORDER_COLOR,
+          }),
       label: typeof nextData.label === "string" && nextData.label.length > 0 ? nextData.label : nodeId,
       forceLabel: true,
     };
