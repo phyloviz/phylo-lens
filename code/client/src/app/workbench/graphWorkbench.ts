@@ -26,6 +26,7 @@ import {
 import graphNavigation from "./graphNavigation";
 import { ViewportSyncController } from "./viewport/viewportSyncController";
 import type { SnapshotAppliedObserver } from "./internalSnapshotObserver";
+import { GRAPH_VIEWER_SMALL_TREE_NODE_THRESHOLD } from "./viewport/viewportQuery";
 
 export { DEFAULT_VIEWPORT, DEFAULT_VIEW_SLICE_MAX_NODES } from "./viewportGraph";
 export type {
@@ -256,6 +257,10 @@ async function renderNewick({
     throw new Error(ERR_GRAPH_LOAD_SUPERSEDED);
   }
 
+  const maxNodes = options.lod?.maxNodes ?? DEFAULT_VIEW_SLICE_MAX_NODES;
+
+  const smallTreeThreshold = options.lod?.smallTreeThreshold ?? GRAPH_VIEWER_SMALL_TREE_NODE_THRESHOLD;
+
   state.preparedSession = {
     datasetId: preparedGraph.dataset_id,
     layoutVersion: preparedGraph.layout_version,
@@ -267,7 +272,8 @@ async function renderNewick({
     layoutWarnings: preparedGraph.warnings,
     lodTierCount: preparedGraph.lod_tier_count,
     lod: {
-      maxNodes: options.lod?.maxNodes ?? DEFAULT_VIEW_SLICE_MAX_NODES,
+      maxNodes: maxNodes,
+      smallTreeThreshold: smallTreeThreshold,
       lodHint: options.lod?.lodHint,
       viewport: options.lod?.viewport ?? DEFAULT_VIEWPORT,
     },
@@ -280,6 +286,7 @@ async function renderNewick({
     layoutVersion: preparedGraph.layout_version,
     renderer,
     maxNodes: state.preparedSession.lod.maxNodes,
+    smallTreeThreshold: state.preparedSession.lod.smallTreeThreshold,
     lodTierCount: preparedGraph.lod_tier_count,
     nodeCount: preparedGraph.node_count,
     getPaused: () => state.lodRefreshPaused,

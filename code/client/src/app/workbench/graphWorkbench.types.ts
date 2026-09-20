@@ -53,6 +53,7 @@ export interface RenderNewickOptions extends AncillaryInputOptions {
   sfdpOptions?: SfdpOptions;
   lod?: {
     maxNodes?: number;
+    smallTreeThreshold?: number;
     lodHint?: number;
     viewport?: Viewport;
   };
@@ -147,6 +148,7 @@ export interface PreparedDatasetSession {
   lodTierCount?: number;
   lod: {
     maxNodes: number;
+    smallTreeThreshold?: number;
     lodHint?: number;
     viewport: Viewport;
   };

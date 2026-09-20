@@ -46,6 +46,7 @@ import {
 } from "./camera/sigmaCameraState";
 import { fitSigmaToGraphSnapshot } from "./viewport/graphViewportFit";
 import { exportCanvasLayersAsPng } from "../../export/canvasExport";
+import { PHYLOVIZ_NODE_SELECTED_COLOR, SIGMA_NODE_TYPE_TRIANGLE } from "./sigmaRendering.constants";
 
 export {
   SIGMA_DEFAULT_CAMERA_ZOOM,
@@ -185,6 +186,7 @@ export class SigmaRenderer implements GraphRenderer {
   private suppressNodeClicksUntil = 0;
   private lastRenderedGraph: PositionedGraph | null = null;
   private selectedNodeId: string | null = null;
+  private selectedClusterStyle: { id: string; color: unknown; size: unknown } | null = null;
   private readonly boundCameraUpdated = () => {
     this.handleCameraUpdated();
   };
@@ -399,6 +401,7 @@ export class SigmaRenderer implements GraphRenderer {
     this.positions.clear();
     this.dragSelection = { kind: "node" };
     this.selectedNodeId = null;
+    this.selectedClusterStyle = null;
     this.highlightedNodeIds = null;
     this.dragController.reset();
     this.boxSelectController.reset();
@@ -466,6 +469,7 @@ export class SigmaRenderer implements GraphRenderer {
     const cameraState = readCameraState(this.sigma);
     const previousCoordinateBounds = this.coordinateBounds;
     this.lastRenderedGraph = graph;
+    this.selectedClusterStyle = null;
     this.graph.clear();
     this.graphBounds = deriveGraphBounds(graph.nodes);
     this.coordinateBounds = normalizeGraphBounds(graph.viewMeta.globalBounds) ?? this.graphBounds;
@@ -634,6 +638,7 @@ export class SigmaRenderer implements GraphRenderer {
   // highlight set. Reinstalled after every Sigma rebuild via bindSigmaHandlers
   // so the highlight survives piechart-program registration.
   private applyHighlighting(): void {
+    this.syncSelectedClusterStyle();
     applySigmaHighlighting({
       graph: this.graph,
       sigma: this.sigma,
@@ -997,6 +1002,36 @@ export class SigmaRenderer implements GraphRenderer {
     this.applyHighlighting();
     this.sigma?.scheduleRender?.();
     this.nodeClickHandler?.({ nodeId: null });
+  }
+
+  private syncSelectedClusterStyle(): void {
+    if (!this.graph) return;
+
+    if (this.selectedClusterStyle && this.selectedClusterStyle.id !== this.selectedNodeId) {
+      if (this.graph.hasNode(this.selectedClusterStyle.id)) {
+        this.graph.mergeNodeAttributes(this.selectedClusterStyle.id, {
+          color: this.selectedClusterStyle.color,
+          size: this.selectedClusterStyle.size,
+        });
+      }
+      this.selectedClusterStyle = null;
+    }
+
+    if (!this.selectedNodeId || this.selectedClusterStyle || !this.graph.hasNode(this.selectedNodeId)) return;
+
+    const attributes = this.graph.getNodeAttributes(this.selectedNodeId) as Record<string, unknown>;
+    if (attributes.type !== SIGMA_NODE_TYPE_TRIANGLE && attributes.is_cluster_proxy !== true) return;
+
+    const size = typeof attributes.size === "number" ? attributes.size : 5;
+    this.selectedClusterStyle = {
+      id: this.selectedNodeId,
+      color: attributes.color,
+      size: attributes.size,
+    };
+    this.graph.mergeNodeAttributes(this.selectedNodeId, {
+      color: PHYLOVIZ_NODE_SELECTED_COLOR,
+      size: Math.max(size * 1.35, size + 2),
+    });
   }
 
   private updateClusterTriangleRotations(): void {

@@ -19,6 +19,7 @@ export interface MotionNode {
   referenceY: number;
   anchorX: number;
   anchorY: number;
+  size?: number;
 }
 
 export interface MotionGraph {
@@ -34,6 +35,7 @@ interface Particle extends SimulationNodeDatum {
   y: number;
   anchorX: number;
   anchorY: number;
+  size: number;
 }
 
 export const DEFAULT_MOTION_SETTINGS = {
@@ -41,11 +43,10 @@ export const DEFAULT_MOTION_SETTINGS = {
   anchorStrength: 0.06,
   velocityDecay: 0.5,
   alphaDecay: 0.03,
-  collisionRadius: 0.1,
-  collisionStrength: 0.5,
-  collisionIterations: 1,
+  collisionRadius: 0.15,
+  collisionStrength: 1,
+  collisionIterations: 2,
 };
-
 /** Elastic refinement, not another global layout. No charge or origin gravity:
  * the prepared arrangement is an equilibrium until the user edits it. Normalize
  * by geometric edge length so Graphviz units do not tune the physics.
@@ -81,12 +82,25 @@ export function createElasticSimulation(graph: MotionGraph, options: MotionSetti
   const unit = positive[Math.floor(positive.length / 2)] ?? 1;
   const origin = graph.nodes[0] ?? { x: 0, y: 0 };
 
+  const sizes = graph.nodes
+    .map((node) => node.size)
+    .filter((size): size is number => typeof size === "number" && Number.isFinite(size) && size > 0)
+    .sort((a, b) => a - b);
+
+  const medianSize =
+    sizes.length === 0
+      ? 1
+      : sizes.length % 2 === 1
+        ? sizes[Math.floor(sizes.length / 2)]
+        : (sizes[sizes.length / 2 - 1] + sizes[sizes.length / 2]) / 2;
+
   const nodes: Particle[] = graph.nodes.map((n) => ({
     id: n.id,
     x: (n.x - origin.x) / unit,
     y: (n.y - origin.y) / unit,
     anchorX: (n.anchorX - origin.x) / unit,
     anchorY: (n.anchorY - origin.y) / unit,
+    size: typeof n.size === "number" && Number.isFinite(n.size) && n.size > 0 ? n.size : medianSize,
   }));
 
   const byId = new Map(nodes.map((n) => [n.id, n]));
@@ -112,7 +126,7 @@ export function createElasticSimulation(graph: MotionGraph, options: MotionSetti
   if (settings.collisionRadius > 0) {
     simulation.force(
       "collide",
-      forceCollide<Particle>(settings.collisionRadius)
+      forceCollide<Particle>((node) => settings.collisionRadius * (node.size / medianSize))
         .strength(settings.collisionStrength)
         .iterations(settings.collisionIterations),
     );

@@ -35,6 +35,7 @@ export interface PhyloLensLoadOptions extends AncillaryInputOptions {
   sfdpOptions?: SfdpOptions;
   lod?: {
     maxNodes?: number;
+    smallTreeThreshold?: number;
     lodHint?: number;
     viewport?: Viewport;
   };

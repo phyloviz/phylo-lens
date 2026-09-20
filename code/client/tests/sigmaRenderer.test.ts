@@ -217,6 +217,7 @@ import {
   PHYLOVIZ_NODE_SELECTED_COLOR,
   SIGMA_NODE_TYPE_PIECHART,
 } from "../src/render/adapters/sigma/sigmaRendering.constants";
+import { PositionedGraph } from "../src/contracts/positioned";
 
 const CONTAINER_ID = "graph-root";
 
@@ -1403,6 +1404,46 @@ describe("sigmaRenderer", () => {
     renderer.focusNode(null);
     expect(lastSigmaOptions?.nodeReducer).toBeNull();
     expect(graph.getNodeAttribute("node_2", "type")).toBeUndefined();
+
+    renderer.unmount();
+  });
+
+  it("restarts motion after an LoD transition completes", () => {
+    document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
+
+    vi.spyOn(performance, "now").mockReturnValue(0);
+
+    const renderer = new SigmaRenderer();
+    renderer.mount({ container: requireContainer() });
+
+    renderer.render({
+      nodes: [
+        { id: "a", x: 0, y: 0 },
+        { id: "b", x: 10, y: 0 },
+      ],
+      edges: [{ id: "a-b", source: "a", target: "b" }],
+      viewMeta: { layout: "server", lodLevel: 0 },
+    });
+
+    expect(forceMotionStarts).toBe(1);
+
+    renderer.applyGraphSnapshot({
+      nodes: [
+        { id: "a", x: 0, y: 0 },
+        { id: "b", x: 10, y: 0 },
+      ],
+      edges: [{ id: "a-b", source: "a", target: "b" }],
+      viewMeta: { layout: "server", lodLevel: 1 },
+    });
+
+    expect(forceMotionStarts).toBe(1);
+
+    const frame = animationFrameCallback;
+    expect(frame).not.toBeNull();
+
+    frame?.(1000);
+
+    expect(forceMotionStarts).toBe(2);
 
     renderer.unmount();
   });

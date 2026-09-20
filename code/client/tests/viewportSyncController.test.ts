@@ -284,7 +284,7 @@ describe("ViewportSyncController", () => {
     ]);
     const events: unknown[] = [];
     const order: string[] = [];
-    vi.mocked(renderer.applyGraphSnapshot).mockImplementation((graph) => {
+    vi.mocked(renderer.applyGraphSnapshot!).mockImplementation((graph) => {
       renderer.appliedGraphs.push(graph);
       order.push("applied");
     });
@@ -442,7 +442,7 @@ describe("ViewportSyncController", () => {
     );
   });
 
-  it("loads known medium-small datasets at the finest tier within the node budget", async () => {
+  it("loads known small datasets at the finest tier", async () => {
     const renderer = createRenderer();
     const readViewport = vi.fn(async () => viewportResponse());
     const controller = new ViewportSyncController({
@@ -451,7 +451,8 @@ describe("ViewportSyncController", () => {
       renderer,
       lodTierCount: 4,
       maxNodes: 6000,
-      nodeCount: 6000,
+      smallTreeThreshold: 2500,
+      nodeCount: 2500,
     });
 
     controller.mount();
@@ -464,7 +465,33 @@ describe("ViewportSyncController", () => {
         max_nodes: 6000,
       }),
     );
-    expect(readViewport.mock.calls[0]?.[0]).not.toHaveProperty("xmin");
+    expect(readViewport.mock.calls[0]).not.toHaveProperty("xmin");
+  });
+
+  it("keeps medium datasets at coarse LoD even when they fit within the node budget", async () => {
+    const renderer = createRenderer();
+    const readViewport = vi.fn(async () => viewportResponse());
+    const controller = new ViewportSyncController({
+      datasetId: "tree",
+      client: { readViewport },
+      renderer,
+      lodTierCount: 4,
+      maxNodes: 6000,
+      smallTreeThreshold: 2500,
+      nodeCount: 6000,
+    });
+
+    controller.mount();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(readViewport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        dataset_id: "tree",
+        lod_level: 0,
+        max_nodes: 6000,
+      }),
+    );
+    expect(readViewport.mock.calls[0]).not.toHaveProperty("xmin");
   });
 
   it("suppresses older in-flight responses when a newer viewport request wins", async () => {
@@ -487,7 +514,7 @@ describe("ViewportSyncController", () => {
     await vi.advanceTimersByTimeAsync(0);
     pending.shift()?.(viewportResponse({ layout_version: "initial" }));
     await Promise.resolve();
-    vi.mocked(renderer.applyGraphSnapshot).mockClear();
+    vi.mocked(renderer.applyGraphSnapshot!).mockClear();
     renderer.appliedGraphs = [];
 
     viewportState = { bounds: { xmin: 1, xmax: 2, ymin: 3, ymax: 4 }, cameraRatio: 0.1 };
