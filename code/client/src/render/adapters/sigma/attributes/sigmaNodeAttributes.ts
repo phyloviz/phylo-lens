@@ -4,6 +4,7 @@ import { PIE_ATTRIBUTE_PREFIX, PIE_OTHER_SLICE_KEY } from "../../../mapping/pieM
 import { isTruthyAttribute, toPositiveNumber } from "./sigmaAttributeUtils";
 import { deriveNodeLabel } from "./sigmaLabels";
 import {
+  PHYLOVIZ_CLUSTER_COLOR,
   PHYLOVIZ_NODE_SELECTED_COLOR,
   SIGMA_DEFAULT_NODE_SIZE,
   SIGMA_NODE_TYPE_DEFAULT,
@@ -47,7 +48,7 @@ export function addPositionedNode(
     ...(node.attributes ?? {}),
     ...pieAttributes,
     type: nodeType,
-    color: deriveNodeColor(node),
+    color: derivePositionedNodeColor(node),
     borderColor: undefined,
     label:
       rendererOptions.label?.enabled === false || rendererOptions.display?.nodeLabels === false
@@ -108,9 +109,13 @@ function deriveOtherPieValue(attributes: Record<string, unknown> | undefined, di
   }, 0);
 }
 
-function deriveNodeColor(node: PositionedNode): string {
+export function derivePositionedNodeColor(node: PositionedNode): string {
   if (isUnionNode(node.id, node.attributes)) {
     return UNION_NODE_COLOR;
+  }
+
+  if (node.attributes?.is_cluster_proxy === true) {
+    return PHYLOVIZ_CLUSTER_COLOR;
   }
 
   if (isTruthyAttribute(node.attributes, ["selected", "is_selected"])) {

@@ -52,4 +52,25 @@ describe("elastic motion on a prepared layout", () => {
     });
     results.forEach((positions) => positions.forEach((value, i) => expect(value).toBeCloseTo(results[1][i], 6)));
   });
+
+  it("resolves node overlap when collision handling is enabled", () => {
+    const graph: MotionGraph = {
+      nodes: [
+        { id: "a", x: 0, y: 0, referenceX: 0, referenceY: 0, anchorX: 0, anchorY: 0 },
+        { id: "b", x: 0, y: 0, referenceX: 0, referenceY: 0, anchorX: 0, anchorY: 0 },
+      ],
+      links: [],
+    };
+    const sim = createElasticSimulation(graph, {
+      anchorStrength: 0,
+      collisionRadius: 2,
+      collisionStrength: 1,
+      collisionIterations: 4,
+    });
+
+    sim.tick(20);
+
+    const positions = sim.positions();
+    expect(Math.hypot(positions[2] - positions[0], positions[3] - positions[1])).toBeGreaterThan(3.9);
+  });
 });

@@ -33,7 +33,7 @@ import applySigmaHighlighting from "./interaction/sigmaHighlighting";
 import createSigmaForceMotion from "./motion/sigmaForceMotion";
 import { areStringArraysEqual } from "./attributes/sigmaAttributeUtils";
 import { addPositionedEdges } from "./attributes/sigmaEdgeAttributes";
-import { addPositionedNode, applyPieChartNodeTypes } from "./attributes/sigmaNodeAttributes";
+import { addPositionedNode, applyPieChartNodeTypes, derivePositionedNodeColor } from "./attributes/sigmaNodeAttributes";
 import { buildPieProgramSignature, piechartProgramClasses, type PieNodeView } from "./programs/sigmaPiePrograms";
 import { buildSigmaSettings } from "./sigmaRenderer.settings";
 import type { SigmaPiechartOptions, SigmaRendererOptions } from "./sigmaRenderer.types";
@@ -479,7 +479,7 @@ export class SigmaRenderer implements GraphRenderer {
         x: node.x,
         y: node.y,
         size: node.size,
-        color: node.color,
+        color: node.attributes?.is_cluster_proxy === true ? derivePositionedNodeColor(node) : node.color,
       });
     });
     graph.edges.forEach((edge) => {

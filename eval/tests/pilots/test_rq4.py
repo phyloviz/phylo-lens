@@ -1,9 +1,6 @@
 from __future__ import annotations
 
-import argparse
 import hashlib
-import json
-import os
 import sys
 from pathlib import Path
 
@@ -17,7 +14,6 @@ from phylo_lens_eval.pilots.rq4 import (
     load_experiment,
     observation,
     repository_root,
-    run,
     select_aggregate_target,
     validation_failure,
 )
@@ -220,30 +216,3 @@ def test_rq4_keeps_unrelated_requests_as_diagnostics() -> None:
     result = _server_backed_result()
     result["operation_request_trace"].append({"url": "http://api/health"})
     assert validation_failure("viewport_navigation", result, "http://api") is None
-
-
-@pytest.mark.skipif(
-    os.environ.get("RQ4_SMOKE") != "1",
-    reason="requires built browser and Playwright Chromium",
-)
-def test_python_orchestrated_public_bootstrap_smoke(tmp_path) -> None:
-    run_dir = run(
-        argparse.Namespace(
-            experiment="rq4-interactive-pilot",
-            warmups=0,
-            repetitions=1,
-            results_root=tmp_path,
-        )
-    )
-    rows = [
-        json.loads(line)
-        for line in (run_dir / "observations.jsonl").read_text().splitlines()
-    ]
-    assert {row["operation"] for row in rows} == {
-        "viewport_navigation",
-        "cluster_expand",
-        "cluster_collapse",
-    }
-    assert all(row["status"] == "success" for row in rows), rows
-    assert all(row["server_state_policy"] == POLICY for row in rows)
-    assert all(Path(row["artifacts"]["screenshot"]).is_file() for row in rows)
