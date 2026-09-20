@@ -30,10 +30,7 @@
             "kind": "wheel",
             "wheel_delta_y": -1000,
             "wheel_steps": 3,
-            "wheel_interval_ms": 70,
-            "setup_wheel_steps": 2,
-            "setup_wheel_delta_y": 1000,
-            "setup_wheel_interval_ms": 70
+            "wheel_interval_ms": 70
           }
         },
         {
