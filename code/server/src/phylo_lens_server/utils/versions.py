@@ -4,7 +4,7 @@ from importlib.metadata import PackageNotFoundError, version
 
 API_VERSION = "1"
 PACKAGE_NAME = "phylo-lens-server"
-SERVICE_VERSION_FALLBACK = "0.2.1"
+SERVICE_VERSION_FALLBACK = "0.2.2"
 
 
 def service_version() -> str:
