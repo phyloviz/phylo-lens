@@ -1,10 +1,14 @@
-import { forceLink, forceSimulation, forceX, forceY, type SimulationNodeDatum } from "d3-force";
+import { forceCollide, forceLink, forceSimulation, forceX, forceY, type SimulationNodeDatum } from "d3-force";
 
 export interface MotionSettings {
   linkStrength?: number;
   anchorStrength?: number;
   velocityDecay?: number;
   alphaDecay?: number;
+  /** Radius relative to the median edge length. Zero keeps collision handling disabled. */
+  collisionRadius?: number;
+  collisionStrength?: number;
+  collisionIterations?: number;
 }
 
 export interface MotionNode {
@@ -34,9 +38,12 @@ interface Particle extends SimulationNodeDatum {
 
 export const DEFAULT_MOTION_SETTINGS = {
   linkStrength: 0.35,
-  anchorStrength: 0.02,
-  velocityDecay: 0.45,
-  alphaDecay: 0.025,
+  anchorStrength: 0.06,
+  velocityDecay: 0.5,
+  alphaDecay: 0.03,
+  collisionRadius: 0.1,
+  collisionStrength: 0.5,
+  collisionIterations: 1,
 };
 
 /** Elastic refinement, not another global layout. No charge or origin gravity:
@@ -46,9 +53,20 @@ export const DEFAULT_MOTION_SETTINGS = {
 export function createElasticSimulation(graph: MotionGraph, options: MotionSettings = {}) {
   const settings = { ...DEFAULT_MOTION_SETTINGS, ...options };
 
-  for (const [key, value] of Object.entries(settings)) {
-    if (!Number.isFinite(value) || value < 0 || value > 1 || (key === "alphaDecay" && value === 0))
-      throw new Error(`Invalid motion setting: ${key}`);
+  const in01 = (v: number) => Number.isFinite(v) && v >= 0 && v <= 1;
+
+  const validators = {
+    linkStrength: in01,
+    anchorStrength: in01,
+    velocityDecay: in01,
+    alphaDecay: (v: number) => Number.isFinite(v) && v > 0,
+    collisionRadius: (v: number) => Number.isFinite(v) && v >= 0,
+    collisionStrength: in01,
+    collisionIterations: (v: number) => Number.isInteger(v) && v >= 1,
+  };
+
+  if (!Object.entries(validators).every(([key, validate]) => validate(settings[key as keyof typeof settings]))) {
+    throw new Error("Invalid motion setting");
   }
 
   const references = new Map(graph.nodes.map((n) => [n.id, n]));
@@ -90,6 +108,15 @@ export function createElasticSimulation(graph: MotionGraph, options: MotionSetti
     )
     .force("anchorX", xForce)
     .force("anchorY", yForce);
+
+  if (settings.collisionRadius > 0) {
+    simulation.force(
+      "collide",
+      forceCollide<Particle>(settings.collisionRadius)
+        .strength(settings.collisionStrength)
+        .iterations(settings.collisionIterations),
+    );
+  }
 
   let pinned = false;
 
