@@ -1358,3 +1358,30 @@ it("applies an uploaded table to the current tree without submitting the render 
   expect(applyAncillaryButton.disabled).toBe(false);
   shell.unmount();
 });
+
+it("enables arrangement-root selection and clears it for the next dataset", async () => {
+  const workbench = makeFakeWorkbench();
+  workbench.setDragSelection = vi.fn();
+  const branchRootButton = document.createElement("button");
+  branchRootButton.disabled = true;
+  const input = document.createElement("textarea");
+  input.value = "(A,B)Root;";
+  const shell = uiShell({
+    workbench,
+    elements: {
+      form: document.createElement("form"),
+      newickInput: input,
+      status: document.createElement("div"),
+      branchRootButton,
+    },
+  });
+  shell.mount();
+  const select = vi.mocked(workbench.setNodeClickedHandler).mock.calls[0][0]!;
+  select({ nodeId: "a" });
+  expect(branchRootButton.disabled).toBe(false);
+  branchRootButton.click();
+  expect(workbench.setDragSelection).toHaveBeenCalledWith({ kind: "branch", rootId: "a" });
+  await shell.renderCurrentInput();
+  expect(branchRootButton.disabled).toBe(true);
+  shell.unmount();
+});

@@ -23,6 +23,8 @@ interface SigmaBoxSelectControllerOptions {
   // True while the toolbar toggle keeps region-select mode on. When enabled a
   // plain drag draws a box; otherwise a box is only drawn while Shift is held.
   isModeEnabled: () => boolean;
+  onStart?: () => void;
+  onEnd?: () => void;
   onRegionSelected: (bounds: RenderViewportBounds) => void;
   suppressNodeClicksFor?: (durationMs: number) => void;
 }
@@ -97,6 +99,7 @@ export default function (options: SigmaBoxSelectControllerOptions) {
       return;
     }
 
+    options.onStart?.();
     startPoint = { x: payload.x, y: payload.y };
     previousCameraPanningEnabled = sigma.getSetting?.("enableCameraPanning") as boolean | null;
     sigma.setSetting?.("enableCameraPanning", false);
@@ -169,10 +172,12 @@ export default function (options: SigmaBoxSelectControllerOptions) {
       sigma?.setSetting?.("enableCameraPanning", previousCameraPanningEnabled);
     }
     previousCameraPanningEnabled = null;
+    const active = startPoint !== null;
     startPoint = null;
     if (overlay?.parentElement) {
       overlay.parentElement.removeChild(overlay);
     }
     overlay = null;
+    if (active) options.onEnd?.();
   }
 }

@@ -1,3 +1,5 @@
+import { createElasticSimulation } from "../src/render/adapters/sigma/motion/elasticSimulation";
+import type { MotionCommand, MotionFrame } from "../src/render/adapters/sigma/motion/elastic.worker";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 let lastSigmaOptions: Record<string, unknown> | null = null;
@@ -19,6 +21,10 @@ let lastCamera: {
   on: (event: string, handler: () => void) => void;
   off: (event: string, handler: () => void) => void;
 } | null = null;
+let downHandler: ((payload: { node: string; event: { x: number; y: number } }) => void) | null = null;
+const mouseHandlers = new Map<string, Set<(payload: { x: number; y: number }) => void>>();
+let emitMotion: ((positions: number[]) => void) | undefined;
+let pumpMotion: ((iterations: number) => void) | undefined;
 let lastStageClickHandler: (() => void) | null = null;
 let lastNodeClickHandler: ((payload: { node?: string; event?: { node?: string } }) => void) | null = null;
 let lastNodeDoubleClickHandler: ((payload: { node?: string; event?: { node?: string } }) => void) | null = null;
@@ -35,18 +41,31 @@ let animationFrameId = 0;
 let graphToViewportPoint = (point: { x: number; y: number }) => point;
 let viewportToFramedGraphPoint = (point: { x: number; y: number }) => point;
 
-vi.mock("graphology-layout-forceatlas2/worker.js", () => ({
-  default: class FakeForceSupervisor {
-    constructor(_graph: unknown, options?: { settings?: Record<string, number> }) {
-      lastForceMotionSettings = options?.settings ?? null;
+vi.mock("../src/render/adapters/sigma/motion/elastic.worker?worker&inline", () => ({
+  default: class {
+    onmessage: ((event: { data: MotionFrame }) => void) | null = null;
+    simulation: ReturnType<typeof createElasticSimulation> | undefined;
+    revision = 0;
+    constructor() {
+      emitMotion = (positions) =>
+        this.onmessage?.({ data: { positions: new Float64Array(positions), revision: this.revision, settled: false } });
+      pumpMotion = (iterations) => {
+        this.simulation!.tick(iterations);
+        this.onmessage?.({
+          data: { positions: this.simulation!.positions(), revision: this.revision, settled: false },
+        });
+      };
     }
-
-    start() {
-      forceMotionStarts += 1;
+    postMessage(data: MotionCommand) {
+      this.revision = data.revision;
+      if (data.type === "start") {
+        forceMotionStarts++;
+        lastForceMotionSettings = { ...data.settings };
+        this.simulation = createElasticSimulation(data.graph, data.settings);
+      } else this.simulation?.pin(data.points, data.released);
     }
-
-    kill() {
-      forceMotionKills += 1;
+    terminate() {
+      forceMotionKills++;
     }
   },
 }));
@@ -97,6 +116,7 @@ vi.mock("sigma", () => {
     }
 
     on(event: string, handler: (payload?: { node?: string; event?: { node?: string } }) => void) {
+      if (event === "downNode") downHandler = handler as unknown as typeof downHandler;
       if (event === "clickStage") {
         lastStageClickHandler = handler as () => void;
       }
@@ -122,6 +142,14 @@ vi.mock("sigma", () => {
       return this;
     }
 
+    getMouseCaptor() {
+      return {
+        on: (event: string, handler: (payload: { x: number; y: number }) => void) =>
+          mouseHandlers.set(event, new Set([...(mouseHandlers.get(event) ?? []), handler])),
+        off: (event: string, handler: (payload: { x: number; y: number }) => void) =>
+          mouseHandlers.get(event)?.delete(handler),
+      };
+    }
     getCamera() {
       return this.camera;
     }
@@ -202,6 +230,8 @@ function requireContainer(): HTMLElement {
 
 describe("sigmaRenderer", () => {
   beforeEach(() => {
+    downHandler = null;
+    mouseHandlers.clear();
     shouldThrowOnPieProgram = false;
     pieProgramInputs = [];
     forceMotionStarts = 0;
@@ -412,10 +442,10 @@ describe("sigmaRenderer", () => {
     renderer.unmount();
   });
 
-  it("runs live force motion for complete client layouts only", () => {
+  it("runs live force motion for both client and server layouts", () => {
     document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
 
-    const renderer = new SigmaRenderer({ forceMotion: { durationMs: 0 } });
+    const renderer = new SigmaRenderer();
     renderer.mount({ container: requireContainer() });
     renderer.render({
       nodes: [
@@ -437,15 +467,10 @@ describe("sigmaRenderer", () => {
       viewMeta: { layout: "server", lodLevel: 0 },
     });
 
-    expect(forceMotionStarts).toBe(1);
+    expect(forceMotionStarts).toBe(2);
     expect(forceMotionKills).toBe(1);
     expect(lastForceMotionSettings).toMatchObject({
-      adjustSizes: false,
-      barnesHutOptimize: true,
-      strongGravityMode: false,
-      gravity: 0.02,
-      scalingRatio: 18,
-      slowDown: 10,
+      // Defaults are applied inside the worker.
     });
 
     renderer.unmount();
@@ -456,8 +481,7 @@ describe("sigmaRenderer", () => {
 
     const renderer = new SigmaRenderer({
       forceMotion: {
-        durationMs: 0,
-        settings: { gravity: 0.5, scalingRatio: 24 },
+        settings: { anchorStrength: 0.05, linkStrength: 0.4 },
       },
     });
     renderer.mount({ container: requireContainer() });
@@ -471,9 +495,8 @@ describe("sigmaRenderer", () => {
     });
 
     expect(lastForceMotionSettings).toMatchObject({
-      gravity: 0.5,
-      scalingRatio: 24,
-      slowDown: 10,
+      anchorStrength: 0.05,
+      linkStrength: 0.4,
     });
 
     renderer.unmount();
@@ -541,7 +564,7 @@ describe("sigmaRenderer", () => {
   it("keeps cluster proxy triangle tips aligned while force motion moves nodes", () => {
     document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
 
-    const renderer = new SigmaRenderer({ forceMotion: { durationMs: 0 } });
+    const renderer = new SigmaRenderer();
     renderer.mount({ container: requireContainer() });
     renderer.render({
       nodes: [
@@ -557,8 +580,7 @@ describe("sigmaRenderer", () => {
       viewMeta: { layout: "force", lodLevel: 0 },
     });
 
-    lastGraph?.setNodeAttribute("root", "x", 10);
-    animationFrameCallback?.(16);
+    emitMotion?.([10, 0, 0, 10]);
 
     expect(lastGraph?.getNodeAttribute("cluster", "triangleRotation")).toBeCloseTo(Math.atan2(-10, 10));
 
@@ -1098,6 +1120,121 @@ describe("sigmaRenderer", () => {
     renderer.unmount();
   });
 
+  it("keeps worker motion on while dragging, protects pins and defers viewport replacement", () => {
+    document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
+    const renderer = new SigmaRenderer();
+    renderer.mount({ container: requireContainer() });
+    const snapshot: PositionedGraph = {
+      nodes: [
+        { id: "a", x: 0, y: 0 },
+        { id: "b", x: 20, y: 0 },
+      ],
+      edges: [{ id: "ab", source: "a", target: "b", attributes: { distance: 7 } }],
+      viewMeta: { layout: "server", lodLevel: 0, globalBounds: { minX: 0, maxX: 100, minY: 0, maxY: 100 } },
+    };
+    renderer.applyGraphSnapshot(snapshot);
+    const graph = (renderer as unknown as { graph: Graph }).graph;
+    downHandler?.({ node: "a", event: { x: 0, y: 0 } });
+    mouseHandlers.get("mousemovebody")?.forEach((handler) => handler({ x: 4, y: 3 }));
+    expect(renderer.isManipulating()).toBe(true);
+    expect(forceMotionKills).toBe(0);
+    pumpMotion?.(10);
+    expect(graph.getNodeAttributes("a")).toMatchObject({ x: 4, y: 3 });
+    expect(graph.getNodeAttribute("b", "x")).not.toBe(20);
+    expect(graph.getEdgeAttribute("ab", "distance")).toBe(7);
+    renderer.applyGraphSnapshot({ ...snapshot, nodes: [...snapshot.nodes, { id: "c", x: 30, y: 0 }] });
+    expect(graph.hasNode("c")).toBe(false);
+    mouseHandlers.get("mouseup")?.forEach((handler) => handler({ x: 4, y: 3 }));
+    expect(graph.hasNode("c")).toBe(true);
+    expect(graph.getNodeAttributes("a")).toMatchObject({ x: 4, y: 3 });
+    expect(renderer.isMotionEnabled()).toBe(true);
+    expect(renderer.isManipulating()).toBe(false);
+    renderer.setMotionEnabled(false);
+    const starts = forceMotionStarts;
+    renderer.applyGraphSnapshot(snapshot);
+    expect(forceMotionStarts).toBe(starts);
+    expect(renderer.getDisplayedNodesInBounds({ xmin: 3, xmax: 5, ymin: 2, ymax: 4 })).toEqual(["a"]);
+    renderer.resetLayoutEdits();
+    expect(graph.getNodeAttributes("a")).toMatchObject({ x: 0, y: 0 });
+    expect(renderer.isMotionEnabled()).toBe(false);
+    renderer.unmount();
+  });
+
+  it("animates expansion from a moved proxy, preserves pause and does not transition ordinary refreshes", () => {
+    document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
+    const renderer = new SigmaRenderer({ forceMotion: { enabled: false } });
+    renderer.mount({ container: requireContainer() });
+    const coarse: PositionedGraph = {
+      nodes: [{ id: "p", x: 20, y: 0, size: 3, attributes: { is_cluster_proxy: true, cluster_id: "g" } }],
+      edges: [],
+      viewMeta: { layout: "server", lodLevel: 0, globalBounds: { minX: 0, maxX: 100, minY: 0, maxY: 100 } },
+    };
+    renderer.applyGraphSnapshot(coarse);
+    downHandler?.({ node: "p", event: { x: 20, y: 0 } });
+    mouseHandlers.get("mousemovebody")?.forEach((handler) => handler({ x: 25, y: 3 }));
+    mouseHandlers.get("mouseup")?.forEach((handler) => handler({ x: 25, y: 3 }));
+    const fine: PositionedGraph = {
+      ...coarse,
+      nodes: [
+        { id: "a", x: 19, y: 0, size: 3, attributes: { cluster_id: "g" } },
+        { id: "b", x: 21, y: 0, size: 3, attributes: { cluster_id: "g" } },
+      ],
+      edges: [{ id: "ab", source: "a", target: "b" }],
+    };
+    renderer.applyGraphSnapshot(fine);
+    const graph = (renderer as unknown as { graph: Graph }).graph;
+    expect(graph.getNodeAttributes("a")).toMatchObject({ x: 25, y: 3 });
+    expect(renderer.isManipulating()).toBe(true);
+    animationFrameCallback?.(performance.now() + 300);
+    expect(graph.getNodeAttributes("a")).toMatchObject({ x: 24, y: 3 });
+    expect(graph.getNodeAttributes("b")).toMatchObject({ x: 26, y: 3 });
+    expect(renderer.isMotionEnabled()).toBe(false);
+    expect(renderer.isManipulating()).toBe(false);
+    renderer.applyGraphSnapshot(fine);
+    expect(renderer.isManipulating()).toBe(false);
+    renderer.applyGraphSnapshot({ ...fine, viewMeta: { ...fine.viewMeta, lodLevel: 1 } });
+    expect(renderer.isManipulating()).toBe(true);
+    animationFrameCallback?.(performance.now() + 300);
+    expect(graph.getNodeAttributes("a")).toMatchObject({ x: 19, y: 0 });
+    renderer.unmount();
+  });
+
+  it("interrupts child animation at the displayed position when direct dragging starts", () => {
+    document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
+    const renderer = new SigmaRenderer({ forceMotion: { enabled: false } });
+    renderer.mount({ container: requireContainer() });
+    const viewMeta: PositionedGraph["viewMeta"] = {
+      layout: "server",
+      lodLevel: 0,
+      globalBounds: { minX: 0, maxX: 100, minY: 0, maxY: 100 },
+    };
+    renderer.applyGraphSnapshot({
+      nodes: [{ id: "p", x: 20, y: 0, attributes: { is_cluster_proxy: true, cluster_id: "g" } }],
+      edges: [],
+      viewMeta,
+    });
+    renderer.applyGraphSnapshot({
+      nodes: [
+        { id: "a", x: 25, y: 0, attributes: { cluster_id: "g" } },
+        { id: "b", x: 30, y: 0, attributes: { cluster_id: "g" } },
+      ],
+      edges: [{ id: "ab", source: "a", target: "b" }],
+      viewMeta,
+    });
+    animationFrameCallback?.(performance.now() + 80);
+    const graph = (renderer as unknown as { graph: Graph }).graph;
+    const x = graph.getNodeAttribute("a", "x");
+    expect(x).toBeGreaterThan(20);
+    expect(x).toBeLessThan(25);
+    downHandler?.({ node: "a", event: { x, y: 0 } });
+    expect(graph.getNodeAttribute("a", "x")).toBe(x);
+    mouseHandlers.get("mousemovebody")?.forEach((handler) => handler({ x: x + 1, y: 0 }));
+    expect(graph.getNodeAttribute("a", "x")).toBeCloseTo(x + 1);
+    mouseHandlers.get("mouseup")?.forEach((handler) => handler({ x: x + 1, y: 0 }));
+    expect(renderer.isManipulating()).toBe(false);
+    renderer.unmount();
+  });
+
   it("retains dragged positions while replacing ancillary presentation", () => {
     document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
     const renderer = new SigmaRenderer();
@@ -1109,12 +1246,12 @@ describe("sigmaRenderer", () => {
     };
     renderer.applyGraphSnapshot(snapshot);
     const graph = (renderer as unknown as { graph: Graph }).graph;
-    graph.mergeNodeAttributes("a", { x: 42, y: 17 });
+    graph.mergeNodeAttributes("a", { x: 0.05, y: 0.07 });
     renderer.applyGraphSnapshot(
       { ...snapshot, nodes: [{ ...snapshot.nodes[0], color: "#abcdef" }] },
       { preservePositions: true },
     );
-    expect(graph.getNodeAttributes("a")).toMatchObject({ x: 42, y: 17, color: "#abcdef" });
+    expect(graph.getNodeAttributes("a")).toMatchObject({ x: 0.05, y: 0.07, color: "#abcdef" });
     renderer.unmount();
   });
 

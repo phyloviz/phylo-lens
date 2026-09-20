@@ -387,6 +387,8 @@ def validation_failure(operation: str, result: dict, api_origin: str) -> str | N
         return "structural_state_unchanged"
     allowed_origins = {api_origin, result.get("web_origin")}
     for request in result.get("operation_network_requests", []):
+        if urlparse(request.get("url", "")).scheme == "blob":
+            continue
         if (
             urlparse(request.get("url", "")).scheme
             and _origin(request["url"]) not in allowed_origins
@@ -541,11 +543,11 @@ def _primitive_counts(event: dict) -> dict:
         "visible_node_count": boundary.get("visibleNodeCount"),
         "visible_edge_count": boundary.get("visibleEdgeCount"),
         "visible_primitive_count": boundary.get("visiblePrimitiveCount"),
-        "visible_aggregate_triangle_count": diagnostics.get(
-            "visibleAggregateTriangleCount"
-        )
-        if isinstance(diagnostics, dict)
-        else None,
+        "visible_aggregate_triangle_count": (
+            diagnostics.get("visibleAggregateTriangleCount")
+            if isinstance(diagnostics, dict)
+            else None
+        ),
     }
 
 

@@ -178,6 +178,12 @@ def test_rq4_rejects_missing_request_and_external_network() -> None:
         == "external_network_request"
     )
 
+    worker = _server_backed_result()
+    worker["operation_network_requests"] = [
+        {"url": "blob:http://web/worker-id", "resourceType": "script"}
+    ]
+    assert validation_failure("viewport_navigation", worker, "http://api") is None
+
 
 def test_rq4_rejects_non_monotonic_and_unchanged_structural_state() -> None:
     non_monotonic = _server_backed_result()

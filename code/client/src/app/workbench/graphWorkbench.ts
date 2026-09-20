@@ -93,6 +93,11 @@ export function createGraphWorkbench(
   };
 
   return {
+    setMotionEnabled: (enabled) => renderer.setMotionEnabled?.(enabled),
+    isMotionEnabled: () => renderer.isMotionEnabled?.() ?? false,
+    setInteractionFeedbackHandler: (handler) => renderer.setInteractionFeedbackHandler?.(handler),
+    setDragSelection: (selection) => renderer.setDragSelection?.(selection),
+    resetLayoutEdits: () => renderer.resetLayoutEdits?.(),
     expandCluster: (id) => requireViewportSync().expandCluster(id),
     collapseCluster: (id) => requireViewportSync().collapseCluster(id),
     expandAll: () => requireViewportSync().expandAll(),
@@ -226,6 +231,9 @@ async function renderNewick({
 }: RenderNewickArgs): Promise<PositionedGraph> {
   setViewportSync(null);
   resetWorkbenchState(state);
+  const motionEnabled = renderer.isMotionEnabled?.() ?? true;
+  renderer.resetLayoutEdits?.();
+  renderer.setMotionEnabled?.(motionEnabled);
   renderer.focusNode?.(null);
 
   const ancillary = resolveAncillaryInput(options);

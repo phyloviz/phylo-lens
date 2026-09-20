@@ -1,3 +1,4 @@
+import { retainMovedNodes } from "./retainMovedNodes";
 import type { ExpansionState, ExpansionResult } from "../../../contracts/expansion";
 import { composeExpandedViewport } from "./expandedViewport";
 import type { GraphClient } from "../../../api/graphClient";
@@ -70,6 +71,22 @@ export class ViewportSyncController {
   private debounceTimer: ReturnType<typeof window.setTimeout> | null = null;
   private cancelFit: (() => void) | null = null;
   private requestSequence = 0;
+  private manipulating = false;
+  private refreshAfterManipulation = false;
+  private loadingViewport = false;
+  private readonly manipulationChanged = (active: boolean) => {
+    this.manipulating = active;
+    if (active) {
+      this.refreshAfterManipulation ||= this.debounceTimer !== null || this.loadingViewport;
+      this.requestSequence += 1;
+      if (this.debounceTimer !== null) window.clearTimeout(this.debounceTimer);
+      this.debounceTimer = null;
+      this.cancelFit?.();
+    } else if (this.refreshAfterManipulation) {
+      this.refreshAfterManipulation = false;
+      this.scheduleViewportRefresh(0);
+    }
+  };
   private mounted = false;
   private replacingLayout = false;
   private refreshAfterReplacement = false;
@@ -124,6 +141,7 @@ export class ViewportSyncController {
     }
     this.mounted = true;
     this.renderer.setViewChangeHandler?.(this.viewportChanged);
+    this.renderer.setManipulationHandler?.(this.manipulationChanged);
     this.scheduleViewportRefresh(0);
   }
 
@@ -133,6 +151,7 @@ export class ViewportSyncController {
     }
     this.mounted = false;
     this.renderer.setViewChangeHandler?.(null);
+    this.renderer.setManipulationHandler?.(null);
     if (this.debounceTimer !== null) {
       window.clearTimeout(this.debounceTimer);
       this.debounceTimer = null;
@@ -300,8 +319,8 @@ export class ViewportSyncController {
   }
 
   private requireExpansionReady(): void {
-    if (!this.mounted || !this.baseResponse || this.replacingLayout) {
-      throw new Error("Expansion requires a loaded tree with no ancillary replacement in progress.");
+    if (!this.mounted || !this.baseResponse || this.replacingLayout || this.manipulating) {
+      throw new Error("Expansion requires a loaded tree with no manipulation or ancillary replacement in progress.");
     }
   }
 
@@ -390,6 +409,10 @@ export class ViewportSyncController {
   }
 
   private scheduleViewportRefresh(delayMs = this.debounceMs): void {
+    if (this.manipulating) {
+      this.refreshAfterManipulation = true;
+      return;
+    }
     if (this.replacingLayout) {
       this.refreshAfterReplacement = true;
       return;
@@ -409,6 +432,11 @@ export class ViewportSyncController {
   }
 
   private async loadViewport(): Promise<void> {
+    if (this.manipulating) {
+      this.refreshAfterManipulation = true;
+      return;
+    }
+    this.loadingViewport = true;
     const sequence = ++this.requestSequence;
     const pinned = this.keepExpanded && this.expansionLodLevel !== undefined;
     const finestTier =
@@ -431,9 +459,17 @@ export class ViewportSyncController {
     this.lastRequestedLodLevel = query.lod_level;
 
     try {
-      const response = await this.client.readViewport(query);
+      let response = await this.client.readViewport(query);
       if (!this.mounted || sequence !== this.requestSequence) {
         return;
+      }
+      if (!fitResponse) {
+        response = retainMovedNodes(
+          response,
+          this.baseResponse,
+          this.renderer.getVisibleDisplacedNodeIds?.() ?? [],
+          this.maxNodes,
+        );
       }
       this.layoutVersion = response.layout_version;
       this.lastViewportQuery = query;
@@ -469,6 +505,8 @@ export class ViewportSyncController {
         this.rejectInitialViewportOnce(error);
       }
       this.onError?.(error);
+    } finally {
+      this.loadingViewport = false;
     }
   }
 

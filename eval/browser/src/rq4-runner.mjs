@@ -197,7 +197,10 @@ async function run(control) {
         canvas.y + control.input.client_y,
       );
     } else {
-      await page.mouse.wheel(0, control.input.wheel_delta_y);
+      for (let step = 0; step < (control.input.wheel_steps ?? 1); step += 1) {
+        await page.mouse.wheel(0, control.input.wheel_delta_y);
+        await page.waitForTimeout(control.input.wheel_interval_ms ?? 70);
+      }
     }
   } else if (control.operation === "cluster_expand") {
     await page.mouse.click(target.clientX, target.clientY);

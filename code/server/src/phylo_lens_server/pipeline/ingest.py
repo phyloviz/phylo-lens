@@ -20,7 +20,7 @@ from phylo_lens_server.pipeline.sfdp import SfdpOptions, resolve_sfdp_options
 
 ERR_EMPTY_DATASET = "Prepared layout requires at least one node."
 ERR_MISSING_DISTANCE = "Prepared layout requires every edge to carry a distance value."
-LAYOUT_PIPELINE_VERSION = "layout-pipeline-v1"
+LAYOUT_PIPELINE_VERSION = "layout-pipeline-v2"
 
 
 class PreparedLayoutIngestError(ValueError):

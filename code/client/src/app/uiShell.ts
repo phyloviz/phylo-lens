@@ -30,6 +30,7 @@ import {
 import metadataPieFieldControls from "./shell/controls/metadataPieFieldControls";
 import { getSelectedOptions } from "./shell/controls/selectOptions";
 import { downloadBlob, readTextFile, resolveAncillaryFormat } from "./shell/inputs/fileInputs";
+import { ancillaryJoinColumnPicker } from "./shell/inputs/ancillaryJoinColumn";
 import eventBindings from "./shell/events/eventBindings";
 import searchController from "./shell/search/searchController";
 import regionSelection from "./shell/region/regionSelection";
@@ -70,13 +71,15 @@ export interface UiShellElements {
   form: HTMLFormElement;
   newickInput: HTMLTextAreaElement;
   newickFileInput?: HTMLInputElement;
+  newickSourceControls?: HTMLElement;
   sourceFormatSelect?: HTMLSelectElement;
   typingFileInput?: HTMLInputElement;
+  typingSourceControls?: HTMLElement;
   datasetNameInput?: HTMLInputElement;
   ancillaryInput?: HTMLTextAreaElement;
   ancillaryFileInput?: HTMLInputElement;
   applyAncillaryButton?: HTMLButtonElement;
-  ancillaryJoinColumnInput?: HTMLInputElement;
+  ancillaryJoinColumnInput?: HTMLInputElement | HTMLSelectElement;
   ancillaryFormatSelect?: HTMLSelectElement;
   status: HTMLElement;
   ancillaryWheelContainer?: HTMLElement;
@@ -92,8 +95,13 @@ export interface UiShellElements {
   paletteLoadInput?: HTMLInputElement;
   paletteSaveButton?: HTMLButtonElement;
   displayOptionsSelect?: HTMLSelectElement;
+  motionInput?: HTMLInputElement;
+  branchRootButton?: HTMLButtonElement;
+  singleDragButton?: HTMLButtonElement;
+  resetLayoutButton?: HTMLButtonElement;
+  dragStatus?: HTMLElement;
   edgeLabelPolicySelect?: HTMLSelectElement;
-  exportScaleInput?: HTMLInputElement;
+  exportScaleInput?: HTMLSelectElement;
   exportLabelSizeInput?: HTMLInputElement;
   exportButton?: HTMLButtonElement;
   expansion?: ExpansionControlsElements;
@@ -125,8 +133,10 @@ export default function (options: UiShellOptions): UiShell {
     form,
     newickInput,
     newickFileInput,
+    newickSourceControls,
     sourceFormatSelect,
     typingFileInput,
+    typingSourceControls,
     datasetNameInput,
     ancillaryInput,
     ancillaryFileInput,
@@ -147,6 +157,11 @@ export default function (options: UiShellOptions): UiShell {
     paletteLoadInput,
     paletteSaveButton,
     displayOptionsSelect,
+    motionInput,
+    branchRootButton,
+    singleDragButton,
+    resetLayoutButton,
+    dragStatus,
     edgeLabelPolicySelect,
     exportScaleInput,
     exportLabelSizeInput,
@@ -166,6 +181,12 @@ export default function (options: UiShellOptions): UiShell {
   let loadingGraph = false;
   let lastRenderedGraph: PositionedGraph | null = null;
   const bindings = eventBindings();
+  const joinColumnPicker = ancillaryJoinColumnPicker({
+    fileInput: ancillaryFileInput,
+    columnInput: ancillaryJoinColumnInput,
+    formatSelect: ancillaryFormatSelect,
+    onError: setFailureStatus,
+  });
   const pieFieldControls = metadataPieFieldControls(metadataPieFieldSelect);
   const palette = visualMappingPalette({
     workbench,
@@ -222,6 +243,8 @@ export default function (options: UiShellOptions): UiShell {
     throw new Error(ERR_NEWICK_INPUT_REQUIRED);
   }
 
+  let selectedDragRoot: string | null = null;
+
   if (!statusElement) {
     throw new Error(ERR_STATUS_ELEMENT_REQUIRED);
   }
@@ -235,12 +258,21 @@ export default function (options: UiShellOptions): UiShell {
   // Attach submit handlers and set initial shell status.
   function mount(): void {
     setStatus(DEFAULT_STATUS_READY);
+    void joinColumnPicker.refresh();
+    bindings.on(ancillaryFileInput, "change", () => void joinColumnPicker.refresh());
+    bindings.on(ancillaryFormatSelect, "change", () => void joinColumnPicker.refresh());
+    if (motionInput) motionInput.checked = workbench.isMotionEnabled?.() ?? true;
+    workbench.setInteractionFeedbackHandler?.((message) => {
+      if (dragStatus) dragStatus.textContent = message;
+    });
     expansion.mount();
     workbench.setGraphRenderedHandler((graph) => {
       handleGraphRendered(graph);
     });
     workbench.setNodeClickedHandler((state) => {
       expansion.select(state);
+      selectedDragRoot = state.nodeId;
+      if (branchRootButton) branchRootButton.disabled = state.nodeId === null;
       const { nodeId } = state;
       if (nodeId === null) {
         wheels.resetSelectedNode();
@@ -289,6 +321,23 @@ export default function (options: UiShellOptions): UiShell {
     bindings.on(paletteSaveButton, "click", () => {
       palette.save();
     });
+    bindings.on(motionInput, "change", () => {
+      workbench.setMotionEnabled(motionInput!.checked);
+    });
+    bindings.on(branchRootButton, "click", () => {
+      if (!selectedDragRoot) return;
+      workbench.setDragSelection({ kind: "branch", rootId: selectedDragRoot });
+      if (dragStatus) dragStatus.textContent = `Drag branches away from arrangement root: ${selectedDragRoot}.`;
+    });
+    bindings.on(singleDragButton, "click", () => {
+      workbench.setDragSelection({ kind: "node" });
+      if (dragStatus) dragStatus.textContent = "Direct dragging: connected nodes react while Motion is on.";
+    });
+    bindings.on(resetLayoutButton, "click", () => {
+      workbench.resetLayoutEdits();
+      if (motionInput) motionInput.checked = false;
+      resetDragControls();
+    });
     bindings.on(edgeLabelPolicySelect, "change", handleDisplayOptionsChange);
     bindings.on(exportButton, "click", () => void exportCurrentView());
     bindings.on(displayOptionsSelect, "change", () => {
@@ -310,12 +359,14 @@ export default function (options: UiShellOptions): UiShell {
     bindings.on(regionSelectToggle, "click", () => {
       region.toggle();
     });
+    bindings.on(sourceFormatSelect, "change", updateSourceControls);
     workbench.setRegionSelectedHandler((bounds) => {
       void region.handleSelected(bounds);
     });
     region.mount();
 
     updateNodeSelectionVisibility();
+    updateSourceControls();
     pieFieldControls.updateOptions(null);
     updateLodPlaybackControls(false);
     handleDisplayOptionsChange();
@@ -334,6 +385,12 @@ export default function (options: UiShellOptions): UiShell {
     if (applyAncillaryButton) {
       applyAncillaryButton.disabled = !lastRenderedGraph || applyingAncillary || loadingGraph;
     }
+  }
+
+  function updateSourceControls(): void {
+    const typingDataSelected = getSourceFormat() === SOURCE_FORMAT_TYPING_DATA;
+    newickSourceControls?.toggleAttribute("hidden", typingDataSelected);
+    typingSourceControls?.toggleAttribute("hidden", !typingDataSelected);
   }
 
   async function applyCurrentAncillaryData(): Promise<void> {
@@ -370,6 +427,7 @@ export default function (options: UiShellOptions): UiShell {
     }
 
     search.reset();
+    resetDragControls();
     loadingGraph = true;
     expansion.setReady(false);
     updateApplyAncillaryButton();
@@ -417,10 +475,12 @@ export default function (options: UiShellOptions): UiShell {
 
   // Remove shell event listeners and dispose rendering resources.
   function unmount(): void {
+    joinColumnPicker.dispose();
     search.reset();
     bindings.clear();
     expansion.dispose();
     workbench.setGraphRenderedHandler(null);
+    workbench.setInteractionFeedbackHandler?.(null);
     workbench.setNodeClickedHandler(null);
     workbench.setRegionSelectedHandler(null);
     workbench.dispose();
@@ -500,6 +560,12 @@ export default function (options: UiShellOptions): UiShell {
     return parseMaxNodes(maxNodesInput?.value);
   }
 
+  function resetDragControls(): void {
+    selectedDragRoot = null;
+    if (branchRootButton) branchRootButton.disabled = true;
+    if (dragStatus) dragStatus.textContent = "Direct dragging: connected nodes react while Motion is on.";
+  }
+
   function buildCurrentDisplayOptions() {
     const display = buildDisplayOptions(getSelectedOptions(displayOptionsSelect));
     return edgeLabelPolicySelect
@@ -554,6 +620,7 @@ export default function (options: UiShellOptions): UiShell {
   }
 
   async function getAncillaryDataInput(): Promise<RenderNewickOptions["ancillaryData"] | undefined> {
+    await joinColumnPicker.whenReady();
     const file = ancillaryFileInput?.files?.[0];
     if (!file) {
       return undefined;
@@ -565,7 +632,7 @@ export default function (options: UiShellOptions): UiShell {
     }
 
     return {
-      content: await readTextFile(file),
+      content: (await readTextFile(file)).replace(/^\uFEFF/, ""),
       join_column: joinColumn,
       format: resolveAncillaryFormat(ancillaryFormatSelect?.value, file.name),
     };
