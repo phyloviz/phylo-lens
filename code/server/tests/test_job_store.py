@@ -174,7 +174,7 @@ def test_durable_prepare_job_registry_submits_and_maps_ready_snapshot() -> None:
 def test_postgres_schema_is_checksummed() -> None:
     schema = job_store.postgres_schema()
 
-    assert schema.version == job_store.POSTGRES_SCHEMA_FILE
+    assert schema.version == job_store.POSTGRES_SCHEMA_VERSION
     assert len(schema.checksum) == 64
     assert schema.sql == job_store.POSTGRES_CREATE_SCHEMA_SQL
 

@@ -13,14 +13,11 @@ from phylo_lens_server.domain.models import (
     MetadataField,
     MetadataType,
 )
-from phylo_lens_server.pipeline import ingest as ingest_pipeline
-from phylo_lens_server.pipeline.clustering import threshold_component_counts
+from phylo_lens_server.pipeline.clustering import selected_depths
 from phylo_lens_server.pipeline.ingest import (
     PreparedLayoutIngestError,
     layout_version_for_dataset,
-    partition_for_threshold,
     prepare_layout_artifacts,
-    representative_targets,
 )
 from phylo_lens_server.pipeline.layout import (
     GRAPHVIZ_SFDP_COMMAND,
@@ -61,6 +58,15 @@ EXPECTED_LAYOUT_STATUS = "ready"
 FORMAT_NEWICK = "newick"
 DATASET_ID = "prepared-layout-tree"
 WEIGHTED_TREE = "(((d:3,e:4)c:1)b:1)a;"
+
+
+def _boundary_edges(dataset, cluster):
+    members = set(cluster.member_node_ids)
+    return [
+        edge.id
+        for edge in dataset.edges
+        if (edge.source in members) != (edge.target in members)
+    ]
 
 
 def _dataset() -> CanonicalDataset:
@@ -135,23 +141,22 @@ def _branching_dataset() -> CanonicalDataset:
     return result.dataset
 
 
-def test_prepare_layout_artifacts_builds_distance_clusters_with_representatives() -> (
+def test_prepare_layout_artifacts_builds_pendant_subtrees_with_attachment_nodes() -> (
     None
 ):
     artifacts = prepare_layout_artifacts(_dataset())
 
     assert artifacts.dataset.dataset_id == DATASET_ID
     assert artifacts.layout_version
-    abc_cluster = next(
+    de_cluster = next(
         cluster
         for cluster in artifacts.clusters
-        if cluster.member_node_ids == ("a", "b", "c")
+        if cluster.member_node_ids == ("c", "d", "e")
     )
 
-    assert abc_cluster.representative_node_id == "b"
-    assert abc_cluster.member_count == 3
-    assert set(abc_cluster.internal_edge_ids) == {"e_a_b_1", "e_b_c_1"}
-    assert set(abc_cluster.boundary_edge_ids) == {"e_c_d_1", "e_c_e_1"}
+    assert de_cluster.representative_node_id == "c"
+    assert de_cluster.member_count == 3
+    assert _boundary_edges(artifacts.dataset, de_cluster) == ["e_b_c_1"]
 
 
 def test_default_sfdp_options_emit_phylolens_defaults_in_dot() -> None:
@@ -164,7 +169,7 @@ def test_default_sfdp_options_emit_phylolens_defaults_in_dot() -> None:
     assert (
         'graph [K=0.3, repulsiveforce=1, overlap="prism0", '
         'overlap_scaling=-4, smoothing="spring", quadtree="normal", '
-        "beautify=false, pack=true, splines=false];"
+        'beautify=false, pack=true, packmode="graph", splines=false];'
     ) in default_payload
 
 
@@ -277,6 +282,21 @@ def test_sfdp_options_change_layout_version() -> None:
     )
 
 
+def test_technical_root_changes_layout_version_and_hop_orientation() -> None:
+    dataset = _dataset()
+    rerooted = dataset.model_copy(update={"technical_roots": ("c",)})
+    assert layout_version_for_dataset(dataset) != layout_version_for_dataset(rerooted)
+    first = prepare_layout_artifacts(dataset)
+    second = prepare_layout_artifacts(rerooted)
+    first_root = next(
+        c for c in first.clusters if c.lod_level == 0 and c.member_node_ids == ("a",)
+    )
+    second_root = next(
+        c for c in second.clusters if c.lod_level == 0 and c.member_node_ids == ("c",)
+    )
+    assert first_root.lod_level == second_root.lod_level == 0
+
+
 def test_equivalent_resolved_sfdp_options_share_layout_version() -> None:
     dataset = _dataset()
     explicit_defaults = SfdpOptions(
@@ -296,80 +316,96 @@ def test_equivalent_resolved_sfdp_options_share_layout_version() -> None:
     )
 
 
-def test_prepare_layout_artifacts_uses_progressive_density_thresholds() -> None:
-    dataset = _varied_chain_dataset(1_000)
-    artifacts = prepare_layout_artifacts(dataset)
-    thresholds = tuple(
-        sorted({cluster.threshold for cluster in artifacts.clusters}, reverse=True)
-    )
-    node_ids = tuple(sorted(node.id for node in dataset.nodes))
-    overview_partition = partition_for_threshold(dataset, node_ids, thresholds[0])
-    overview_representatives = len(set(overview_partition.values()))
-
-    assert len(thresholds) >= 3
-    assert 300 <= representative_targets(12_000, 16)[0] <= 800
-    assert 300 <= overview_representatives <= 800
+def test_selected_depths_are_bounded_and_include_full_detail() -> None:
+    cuts = selected_depths(12_000)
+    assert cuts[0] == 0
+    assert cuts[-1] == 12_000
+    assert len(cuts) <= 12
+    assert tuple(sorted(set(cuts))) == cuts
 
 
-def test_representative_targets_progressively_increase_for_large_trees() -> None:
-    targets = representative_targets(12_000, 16)
-
-    assert len(targets) >= 5
-    assert targets[0] < targets[1] < targets[2] < targets[-1]
-    assert targets[-1] == 12_000
-    assert all(target <= 12_000 for target in targets)
-
-
-def test_prepare_layout_artifacts_materializes_singletons_at_each_lod() -> None:
+def test_prepare_layout_artifacts_partitions_are_nested() -> None:
     dataset = _varied_chain_dataset(120)
     artifacts = prepare_layout_artifacts(dataset)
-    thresholds = tuple(
-        sorted({cluster.threshold for cluster in artifacts.clusters}, reverse=True)
-    )
-    cluster_thresholds_by_member = {
-        (cluster.member_node_ids, cluster.threshold) for cluster in artifacts.clusters
-    }
+    levels = sorted({cluster.lod_level for cluster in artifacts.clusters})
+    assert len(levels) >= 3
+    for level in levels:
+        clusters = [
+            cluster for cluster in artifacts.clusters if cluster.lod_level == level
+        ]
+        assert sorted(
+            node for cluster in clusters for node in cluster.member_node_ids
+        ) == sorted(node.id for node in dataset.nodes)
+        assert all(
+            cluster.member_count == 1 or len(_boundary_edges(dataset, cluster)) == 1
+            for cluster in clusters
+        )
+        if level:
+            previous = [
+                cluster
+                for cluster in artifacts.clusters
+                if cluster.lod_level == level - 1
+            ]
+            assert all(
+                any(
+                    set(cluster.member_node_ids) <= set(parent.member_node_ids)
+                    for parent in previous
+                )
+                for cluster in clusters
+            )
 
-    assert len(thresholds) >= 3
-    assert any(
-        (cluster.member_node_ids, thresholds[0]) in cluster_thresholds_by_member
+
+def test_collapsed_clusters_are_never_intermediate_in_quotient_tree() -> None:
+    artifacts = prepare_layout_artifacts(_branching_dataset())
+    edges = compute_prepared_edges(artifacts)
+    for cluster in artifacts.clusters:
+        if cluster.member_count == 1:
+            continue
+        assert len(_boundary_edges(artifacts.dataset, cluster)) == 1
+        incident = [
+            edge
+            for edge in edges
+            if edge.lod_level == cluster.lod_level
+            and cluster.representative_node_id in (edge.source, edge.target)
+        ]
+        assert len(incident) == 1
+
+
+def test_direct_newick_forest_keeps_component_roots_and_separate_branches() -> None:
+    dataset = normalize_dataset(
+        NormalizeRequest(format="newick", content="(a:1,b:1)r;(c:1,d:1)s;")
+    ).dataset
+    assert dataset.technical_roots == ("r", "s")
+    artifacts = prepare_layout_artifacts(dataset)
+    assert all(
+        cluster.member_count == 1 or len(_boundary_edges(dataset, cluster)) == 1
         for cluster in artifacts.clusters
-        if cluster.threshold == thresholds[-1] and cluster.member_count == 1
+    )
+    first_component = {"a", "b", "r"}
+    assert all(
+        (edge.source in first_component) == (edge.target in first_component)
+        for edge in compute_prepared_edges(artifacts)
     )
 
 
-def test_threshold_component_counts_tracks_successful_unions() -> None:
-    edges = [
-        CanonicalEdge(id="a-b", source="a", target="b", distance=1.0),
-        CanonicalEdge(id="b-c", source="b", target="c", distance=2.0),
-        CanonicalEdge(id="a-c", source="a", target="c", distance=3.0),
-    ]
+def test_branch_distances_do_not_determine_hop_clusters() -> None:
+    dataset = _dataset()
+    changed = dataset.model_copy(
+        update={
+            "edges": [
+                edge.model_copy(update={"distance": 100 + index})
+                for index, edge in enumerate(dataset.edges)
+            ]
+        }
+    )
 
-    counts = threshold_component_counts(("a", "b", "c", "d"), edges, (3.0, 2.0, 1.0))
+    def partitions(tree):
+        return {
+            (cluster.lod_level, cluster.member_node_ids)
+            for cluster in prepare_layout_artifacts(tree).clusters
+        }
 
-    assert [(count.threshold, count.component_count) for count in counts] == [
-        (3.0, 2),
-        (2.0, 2),
-        (1.0, 3),
-    ]
-
-
-def test_prepare_artifacts_sorts_edges_once_for_threshold_processing(
-    monkeypatch,
-) -> None:
-    calls = 0
-    original = ingest_pipeline.sort_edges_by_distance
-
-    def count_sorts(edges):
-        nonlocal calls
-        calls += 1
-        return original(edges)
-
-    monkeypatch.setattr(ingest_pipeline, "sort_edges_by_distance", count_sorts)
-
-    prepare_layout_artifacts(_dataset())
-
-    assert calls == 1
+    assert partitions(dataset) == partitions(changed)
 
 
 def test_cluster_geometry_computes_bounds_and_radius_in_one_pass() -> None:
@@ -456,15 +492,12 @@ def test_prepared_edges_project_original_edges_to_real_representative_ids() -> N
         (edge.source, edge.target) for edge in prepared_edges if edge.lod_level == 0
     }
 
-    assert ("b", "d") in lod_zero_edges
-    assert ("b", "e") in lod_zero_edges
+    assert ("a", "b") in lod_zero_edges
     assert all(edge.source != edge.target for edge in prepared_edges)
 
 
 def _multi_tier_dataset() -> CanonicalDataset:
-    """A chain large enough that adaptive threshold selection yields several
-    distinct LoD tiers (unlike the tiny _dataset fixture, which collapses to
-    one). The 1000-node varied-distance chain produces three tiers."""
+    """A long chain exercises several exposed hop-depth cuts."""
     content = "m999"
     for index in range(998, -1, -1):
         content = f"({content}:{(index % 7) + 1})m{index}"
@@ -491,7 +524,7 @@ def _multi_tier_dataset() -> CanonicalDataset:
     )
 
 
-def test_intermediate_lod_levels_index_into_precomputed_thresholds(
+def test_intermediate_lod_levels_use_precomputed_hop_cuts(
     tmp_path,
 ) -> None:
     store = PreparedLayoutStore(tmp_path)
@@ -501,19 +534,10 @@ def test_intermediate_lod_levels_index_into_precomputed_thresholds(
     layout_version = result.artifacts.layout_version
     all_node_ids = {node.id for node in dataset.nodes}
 
-    # Distinct thresholds, coarsest first, mirror the lod_level indexing used by
-    # _threshold_for_lod_level and compute_prepared_edges.
-    thresholds_desc = sorted(
-        {
-            cluster.threshold
-            for cluster in result.artifacts.clusters
-            if cluster.threshold is not None
-        },
-        reverse=True,
-    )
+    levels = sorted({cluster.lod_level for cluster in result.artifacts.clusters})
     # The fixture must actually have more than the two extreme tiers for this
     # test to mean anything.
-    assert len(thresholds_desc) >= 2
+    assert len(levels) >= 2
 
     def read(level: int):
         return store.read_viewport(
@@ -527,9 +551,9 @@ def test_intermediate_lod_levels_index_into_precomputed_thresholds(
             lod_level=level,
         )
 
-    # The finest tier (min threshold) resolves to individual ready-node detail:
+    # The deepest cut resolves to individual ready-node detail:
     # returned nodes stand alone rather than proxying clusters.
-    finest = read(len(thresholds_desc) - 1)
+    finest = read(levels[-1])
     assert finest.nodes
     assert {node.node_id for node in finest.nodes} <= all_node_ids
     assert not any(node.is_representative for node in finest.nodes)
@@ -543,7 +567,7 @@ def test_intermediate_lod_levels_index_into_precomputed_thresholds(
 
     # Levels beyond the finest tier clamp to the finest tier (individual nodes)
     # instead of erroring, matching the finest-tier read.
-    clamped = read(len(thresholds_desc) + 5)
+    clamped = read(levels[-1] + 5)
     assert clamped.nodes
     assert not any(node.is_representative for node in clamped.nodes)
 
@@ -1275,10 +1299,10 @@ def test_viewport_cluster_members_carry_public_node_metadata(tmp_path) -> None:
     store = PreparedLayoutStore(tmp_path)
     worker = PreparedLayoutWorker(store)
     result = worker.prepare_dataset(_dataset_with_metadata())
-    abc_cluster = next(
+    cde_cluster = next(
         cluster
         for cluster in result.artifacts.clusters
-        if cluster.member_node_ids == ("a", "b", "c")
+        if cluster.member_node_ids == ("c", "d", "e")
     )
 
     read = store.read_viewport(
@@ -1289,23 +1313,17 @@ def test_viewport_cluster_members_carry_public_node_metadata(tmp_path) -> None:
         ymin=None,
         ymax=None,
         max_nodes=50,
-        cluster_id=abc_cluster.cluster_id,
+        cluster_id=cde_cluster.cluster_id,
     )
     metadata_by_id = {node.node_id: node.metadata for node in read.nodes}
 
-    assert metadata_by_id["a"] == {
-        "region": "north",
-        "score": 10,
-        "flag": True,
-        INTERNAL_COUNT_KEY: 2,
-    }
     assert metadata_by_id["c"] == {
         "region": "south",
         "score": 30,
         "flag": False,
         INTERNAL_COUNT_KEY: 2,
     }
-    assert metadata_by_id["b"][INTERNAL_COUNT_KEY] == 2
+    assert metadata_by_id["d"][INTERNAL_COUNT_KEY] == 2
     schema_keys = {field.key for field in read.metadata_schema}
     assert schema_keys == {"region", "score", "flag"}
 
@@ -1316,10 +1334,10 @@ def test_viewport_cluster_members_prioritize_focused_node_when_limited(
     store = PreparedLayoutStore(tmp_path)
     worker = PreparedLayoutWorker(store)
     result = worker.prepare_dataset(_dataset_with_metadata())
-    abc_cluster = next(
+    cde_cluster = next(
         cluster
         for cluster in result.artifacts.clusters
-        if cluster.member_node_ids == ("a", "b", "c")
+        if cluster.member_node_ids == ("c", "d", "e")
     )
 
     read = store.read_viewport(
@@ -1330,7 +1348,7 @@ def test_viewport_cluster_members_prioritize_focused_node_when_limited(
         ymin=None,
         ymax=None,
         max_nodes=1,
-        cluster_id=abc_cluster.cluster_id,
+        cluster_id=cde_cluster.cluster_id,
         focus_node_id="c",
     )
 
@@ -1394,17 +1412,14 @@ def test_search_nodes_excludes_internal_keys_and_respects_limit(tmp_path) -> Non
 def test_viewport_expansion_reroutes_boundary_edges_to_neighbor_representatives(
     tmp_path,
 ) -> None:
-    # At threshold 1.0 the tree splits into cluster (a, b, c) plus singleton
-    # clusters {d} and {e}. Expanding (a, b, c) exposes members a/b/c and their
-    # internal edges, and reroutes the two boundary edges c-d and c-e to the
-    # neighbor representatives d and e as meta-edges.
+    # At hop depth 1, {c,d,e} is attached to visible node b through one edge.
     store = PreparedLayoutStore(tmp_path)
     worker = PreparedLayoutWorker(store)
     result = worker.prepare_dataset(_dataset())
-    abc_cluster = next(
+    cde_cluster = next(
         cluster
         for cluster in result.artifacts.clusters
-        if cluster.member_node_ids == ("a", "b", "c")
+        if cluster.member_node_ids == ("c", "d", "e")
     )
 
     read = store.read_viewport(
@@ -1415,14 +1430,14 @@ def test_viewport_expansion_reroutes_boundary_edges_to_neighbor_representatives(
         ymin=None,
         ymax=None,
         max_nodes=50,
-        cluster_id=abc_cluster.cluster_id,
+        cluster_id=cde_cluster.cluster_id,
     )
 
     node_ids = {node.node_id for node in read.nodes}
-    # Members plus the two surfaced neighbor representatives.
-    assert node_ids == {"a", "b", "c", "d", "e"}
+    # Members plus the surfaced attachment neighbor.
+    assert node_ids == {"b", "c", "d", "e"}
     reps = {node.node_id for node in read.nodes if node.is_representative}
-    assert reps == {"d", "e"}
+    assert reps == {"b"}
 
     # Every emitted edge references a returned node (visibility invariant).
     for edge in read.edges:
@@ -1432,14 +1447,13 @@ def test_viewport_expansion_reroutes_boundary_edges_to_neighbor_representatives(
     meta_edges = {
         (edge.source, edge.target): edge for edge in read.edges if edge.is_meta
     }
-    assert set(meta_edges) == {("c", "d"), ("c", "e")}
-    assert meta_edges[("c", "d")].distance == 3.0
-    assert meta_edges[("c", "e")].distance == 4.0
+    assert set(meta_edges) == {("c", "b")}
+    assert meta_edges[("c", "b")].distance == 1.0
     assert all(edge.bundled_edge_count == 1 for edge in meta_edges.values())
 
     # Ordinary internal edges stay non-meta.
     internal_edges = [edge for edge in read.edges if not edge.is_meta]
-    assert {edge.edge_id for edge in internal_edges} == {"e_a_b_1", "e_b_c_1"}
+    assert {edge.edge_id for edge in internal_edges} == {"e_c_d_1", "e_c_e_1"}
     assert all(edge.bundled_edge_count is None for edge in internal_edges)
 
 
@@ -1526,7 +1540,7 @@ def test_detail_viewport_keeps_boundary_edges_and_offscreen_neighbors(
         ymin=None,
         ymax=None,
         max_nodes=50,
-        lod_level=1,
+        lod_level=None,
     )
     positions = {node.node_id: (node.x, node.y) for node in full.nodes}
     assert set(positions) == {"a", "b", "c", "d", "e"}
@@ -1548,7 +1562,7 @@ def test_detail_viewport_keeps_boundary_edges_and_offscreen_neighbors(
         ymin=cy - 1e-6,
         ymax=cy + 1e-6,
         max_nodes=50,
-        lod_level=1,
+        lod_level=None,
     )
 
     returned_node_ids = {node.node_id for node in read.nodes}
@@ -1581,7 +1595,7 @@ def test_detail_viewport_keeps_boundary_edges_when_node_budget_is_saturated(
         ymin=None,
         ymax=None,
         max_nodes=50,
-        lod_level=1,
+        lod_level=None,
     )
     positions = {node.node_id: (node.x, node.y) for node in full.nodes}
     cx, cy = positions["c"]
@@ -1598,7 +1612,7 @@ def test_detail_viewport_keeps_boundary_edges_when_node_budget_is_saturated(
         ymin=cy - 1e-6,
         ymax=cy + 1e-6,
         max_nodes=1,
-        lod_level=1,
+        lod_level=None,
     )
 
     returned_node_ids = {node.node_id for node in read.nodes}

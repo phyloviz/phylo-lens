@@ -69,7 +69,7 @@ Newick branch lengths become canonical edge distances.
 - when **all** edges omit branch lengths, the normalizer assigns distance `1.0`
   to every edge and records a warning;
 - when only some edges omit branch lengths, preparation rejects the graph because
-  every edge entering threshold-based clustering must have a distance.
+  edge distances are retained as canonical data even though LoD uses hop depth.
 
 The all-unweighted fallback preserves topology but does not create biological
 branch-length information. Any evaluation that relies on phylogenetic distance

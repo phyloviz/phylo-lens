@@ -9,7 +9,7 @@ request validation
   → capacity admission
   → normalization
   → layout identity
-  → distance-tier clustering
+  → rooted hop-depth clustering
   → global layout
   → LoD edge materialization
   → persistence
@@ -137,25 +137,29 @@ fingerprint independent of dictionary insertion order.
 This identity controls job reuse and artifact publication. A change to persisted
 metadata or layout-affecting pipeline semantics creates a new version.
 
-## 6. Distance-tier clustering
+## 6. Rooted hop-depth clustering
 
-The pipeline selects up to 16 distance thresholds. Threshold selection targets a
-progressive number of visible representatives instead of sampling edge distances
-uniformly.
+Typing data chooses a technical root by the full goeBURST LV count vector
+(SLVs, DLVs, and successive allelic distances), using original input order for
+a final tie. Direct Newick keeps the parsed root of each component. These roots
+are explicit in the canonical dataset and the layout fingerprint.
 
-At each threshold, a union-find partition connects edges whose distance is less
-than or equal to the threshold. The complete edge list is sorted once and reused
-across thresholds.
+The pipeline orients each tree and assigns hop depths. At a cut depth, the
+rooted prefix remains visible; each child branch beyond it becomes a connected
+pendant subtree with exactly one external edge. Edge distances remain canonical
+data but do not affect cluster membership. Up to 12 deterministic depths are
+exposed as LoD levels, ending at complete node detail.
 
-For every component, the pipeline records:
+For every cluster, the pipeline records:
 
 - member nodes;
-- one deterministic representative;
-- internal edges;
-- boundary edges.
+- the attachment member as representative for a collapsed branch.
 
-The finest selected threshold is retained so the viewport reader can resolve the
-last LoD level to individual node positions.
+The internal-edge and single-boundary-edge properties are checked during
+preparation; redundant edge lists are not stored on the cluster.
+
+The partitions are nested: increasing depth reveals nodes inside existing
+branches without moving them between unrelated clusters.
 
 See [LoD and clustering](./LOD_AND_CLUSTERING.md) for the selection and query
 semantics.
@@ -170,13 +174,12 @@ published layout therefore remains available while a new version is prepared.
 
 ## 8. Prepared quotient edges
 
-For each non-finest threshold, the pipeline maps canonical edge endpoints to
+For each non-finest hop cut, the pipeline maps canonical edge endpoints to
 cluster representatives.
 
-Edges internal to one cluster disappear at that tier. Multiple canonical edges
-between the same pair of representatives collapse into one deterministic
-prepared edge. The retained distance is the smallest available distance for that
-representative pair.
+Edges internal to one cluster disappear at that tier. Tree contraction cannot
+create parallel quotient edges. A multi-node collapsed representative has
+degree one, so it cannot join two visible parts of the tree.
 
 These quotient edges allow viewport reads to return a topologically consistent
 coarse graph without rebuilding it on every request.
@@ -274,7 +277,7 @@ layout version and execute bounded repository reads:
 
 ```text
 viewport query
-  → LoD threshold
+  → LoD hop-depth cut
   → bounds lookup
   → visible nodes and required neighbours
   → matching original or prepared edges

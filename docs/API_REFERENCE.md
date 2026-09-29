@@ -335,7 +335,7 @@ returned node count exceed the primary `max_nodes` read.
   "nodes": [
     {
       "id": "a",
-      "cluster_id": "distance_cluster_1_a_1f8c4b6b2d",
+      "cluster_id": "lod_1_a",
       "x": 12.3,
       "y": 45.6,
       "layout_status": "ready",
@@ -493,7 +493,7 @@ Generated anonymous union-node IDs and internal metadata fields are excluded.
       "node_id": "p09",
       "score": 20,
       "matched_text": "p09 Portugal",
-      "cluster_id": "distance_cluster_1_p09_...",
+      "cluster_id": "lod_1_p09",
       "x": 10.5,
       "y": -3.2
     }

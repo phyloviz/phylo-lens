@@ -270,7 +270,7 @@ Preparation has access to the complete graph and includes:
 
 - parsing and normalization;
 - optional PhyloLib subprocesses;
-- threshold selection and component construction;
+- hop-depth cut selection and pendant-subtree construction;
 - Graphviz global layout;
 - per-tier edge construction;
 - metadata aggregation;

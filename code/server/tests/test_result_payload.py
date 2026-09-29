@@ -40,14 +40,12 @@ def _result(
     )
 
 
-def _cluster(cluster_id: str, threshold: float | None) -> PreparedCluster:
+def _cluster(cluster_id: str, lod_level: int) -> PreparedCluster:
     return PreparedCluster(
         cluster_id=cluster_id,
-        threshold=threshold,
+        lod_level=lod_level,
         member_node_ids=("a",),
         representative_node_id="a",
-        internal_edge_ids=(),
-        boundary_edge_ids=(),
     )
 
 
@@ -71,14 +69,14 @@ def test_prepare_result_payload_combines_submit_warnings() -> None:
     assert payload["warnings"] == ["submitted warning"]
 
 
-def test_prepare_result_payload_counts_distinct_lod_thresholds() -> None:
+def test_prepare_result_payload_counts_distinct_lod_levels() -> None:
     payload = prepare_result_payload(
         _result(
             clusters=(
-                _cluster("c1", 3.0),
-                _cluster("c2", 1.0),
-                _cluster("c3", 1.0),
-                _cluster("c4", None),
+                _cluster("c1", 0),
+                _cluster("c2", 1),
+                _cluster("c3", 1),
+                _cluster("c4", 1),
             )
         ),
         (),

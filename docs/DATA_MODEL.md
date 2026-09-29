@@ -24,11 +24,12 @@ accepted by the preparation pipeline.
 | `dataset_id` | `str` | Caller-supplied dataset name and namespace |
 | `nodes` | `list[CanonicalNode]` | Canonical graph nodes |
 | `edges` | `list[CanonicalEdge]` | Canonical graph edges |
+| `technical_roots` | `tuple[str, ...]` | One orientation root per tree component; no founder meaning |
 | `metadata_schema` | `list[MetadataField]` | Public scalar metadata fields |
 | `metadata_by_node_id` | `dict[str, dict]` | Aggregated metadata for each node |
 | `ancillary_rows_by_node_id` | `dict[str, list[dict]]` | Original ancillary rows joined to each node |
 | `isolates_by_node_id` | `dict[str, list[IsolateRecord]]` | Original typing IDs and per-isolate metadata for each biological profile; empty for Newick |
-| `source` | `DatasetSource` | Source format, generation timestamp, and optional provenance |
+| `source` | `DatasetSource` | Source format, generation timestamp, rooting strategy, and optional provenance |
 
 ### `CanonicalNode`
 
@@ -83,24 +84,20 @@ Preparation converts a canonical dataset into immutable artifacts identified by
 | --- | --- | --- |
 | `dataset` | `CanonicalDataset` | Normalized graph and metadata |
 | `layout_version` | `str` | Deterministic preparation fingerprint |
-| `clusters` | `tuple[PreparedCluster, ...]` | Clusters materialized across distance thresholds |
+| `clusters` | `tuple[PreparedCluster, ...]` | Rooted-prefix singletons and pendant subtrees at selected hop depths |
 
 ### `PreparedCluster`
 
 | Field | Type | Meaning |
 | --- | --- | --- |
-| `cluster_id` | `str` | Deterministic identifier derived from threshold and members |
-| `threshold` | `float | None` | Distance threshold associated with the cluster |
+| `cluster_id` | `str` | Deterministic identifier derived from LoD level and members |
+| `lod_level` | `int` | Index of the exposed depth cut |
 | `member_node_ids` | `tuple[str, ...]` | Canonical member nodes |
 | `representative_node_id` | `str` | Member used as the visible representative |
-| `internal_edge_ids` | `tuple[str, ...]` | Original edges contained by the cluster |
-| `boundary_edge_ids` | `tuple[str, ...]` | Original edges crossing the cluster boundary |
 
-Representative selection is deterministic. When source coordinates are
-available, the representative is closest to the member centroid, with internal
-degree and identifier tie-breaks. Without source coordinates, the member with
-the highest internal degree is selected, then the lexicographically smallest
-identifier.
+For a collapsed subtree, the representative is its member incident to the
+single edge attaching it to the visible tree. Visible nodes represent
+themselves. The representative has no biological founder meaning.
 
 ### Layout records
 
@@ -230,7 +227,7 @@ erDiagram
 | Table | Purpose |
 | --- | --- |
 | `datasets` | Publication status and timestamps for each layout version |
-| `prepared_clusters` | Cluster membership summary, representative, position, radius, and bounds per threshold |
+| `prepared_clusters` | Cluster membership summary, representative, position, radius, and bounds per hop-depth cut |
 | `cluster_members` | Cluster-to-node membership |
 | `graph_edges` | Original canonical graph edges |
 | `prepared_edges` | Quotient edges per LoD level |
@@ -261,7 +258,7 @@ partially written `refining` version cannot replace an earlier readable layout.
 The schema uses ordinary database indexes rather than a separate spatial-index
 service. Important access patterns include:
 
-- cluster-bounds overlap at a selected threshold;
+- cluster-bounds overlap at a selected LoD level;
 - finest-detail node position bounds;
 - prepared-edge lookup by visible representatives;
 - original-edge lookup by node endpoints;

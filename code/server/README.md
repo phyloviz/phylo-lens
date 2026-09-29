@@ -6,7 +6,7 @@ of the browser:
 - Newick and typing-data normalization;
 - PhyloLib distance and goeBURST processing;
 - Graphviz `sfdp` layout computation;
-- distance-threshold clustering and LoD materialization;
+- rooted hop-depth pendant subtrees and LoD preparation;
 - persistent storage of prepared layouts;
 - bounded viewport, region and search queries.
 

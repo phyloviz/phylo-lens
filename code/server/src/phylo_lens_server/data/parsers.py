@@ -32,11 +32,8 @@ WARN_DUPLICATE_LABEL = (
 WARN_NEWICK_EMPTY_CHILD = (
     "Ignored empty child position in Newick content near index {index}."
 )
-# A Newick file may contain several ``;``-terminated trees (a forest); goeBURST
-# output is routinely disconnected (distant STs never join the MST), so a
-# precomputed .nwk is often a forest with many single-node components. We parse
-# each independently and merge into one disconnected graph, preserving true
-# topology (no synthetic root).
+# A Newick file may contain several ``;``-terminated trees. Preserve each
+# component's serialized root for technical orientation of direct Newick input.
 WARN_NEWICK_FOREST = (
     "Newick input contains {count} disconnected components; kept as a forest."
 )
@@ -57,6 +54,7 @@ class ParsedEdge:
 class ParsedGraph:
     nodes: list[str]
     edges: list[ParsedEdge]
+    component_roots: tuple[str, ...]
     warnings: list[str] = field(default_factory=list)
     explicit_node_ids: set[str] = field(default_factory=set)
 
@@ -305,6 +303,7 @@ def parse_newick(content: str) -> ParsedGraph:
         edges=edges,
         warnings=warnings,
         explicit_node_ids=explicit_node_ids,
+        component_roots=(root_id,) if root_id is not None else (),
     )
 
 
@@ -360,7 +359,7 @@ def _split_forest(content: str) -> list[str]:
 
 
 def _merge_parsed_forest(graphs: list[ParsedGraph]) -> ParsedGraph:
-    """Merge per-component graphs into one disconnected graph without a root.
+    """Merge independently parsed components and preserve their roots.
 
     Each component is parsed independently, so ``parse_newick`` restarts its
     generated-id counters (``leaf_N`` / ``union_N``) per component and would
@@ -371,6 +370,7 @@ def _merge_parsed_forest(graphs: list[ParsedGraph]) -> ParsedGraph:
     edges: list[ParsedEdge] = []
     warnings: list[str] = []
     explicit_node_ids: set[str] = set()
+    component_roots: list[str] = []
 
     for component_index, graph in enumerate(graphs):
         remap: dict[str, str] = {}
@@ -381,6 +381,7 @@ def _merge_parsed_forest(graphs: list[ParsedGraph]) -> ParsedGraph:
                 remap[node_id] = f"c{component_index}_{node_id}"
         nodes.extend(remap[node_id] for node_id in graph.nodes)
         explicit_node_ids.update(remap[node_id] for node_id in graph.explicit_node_ids)
+        component_roots.extend(remap[root] for root in graph.component_roots)
         edges.extend(
             ParsedEdge(
                 source=remap[edge.source],
@@ -396,6 +397,7 @@ def _merge_parsed_forest(graphs: list[ParsedGraph]) -> ParsedGraph:
         edges=edges,
         warnings=warnings,
         explicit_node_ids=explicit_node_ids,
+        component_roots=tuple(component_roots),
     )
 
 
@@ -404,8 +406,7 @@ def parse_newick_forest(content: str) -> ParsedGraph:
 
     A single tree flows through unchanged; multiple ``;``-terminated components
     are parsed independently and merged into one disconnected ParsedGraph.
-    Downstream clustering already partitions by connected component, so a forest
-    flows through unchanged.
+    Each component root is retained for direct-Newick hop orientation.
     """
     trees = _split_forest(content)
     if not trees:

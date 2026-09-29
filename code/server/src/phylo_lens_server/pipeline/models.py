@@ -13,11 +13,9 @@ LayoutStatus = Literal["pending", "refining", "ready", "degraded", "failed"]
 @dataclass(frozen=True)
 class PreparedCluster:
     cluster_id: str
-    threshold: float | None
+    lod_level: int
     member_node_ids: tuple[str, ...]
     representative_node_id: str
-    internal_edge_ids: tuple[str, ...]
-    boundary_edge_ids: tuple[str, ...]
 
     @property
     def member_count(self) -> int:

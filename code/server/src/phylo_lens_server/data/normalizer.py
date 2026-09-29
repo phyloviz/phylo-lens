@@ -13,18 +13,15 @@ from urllib.parse import quote
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from phylo_lens_server.data.parsers import (
-    ParsedEdge,
-    ParsedGraph,
     ParseError,
     parse_newick_forest,
     slugify_label,
 )
 from phylo_lens_server.data.phylolib import (
     TypingNormalizeError,
-    typing_profiles_to_graph,
+    typing_profiles_to_rooted_tree,
 )
 from phylo_lens_server.data.typing_profiles import (
-    collapse_profile_graph,
     prepare_typing_profiles,
 )
 from phylo_lens_server.domain.ancillary import (
@@ -40,6 +37,8 @@ from phylo_lens_server.domain.metadata_keys import (
     public_metadata_schema_dataset,
 )
 from phylo_lens_server.domain.models import (
+    GOEBURST_ROOTING_STRATEGY,
+    NEWICK_ROOTING_STRATEGY,
     AncillaryField,
     CanonicalDataset,
     CanonicalEdge,
@@ -173,30 +172,22 @@ def normalize_dataset(
 
     typing_provenance: str | None = None
     membership: dict[str, list[tuple[str, str]]] = {}
-
     match request.format:
         case NormalizeFormat.NEWICK:
             parsed = parse_newick_forest(request.content)
+            technical_roots = parsed.component_roots
+            rooting_strategy = NEWICK_ROOTING_STRATEGY
         case NormalizeFormat.TYPING_DATA:
             profiles = prepare_typing_profiles(request.content)
             membership = profiles.membership()
             typing_provenance = profiles.provenance
+            rooting_strategy = GOEBURST_ROOTING_STRATEGY
             try:
-                if len(membership) == 1:
-                    ids = [
-                        node_id
-                        for members in membership.values()
-                        for _, node_id in members
-                    ]
-                    parsed = ParsedGraph(
-                        ids,
-                        [ParsedEdge(ids[0], node_id, 0) for node_id in ids[1:]],
-                        explicit_node_ids=set(ids),
-                    )
-                else:
-                    parsed = typing_profiles_to_graph(profiles.algorithm_content())
+                typing_tree = typing_profiles_to_rooted_tree(profiles)
             except TypingNormalizeError as error:
                 raise ParseError(str(error)) from error
+            parsed = typing_tree.parsed
+            technical_roots = (typing_tree.root,)
             parsed.warnings.extend(profiles.warnings)
         case _:
             raise ParseError(ERR_UNSUPPORTED_FORMAT.format(format_name=request.format))
@@ -290,7 +281,7 @@ def normalize_dataset(
                 }
                 isolates.append(Isolate(id=original_id, ancillary_data=isolate_data))
             isolates_by_node_id[node_id] = isolates
-        grouped = collapse_profile_graph(parsed, membership)
+        grouped = typing_tree.distinct
         nodes = [CanonicalNode(id=node_id) for node_id in grouped.nodes]
         canonical_edges = [
             CanonicalEdge(
@@ -335,6 +326,7 @@ def normalize_dataset(
         isolates_by_node_id=isolates_by_node_id,
         nodes=nodes,
         edges=canonical_edges,
+        technical_roots=technical_roots,
         ancillary_schema=[
             field
             for field in metadata_schema
@@ -352,6 +344,7 @@ def normalize_dataset(
             format=request.format.value,
             generated_at=datetime.now(UTC).isoformat(),
             provenance=typing_provenance,
+            rooting_strategy=rooting_strategy,
         ),
     )
 
