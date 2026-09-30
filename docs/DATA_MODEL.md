@@ -55,10 +55,9 @@ coordinates are normally assigned later by the layout pipeline.
 | `target` | non-empty `str` | Target node identifier |
 | `distance` | non-negative `float | None` | Branch or allelic distance |
 
-Every edge entering preparation must reference existing nodes and carry a finite,
-non-negative distance. Normalization assigns a uniform distance only when the
-entire input is unweighted; a partially weighted graph is rejected by the
-prepare pipeline.
+Every edge entering preparation must reference existing nodes. Supplied
+distances must be finite and non-negative; omitted Newick branch lengths remain
+`None`, including in partially weighted trees. LoD uses tree hops, not distance.
 
 ### Metadata types
 
@@ -90,7 +89,7 @@ Preparation converts a canonical dataset into immutable artifacts identified by
 
 | Field | Type | Meaning |
 | --- | --- | --- |
-| `cluster_id` | `str` | Deterministic identifier derived from LoD level and members |
+| `cluster_id` | `str` | Deterministic identifier derived from LoD level and attachment/representative node |
 | `lod_level` | `int` | Index of the exposed depth cut |
 | `member_node_ids` | `tuple[str, ...]` | Canonical member nodes |
 | `representative_node_id` | `str` | Member used as the visible representative |
@@ -143,10 +142,8 @@ Repository readers return server-internal result objects before HTTP mapping.
 ### `ViewportEdge`
 
 Ordinary edges preserve original endpoints and distance. Meta-edges produced by
-cluster expansion additionally expose:
-
-- `is_meta = true`;
-- `bundled_edge_count`, the number of original boundary edges represented.
+cluster expansion additionally expose `is_meta = true` and represent a single
+external tree edge.
 
 ### `ViewportReadResult`
 
@@ -183,6 +180,7 @@ The fingerprint includes:
 - dataset identifier;
 - sorted node and edge records;
 - distances;
+- explicit `technical_roots` and the source `rooting_strategy`;
 - public metadata schema;
 - node metadata;
 - ancillary rows;
@@ -191,7 +189,8 @@ The fingerprint includes:
 The generated timestamp is excluded. JSON keys and collections are ordered
 canonically, so Python dictionary insertion order does not affect identity.
 Metadata changes supplied to preparation therefore invalidate reuse even when
-topology remains the same.
+topology remains the same. Changing the resolved technical root changes
+`layout_version` even if topology is unchanged.
 
 Post-load ancillary replacement takes a separate path: it derives a new version
 from a namespaced hash of the source version, dataset identifier, replacement

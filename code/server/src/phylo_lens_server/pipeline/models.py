@@ -113,7 +113,6 @@ class ViewportEdge:
     # boundary edges of a collapsed cluster set is_meta=True and carry the
     # number of original boundary edges bundled into this single meta-edge.
     is_meta: bool | None = None
-    bundled_edge_count: int | None = None
 
 
 @dataclass(frozen=True)

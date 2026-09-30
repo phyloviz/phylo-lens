@@ -222,13 +222,15 @@ of the persisted preparation input:
 - explicit pipeline version;
 - canonical nodes and edges;
 - edge distances;
+- explicit `technical_roots` and the source `rooting_strategy`;
 - metadata schema and values;
 - ancillary rows;
 - source format and provenance.
 
 Dictionary key order and input object insertion order do not change the
-fingerprint. Metadata changes invalidate reuse. The generated timestamp is not
-part of the fingerprint.
+fingerprint. Metadata changes invalidate reuse. Changing the resolved technical
+root changes `layout_version`; the generated timestamp is not part of the
+fingerprint.
 
 The pair `(dataset_id, layout_version)` identifies one immutable prepared
 layout. Reads that omit `layout_version` resolve the latest published `ready` or

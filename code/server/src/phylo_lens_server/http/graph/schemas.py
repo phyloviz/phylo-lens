@@ -96,7 +96,6 @@ class GraphViewportEdge(BaseModel):
     target: str
     distance: float | None = None
     is_meta: bool | None = None
-    bundled_edge_count: int | None = None
 
 
 class GraphLayoutBounds(BaseModel):

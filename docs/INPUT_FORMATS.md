@@ -66,14 +66,10 @@ Newick branch lengths become canonical edge distances.
 - finite, non-negative values are preserved;
 - negative values are clamped to `0` and produce a warning;
 - non-finite values are rejected;
-- when **all** edges omit branch lengths, the normalizer assigns distance `1.0`
-  to every edge and records a warning;
-- when only some edges omit branch lengths, preparation rejects the graph because
-  edge distances are retained as canonical data even though LoD uses hop depth.
+- omitted branch lengths remain absent (`None`), including in partially weighted trees.
 
-The all-unweighted fallback preserves topology but does not create biological
-branch-length information. Any evaluation that relies on phylogenetic distance
-should use a weighted input.
+LoD uses topology and hop depth, not branch length. Evaluations that rely on
+phylogenetic distance should use weighted input.
 
 ### Empty children and parser warnings
 

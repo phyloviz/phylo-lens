@@ -115,7 +115,6 @@ export interface GraphViewportEdge {
   target: string;
   distance?: number | null;
   is_meta?: boolean | null;
-  bundled_edge_count?: number | null;
 }
 
 export interface GraphLayoutBounds {

@@ -14,7 +14,6 @@ from phylo_lens_server.pipeline.models import PreparedLayoutArtifacts
 from phylo_lens_server.pipeline.sfdp import SfdpOptions, resolve_sfdp_options
 
 ERR_EMPTY_DATASET = "Prepared layout requires at least one node."
-ERR_MISSING_DISTANCE = "Prepared layout requires every edge to carry a distance value."
 LAYOUT_PIPELINE_VERSION = "rooted-hop-lod-v1"
 
 
@@ -29,8 +28,6 @@ def prepare_layout_artifacts(
 ) -> PreparedLayoutArtifacts:
     if not dataset.nodes:
         raise PreparedLayoutIngestError(ERR_EMPTY_DATASET)
-    if any(edge.distance is None for edge in dataset.edges):
-        raise PreparedLayoutIngestError(ERR_MISSING_DISTANCE)
 
     resolved_sfdp_options = resolve_sfdp_options(sfdp_options)
     neighbors = tree_adjacency(dataset)

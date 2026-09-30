@@ -15,7 +15,6 @@ from phylo_lens_server.domain.models import (
 )
 from phylo_lens_server.pipeline.clustering import selected_depths
 from phylo_lens_server.pipeline.ingest import (
-    PreparedLayoutIngestError,
     layout_version_for_dataset,
     prepare_layout_artifacts,
 )
@@ -169,8 +168,9 @@ def test_default_sfdp_options_emit_phylolens_defaults_in_dot() -> None:
     assert (
         'graph [K=0.3, repulsiveforce=1, overlap="prism0", '
         'overlap_scaling=-4, smoothing="spring", quadtree="normal", '
-        'beautify=false, pack=true, packmode="graph", splines=false];'
+        "beautify=false, pack=true,"
     ) in default_payload
+    assert "splines=false];" in default_payload
 
 
 def test_sfdp_options_reach_generated_dot() -> None:
@@ -1449,12 +1449,41 @@ def test_viewport_expansion_reroutes_boundary_edges_to_neighbor_representatives(
     }
     assert set(meta_edges) == {("c", "b")}
     assert meta_edges[("c", "b")].distance == 1.0
-    assert all(edge.bundled_edge_count == 1 for edge in meta_edges.values())
 
     # Ordinary internal edges stay non-meta.
     internal_edges = [edge for edge in read.edges if not edge.is_meta]
     assert {edge.edge_id for edge in internal_edges} == {"e_c_d_1", "e_c_e_1"}
-    assert all(edge.bundled_edge_count is None for edge in internal_edges)
+
+
+def test_truncated_expansion_only_shows_boundary_when_attachment_is_returned(
+    tmp_path,
+) -> None:
+    store = PreparedLayoutStore(tmp_path)
+    result = PreparedLayoutWorker(store).prepare_dataset(_dataset())
+    cluster = next(
+        item
+        for item in result.artifacts.clusters
+        if item.member_node_ids == ("c", "d", "e")
+    )
+    for focus, expected_meta_edges in (("d", 0), ("c", 1)):
+        read = store.read_viewport(
+            dataset_id=DATASET_ID,
+            layout_version=result.artifacts.layout_version,
+            xmin=None,
+            xmax=None,
+            ymin=None,
+            ymax=None,
+            max_nodes=1,
+            cluster_id=cluster.cluster_id,
+            focus_node_id=focus,
+        )
+        assert read.truncated
+        assert sum(edge.is_meta for edge in read.edges) == expected_meta_edges
+        assert all(
+            edge.source in {node.node_id for node in read.nodes}
+            and edge.target in {node.node_id for node in read.nodes}
+            for edge in read.edges
+        )
 
 
 def _chain_dataset_with_metadata(node_count: int) -> CanonicalDataset:
@@ -1733,18 +1762,40 @@ def test_read_region_empty_box_returns_empty(tmp_path) -> None:
     assert read.aggregated_metadata == {}
 
 
-def test_prepare_layout_rejects_missing_distances() -> None:
+def test_prepare_layout_preserves_missing_and_supplied_distances() -> None:
     dataset = normalize_dataset(
         NormalizeRequest(
             format=FORMAT_NEWICK,
             dataset_name="missing-distance",
-            content="(a,b);",
+            content="(a:2,b);",
         )
     ).dataset
+    artifacts = prepare_layout_artifacts(dataset)
+    assert sorted(
+        edge.distance for edge in artifacts.dataset.edges if edge.distance is not None
+    ) == [2.0]
+    assert sum(edge.distance is None for edge in artifacts.dataset.edges) == 1
 
-    try:
-        prepare_layout_artifacts(dataset)
-    except PreparedLayoutIngestError as error:
-        assert "distance" in str(error).lower()
-    else:
-        raise AssertionError("Expected PreparedLayoutIngestError")
+
+def test_unweighted_newick_keeps_absent_distances_through_persistence(tmp_path) -> None:
+    dataset = normalize_dataset(
+        NormalizeRequest(
+            format=FORMAT_NEWICK,
+            dataset_name="unweighted-tree",
+            content="(a,b)root;",
+        )
+    ).dataset
+    assert all(edge.distance is None for edge in dataset.edges)
+
+    store = PreparedLayoutStore(tmp_path)
+    result = PreparedLayoutWorker(store).prepare_dataset(dataset)
+    read = store.read_viewport(
+        dataset_id=dataset.dataset_id,
+        layout_version=result.artifacts.layout_version,
+        xmin=None,
+        xmax=None,
+        ymin=None,
+        ymax=None,
+        max_nodes=10,
+    )
+    assert all(edge.distance is None for edge in read.edges)

@@ -7,7 +7,6 @@ from phylo_lens_server.data.normalizer import (
     NormalizeRequest,
     normalize_dataset,
 )
-from phylo_lens_server.domain.models import CanonicalDataset, CanonicalEdge
 from phylo_lens_server.http.graph.responses import (
     graph_region_response_from_result,
     graph_search_response_from_result,
@@ -51,21 +50,19 @@ def prepare_graph_job(
     if callable(reservation):
         with reservation():
             normalized = normalize_dataset(request, expose_internal_schema=True)
-            dataset, distance_warnings = ensure_graph_edge_distances(normalized.dataset)
-            submit_warnings = (*normalized.warnings, *distance_warnings)
+            dataset = normalized.dataset
             job_id = registry.submit(
                 dataset,
-                submit_warnings,
+                normalized.warnings,
                 sfdp_options=request.sfdp_options,
                 reserved_capacity=True,
             )
     else:
         normalized = normalize_dataset(request, expose_internal_schema=True)
-        dataset, distance_warnings = ensure_graph_edge_distances(normalized.dataset)
-        submit_warnings = (*normalized.warnings, *distance_warnings)
+        dataset = normalized.dataset
         job_id = registry.submit(
             dataset,
-            submit_warnings,
+            normalized.warnings,
             sfdp_options=request.sfdp_options,
         )
     return GraphPrepareJob(
@@ -198,30 +195,6 @@ def effective_lod_level(query: GraphViewportQuery) -> int | None:
     if query.zoom < 1.0:
         return 0
     return None
-
-
-def ensure_graph_edge_distances(
-    dataset: CanonicalDataset,
-) -> tuple[CanonicalDataset, list[str]]:
-    if not dataset.edges or any(edge.distance is not None for edge in dataset.edges):
-        return dataset, []
-
-    return (
-        dataset.model_copy(
-            update={
-                "edges": [
-                    CanonicalEdge(
-                        id=edge.id,
-                        source=edge.source,
-                        target=edge.target,
-                        distance=1.0,
-                    )
-                    for edge in dataset.edges
-                ]
-            }
-        ),
-        ["Missing edge distances were assigned a unit distance for layout."],
-    )
 
 
 def resolve_layout_version(

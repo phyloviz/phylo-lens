@@ -490,7 +490,7 @@ def test_graph_viewport_expansion_serializes_meta_edges(
 ) -> None:
     # The pendant cluster (c, d, e) attaches to visible node b. Expanding it emits
     # one boundary edge c->b as a meta-edge, while its internal
-    # edges stay ordinary (no is_meta / bundled_edge_count in the payload).
+    # Edges stay ordinary (no is_meta in the payload).
     dataset = normalize_split_neighbor_tree()
     result = PreparedLayoutWorker(prepared_layout_store).prepare_dataset(dataset)
     app.dependency_overrides[get_prepared_layout_store] = lambda: prepared_layout_store
@@ -520,14 +520,12 @@ def test_graph_viewport_expansion_serializes_meta_edges(
         if edge.get("is_meta")
     }
     assert set(meta_edges) == {("c", "b")}
-    assert all(edge["bundled_edge_count"] == 1 for edge in meta_edges.values())
 
     # Ordinary edges omit the meta-edge fields entirely (exclude_none).
     ordinary_edges = [edge for edge in body["edges"] if not edge.get("is_meta")]
     assert ordinary_edges
     for edge in ordinary_edges:
         assert "is_meta" not in edge
-        assert "bundled_edge_count" not in edge
 
 
 def test_graph_viewport_rejects_unknown_prepared_layout(client) -> None:

@@ -74,20 +74,19 @@ Newick text
 ```text
 allelic-profile matrix
   → PhyloLib Hamming distance
-  → PhyloLib goeBURST Full MST
-  → Newick tree
-  → normal Newick canonicalization path
+  → technical root from distinct-profile LV counts + PhyloLib goeBURST Full MST
+  → rooted topology
+  → hop-depth cuts and pendant subtrees
 ```
 
 Typing data and ancillary metadata are independent. PhyloLib constructs the
 relationship graph; PhyloLens joins isolate or profile attributes afterwards.
 
-### Distance completion
+### Optional branch distances
 
-If the graph has edges and **none** carries a distance, the service assigns unit
-distance to all edges and emits a warning. If any distance exists, missing values
-are left visible to validation; preparation then rejects the partially weighted
-graph.
+Supplied branch or allelic distances remain canonical edge data. Omitted Newick
+branch lengths remain absent, even in a partially weighted tree. Neither LoD
+membership nor Graphviz layout requires complete distances.
 
 ### Metadata handling
 
@@ -262,7 +261,6 @@ layout. Relevant cases include:
 
 - invalid Newick or typing data;
 - PhyloLib process failure or timeout;
-- missing edge distances in a partially weighted graph;
 - Graphviz missing, non-zero, incomplete, or explicitly timed-out layout;
 - database error;
 - lost PostgreSQL lease before publication.

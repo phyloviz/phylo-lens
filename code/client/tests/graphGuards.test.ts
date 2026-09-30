@@ -188,7 +188,6 @@ describe("graphGuards", () => {
           target: "cluster_1",
           distance: 2,
           is_meta: true,
-          bundled_edge_count: 3,
         },
       ],
     };
@@ -209,19 +208,6 @@ describe("graphGuards", () => {
             source: "a",
             target: "cluster_1",
             is_meta: "yes",
-          },
-        ],
-      }),
-    ).toBe(false);
-    expect(
-      isGraphViewportResponse({
-        ...VIEWPORT_FIXTURE,
-        edges: [
-          {
-            id: "e1",
-            source: "a",
-            target: "cluster_1",
-            bundled_edge_count: "3",
           },
         ],
       }),

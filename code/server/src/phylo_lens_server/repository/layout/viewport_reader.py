@@ -409,7 +409,7 @@ def _read_expansion_meta_edges(
 
     cluster_level_row = connection.execute(
         """
-        select lod_level
+        select lod_level, representative_node_id, member_count
         from prepared_clusters
         where dataset_id = ? and layout_version = ? and cluster_id = ?
         """,
@@ -418,35 +418,36 @@ def _read_expansion_meta_edges(
     if cluster_level_row is None:
         return [], []
     cluster_level = cluster_level_row["lod_level"]
-
-    member_placeholders = ",".join("?" for _ in member_ids)
-    sorted_members = sorted(member_ids)
+    attachment = cluster_level_row["representative_node_id"]
     boundary_rows = connection.execute(
-        f"""
-        select edge_id, source_node_id, target_node_id, distance
-        from graph_edges
-        where dataset_id = ?
-          and layout_version = ?
-          and (source_node_id in ({member_placeholders})
-               or target_node_id in ({member_placeholders}))
-        order by source_node_id, target_node_id, edge_id
+        """
+        select e.source_node_id, e.target_node_id, e.distance
+        from graph_edges e
+        where e.dataset_id = ? and e.layout_version = ?
+          and (e.source_node_id = ? or e.target_node_id = ?)
+          and not exists (
+            select 1 from cluster_members cm
+            where cm.dataset_id = e.dataset_id
+              and cm.layout_version = e.layout_version
+              and cm.cluster_id = ?
+              and cm.node_id = case when e.source_node_id = ?
+                  then e.target_node_id else e.source_node_id end
+          )
+        order by e.source_node_id, e.target_node_id
         """,
-        (dataset_id, layout_version, *sorted_members, *sorted_members),
+        (dataset_id, layout_version, attachment, attachment, cluster_id, attachment),
     ).fetchall()
-
-    boundary: list[tuple[str, str, float | None]] = []
-    outside_ids: set[str] = set()
-    for row in boundary_rows:
-        source_inside = row["source_node_id"] in member_ids
-        target_inside = row["target_node_id"] in member_ids
-        if source_inside == target_inside:
-            continue
-        inside = row["source_node_id"] if source_inside else row["target_node_id"]
-        outside = row["target_node_id"] if source_inside else row["source_node_id"]
-        boundary.append((inside, outside, row["distance"]))
-        outside_ids.add(outside)
-    if not boundary:
+    if cluster_level_row["member_count"] > 1 and len(boundary_rows) != 1:
+        raise ValueError("A collapsed subtree must have one external edge.")
+    if attachment not in member_ids or not boundary_rows:
         return [], []
+
+    outside_ids = {
+        row["target_node_id"]
+        if row["source_node_id"] == attachment
+        else row["source_node_id"]
+        for row in boundary_rows
+    }
 
     neighbor_reps = _representatives_for_nodes(
         connection,
@@ -456,38 +457,27 @@ def _read_expansion_meta_edges(
         node_ids=outside_ids,
     )
 
-    bundled: dict[tuple[str, str], tuple[float | None, int]] = {}
-    for inside, outside, distance in boundary:
-        neighbor = neighbor_reps.get(outside)
-        if neighbor is None:
-            continue
-        rep_id = neighbor.node_id
-        if rep_id in member_ids:
-            continue
-        key = (inside, rep_id)
-        existing = bundled.get(key)
-        if existing is None:
-            bundled[key] = (distance, 1)
-            continue
-        existing_distance, count = existing
-        bundled[key] = (_min_distance(existing_distance, distance), count + 1)
-
-    meta_edges = [
-        ViewportEdge(
-            edge_id=f"meta_edge:{inside}:{rep_id}",
-            source=inside,
-            target=rep_id,
-            distance=distance,
-            is_meta=True,
-            bundled_edge_count=count,
-        )
-        for (inside, rep_id), (distance, count) in sorted(bundled.items())
-    ]
-    referenced_rep_ids = {rep_id for (_inside, rep_id) in bundled}
+    meta_edges: list[ViewportEdge] = []
     surfaced_by_id: dict[str, ViewportNode] = {}
-    for neighbor in neighbor_reps.values():
-        if neighbor.node_id in referenced_rep_ids:
-            surfaced_by_id.setdefault(neighbor.node_id, neighbor)
+    for row in boundary_rows:
+        outside = (
+            row["target_node_id"]
+            if row["source_node_id"] == attachment
+            else row["source_node_id"]
+        )
+        neighbor = neighbor_reps.get(outside)
+        if neighbor is None or neighbor.node_id in member_ids:
+            continue
+        meta_edges.append(
+            ViewportEdge(
+                edge_id=f"meta_edge:{attachment}:{neighbor.node_id}",
+                source=attachment,
+                target=neighbor.node_id,
+                distance=row["distance"],
+                is_meta=True,
+            )
+        )
+        surfaced_by_id[neighbor.node_id] = neighbor
     surfaced_reps = [surfaced_by_id[rep_id] for rep_id in sorted(surfaced_by_id)]
     return meta_edges, surfaced_reps
 
@@ -785,11 +775,3 @@ def _read_node_positions_by_ids(
         )
         for row in rows
     ]
-
-
-def _min_distance(left: float | None, right: float | None) -> float | None:
-    if left is None:
-        return right
-    if right is None:
-        return left
-    return min(left, right)
