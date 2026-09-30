@@ -39,6 +39,9 @@ def test_persisted_members_reconstruct_full_detail_with_base_coordinates(
     tmp_path: Path,
 ) -> None:
     dataset = synthetic_dataset({"id": "tiny-rq3", "node_count": 300, "seed": 1})
+    assert dataset.technical_roots == ("n-0",)
+    assert dataset.source.rooting_strategy == "newick-component-root-v1"
+    assert all(edge.distance is None for edge in dataset.edges)
     store = PreparedLayoutStore(tmp_path / "layout")
     prepared = PreparedLayoutWorker(store).prepare_dataset(dataset)
     _request, triangles, detail = paired_responses(

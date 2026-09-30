@@ -6,6 +6,7 @@ import csv
 import json
 from dataclasses import dataclass
 from io import StringIO
+from pathlib import Path
 
 from phylo_lens_server.data.parsers import (
     ParsedEdge,
@@ -156,6 +157,14 @@ def collapse_profile_graph(
         raise ParseError(
             "PhyloLib output omitted typing identifiers; refusing to lose isolate membership."
         )
+    if (
+        set(graph.nodes) - set(representative)
+        or set(graph.nodes) - graph.explicit_node_ids
+    ):
+        raise ParseError(
+            "PhyloLib output contains nodes that are not typing profiles; "
+            "a Newick serialization junction cannot be used as an ST."
+        )
     edges: dict[tuple[str, str], ParsedEdge] = {}
     for edge in graph.edges:
         source = representative.get(edge.source, edge.source)
@@ -169,12 +178,104 @@ def collapse_profile_graph(
         key = tuple(sorted((source, target)))
         if key in edges and edges[key].distance != edge.distance:
             raise ParseError("Contracted typing edges have conflicting distances.")
-        edges.setdefault(key, ParsedEdge(source, target, edge.distance))
+        edges.setdefault(key, ParsedEdge(*key, edge.distance))
     return ParsedGraph(
         nodes=sorted({representative.get(node_id, node_id) for node_id in graph.nodes}),
-        edges=list(edges.values()),
+        edges=[edges[key] for key in sorted(edges)],
+        component_roots=tuple(
+            dict.fromkeys(representative[root] for root in graph.component_roots)
+        ),
         explicit_node_ids={
             representative.get(node_id, node_id) for node_id in graph.explicit_node_ids
         },
         warnings=list(graph.warnings),
+    )
+
+
+def validate_goeburst_tree(
+    graph: ParsedGraph, membership: dict[str, list[tuple[str, str]]]
+) -> None:
+    """A Full MST must span the distinct profiles as one tree."""
+    if set(graph.nodes) != set(membership) or len(graph.edges) != len(graph.nodes) - 1:
+        raise ParseError("A goeBURST Full MST must span one connected profile tree.")
+    neighbors: dict[str, list[str]] = {node_id: [] for node_id in graph.nodes}
+    for edge in graph.edges:
+        neighbors[edge.source].append(edge.target)
+        neighbors[edge.target].append(edge.source)
+    reached: set[str] = set()
+    stack = [graph.nodes[0]]
+    while stack:
+        node = stack.pop()
+        if node in reached:
+            continue
+        reached.add(node)
+        stack.extend(
+            neighbor for neighbor in neighbors[node] if neighbor not in reached
+        )
+    if len(reached) != len(graph.nodes):
+        raise ParseError("A goeBURST Full MST must span one connected profile tree.")
+
+
+def select_goeburst_root(
+    matrix_path: Path,
+    profiles: PreparedTypingProfiles,
+    membership: dict[str, list[tuple[str, str]]],
+) -> str:
+    """Stream PhyloLib's triangular Hamming matrix; rank distinct profiles by LV counts."""
+    rows = list(csv.reader(StringIO(profiles.content), delimiter="\t"))[1:]
+    input_order = {slugify_label(row[0]): index for index, row in enumerate(rows)}
+    representative = {
+        isolate_id: node_id
+        for node_id, members in membership.items()
+        for _, isolate_id in members
+    }
+    counts: dict[str, dict[int, int]] = {node_id: {} for node_id in membership}
+    highest_distance = 0
+    previous: list[str] = []
+    try:
+        with matrix_path.open(encoding="utf-8", newline="") as stream:
+            matrix = csv.reader(stream, delimiter="\t")
+            size_row = next(matrix)
+            if len(size_row) != 1 or int(size_row[0]) != len(rows):
+                raise ValueError("unexpected matrix size")
+            for fields in matrix:
+                if len(previous) >= len(rows) or len(fields) != len(previous) + 1:
+                    raise ValueError("invalid triangular matrix row")
+                node_id = fields[0]
+                if node_id not in representative or node_id in previous:
+                    raise ValueError("unknown or repeated matrix profile")
+                for other, cell in zip(previous, fields[1:], strict=True):
+                    number = float(cell)
+                    distance = int(number)
+                    if number != distance or not 0 <= distance <= len(
+                        profiles.retained_loci
+                    ):
+                        raise ValueError("invalid Hamming distance")
+                    left, right = representative[node_id], representative[other]
+                    if left == right:
+                        if distance != 0:
+                            raise ValueError(
+                                "equivalent profiles have nonzero distance"
+                            )
+                    elif distance == 0:
+                        raise ValueError("distinct profiles have zero distance")
+                    elif node_id == left and other == right:
+                        highest_distance = max(highest_distance, distance)
+                        counts[left][distance] = counts[left].get(distance, 0) + 1
+                        counts[right][distance] = counts[right].get(distance, 0) + 1
+                previous.append(node_id)
+        if set(previous) != set(representative):
+            raise ValueError("matrix omitted typing profiles")
+    except (OSError, ValueError, OverflowError, StopIteration, csv.Error) as error:
+        raise ParseError(f"Invalid PhyloLib Hamming matrix: {error}") from error
+
+    return min(
+        counts,
+        key=lambda node: (
+            tuple(
+                -counts[node].get(distance, 0)
+                for distance in range(1, highest_distance + 1)
+            ),
+            min(input_order[isolate_id] for _, isolate_id in membership[node]),
+        ),
     )

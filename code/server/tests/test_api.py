@@ -127,7 +127,8 @@ def test_graph_prepare_materializes_layout_for_viewport_reads(client) -> None:
     viewport_body = viewport_response.json()
 
     assert viewport_response.status_code == STATUS_OK
-    assert {node["id"] for node in viewport_body["nodes"]} >= {"a", "b", "c", "d"}
+    assert viewport_body["nodes"]
+    assert any(node["member_count"] > 1 for node in viewport_body["nodes"])
     assert viewport_body["global_bounds"]["min_x"] <= min(
         node["x"] for node in viewport_body["nodes"]
     )
@@ -272,7 +273,7 @@ def test_graph_prepare_fails_with_structured_diagnostics_when_sfdp_is_missing(
     }
 
 
-def test_graph_viewport_lod_zero_without_bounds_falls_back_from_single_cluster(
+def test_graph_viewport_lod_zero_without_bounds_shows_root_and_pendant_cluster(
     client,
     prepared_layout_store,
 ) -> None:
@@ -295,9 +296,10 @@ def test_graph_viewport_lod_zero_without_bounds_falls_back_from_single_cluster(
     assert response.status_code == STATUS_OK
     assert body["lod_level"] == 0
     assert body["layout_status"] == EXPECTED_LAYOUT_STATUS
-    assert body["total_node_count"] == 10
-    assert len(body["nodes"]) == 10
-    assert len(body["edges"]) == 9
+    assert body["total_node_count"] == 2
+    assert len(body["nodes"]) == 2
+    assert {node["member_count"] for node in body["nodes"]} == {1, 9}
+    assert len(body["edges"]) == 1
 
 
 def test_graph_lod_zero_uses_real_representative_node_ids(
@@ -440,7 +442,7 @@ def test_graph_viewport_lod_one_reads_real_nodes(
             "xmax": max(xs) + 1,
             "ymin": min(ys) - 1,
             "ymax": max(ys) + 1,
-            "lod_level": 1,
+            "lod_level": None,
             "max_nodes": 50,
         },
     )
@@ -476,9 +478,9 @@ def test_graph_viewport_reads_cluster_members_without_bounds(
     body = response.json()
 
     assert response.status_code == STATUS_OK
-    assert {node["id"] for node in body["nodes"]} == set(cluster.member_node_ids)
-    assert all(not node["is_representative"] for node in body["nodes"])
-    assert all(node["member_count"] == 1 for node in body["nodes"])
+    members = [node for node in body["nodes"] if not node["is_representative"]]
+    assert {node["id"] for node in members} == set(cluster.member_node_ids)
+    assert all(node["member_count"] == 1 for node in members)
     assert body["edges"]
 
 
@@ -486,16 +488,16 @@ def test_graph_viewport_expansion_serializes_meta_edges(
     client,
     prepared_layout_store,
 ) -> None:
-    # A cluster (a, b, c) with singleton neighbors d and e. Expanding it emits
-    # rerouted boundary edges c->d and c->e as meta-edges, while its internal
-    # edges stay ordinary (no is_meta / bundled_edge_count in the payload).
+    # The pendant cluster (c, d, e) attaches to visible node b. Expanding it emits
+    # one boundary edge c->b as a meta-edge, while its internal
+    # Edges stay ordinary (no is_meta in the payload).
     dataset = normalize_split_neighbor_tree()
     result = PreparedLayoutWorker(prepared_layout_store).prepare_dataset(dataset)
     app.dependency_overrides[get_prepared_layout_store] = lambda: prepared_layout_store
-    abc_cluster = next(
+    cde_cluster = next(
         cluster
         for cluster in result.artifacts.clusters
-        if cluster.member_node_ids == ("a", "b", "c")
+        if cluster.member_node_ids == ("c", "d", "e")
     )
 
     response = client.post(
@@ -503,29 +505,27 @@ def test_graph_viewport_expansion_serializes_meta_edges(
         json={
             "dataset_id": DATASET_API_TREE,
             "layout_version": result.artifacts.layout_version,
-            "cluster_id": abc_cluster.cluster_id,
+            "cluster_id": cde_cluster.cluster_id,
             "max_nodes": 50,
         },
     )
     body = response.json()
 
     assert response.status_code == STATUS_OK
-    assert {node["id"] for node in body["nodes"]} == {"a", "b", "c", "d", "e"}
+    assert {node["id"] for node in body["nodes"]} == {"b", "c", "d", "e"}
 
     meta_edges = {
         (edge["source"], edge["target"]): edge
         for edge in body["edges"]
         if edge.get("is_meta")
     }
-    assert set(meta_edges) == {("c", "d"), ("c", "e")}
-    assert all(edge["bundled_edge_count"] == 1 for edge in meta_edges.values())
+    assert set(meta_edges) == {("c", "b")}
 
     # Ordinary edges omit the meta-edge fields entirely (exclude_none).
     ordinary_edges = [edge for edge in body["edges"] if not edge.get("is_meta")]
     assert ordinary_edges
     for edge in ordinary_edges:
         assert "is_meta" not in edge
-        assert "bundled_edge_count" not in edge
 
 
 def test_graph_viewport_rejects_unknown_prepared_layout(client) -> None:
@@ -573,9 +573,7 @@ def normalize_weighted_api_tree():
 
 
 def normalize_split_neighbor_tree():
-    # (a, b, c) form one distance cluster at threshold 1.0; d and e are
-    # singleton clusters connected to c, so expanding (a, b, c) produces
-    # meta-edges to the d and e representatives.
+    # A rooted branch beyond b consists of c, d, e.
     normalized = normalize_dataset(
         NormalizeRequest(
             format=FORMAT_NEWICK,

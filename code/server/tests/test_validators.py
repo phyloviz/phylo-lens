@@ -1,5 +1,6 @@
 from phylo_lens_server.domain.ancillary import NodeAnnotations
 from phylo_lens_server.domain.models import (
+    NEWICK_ROOTING_STRATEGY,
     CanonicalDataset,
     CanonicalEdge,
     CanonicalNode,
@@ -35,11 +36,16 @@ def _dataset() -> CanonicalDataset:
         dataset_id=DATASET_ID,
         nodes=[CanonicalNode(id=NODE_A), CanonicalNode(id=NODE_B)],
         edges=[CanonicalEdge(id=EDGE_ID_A_B, source=NODE_A, target=NODE_B)],
+        technical_roots=(NODE_A,),
         metadata_schema=[
             MetadataField(key=METADATA_KEY_REGION, type=METADATA_TYPE_STRING)
         ],
         metadata_by_node_id={NODE_A: {METADATA_KEY_REGION: METADATA_VALUE_REGION}},
-        source=DatasetSource(format=FORMAT_NEWICK, generated_at=GENERATED_AT),
+        source=DatasetSource(
+            format=FORMAT_NEWICK,
+            generated_at=GENERATED_AT,
+            rooting_strategy=NEWICK_ROOTING_STRATEGY,
+        ),
     )
 
 

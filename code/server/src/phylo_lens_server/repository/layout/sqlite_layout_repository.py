@@ -34,7 +34,6 @@ class PreparedLayoutStore:
         self.root.mkdir(parents=True, exist_ok=True)
         self._database_path = database_path_for_root(self.root)
         self.path = self._database_path
-        self._threshold_cache: dict[tuple[str, str], tuple[float, ...]] = {}
         initialize_schema(self._database_path)
 
     def apply_ancillary_data(
@@ -47,14 +46,13 @@ class PreparedLayoutStore:
             )
 
     def clear_dataset(self, dataset_id: str) -> None:
-        writer.clear_dataset(self._database_path, dataset_id, self._threshold_cache)
+        writer.clear_dataset(self._database_path, dataset_id)
 
     def clear_layout_version(self, dataset_id: str, layout_version: str) -> None:
         writer.clear_layout_version(
             self._database_path,
             dataset_id=dataset_id,
             layout_version=layout_version,
-            threshold_cache=self._threshold_cache,
         )
 
     def save_artifacts(
@@ -209,7 +207,6 @@ class PreparedLayoutStore:
     ) -> ViewportReadResult:
         return viewport_reader.read_viewport(
             self._database_path,
-            self._threshold_cache,
             dataset_id=dataset_id,
             layout_version=layout_version,
             xmin=xmin,

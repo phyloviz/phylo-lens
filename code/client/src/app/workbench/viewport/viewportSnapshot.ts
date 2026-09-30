@@ -206,7 +206,6 @@ function buildGraphViewportEdgeAttributes(
     label: showEdgeLabel && hasDistance ? String(edge.distance) : "",
     forceLabel: showEdgeLabel,
     isMeta,
-    bundledEdgeCount: isMeta ? (edge.bundled_edge_count ?? 1) : undefined,
   };
 }
 

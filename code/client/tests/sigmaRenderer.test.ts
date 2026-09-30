@@ -604,11 +604,11 @@ describe("sigmaRenderer", () => {
         { id: "internal_7", x: 0.5, y: 0.5 },
         { id: "profile_1", x: 1, y: 1 },
         {
-          id: "cluster_proxy:threshold_cluster_4_42",
+          id: "cluster_proxy:lod_4_42",
           x: 2,
           y: 2,
           attributes: {
-            cluster_id: "threshold_cluster_4_42",
+            cluster_id: "lod_4_42",
             is_cluster_proxy: true,
           },
         },
@@ -626,7 +626,7 @@ describe("sigmaRenderer", () => {
     expect(lastGraph?.getNodeAttribute("internal_7", "label")).toBe("internal_7");
     expect(lastGraph?.getNodeAttribute("internal_7", "size")).not.toBe(0);
     expect(lastGraph?.getNodeAttribute("profile_1", "label")).toBe("profile_1");
-    expect(lastGraph?.getNodeAttribute("cluster_proxy:threshold_cluster_4_42", "label")).toBe("");
+    expect(lastGraph?.getNodeAttribute("cluster_proxy:lod_4_42", "label")).toBe("");
 
     renderer.unmount();
   });

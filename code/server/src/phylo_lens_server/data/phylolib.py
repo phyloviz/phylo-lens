@@ -4,13 +4,16 @@ import logging
 import os
 import subprocess
 import tempfile
+from dataclasses import dataclass
 from pathlib import Path
 
 from phylo_lens_server.config.settings import phylolib_timeout_seconds
-from phylo_lens_server.data.parsers import (
-    WARN_NEWICK_FOREST,
-    ParsedGraph,
-    parse_newick_forest,
+from phylo_lens_server.data.parsers import ParsedEdge, ParsedGraph, parse_newick_forest
+from phylo_lens_server.data.typing_profiles import (
+    PreparedTypingProfiles,
+    collapse_profile_graph,
+    select_goeburst_root,
+    validate_goeburst_tree,
 )
 
 logger = logging.getLogger(__name__)
@@ -24,7 +27,7 @@ ENV_PHYLOLIB_JAVA = "PHYLO_LENS_PHYLOLIB_JAVA"
 
 # Defaults: Hamming for allelic MLST, then goeBURST Full MST. Full MST uses
 # every observed locus-variant level, which is appropriate for cg/wgMLST data
-# and produces one connected tree rather than a threshold-limited forest.
+# and normally produces one connected spanning tree.
 DEFAULT_DISTANCE_METHOD = "hamming"
 GOEBURST_FULL_MST_ALGORITHM = "goeburstfullmst"
 DATASET_FORMAT_ML = "ml"
@@ -62,14 +65,6 @@ ERR_TYPING_ALGORITHM_TIMEOUT = (
     "PhyloLib timed out while building a tree from the distance matrix."
 )
 ERR_TYPING_EMPTY_TREE = "PhyloLib produced an empty Newick tree."
-
-# goeBURST emits one ``;``-terminated tree per connected component. Typing data
-# is routinely disconnected (distant STs never join the MST), so the output is a
-# forest. We parse each component independently and merge them into a single
-# disconnected ParsedGraph, preserving true topology (no synthetic root).
-WARN_TYPING_FOREST = (
-    "PhyloLib produced {count} disconnected components; kept as a forest."
-)
 
 
 class TypingNormalizeError(ValueError):
@@ -164,12 +159,17 @@ def _run_command(
         raise TypingNormalizeError(failure_message, reason=failure_reason) from error
 
 
-def typing_profiles_to_newick(
-    profiles: str,
-    *,
-    distance_method: str = DEFAULT_DISTANCE_METHOD,
-) -> str:
-    """Convert an MLST/cgMLST allelic profile matrix into raw PhyloLib Newick.
+@dataclass(frozen=True)
+class RootedTypingTree:
+    parsed: ParsedGraph
+    distinct: ParsedGraph
+    root: str
+
+
+def typing_profiles_to_rooted_tree(
+    profiles: PreparedTypingProfiles,
+) -> RootedTypingTree:
+    """Build a Full MST and resolve its technical root from PhyloLib's matrix.
 
     Runs two PhyloLib stages against a temp directory: ``distance`` (profiles ->
     complete symmetric matrix) then ``algorithm goeburstfullmst`` (matrix ->
@@ -177,9 +177,24 @@ def typing_profiles_to_newick(
     :class:`TypingNormalizeError` when no PhyloLib runtime is available or either
     stage fails.
     """
+    membership = profiles.membership()
+    if len(membership) == 1:
+        ids = [node_id for members in membership.values() for _, node_id in members]
+        parsed = ParsedGraph(
+            ids,
+            [ParsedEdge(ids[0], node_id, 0) for node_id in ids[1:]],
+            component_roots=(ids[0],),
+            explicit_node_ids=set(ids),
+        )
+        distinct = collapse_profile_graph(parsed, membership)
+        validate_goeburst_tree(distinct, membership)
+        return RootedTypingTree(parsed, distinct, next(iter(membership)))
+
     with tempfile.TemporaryDirectory(prefix="phylolib-") as tmp:
         files_dir = Path(tmp)
-        (files_dir / PROFILES_FILENAME).write_text(profiles, encoding="utf-8")
+        (files_dir / PROFILES_FILENAME).write_text(
+            profiles.algorithm_content(), encoding="utf-8"
+        )
 
         profiles_path = str(files_dir / PROFILES_FILENAME)
         matrix_path = str(files_dir / MATRIX_FILENAME)
@@ -189,7 +204,7 @@ def typing_profiles_to_newick(
         _run_phylolib_cli(
             [
                 "distance",
-                distance_method,
+                DEFAULT_DISTANCE_METHOD,
                 f"--dataset={distance_in}",
                 f"--out={matrix_ref}",
             ],
@@ -213,6 +228,8 @@ def typing_profiles_to_newick(
             timeout_message=ERR_TYPING_ALGORITHM_TIMEOUT,
         )
 
+        root = select_goeburst_root(Path(matrix_path), profiles, membership)
+
         newick = (
             tree_path.read_text(encoding="utf-8").strip() if tree_path.exists() else ""
         )
@@ -223,35 +240,7 @@ def typing_profiles_to_newick(
             ERR_TYPING_EMPTY_TREE, reason=TYPING_PHYLOLIB_EMPTY_TREE
         )
 
-    return newick
-
-
-def typing_profiles_to_graph(
-    profiles: str,
-    *,
-    distance_method: str = DEFAULT_DISTANCE_METHOD,
-) -> ParsedGraph:
-    """Convert typing profiles into a ParsedGraph through goeBURST Full MST.
-
-    Wraps :func:`typing_profiles_to_newick`, then delegates to the shared
-    ``parse_newick_forest`` path. Full MST normally emits one connected tree;
-    the shared parser still handles a forest defensively if an upstream runtime
-    returns one.
-    """
-    newick = typing_profiles_to_newick(profiles, distance_method=distance_method)
-
     parsed = parse_newick_forest(newick)
-
-    generic_prefix = WARN_NEWICK_FOREST.split("{", 1)[0]
-    if any(warning.startswith(generic_prefix) for warning in parsed.warnings):
-        component_count = sum(1 for part in newick.split(";") if part.strip())
-        parsed.warnings = [
-            warning
-            for warning in parsed.warnings
-            if not warning.startswith(generic_prefix)
-        ]
-        typing_warning = WARN_TYPING_FOREST.format(count=component_count)
-        parsed.warnings.append(typing_warning)
-        logger.info(typing_warning)
-
-    return parsed
+    distinct = collapse_profile_graph(parsed, membership)
+    validate_goeburst_tree(distinct, membership)
+    return RootedTypingTree(parsed, distinct, root)

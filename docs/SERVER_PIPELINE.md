@@ -9,7 +9,7 @@ request validation
   → capacity admission
   → normalization
   → layout identity
-  → distance-tier clustering
+  → rooted hop-depth clustering
   → global layout
   → LoD edge materialization
   → persistence
@@ -74,20 +74,19 @@ Newick text
 ```text
 allelic-profile matrix
   → PhyloLib Hamming distance
-  → PhyloLib goeBURST Full MST
-  → Newick tree
-  → normal Newick canonicalization path
+  → technical root from distinct-profile LV counts + PhyloLib goeBURST Full MST
+  → rooted topology
+  → hop-depth cuts and pendant subtrees
 ```
 
 Typing data and ancillary metadata are independent. PhyloLib constructs the
 relationship graph; PhyloLens joins isolate or profile attributes afterwards.
 
-### Distance completion
+### Optional branch distances
 
-If the graph has edges and **none** carries a distance, the service assigns unit
-distance to all edges and emits a warning. If any distance exists, missing values
-are left visible to validation; preparation then rejects the partially weighted
-graph.
+Supplied branch or allelic distances remain canonical edge data. Omitted Newick
+branch lengths remain absent, even in a partially weighted tree. Neither LoD
+membership nor Graphviz layout requires complete distances.
 
 ### Metadata handling
 
@@ -137,25 +136,29 @@ fingerprint independent of dictionary insertion order.
 This identity controls job reuse and artifact publication. A change to persisted
 metadata or layout-affecting pipeline semantics creates a new version.
 
-## 6. Distance-tier clustering
+## 6. Rooted hop-depth clustering
 
-The pipeline selects up to 16 distance thresholds. Threshold selection targets a
-progressive number of visible representatives instead of sampling edge distances
-uniformly.
+Typing data chooses a technical root by the full goeBURST LV count vector
+(SLVs, DLVs, and successive allelic distances), using original input order for
+a final tie. Direct Newick keeps the parsed root of each component. These roots
+are explicit in the canonical dataset and the layout fingerprint.
 
-At each threshold, a union-find partition connects edges whose distance is less
-than or equal to the threshold. The complete edge list is sorted once and reused
-across thresholds.
+The pipeline orients each tree and assigns hop depths. At a cut depth, the
+rooted prefix remains visible; each child branch beyond it becomes a connected
+pendant subtree with exactly one external edge. Edge distances remain canonical
+data but do not affect cluster membership. Up to 12 deterministic depths are
+exposed as LoD levels, ending at complete node detail.
 
-For every component, the pipeline records:
+For every cluster, the pipeline records:
 
 - member nodes;
-- one deterministic representative;
-- internal edges;
-- boundary edges.
+- the attachment member as representative for a collapsed branch.
 
-The finest selected threshold is retained so the viewport reader can resolve the
-last LoD level to individual node positions.
+The internal-edge and single-boundary-edge properties are checked during
+preparation; redundant edge lists are not stored on the cluster.
+
+The partitions are nested: increasing depth reveals nodes inside existing
+branches without moving them between unrelated clusters.
 
 See [LoD and clustering](./LOD_AND_CLUSTERING.md) for the selection and query
 semantics.
@@ -170,13 +173,12 @@ published layout therefore remains available while a new version is prepared.
 
 ## 8. Prepared quotient edges
 
-For each non-finest threshold, the pipeline maps canonical edge endpoints to
+For each non-finest hop cut, the pipeline maps canonical edge endpoints to
 cluster representatives.
 
-Edges internal to one cluster disappear at that tier. Multiple canonical edges
-between the same pair of representatives collapse into one deterministic
-prepared edge. The retained distance is the smallest available distance for that
-representative pair.
+Edges internal to one cluster disappear at that tier. Tree contraction cannot
+create parallel quotient edges. A multi-node collapsed representative has
+degree one, so it cannot join two visible parts of the tree.
 
 These quotient edges allow viewport reads to return a topologically consistent
 coarse graph without rebuilding it on every request.
@@ -259,7 +261,6 @@ layout. Relevant cases include:
 
 - invalid Newick or typing data;
 - PhyloLib process failure or timeout;
-- missing edge distances in a partially weighted graph;
 - Graphviz missing, non-zero, incomplete, or explicitly timed-out layout;
 - database error;
 - lost PostgreSQL lease before publication.
@@ -274,7 +275,7 @@ layout version and execute bounded repository reads:
 
 ```text
 viewport query
-  → LoD threshold
+  → LoD hop-depth cut
   → bounds lookup
   → visible nodes and required neighbours
   → matching original or prepared edges

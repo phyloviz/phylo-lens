@@ -24,11 +24,12 @@ accepted by the preparation pipeline.
 | `dataset_id` | `str` | Caller-supplied dataset name and namespace |
 | `nodes` | `list[CanonicalNode]` | Canonical graph nodes |
 | `edges` | `list[CanonicalEdge]` | Canonical graph edges |
+| `technical_roots` | `tuple[str, ...]` | One orientation root per tree component; no founder meaning |
 | `metadata_schema` | `list[MetadataField]` | Public scalar metadata fields |
 | `metadata_by_node_id` | `dict[str, dict]` | Aggregated metadata for each node |
 | `ancillary_rows_by_node_id` | `dict[str, list[dict]]` | Original ancillary rows joined to each node |
 | `isolates_by_node_id` | `dict[str, list[IsolateRecord]]` | Original typing IDs and per-isolate metadata for each biological profile; empty for Newick |
-| `source` | `DatasetSource` | Source format, generation timestamp, and optional provenance |
+| `source` | `DatasetSource` | Source format, generation timestamp, rooting strategy, and optional provenance |
 
 ### `CanonicalNode`
 
@@ -54,10 +55,9 @@ coordinates are normally assigned later by the layout pipeline.
 | `target` | non-empty `str` | Target node identifier |
 | `distance` | non-negative `float | None` | Branch or allelic distance |
 
-Every edge entering preparation must reference existing nodes and carry a finite,
-non-negative distance. Normalization assigns a uniform distance only when the
-entire input is unweighted; a partially weighted graph is rejected by the
-prepare pipeline.
+Every edge entering preparation must reference existing nodes. Supplied
+distances must be finite and non-negative; omitted Newick branch lengths remain
+`None`, including in partially weighted trees. LoD uses tree hops, not distance.
 
 ### Metadata types
 
@@ -83,24 +83,20 @@ Preparation converts a canonical dataset into immutable artifacts identified by
 | --- | --- | --- |
 | `dataset` | `CanonicalDataset` | Normalized graph and metadata |
 | `layout_version` | `str` | Deterministic preparation fingerprint |
-| `clusters` | `tuple[PreparedCluster, ...]` | Clusters materialized across distance thresholds |
+| `clusters` | `tuple[PreparedCluster, ...]` | Rooted-prefix singletons and pendant subtrees at selected hop depths |
 
 ### `PreparedCluster`
 
 | Field | Type | Meaning |
 | --- | --- | --- |
-| `cluster_id` | `str` | Deterministic identifier derived from threshold and members |
-| `threshold` | `float | None` | Distance threshold associated with the cluster |
+| `cluster_id` | `str` | Deterministic identifier derived from LoD level and attachment/representative node |
+| `lod_level` | `int` | Index of the exposed depth cut |
 | `member_node_ids` | `tuple[str, ...]` | Canonical member nodes |
 | `representative_node_id` | `str` | Member used as the visible representative |
-| `internal_edge_ids` | `tuple[str, ...]` | Original edges contained by the cluster |
-| `boundary_edge_ids` | `tuple[str, ...]` | Original edges crossing the cluster boundary |
 
-Representative selection is deterministic. When source coordinates are
-available, the representative is closest to the member centroid, with internal
-degree and identifier tie-breaks. Without source coordinates, the member with
-the highest internal degree is selected, then the lexicographically smallest
-identifier.
+For a collapsed subtree, the representative is its member incident to the
+single edge attaching it to the visible tree. Visible nodes represent
+themselves. The representative has no biological founder meaning.
 
 ### Layout records
 
@@ -146,10 +142,8 @@ Repository readers return server-internal result objects before HTTP mapping.
 ### `ViewportEdge`
 
 Ordinary edges preserve original endpoints and distance. Meta-edges produced by
-cluster expansion additionally expose:
-
-- `is_meta = true`;
-- `bundled_edge_count`, the number of original boundary edges represented.
+cluster expansion additionally expose `is_meta = true` and represent a single
+external tree edge.
 
 ### `ViewportReadResult`
 
@@ -186,6 +180,7 @@ The fingerprint includes:
 - dataset identifier;
 - sorted node and edge records;
 - distances;
+- explicit `technical_roots` and the source `rooting_strategy`;
 - public metadata schema;
 - node metadata;
 - ancillary rows;
@@ -194,7 +189,8 @@ The fingerprint includes:
 The generated timestamp is excluded. JSON keys and collections are ordered
 canonically, so Python dictionary insertion order does not affect identity.
 Metadata changes supplied to preparation therefore invalidate reuse even when
-topology remains the same.
+topology remains the same. Changing the resolved technical root changes
+`layout_version` even if topology is unchanged.
 
 Post-load ancillary replacement takes a separate path: it derives a new version
 from a namespaced hash of the source version, dataset identifier, replacement
@@ -230,7 +226,7 @@ erDiagram
 | Table | Purpose |
 | --- | --- |
 | `datasets` | Publication status and timestamps for each layout version |
-| `prepared_clusters` | Cluster membership summary, representative, position, radius, and bounds per threshold |
+| `prepared_clusters` | Cluster membership summary, representative, position, radius, and bounds per hop-depth cut |
 | `cluster_members` | Cluster-to-node membership |
 | `graph_edges` | Original canonical graph edges |
 | `prepared_edges` | Quotient edges per LoD level |
@@ -261,7 +257,7 @@ partially written `refining` version cannot replace an earlier readable layout.
 The schema uses ordinary database indexes rather than a separate spatial-index
 service. Important access patterns include:
 
-- cluster-bounds overlap at a selected threshold;
+- cluster-bounds overlap at a selected LoD level;
 - finest-detail node position bounds;
 - prepared-edge lookup by visible representatives;
 - original-edge lookup by node endpoints;

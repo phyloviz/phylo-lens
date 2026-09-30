@@ -36,4 +36,26 @@ describe("expanded viewport composition", () => {
     expect(base.nodes).toHaveLength(1);
     expect(patch.nodes).toHaveLength(2);
   });
+
+  it("replaces a quotient edge with the expanded branch's boundary edge", () => {
+    const base = graph(
+      [
+        { id: "b", x: 0, y: 0 },
+        { id: "c", x: 1, y: 0, attributes: { is_cluster_proxy: true, cluster_id: "branch" } },
+      ],
+      [{ id: "quotient", source: "b", target: "c" }],
+    );
+    const patch = graph(
+      [
+        { id: "c", x: 1, y: 0, attributes: { is_cluster_proxy: false, cluster_id: "branch" } },
+        { id: "d", x: 2, y: 0, attributes: { is_cluster_proxy: false, cluster_id: "branch" } },
+      ],
+      [
+        { id: "internal", source: "c", target: "d" },
+        { id: "boundary", source: "c", target: "b", attributes: { isMeta: true } },
+      ],
+    );
+    const result = composeExpandedViewport(base, [patch], 10);
+    expect(result.graph.edges.map((edge) => edge.id)).toEqual(["internal", "boundary"]);
+  });
 });

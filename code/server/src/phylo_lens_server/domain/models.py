@@ -15,6 +15,9 @@ from .legacy_metadata import (
 MetadataType = AncillaryType
 MetadataField = AncillaryField
 
+NEWICK_ROOTING_STRATEGY = "newick-component-root-v1"
+GOEBURST_ROOTING_STRATEGY = "goeburst-lv-v1"
+
 
 class SourceFormat(StrEnum):
     """Supported dataset source families in the current server contract."""
@@ -51,6 +54,7 @@ class DatasetSource(BaseModel):
     format: SourceFormat
     generated_at: str = Field(min_length=1)
     provenance: str | None = None
+    rooting_strategy: str = Field(min_length=1)
 
 
 class Isolate(BaseModel):
@@ -77,6 +81,7 @@ class CanonicalDataset(BaseModel):
     isolates_by_node_id: dict[str, list[Isolate]] = Field(default_factory=dict)
     nodes: list[CanonicalNode]
     edges: list[CanonicalEdge]
+    technical_roots: tuple[str, ...]
     ancillary_schema: list[AncillaryField] = Field(default_factory=list)
     summary_schema: list[AncillaryField] = Field(default_factory=list)
     annotations_by_node_id: dict[str, NodeAnnotations] = Field(default_factory=dict)
@@ -84,6 +89,44 @@ class CanonicalDataset(BaseModel):
         default_factory=dict
     )
     source: DatasetSource
+
+    @model_validator(mode="after")
+    def validate_roots(self):
+        neighbors = {node.id: set() for node in self.nodes}
+        for edge in self.edges:
+            if edge.source in neighbors and edge.target in neighbors:
+                neighbors[edge.source].add(edge.target)
+                neighbors[edge.target].add(edge.source)
+        unseen = set(neighbors)
+        components: list[set[str]] = []
+        while unseen:
+            component = set()
+            frontier = [next(iter(unseen))]
+            while frontier:
+                node = frontier.pop()
+                if node in component:
+                    continue
+                component.add(node)
+                frontier.extend(neighbors[node] - component)
+            components.append(component)
+            unseen -= component
+        if len(self.technical_roots) != len(components) or any(
+            len(component.intersection(self.technical_roots)) != 1
+            for component in components
+        ):
+            raise ValueError(
+                "Every tree component requires exactly one technical root."
+            )
+        if self.source.format == SourceFormat.TYPING_DATA and len(components) != 1:
+            raise ValueError("A goeBURST Full MST must be one connected tree.")
+        expected_strategy = (
+            GOEBURST_ROOTING_STRATEGY
+            if self.source.format == SourceFormat.TYPING_DATA
+            else NEWICK_ROOTING_STRATEGY
+        )
+        if self.source.rooting_strategy != expected_strategy:
+            raise ValueError("Rooting strategy does not match the dataset source.")
+        return self
 
     @model_validator(mode="before")
     @classmethod

@@ -29,11 +29,7 @@ PRECOMPUTED_CLUSTER_METADATA_TIERS = 3
 def clear_dataset(
     database_path,
     dataset_id: str,
-    threshold_cache: dict[tuple[str, str], tuple[float, ...]],
 ) -> None:
-    threshold_cache_keys = [key for key in threshold_cache if key[0] == dataset_id]
-    for key in threshold_cache_keys:
-        threshold_cache.pop(key, None)
     with connect(database_path) as connection:
         for table in (
             "node_positions",
@@ -42,7 +38,6 @@ def clear_dataset(
             "cluster_members",
             "prepared_clusters",
             "datasets",
-            "cluster_edges",
             "node_metadata",
             "profile_isolates",
             "cluster_metadata",
@@ -61,9 +56,7 @@ def clear_layout_version(
     *,
     dataset_id: str,
     layout_version: str,
-    threshold_cache: dict[tuple[str, str], tuple[float, ...]],
 ) -> None:
-    threshold_cache.pop((dataset_id, layout_version), None)
     with connect(database_path) as connection:
         for table in (
             "node_positions",
@@ -72,7 +65,6 @@ def clear_layout_version(
             "cluster_members",
             "prepared_clusters",
             "datasets",
-            "cluster_edges",
             "node_metadata",
             "profile_isolates",
             "cluster_metadata",
@@ -131,12 +123,12 @@ def save_artifacts_to_connection(
             _sql(
                 """
                 insert into prepared_clusters(
-                    dataset_id, layout_version, cluster_id, threshold,
+                    dataset_id, layout_version, cluster_id, lod_level,
                     representative_node_id, member_count, status
                 )
                 values (?, ?, ?, ?, ?, ?, ?)
                 on conflict(dataset_id, layout_version, cluster_id) do update set
-                    threshold = excluded.threshold,
+                    lod_level = excluded.lod_level,
                     representative_node_id = excluded.representative_node_id,
                     member_count = excluded.member_count,
                     status = excluded.status
@@ -252,7 +244,7 @@ def prepared_cluster_rows(artifacts: PreparedLayoutArtifacts) -> Iterator[SQLRow
             dataset_id,
             layout_version,
             cluster.cluster_id,
-            cluster.threshold,
+            cluster.lod_level,
             cluster.representative_node_id,
             cluster.member_count,
             "pending",
@@ -401,9 +393,9 @@ def cluster_metadata_rows(
 ) -> Iterator[SQLRow]:
     dataset_id = artifacts.dataset.dataset_id
     layout_version = artifacts.layout_version
-    precomputed_thresholds = precomputed_cluster_metadata_thresholds(artifacts)
+    precomputed_levels = set(range(PRECOMPUTED_CLUSTER_METADATA_TIERS))
     for cluster in artifacts.clusters:
-        if cluster.threshold not in precomputed_thresholds:
+        if cluster.lod_level not in precomputed_levels:
             continue
         if cluster.member_count == 1:
             metadata_json = render_metadata_json_by_node.get(
@@ -419,20 +411,6 @@ def cluster_metadata_rows(
                 )
             )
         yield (dataset_id, layout_version, cluster.cluster_id, metadata_json)
-
-
-def precomputed_cluster_metadata_thresholds(
-    artifacts: PreparedLayoutArtifacts,
-) -> set[float]:
-    thresholds = sorted(
-        {
-            cluster.threshold
-            for cluster in artifacts.clusters
-            if cluster.threshold is not None
-        },
-        reverse=True,
-    )
-    return set(thresholds[:PRECOMPUTED_CLUSTER_METADATA_TIERS])
 
 
 def save_layouts(
@@ -466,22 +444,18 @@ def save_layouts_to_connection(
             connection,
             _sql(
                 """
-                insert into prepared_clusters(
-                    dataset_id, layout_version, cluster_id, representative_node_id,
-                    member_count, x, y, radius, min_x, max_x, min_y, max_y, status
-                )
-                values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                on conflict(dataset_id, layout_version, cluster_id) do update set
-                    representative_node_id = excluded.representative_node_id,
-                    member_count = excluded.member_count,
-                    x = excluded.x,
-                    y = excluded.y,
-                    radius = excluded.radius,
-                    min_x = excluded.min_x,
-                    max_x = excluded.max_x,
-                    min_y = excluded.min_y,
-                    max_y = excluded.max_y,
-                    status = excluded.status
+                update prepared_clusters set
+                    representative_node_id = ?,
+                    member_count = ?,
+                    x = ?,
+                    y = ?,
+                    radius = ?,
+                    min_x = ?,
+                    max_x = ?,
+                    min_y = ?,
+                    max_y = ?,
+                    status = ?
+                where dataset_id = ? and layout_version = ? and cluster_id = ?
                 """,
                 placeholder,
             ),
@@ -520,9 +494,6 @@ def save_layouts_to_connection(
 def cluster_layout_rows(cluster_layouts: tuple[ClusterLayout, ...]) -> Iterator[SQLRow]:
     for layout in cluster_layouts:
         yield (
-            layout.dataset_id,
-            layout.layout_version,
-            layout.cluster_id,
             layout.representative_node_id,
             layout.member_count,
             layout.x,
@@ -533,6 +504,9 @@ def cluster_layout_rows(cluster_layouts: tuple[ClusterLayout, ...]) -> Iterator[
             layout.bounds.min_y,
             layout.bounds.max_y,
             layout.status,
+            layout.dataset_id,
+            layout.layout_version,
+            layout.cluster_id,
         )
 
 

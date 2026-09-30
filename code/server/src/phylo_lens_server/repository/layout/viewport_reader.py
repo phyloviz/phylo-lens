@@ -16,15 +16,6 @@ from phylo_lens_server.repository.layout.metadata_reader import (
 )
 
 
-def has_bounds(
-    xmin: float | None,
-    xmax: float | None,
-    ymin: float | None,
-    ymax: float | None,
-) -> bool:
-    return None not in (xmin, xmax, ymin, ymax)
-
-
 def optional_node_bounds_filter(
     *,
     xmin: float | None,
@@ -61,7 +52,6 @@ def optional_cluster_bounds_filter(
 
 def read_viewport(
     database_path,
-    threshold_cache: dict[tuple[str, str], tuple[float, ...]],
     *,
     dataset_id: str,
     layout_version: str,
@@ -102,7 +92,6 @@ def read_viewport(
             )
             meta_edges, neighbor_reps = _read_expansion_meta_edges(
                 connection,
-                threshold_cache,
                 dataset_id=dataset_id,
                 layout_version=layout_version,
                 cluster_id=cluster_id,
@@ -135,23 +124,13 @@ def read_viewport(
                 ),
             )
 
-        threshold = _threshold_for_lod_level(
+        cluster_level = _cluster_level_for_lod_level(
             connection,
-            threshold_cache,
             dataset_id=dataset_id,
             layout_version=layout_version,
             lod_level=lod_level,
         )
-        if lod_level == 0 and not has_bounds(xmin, xmax, ymin, ymax):
-            nodes, total_node_count, edges = _read_lod_zero_without_bounds(
-                connection,
-                threshold_cache,
-                dataset_id=dataset_id,
-                layout_version=layout_version,
-                threshold=threshold,
-                max_nodes=max_nodes,
-            )
-        elif threshold is None:
+        if cluster_level is None:
             ready_nodes, total_node_count = read_ready_nodes(
                 connection,
                 dataset_id=dataset_id,
@@ -181,7 +160,6 @@ def read_viewport(
             neighbors = tuple(
                 _read_node_positions_by_ids(
                     connection,
-                    threshold_cache,
                     dataset_id=dataset_id,
                     layout_version=layout_version,
                     node_ids=neighbor_ids,
@@ -204,7 +182,7 @@ def read_viewport(
                     connection,
                     dataset_id=dataset_id,
                     layout_version=layout_version,
-                    threshold=threshold,
+                    cluster_level=cluster_level,
                     xmin=xmin,
                     xmax=xmax,
                     ymin=ymin,
@@ -212,11 +190,11 @@ def read_viewport(
                     max_nodes=max_nodes,
                 )
             )
-            total_node_count = _count_clusters_for_threshold(
+            total_node_count = _count_clusters_for_cluster_level(
                 connection,
                 dataset_id=dataset_id,
                 layout_version=layout_version,
-                threshold=threshold,
+                cluster_level=cluster_level,
                 xmin=xmin,
                 xmax=xmax,
                 ymin=ymin,
@@ -283,123 +261,29 @@ def _read_global_node_bounds(
     )
 
 
-def _threshold_for_lod_level(
+def _cluster_level_for_lod_level(
     connection: sqlite3.Connection,
-    threshold_cache: dict[tuple[str, str], tuple[float, ...]],
     *,
     dataset_id: str,
     layout_version: str,
     lod_level: int | None,
-) -> float | None:
+) -> int | None:
     if lod_level is None:
         return None
-    thresholds = _cached_thresholds(
-        connection,
-        threshold_cache,
-        dataset_id=dataset_id,
-        layout_version=layout_version,
-    )
-    if not thresholds:
-        return None
-    index = min(max(lod_level, 0), len(thresholds) - 1)
-    threshold = thresholds[index]
-    min_threshold = thresholds[-1]
-    return None if threshold == min_threshold else threshold
-
-
-def _cached_thresholds(
-    connection: sqlite3.Connection,
-    threshold_cache: dict[tuple[str, str], tuple[float, ...]],
-    *,
-    dataset_id: str,
-    layout_version: str,
-) -> tuple[float, ...]:
-    key = (dataset_id, layout_version)
-    cached = threshold_cache.get(key)
-    if cached is not None:
-        return cached
-    rows = connection.execute(
+    row = connection.execute(
         """
-        select distinct threshold
+        select max(lod_level) as finest_level
         from prepared_clusters
         where dataset_id = ?
           and layout_version = ?
-          and threshold is not null
-        order by threshold desc
         """,
         (dataset_id, layout_version),
-    ).fetchall()
-    result = tuple(row["threshold"] for row in rows)
-    threshold_cache[key] = result
-    return result
-
-
-def _read_lod_zero_without_bounds(
-    connection: sqlite3.Connection,
-    threshold_cache: dict[tuple[str, str], tuple[float, ...]],
-    *,
-    dataset_id: str,
-    layout_version: str,
-    threshold: float | None,
-    max_nodes: int,
-) -> tuple[tuple[ViewportNode, ...], int, tuple[ViewportEdge, ...]]:
-    if threshold is not None:
-        nodes = tuple(
-            _read_cluster_representatives(
-                connection,
-                dataset_id=dataset_id,
-                layout_version=layout_version,
-                threshold=threshold,
-                xmin=None,
-                xmax=None,
-                ymin=None,
-                ymax=None,
-                max_nodes=max_nodes,
-            )
-        )
-        total_node_count = _count_clusters_for_threshold(
-            connection,
-            dataset_id=dataset_id,
-            layout_version=layout_version,
-            threshold=threshold,
-            xmin=None,
-            xmax=None,
-            ymin=None,
-            ymax=None,
-        )
-        if total_node_count > 1:
-            return (
-                nodes,
-                total_node_count,
-                tuple(
-                    _read_prepared_edges_for_nodes(
-                        connection,
-                        dataset_id=dataset_id,
-                        layout_version=layout_version,
-                        lod_level=0,
-                        node_ids={node.node_id for node in nodes},
-                    )
-                ),
-            )
-
-    nodes, total_node_count = _read_distinct_node_positions(
-        connection,
-        dataset_id=dataset_id,
-        layout_version=layout_version,
-        max_nodes=max_nodes,
-    )
-    return (
-        tuple(nodes),
-        total_node_count,
-        tuple(
-            _read_edges_for_nodes(
-                connection,
-                dataset_id=dataset_id,
-                layout_version=layout_version,
-                node_ids={node.node_id for node in nodes},
-            )
-        ),
-    )
+    ).fetchone()
+    finest = row["finest_level"] if row else None
+    if finest is None:
+        return None
+    level = max(0, lod_level)
+    return level if level < finest else None
 
 
 def read_ready_nodes(
@@ -514,7 +398,6 @@ def _read_cluster_member_nodes(
 
 def _read_expansion_meta_edges(
     connection: sqlite3.Connection,
-    threshold_cache: dict[tuple[str, str], tuple[float, ...]],
     *,
     dataset_id: str,
     layout_version: str,
@@ -524,99 +407,87 @@ def _read_expansion_meta_edges(
     if not member_ids:
         return [], []
 
-    threshold_row = connection.execute(
+    cluster_level_row = connection.execute(
         """
-        select threshold
+        select lod_level, representative_node_id, member_count
         from prepared_clusters
         where dataset_id = ? and layout_version = ? and cluster_id = ?
         """,
         (dataset_id, layout_version, cluster_id),
     ).fetchone()
-    if threshold_row is None or threshold_row["threshold"] is None:
+    if cluster_level_row is None:
         return [], []
-    threshold = threshold_row["threshold"]
-
-    member_placeholders = ",".join("?" for _ in member_ids)
-    sorted_members = sorted(member_ids)
+    cluster_level = cluster_level_row["lod_level"]
+    attachment = cluster_level_row["representative_node_id"]
     boundary_rows = connection.execute(
-        f"""
-        select edge_id, source_node_id, target_node_id, distance
-        from graph_edges
-        where dataset_id = ?
-          and layout_version = ?
-          and (source_node_id in ({member_placeholders})
-               or target_node_id in ({member_placeholders}))
-        order by source_node_id, target_node_id, edge_id
+        """
+        select e.source_node_id, e.target_node_id, e.distance
+        from graph_edges e
+        where e.dataset_id = ? and e.layout_version = ?
+          and (e.source_node_id = ? or e.target_node_id = ?)
+          and not exists (
+            select 1 from cluster_members cm
+            where cm.dataset_id = e.dataset_id
+              and cm.layout_version = e.layout_version
+              and cm.cluster_id = ?
+              and cm.node_id = case when e.source_node_id = ?
+                  then e.target_node_id else e.source_node_id end
+          )
+        order by e.source_node_id, e.target_node_id
         """,
-        (dataset_id, layout_version, *sorted_members, *sorted_members),
+        (dataset_id, layout_version, attachment, attachment, cluster_id, attachment),
     ).fetchall()
-
-    boundary: list[tuple[str, str, float | None]] = []
-    outside_ids: set[str] = set()
-    for row in boundary_rows:
-        source_inside = row["source_node_id"] in member_ids
-        target_inside = row["target_node_id"] in member_ids
-        if source_inside == target_inside:
-            continue
-        inside = row["source_node_id"] if source_inside else row["target_node_id"]
-        outside = row["target_node_id"] if source_inside else row["source_node_id"]
-        boundary.append((inside, outside, row["distance"]))
-        outside_ids.add(outside)
-    if not boundary:
+    if cluster_level_row["member_count"] > 1 and len(boundary_rows) != 1:
+        raise ValueError("A collapsed subtree must have one external edge.")
+    if attachment not in member_ids or not boundary_rows:
         return [], []
+
+    outside_ids = {
+        row["target_node_id"]
+        if row["source_node_id"] == attachment
+        else row["source_node_id"]
+        for row in boundary_rows
+    }
 
     neighbor_reps = _representatives_for_nodes(
         connection,
-        threshold_cache,
         dataset_id=dataset_id,
         layout_version=layout_version,
-        threshold=threshold,
+        cluster_level=cluster_level,
         node_ids=outside_ids,
     )
 
-    bundled: dict[tuple[str, str], tuple[float | None, int]] = {}
-    for inside, outside, distance in boundary:
-        neighbor = neighbor_reps.get(outside)
-        if neighbor is None:
-            continue
-        rep_id = neighbor.node_id
-        if rep_id in member_ids:
-            continue
-        key = (inside, rep_id)
-        existing = bundled.get(key)
-        if existing is None:
-            bundled[key] = (distance, 1)
-            continue
-        existing_distance, count = existing
-        bundled[key] = (_min_distance(existing_distance, distance), count + 1)
-
-    meta_edges = [
-        ViewportEdge(
-            edge_id=f"meta_edge:{inside}:{rep_id}",
-            source=inside,
-            target=rep_id,
-            distance=distance,
-            is_meta=True,
-            bundled_edge_count=count,
-        )
-        for (inside, rep_id), (distance, count) in sorted(bundled.items())
-    ]
-    referenced_rep_ids = {rep_id for (_inside, rep_id) in bundled}
+    meta_edges: list[ViewportEdge] = []
     surfaced_by_id: dict[str, ViewportNode] = {}
-    for neighbor in neighbor_reps.values():
-        if neighbor.node_id in referenced_rep_ids:
-            surfaced_by_id.setdefault(neighbor.node_id, neighbor)
+    for row in boundary_rows:
+        outside = (
+            row["target_node_id"]
+            if row["source_node_id"] == attachment
+            else row["source_node_id"]
+        )
+        neighbor = neighbor_reps.get(outside)
+        if neighbor is None or neighbor.node_id in member_ids:
+            continue
+        meta_edges.append(
+            ViewportEdge(
+                edge_id=f"meta_edge:{attachment}:{neighbor.node_id}",
+                source=attachment,
+                target=neighbor.node_id,
+                distance=row["distance"],
+                is_meta=True,
+            )
+        )
+        surfaced_by_id[neighbor.node_id] = neighbor
     surfaced_reps = [surfaced_by_id[rep_id] for rep_id in sorted(surfaced_by_id)]
     return meta_edges, surfaced_reps
 
 
 def _representatives_for_nodes(
     connection: sqlite3.Connection,
-    threshold_cache: dict[tuple[str, str], tuple[float, ...]],
     *,
     dataset_id: str,
     layout_version: str,
-    threshold: float,
+    cluster_level: int,
     node_ids: set[str],
 ) -> dict[str, ViewportNode]:
     if not node_ids:
@@ -638,11 +509,11 @@ def _representatives_for_nodes(
          and pc.cluster_id = cm.cluster_id
         where cm.dataset_id = ?
           and cm.layout_version = ?
-          and pc.threshold = ?
+          and pc.lod_level = ?
           and pc.x is not null
           and cm.node_id in ({placeholders})
         """,
-        (dataset_id, layout_version, threshold, *sorted(node_ids)),
+        (dataset_id, layout_version, cluster_level, *sorted(node_ids)),
     ).fetchall()
     return {
         row["node_id"]: ViewportNode(
@@ -658,56 +529,12 @@ def _representatives_for_nodes(
     }
 
 
-def _read_distinct_node_positions(
-    connection: sqlite3.Connection,
-    *,
-    dataset_id: str,
-    layout_version: str,
-    max_nodes: int,
-) -> tuple[tuple[ViewportNode, ...], int]:
-    total_row = connection.execute(
-        """
-        select count(*) as total_count
-        from node_positions
-        where dataset_id = ?
-          and layout_version = ?
-        """,
-        (dataset_id, layout_version),
-    ).fetchone()
-    total = int(total_row["total_count"]) if total_row is not None else 0
-    rows = connection.execute(
-        """
-        select node_id, cluster_id, x, y, status
-        from node_positions
-        where dataset_id = ?
-          and layout_version = ?
-        order by node_id
-        limit ?
-        """,
-        (dataset_id, layout_version, max_nodes),
-    ).fetchall()
-    return (
-        tuple(
-            ViewportNode(
-                node_id=row["node_id"],
-                cluster_id=row["cluster_id"],
-                x=row["x"],
-                y=row["y"],
-                layout_status=row["status"],
-                member_count=1,
-            )
-            for row in rows
-        ),
-        total,
-    )
-
-
 def _read_cluster_representatives(
     connection: sqlite3.Connection,
     *,
     dataset_id: str,
     layout_version: str,
-    threshold: float,
+    cluster_level: int,
     xmin: float | None,
     xmax: float | None,
     ymin: float | None,
@@ -726,7 +553,7 @@ def _read_cluster_representatives(
         from prepared_clusters
         where dataset_id = ?
           and layout_version = ?
-          and threshold = ?
+          and lod_level = ?
           and x is not null
           {bounds_filter}
         order by member_count desc, cluster_id
@@ -735,7 +562,7 @@ def _read_cluster_representatives(
         (
             dataset_id,
             layout_version,
-            threshold,
+            cluster_level,
             *bounds_params,
             max_nodes,
         ),
@@ -754,12 +581,12 @@ def _read_cluster_representatives(
     )
 
 
-def _count_clusters_for_threshold(
+def _count_clusters_for_cluster_level(
     connection: sqlite3.Connection,
     *,
     dataset_id: str,
     layout_version: str,
-    threshold: float,
+    cluster_level: int,
     xmin: float | None,
     xmax: float | None,
     ymin: float | None,
@@ -777,11 +604,11 @@ def _count_clusters_for_threshold(
         from prepared_clusters
         where dataset_id = ?
           and layout_version = ?
-          and threshold = ?
+          and lod_level = ?
           and x is not null
           {bounds_filter}
         """,
-        (dataset_id, layout_version, threshold, *bounds_params),
+        (dataset_id, layout_version, cluster_level, *bounds_params),
     ).fetchone()
     return int(row["total_count"]) if row is not None else 0
 
@@ -911,7 +738,6 @@ def _read_edges_touching_nodes(
 
 def _read_node_positions_by_ids(
     connection: sqlite3.Connection,
-    threshold_cache: dict[tuple[str, str], tuple[float, ...]],
     *,
     dataset_id: str,
     layout_version: str,
@@ -949,11 +775,3 @@ def _read_node_positions_by_ids(
         )
         for row in rows
     ]
-
-
-def _min_distance(left: float | None, right: float | None) -> float | None:
-    if left is None:
-        return right
-    if right is None:
-        return left
-    return min(left, right)

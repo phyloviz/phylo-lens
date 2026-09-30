@@ -35,7 +35,7 @@ class AncillaryLayoutNotFoundError(LookupError):
 # Explicit columns keep geometry copying reviewable and exclude publication dates.
 GEOMETRY_COLUMNS = {
     "prepared_clusters": (
-        "cluster_id, threshold, representative_node_id, member_count, "
+        "cluster_id, lod_level, representative_node_id, member_count, "
         "x, y, radius, min_x, max_x, min_y, max_y, status"
     ),
     "cluster_members": "cluster_id, node_id",
@@ -173,13 +173,9 @@ def publish_revision(
               on c.dataset_id = m.dataset_id and c.layout_version = m.layout_version
              and c.cluster_id = m.cluster_id
             where m.dataset_id = {p} and m.layout_version = {p}
-              and c.threshold in (
-                select distinct threshold from prepared_clusters
-                where dataset_id = {p} and layout_version = {p} and threshold is not null
-                order by threshold desc limit {PRECOMPUTED_CLUSTER_METADATA_TIERS}
-              )
+              and c.lod_level < {PRECOMPUTED_CLUSTER_METADATA_TIERS}
             order by m.cluster_id, m.node_id""",
-        (dataset_id, version, dataset_id, version),
+        (dataset_id, version),
     )
 
     def summaries():

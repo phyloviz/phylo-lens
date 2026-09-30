@@ -35,7 +35,7 @@ def store(tmp_path):
                 (DATASET, SOURCE, node_id, node_id, x),
             )
             db.execute(
-                "insert into prepared_clusters values (?, ?, ?, 0, ?, 1, ?, 0, 0, ?, ?, 0, 0, 'ready')",
+                "insert into prepared_clusters (dataset_id, layout_version, cluster_id, lod_level, representative_node_id, member_count, x, y, radius, min_x, max_x, min_y, max_y, status) values (?, ?, ?, 1, ?, 1, ?, 0, 0, ?, ?, 0, 0, 'ready')",
                 (DATASET, SOURCE, node_id, node_id, x, x, x),
             )
             db.execute(
@@ -47,7 +47,7 @@ def store(tmp_path):
                 (DATASET, SOURCE, node_id),
             )
         db.execute(
-            "insert into prepared_clusters values (?, ?, 'all', 2, 'Root', 3, 1, 0, 1, 0, 2, 0, 0, 'ready')",
+            "insert into prepared_clusters (dataset_id, layout_version, cluster_id, lod_level, representative_node_id, member_count, x, y, radius, min_x, max_x, min_y, max_y, status) values (?, ?, 'all', 0, 'Root', 3, 1, 0, 1, 0, 2, 0, 0, 'ready')",
             (DATASET, SOURCE),
         )
         for node_id in ("A", "B"):
