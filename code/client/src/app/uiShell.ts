@@ -22,7 +22,6 @@ import {
   toggleClickedOption,
 } from "./shell/controls/displayOptionsControls";
 import {
-  DEFAULT_MAX_NODES,
   isLodGraph,
   parseMaxNodes,
   updateLodPlaybackControls as updateLodPlaybackControlsView,
@@ -54,7 +53,6 @@ export {
   ANCILLARY_MODE_GLOBAL,
   ANCILLARY_MODE_CURRENT,
   ANCILLARY_MODE_SELECTED,
-  DEFAULT_MAX_NODES,
   DISPLAY_OPTION_DISTANCE_WEIGHTED_EDGES,
   DISPLAY_OPTION_EDGE_DISTANCE_LABELS,
   DISPLAY_OPTION_NODE_LABELS,
@@ -556,7 +554,7 @@ export default function (options: UiShellOptions): UiShell {
     });
   }
 
-  function getSelectedMaxNodes(): number {
+  function getSelectedMaxNodes(): number | undefined {
     return parseMaxNodes(maxNodesInput?.value);
   }
 

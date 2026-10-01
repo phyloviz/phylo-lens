@@ -146,8 +146,11 @@ are explicit in the canonical dataset and the layout fingerprint.
 The pipeline orients each tree and assigns hop depths. At a cut depth, the
 rooted prefix remains visible; each child branch beyond it becomes a connected
 pendant subtree with exactly one external edge. Edge distances remain canonical
-data but do not affect cluster membership. Up to 12 deterministic depths are
-exposed as LoD levels, ending at complete node detail.
+data but do not affect cluster membership. Materialized levels approximate
+geometric growth in visible representation count, with multiplicative-nearest
+target selection and no fixed level cap. The final cut is maximum hop depth,
+representing every original node individually. Normal viewport reads use
+spatial bounds without a node-count limit; only explicit caller limits truncate.
 
 For every cluster, the pipeline records:
 

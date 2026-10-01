@@ -429,6 +429,7 @@ export class SigmaRenderer implements GraphRenderer {
         ymax: bounds.ymax + halo.y,
       },
       cameraRatio: this.currentCameraRatio(),
+      pixelSize: this.sigma.getDimensions(),
     };
   }
 
@@ -783,6 +784,8 @@ export class SigmaRenderer implements GraphRenderer {
     for (const event of ["pointerdown", "wheel", "touchstart"]) {
       this.containerElement?.addEventListener(event, this.cancelCameraFit, { capture: true, passive: true });
     }
+    this.sigma?.off("resize", this.boundCameraUpdated);
+    this.sigma?.on("resize", this.boundCameraUpdated);
     this.bindCameraHandler();
     this.bindNodeClickHandler();
     this.bindStageClickHandler();
@@ -801,6 +804,7 @@ export class SigmaRenderer implements GraphRenderer {
     this.dragController.unbind();
     this.unbindStageClickHandler();
     this.unbindNodeClickHandler();
+    this.sigma?.off("resize", this.boundCameraUpdated);
     this.unbindCameraHandler();
   }
 

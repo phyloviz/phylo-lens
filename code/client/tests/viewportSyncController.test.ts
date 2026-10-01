@@ -112,6 +112,97 @@ describe("ViewportSyncController", () => {
     vi.restoreAllMocks();
   });
 
+  it("reassesses a complete overview for early refinement and viewport changes", async () => {
+    viewportState = {
+      ...viewportState,
+      bounds: { xmin: -110, xmax: 110, ymin: -60, ymax: 60 },
+      pixelSize: { width: 480, height: 240 },
+    };
+    const renderer = createRenderer();
+    const readViewport = vi.fn().mockResolvedValue(viewportResponse());
+    const controller = new ViewportSyncController({
+      datasetId: "tree",
+      renderer,
+      client: { readViewport },
+      lodTierCount: 4,
+      nodeCount: 10000,
+    });
+    controller.mount();
+    await vi.advanceTimersByTimeAsync(0);
+    renderer.emitViewChange();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(readViewport).toHaveBeenCalledTimes(2);
+    viewportState = { ...viewportState, bounds: { xmin: -10, xmax: 10, ymin: -20, ymax: 20 } };
+    renderer.emitViewChange();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(readViewport).toHaveBeenCalledTimes(3);
+    expect(readViewport.mock.calls.at(-1)?.[0]).toHaveProperty("lod_selection_bounds", viewportState.bounds);
+    controller.unmount();
+  });
+
+  it("uses the effective response tier for density hysteresis and pinned expansions", async () => {
+    viewportState = { ...viewportState, cameraRatio: 0.05, pixelSize: { width: 480, height: 240 } };
+    const renderer = createRenderer();
+    const readViewport = vi
+      .fn()
+      .mockImplementation(async (query: GraphViewportQuery) =>
+        viewportResponse({ lod_level: query.lod_target_representations ? 1 : query.lod_level }),
+      );
+    const controller = new ViewportSyncController({
+      datasetId: "tree",
+      renderer,
+      client: { readViewport },
+      lodTierCount: 4,
+      nodeCount: 10000,
+    });
+    controller.mount();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(readViewport.mock.calls[0][0]).not.toHaveProperty("lod_target_representations");
+    renderer.emitViewChange();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(readViewport).toHaveBeenLastCalledWith(
+      expect.objectContaining({ lod_level: 3, lod_target_representations: 200, previous_lod_level: 0 }),
+    );
+    expect(renderer.appliedGraphs.at(-1)?.viewMeta.lodLevel).toBe(1);
+    renderer.emitViewChange();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(readViewport).toHaveBeenLastCalledWith(expect.objectContaining({ lod_level: 3, previous_lod_level: 1 }));
+    controller.setKeepExpanded(true);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(readViewport.mock.calls.at(-1)?.[0].lod_level).toBe(1);
+    expect(readViewport.mock.calls.at(-1)?.[0]).not.toHaveProperty("lod_target_representations");
+    await controller.expandAll();
+    expect(readViewport.mock.calls.at(-1)?.[0].lod_level).toBe(3);
+    expect(readViewport.mock.calls.at(-1)?.[0]).not.toHaveProperty("lod_target_representations");
+    controller.unmount();
+  });
+
+  it("keeps small-tree finest intent but adapts viewport reads instead of freezing a global snapshot", async () => {
+    viewportState = { ...viewportState, pixelSize: { width: 96, height: 96 } };
+    const renderer = createRenderer();
+    const readViewport = vi
+      .fn()
+      .mockImplementation(async (query: GraphViewportQuery) =>
+        viewportResponse({ lod_level: query.lod_target_representations ? 1 : query.lod_level }),
+      );
+    const controller = new ViewportSyncController({
+      datasetId: "tree",
+      renderer,
+      client: { readViewport },
+      lodTierCount: 8,
+      nodeCount: 379,
+    });
+    controller.mount();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(readViewport.mock.calls[0][0].lod_level).toBe(7);
+    renderer.emitViewChange();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(readViewport).toHaveBeenLastCalledWith(
+      expect.objectContaining({ lod_level: 7, lod_target_representations: 16, xmin: -20 }),
+    );
+    controller.unmount();
+  });
+
   it("invalidates in-flight responses and defers refresh until manipulation ends", async () => {
     const renderer = createRenderer();
     let resolveLate: (response: GraphViewportResponse) => void = () => undefined;
@@ -653,6 +744,37 @@ describe("ViewportSyncController", () => {
     const result = await controller.expandCluster("cluster-a");
     expect(result).toMatchObject({ status: "partial", expandedClusterIds: [], renderedNodeCount: 2 });
     expect(renderer.appliedGraphs.at(-1)?.nodes.map((node) => node.id)).toEqual(["root", "cluster-a"]);
+    controller.unmount();
+  });
+
+  it("keeps unbounded navigation, cluster expansion and expand-all free of default caps", async () => {
+    const renderer = createRenderer();
+    const nodes = Array.from({ length: 6001 }, (_, i) => ({
+      id: `member-${i}`,
+      cluster_id: "cluster-a",
+      x: i,
+      y: 0,
+      layout_status: "ready" as const,
+      member_count: 1,
+      is_representative: false,
+    }));
+    const detailed = viewportResponse({ nodes, edges: [], total_node_count: nodes.length });
+    const readViewport = vi.fn().mockResolvedValueOnce(viewportResponse()).mockResolvedValue(detailed);
+    const controller = new ViewportSyncController({
+      datasetId: "tree",
+      client: { readViewport },
+      renderer,
+      lodTierCount: 4,
+    });
+    controller.mount();
+    await vi.advanceTimersByTimeAsync(0);
+    const expanded = await controller.expandCluster("cluster-a");
+    expect(expanded.status).toBe("complete");
+    expect(expanded.renderedNodeCount).toBe(6002);
+    const all = await controller.expandAll();
+    expect(all).toMatchObject({ status: "complete", allExpanded: true, renderedNodeCount: 6001 });
+    expect(all.maxNodes).toBeUndefined();
+    for (const [query] of readViewport.mock.calls) expect(query).not.toHaveProperty("max_nodes");
     controller.unmount();
   });
 

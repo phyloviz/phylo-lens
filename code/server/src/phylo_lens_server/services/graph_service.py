@@ -34,6 +34,7 @@ from phylo_lens_server.repository.jobs.result_payload import prepare_result_payl
 from phylo_lens_server.repository.layout.sqlite_layout_repository import (
     PreparedLayoutStore,
 )
+from phylo_lens_server.services.viewport_lod import select_viewport_lod_level
 
 logger = logging.getLogger(__name__)
 
@@ -110,9 +111,29 @@ def read_graph_viewport(
     layout_version = resolve_layout_version(
         store, query.dataset_id, query.layout_version
     )
-    lod_level = effective_lod_level(query)
-
     read_started = perf_counter()
+    lod_level = effective_lod_level(query)
+    if query.lod_target_representations is not None and query.cluster_id is None:
+        bounds = query.lod_selection_bounds or query
+        counts = store.viewport_representation_counts(
+            dataset_id=query.dataset_id,
+            layout_version=layout_version,
+            xmin=bounds.xmin,
+            xmax=bounds.xmax,
+            ymin=bounds.ymin,
+            ymax=bounds.ymax,
+        )
+        if counts:
+            semantic_level = (
+                min(lod_level, max(counts)) if lod_level is not None else max(counts)
+            )
+            lod_level = select_viewport_lod_level(
+                counts,
+                semantic_level,
+                query.lod_target_representations,
+                query.previous_lod_level,
+            )
+
     result = store.read_viewport(
         dataset_id=query.dataset_id,
         layout_version=layout_version,
