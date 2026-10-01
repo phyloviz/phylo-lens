@@ -272,7 +272,9 @@ Preparation has access to the complete graph and includes:
 
 - parsing and normalization;
 - optional PhyloLib subprocesses;
-- hop-depth cut selection and pendant-subtree construction;
+- technical deterministic orientation of potentially unrooted trees/MSTs;
+- hop-defined pendant-subtree construction, independent of branch distance;
+- multiplicative-nearest geometric representation growth to select materialized cuts, without a fixed level cap;
 - Graphviz global layout;
 - per-tier edge construction;
 - metadata aggregation;
@@ -300,3 +302,20 @@ evaluation must quantify the actual latency, memory, and scaling behavior.
 - [Server preparation pipeline](SERVER_PIPELINE.md)
 - [LoD and clustering](LOD_AND_CLUSTERING.md)
 - [Client rendering](CLIENT_RENDERING.md)
+
+### Structural visibility and viewport scale
+
+Full structural detail represents every original canonical node individually.
+The LoD policy selects valid hop-depth resolutions and cannot remove topology's
+intrinsic branching jumps. Normal queries use LoD and viewport bounds, without
+arbitrary count truncation after selecting a tier. Optional explicit caller
+limits produce partial responses; they have no fixed server upper bound.
+
+Interaction combines semantic zoom with viewport-aware tier selection. Zoom
+supplies a preferred tier; spatial representation counts can defer it in dense
+regions or refine beyond it in sparse ones. Each tier ahead of the preference
+halves the screen-area target, requiring progressively more spare capacity. The configurable target derives from
+screen area, with hysteresis around density transitions. Retrieval then applies
+padded spatial bounds at the effective tier. Complexity targets select complete
+structural resolutions and never truncate them. Topological branching jumps can
+still exceed the target at the coarsest valid level.

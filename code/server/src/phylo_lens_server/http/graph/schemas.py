@@ -7,8 +7,6 @@ from phylo_lens_server.domain.ancillary import AncillaryObservation
 from phylo_lens_server.domain.models import Isolate
 from phylo_lens_server.pipeline.models import LayoutStatus
 
-DEFAULT_MAX_VIEWPORT_NODES = 2_500
-HARD_MAX_VIEWPORT_NODES = 20_000
 DEFAULT_SEARCH_LIMIT = 25
 HARD_MAX_SEARCH_LIMIT = 500
 
@@ -38,6 +36,19 @@ class GraphPrepareStatus(BaseModel):
     error_details: dict[str, str | int | float | None] | None = None
 
 
+class GraphViewportBounds(BaseModel):
+    xmin: float = Field(allow_inf_nan=False)
+    xmax: float = Field(allow_inf_nan=False)
+    ymin: float = Field(allow_inf_nan=False)
+    ymax: float = Field(allow_inf_nan=False)
+
+    @model_validator(mode="after")
+    def validate_order(self) -> GraphViewportBounds:
+        if self.xmax < self.xmin or self.ymax < self.ymin:
+            raise ValueError("Viewport bounds must be ordered.")
+        return self
+
+
 class GraphViewportQuery(BaseModel):
     dataset_id: str = Field(min_length=1)
     layout_version: str | None = None
@@ -49,11 +60,10 @@ class GraphViewportQuery(BaseModel):
     ymax: float | None = None
     zoom: float = Field(default=1.0, ge=0)
     lod_level: int | None = Field(default=None, ge=0)
-    max_nodes: int = Field(
-        default=DEFAULT_MAX_VIEWPORT_NODES,
-        ge=1,
-        le=HARD_MAX_VIEWPORT_NODES,
-    )
+    max_nodes: int | None = Field(default=None, ge=1)
+    lod_target_representations: int | None = Field(default=None, ge=1)
+    lod_selection_bounds: GraphViewportBounds | None = None
+    previous_lod_level: int | None = Field(default=None, ge=0)
 
     @model_validator(mode="after")
     def validate_bounds(self) -> GraphViewportQuery:
@@ -126,11 +136,7 @@ class GraphRegionQuery(BaseModel):
     xmax: float
     ymin: float
     ymax: float
-    max_nodes: int = Field(
-        default=DEFAULT_MAX_VIEWPORT_NODES,
-        ge=1,
-        le=HARD_MAX_VIEWPORT_NODES,
-    )
+    max_nodes: int | None = Field(default=None, ge=1)
 
     @model_validator(mode="after")
     def validate_bounds(self) -> GraphRegionQuery:

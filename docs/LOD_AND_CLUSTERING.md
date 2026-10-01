@@ -41,11 +41,70 @@ Increasing `d` reveals more of an existing branch. A node never moves between
 unrelated clusters. Keeping distances on canonical edges preserves their data
 and labels, but distances do not determine LoD membership.
 
-Cluster membership is defined for any hop depth. The public LoD levels select
-at most 12 deterministic depths: zero, increasing powers of two, and the
-maximum depth for complete detail. Selection of these cuts is a presentation
-policy independent of the cluster rule. At the finest level the viewport can
-read individual positioned nodes.
+Cluster membership is defined for any hop depth. A separate presentation policy
+selects materialized levels using visible representation counts:
+
+```text
+n[k] = canonical nodes at hop depth k
+R(d) = sum(n[k] for k <= d) + n[d + 1]
+```
+
+The final term is omitted at maximum depth. The rooted prefix is explicit and
+each depth `d + 1` node attaches one complete descendant branch. Starting at
+the coarsest cut, target `2.0 * R(current)` and choose the later cut nearest in
+multiplicative terms (`abs(log(R(d) / target))`). A forward pass brackets each
+target; ties prefer the smaller depth. Counts redundant with full detail are
+omitted, keeping maximum depth as the explicit final level. There is no fixed
+maximum number of levels. Full detail represents every original node individually.
+The policy chooses among valid structural cuts; it cannot eliminate jumps
+caused by the actual branching topology.
+
+## Interaction: semantic zoom and viewport complexity
+
+Semantic zoom expresses a preferred prepared tier, not a hard ceiling. Spatial
+count queries inspect every prepared tier and select the finest one that meets
+its viewport complexity target. Dense regions can defer the preferred tier;
+sparse regions can refine beyond it. Each tier ahead of the zoom preference
+halves the base target, requiring progressively more spare capacity. For a base
+target of 1,000 representations, the preferred tier may contain 1,000; one tier
+ahead may contain 500; two ahead may contain 250. Zoom therefore remains useful
+without preventing early refinement in sparse regions.
+Known small trees retain finest-tier preference but use the same density
+selection on subsequent navigation. Explicit tier commands and pinned expansion
+are exact. A complete cached overview is still reassessed during navigation.
+
+The normal client derives the target from CSS-pixel screen area divided by
+`lod.representationSpacingPx²` (default spacing 24 pixels). This is a tunable
+visual density preference, not a count limit. A 15% hysteresis band retains the
+previous effective tier near its zoom-adjusted target to prevent flicker.
+Zoom thresholds also use a proportional 5% hysteresis band; the band shrinks
+with deeper zoom, so no prepared tier becomes unreachable. The response's
+`lod_level` reports the effective tier; the request's level remains zoom intent.
+
+Selection uses unpadded visible bounds; retrieval uses padded bounds for
+prefetch. Cluster counts use bounding-box overlap, matching cluster retrieval.
+Finest-detail counts include the complete one-hop boundary-neighbor union.
+Local counts need not be monotonic, so selection examines all prepared tiers
+rather than stopping at the first dense cut. Only spatial counts are inspected;
+intermediate graphs are not fetched or materialized during interaction.
+
+If even the coarsest valid tier exceeds the target, it is returned complete.
+No sibling grouping is invented and the target never causes SQL truncation.
+Bounding-box overlap conservatively counts aggregates whose representative
+position may be off-screen. Geometry, labels and overlapping edges can still
+cause clutter: representation counts estimate complexity rather than guarantee
+collision-free rendering.
+
+Normal viewport and expansion requests have no node-count limit. Scalability
+comes from aggregation, viewport bounds, spatial queries and progressive
+structural refinement. An explicit caller may supply positive `max_nodes` (or
+client `lod.maxNodes`) for a bounded request, without a server hard upper bound.
+Only such explicit bounded reads can report count truncation. They are partial
+views; normal navigation does not discard nodes after selecting a valid level.
+
+Materialized cluster records total `sum R(d)`. Membership records still store
+every canonical node at every selected level (`N * levels`); geometric cluster
+counts do not imply linear storage for all prepared state.
 
 ## Prepared edges and expansion
 
@@ -62,4 +121,4 @@ disconnected throughout.
 
 The SQLite and PostgreSQL `prepared_clusters` rows record `lod_level`;
 cluster members and prepared edges are keyed by the corresponding
-layout version. Changing the root or rooting strategy creates a new version.
+layout version. Changing the root, rooting strategy or level-selection policy creates a new version.

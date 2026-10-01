@@ -85,6 +85,16 @@ Preparation converts a canonical dataset into immutable artifacts identified by
 | `layout_version` | `str` | Deterministic preparation fingerprint |
 | `clusters` | `tuple[PreparedCluster, ...]` | Rooted-prefix singletons and pendant subtrees at selected hop depths |
 
+Selected depths approximate geometric growth in visible representation count,
+independently of hop-based membership. There is no fixed maximum tier count;
+maximum hop depth is always full detail and redundant count-identical preceding
+cuts are omitted. Trees/MSTs may be biologically unrooted: technical orientation
+does not assert biological ancestry. Branch distances remain canonical data.
+Viewport reads are unbounded unless an explicit caller supplies `max_nodes`;
+spatial bounds and LoD control normal query complexity. During interaction,
+semantic zoom supplies a preferred tier and viewport representation counts
+select its effective resolution, including earlier refinement in sparse regions. This does not change prepared membership.
+
 ### `PreparedCluster`
 
 | Field | Type | Meaning |
@@ -181,6 +191,7 @@ The fingerprint includes:
 - sorted node and edge records;
 - distances;
 - explicit `technical_roots` and the source `rooting_strategy`;
+- the representation-growth selection policy version and growth factor;
 - public metadata schema;
 - node metadata;
 - ancillary rows;

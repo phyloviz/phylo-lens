@@ -488,16 +488,16 @@ def test_graph_viewport_expansion_serializes_meta_edges(
     client,
     prepared_layout_store,
 ) -> None:
-    # The pendant cluster (c, d, e) attaches to visible node b. Expanding it emits
-    # one boundary edge c->b as a meta-edge, while its internal
+    # The pendant cluster (b, c, d, e) attaches to visible node a. Expanding it emits
+    # one boundary edge b->a as a meta-edge, while its internal
     # Edges stay ordinary (no is_meta in the payload).
     dataset = normalize_split_neighbor_tree()
     result = PreparedLayoutWorker(prepared_layout_store).prepare_dataset(dataset)
     app.dependency_overrides[get_prepared_layout_store] = lambda: prepared_layout_store
-    cde_cluster = next(
+    bcde_cluster = next(
         cluster
         for cluster in result.artifacts.clusters
-        if cluster.member_node_ids == ("c", "d", "e")
+        if cluster.member_node_ids == ("b", "c", "d", "e")
     )
 
     response = client.post(
@@ -505,21 +505,21 @@ def test_graph_viewport_expansion_serializes_meta_edges(
         json={
             "dataset_id": DATASET_API_TREE,
             "layout_version": result.artifacts.layout_version,
-            "cluster_id": cde_cluster.cluster_id,
+            "cluster_id": bcde_cluster.cluster_id,
             "max_nodes": 50,
         },
     )
     body = response.json()
 
     assert response.status_code == STATUS_OK
-    assert {node["id"] for node in body["nodes"]} == {"b", "c", "d", "e"}
+    assert {node["id"] for node in body["nodes"]} == {"a", "b", "c", "d", "e"}
 
     meta_edges = {
         (edge["source"], edge["target"]): edge
         for edge in body["edges"]
         if edge.get("is_meta")
     }
-    assert set(meta_edges) == {("c", "b")}
+    assert set(meta_edges) == {("b", "a")}
 
     # Ordinary edges omit the meta-edge fields entirely (exclude_none).
     ordinary_edges = [edge for edge in body["edges"] if not edge.get("is_meta")]

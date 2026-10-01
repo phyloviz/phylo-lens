@@ -13,6 +13,57 @@ const viewState = {
 };
 
 describe("viewportQuery", () => {
+  it("derives a viewport-area target separately from padded retrieval bounds", () => {
+    const query = buildGraphViewportQuery({
+      datasetId: "tree",
+      viewState: { ...viewState, pixelSize: { width: 480, height: 240 } },
+      lodTierCount: 4,
+      previousEffectiveLodLevel: 1,
+    });
+    expect(query.lod_target_representations).toBe(200);
+    expect(query.previous_lod_level).toBe(1);
+    expect(query.lod_selection_bounds).toEqual(viewState.bounds);
+    expect(query.xmin).toBe(5);
+    expect(query.lod_level).toBe(2);
+    expect(query).not.toHaveProperty("max_nodes");
+  });
+
+  it("makes the selection target depend on screen area and configurable spacing", () => {
+    const state = { ...viewState, pixelSize: { width: 480, height: 240 } };
+    const base = { datasetId: "tree", viewState: state };
+    expect(buildGraphViewportQuery({ ...base, representationSpacingPx: 12 }).lod_target_representations).toBe(800);
+    expect(
+      buildGraphViewportQuery({ ...base, viewState: { ...state, pixelSize: { width: 960, height: 480 } } })
+        .lod_target_representations,
+    ).toBe(800);
+    expect(() => buildGraphViewportQuery({ ...base, representationSpacingPx: 0 })).toThrow();
+    expect(() => buildGraphViewportQuery({ ...base, representationSpacingPx: 1e-300 })).toThrow();
+  });
+
+  it("queries bounds at adaptive tier zero and leaves explicit tier commands exact", () => {
+    const base = {
+      datasetId: "tree",
+      viewState: { ...viewState, cameraRatio: 1, pixelSize: { width: 480, height: 240 } },
+      lodTierCount: 4,
+    };
+    const query = buildGraphViewportQuery(base);
+    expect(query.lod_level).toBe(0);
+    expect(query).toHaveProperty("xmin");
+    expect(query).toHaveProperty("lod_target_representations");
+    const pinnedCoarsest = buildGraphViewportQuery({ ...base, forcedLodLevel: 0 });
+    expect(pinnedCoarsest).toHaveProperty("xmin");
+    expect(pinnedCoarsest).not.toHaveProperty("lod_target_representations");
+    expect(buildGraphViewportQuery({ ...base, forceGlobal: true })).not.toHaveProperty("xmin");
+    for (const override of [{ forceGlobal: true }, { forceFinestTier: true }, { forcedLodLevel: 2 }]) {
+      expect(buildGraphViewportQuery({ ...base, ...override })).not.toHaveProperty("lod_target_representations");
+    }
+  });
+
+  it("omits the count limit during normal navigation", () => {
+    const query = buildGraphViewportQuery({ datasetId: "tree", viewState });
+    expect(query).not.toHaveProperty("max_nodes");
+  });
+
   it("builds padded bbox and semantic zoom queries from renderer viewport state", () => {
     expect(
       buildGraphViewportQuery({
@@ -88,9 +139,18 @@ describe("viewportQuery", () => {
 
   it("holds the current tier within the boundary hysteresis dead-band", () => {
     expect(semanticLodLevelForCameraRatioWithHysteresis(0.79, 4, 0)).toBe(0);
-    expect(semanticLodLevelForCameraRatioWithHysteresis(0.74, 4, 0)).toBe(1);
-    expect(semanticLodLevelForCameraRatioWithHysteresis(0.33, 4, 1)).toBe(1);
+    expect(semanticLodLevelForCameraRatioWithHysteresis(0.75, 4, 0)).toBe(1);
+    expect(semanticLodLevelForCameraRatioWithHysteresis(0.33, 4, 2)).toBe(2);
     expect(semanticLodLevelForCameraRatioWithHysteresis(0.25, 4, 1)).toBe(2);
+  });
+
+  it("reaches high zoom tiers with proportional hysteresis in both directions", () => {
+    expect(semanticLodLevelForCameraRatioWithHysteresis(1 / 25.79, 6, 3)).toBe(4);
+    expect(semanticLodLevelForCameraRatioWithHysteresis(1 / 60, 6, 4)).toBe(5);
+    expect(semanticLodLevelForCameraRatioWithHysteresis(0.021, 6, 5)).toBe(5);
+    expect(semanticLodLevelForCameraRatioWithHysteresis(0.022, 6, 5)).toBe(4);
+    expect(semanticLodLevelForCameraRatioWithHysteresis(1, 6, 5)).toBe(0);
+    expect(semanticLodLevelForCameraRatioWithHysteresis(0.001, 6, 0)).toBe(5);
   });
 
   it("expands viewport bounds with spatial padding", () => {

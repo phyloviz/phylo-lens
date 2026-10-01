@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from collections import deque
+from collections import Counter, deque
+from math import isfinite, log
 
 from phylo_lens_server.domain.models import CanonicalDataset
 from phylo_lens_server.pipeline.models import PreparedCluster
 
-MAX_LOD_LEVELS = 12
+LOD_REPRESENTATION_GROWTH_FACTOR = 2.0
 Adjacency = dict[str, list[tuple[str, str]]]
 
 
@@ -52,22 +53,60 @@ def rooted_depths(neighbors: Adjacency, roots: tuple[str, ...]) -> dict[str, int
     return depths
 
 
+def representation_counts(depths: dict[str, int]) -> tuple[int, ...]:
+    """Count valid hop-cut representations, independently of tier selection."""
+    if not depths or any(
+        type(depth) is not int or depth < 0 for depth in depths.values()
+    ):
+        raise ValueError("Expected nonempty nonnegative integer hop depths.")
+    histogram = Counter(depths.values())
+    maximum = max(histogram)
+    prefix = 0
+    counts: list[int] = []
+    for depth in range(maximum + 1):
+        if depth not in histogram:
+            raise ValueError("Rooted hop depths must be contiguous from zero.")
+        prefix += histogram[depth]
+        counts.append(prefix + histogram[depth + 1])
+    return tuple(counts)
+
+
 def selected_depths(
-    max_depth: int, max_levels: int = MAX_LOD_LEVELS
+    depths: dict[str, int],
+    growth_factor: float = LOD_REPRESENTATION_GROWTH_FACTOR,
 ) -> tuple[int, ...]:
-    """Choose a bounded set of cuts independently of cluster membership."""
-    if max_levels < 1:
-        raise ValueError("At least one LoD level is required.")
-    if max_depth < 0:
-        raise ValueError("Tree depth cannot be negative.")
-    if max_depth == 0 or max_levels == 1:
-        return (max_depth,)
+    """Materialize hop cuts nearest geometric representation targets in log space.
+
+    A forward cursor brackets successive targets in O(max_depth + levels).
+    Ties prefer the smaller hop depth. Equal-size final cuts retain only the
+    true full-detail depth. Structural membership remains a separate operation.
+    """
+    if not isfinite(growth_factor) or growth_factor <= 1:
+        raise ValueError("LoD representation growth factor must be finite and > 1.")
+    counts = representation_counts(depths)
+    maximum = len(counts) - 1
     cuts = [0]
-    depth = 1
-    while depth < max_depth and len(cuts) < max_levels - 1:
-        cuts.append(depth)
-        depth *= 2
-    cuts.append(max_depth)
+    cursor = 1
+    log_growth = log(growth_factor)
+    while cuts[-1] < maximum:
+        current = cuts[-1]
+        target_log = log(counts[current]) + log_growth
+        while cursor < maximum and log(counts[cursor]) < target_log:
+            cursor += 1
+        candidates = [cursor]
+        lower = cursor - 1
+        if lower > current and counts[lower] > counts[current]:
+            candidates.append(lower)
+        chosen = min(
+            candidates, key=lambda depth: (abs(log(counts[depth]) - target_log), depth)
+        )
+        if counts[chosen] == counts[maximum]:
+            chosen = maximum
+        cuts.append(chosen)
+        cursor = chosen + 1
+    # A star (or a single-node component forest) is already full detail at zero.
+    if len(cuts) > 1 and counts[cuts[-2]] == counts[maximum]:
+        cuts.pop(-2)
     return tuple(cuts)
 
 

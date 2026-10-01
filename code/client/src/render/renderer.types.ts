@@ -29,6 +29,8 @@ export interface RenderViewportBounds {
 export interface RenderViewportSyncState {
   bounds: RenderViewportBounds;
   cameraRatio: number;
+  /** CSS-pixel area used to select structural detail by visible complexity. */
+  pixelSize?: { width: number; height: number };
 }
 
 export interface RenderNodeClickState {
