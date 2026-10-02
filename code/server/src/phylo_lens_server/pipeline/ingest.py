@@ -5,6 +5,7 @@ from hashlib import sha256
 
 from phylo_lens_server.domain.models import CanonicalDataset
 from phylo_lens_server.pipeline.clustering import (
+    LOD_REPRESENTATION_GROWTH_FACTOR,
     clusters_at_depth,
     rooted_depths,
     selected_depths,
@@ -14,7 +15,7 @@ from phylo_lens_server.pipeline.models import PreparedLayoutArtifacts
 from phylo_lens_server.pipeline.sfdp import SfdpOptions, resolve_sfdp_options
 
 ERR_EMPTY_DATASET = "Prepared layout requires at least one node."
-LAYOUT_PIPELINE_VERSION = "rooted-hop-lod-v1"
+LAYOUT_PIPELINE_VERSION = "rooted-hop-representation-lod-v2"
 
 
 class PreparedLayoutIngestError(ValueError):
@@ -32,7 +33,7 @@ def prepare_layout_artifacts(
     resolved_sfdp_options = resolve_sfdp_options(sfdp_options)
     neighbors = tree_adjacency(dataset)
     depths = rooted_depths(neighbors, dataset.technical_roots)
-    cuts = selected_depths(max(depths.values()))
+    cuts = selected_depths(depths, LOD_REPRESENTATION_GROWTH_FACTOR)
     clusters = tuple(
         cluster
         for lod_level, hop_depth in enumerate(cuts)
@@ -53,6 +54,7 @@ def layout_version_for_dataset(
     resolved_sfdp_options = resolve_sfdp_options(sfdp_options)
     payload = {
         "pipeline_version": LAYOUT_PIPELINE_VERSION,
+        "lod_representation_growth_factor": LOD_REPRESENTATION_GROWTH_FACTOR,
         "sfdp_options": resolved_sfdp_options.model_dump(
             mode="json",
             by_alias=True,

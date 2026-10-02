@@ -147,15 +147,15 @@ def test_prepare_layout_artifacts_builds_pendant_subtrees_with_attachment_nodes(
 
     assert artifacts.dataset.dataset_id == DATASET_ID
     assert artifacts.layout_version
-    de_cluster = next(
+    branch_cluster = next(
         cluster
         for cluster in artifacts.clusters
-        if cluster.member_node_ids == ("c", "d", "e")
+        if cluster.member_node_ids == ("b", "c", "d", "e")
     )
 
-    assert de_cluster.representative_node_id == "c"
-    assert de_cluster.member_count == 3
-    assert _boundary_edges(artifacts.dataset, de_cluster) == ["e_b_c_1"]
+    assert branch_cluster.representative_node_id == "b"
+    assert branch_cluster.member_count == 4
+    assert _boundary_edges(artifacts.dataset, branch_cluster) == ["e_a_b_1"]
 
 
 def test_default_sfdp_options_emit_phylolens_defaults_in_dot() -> None:
@@ -316,11 +316,11 @@ def test_equivalent_resolved_sfdp_options_share_layout_version() -> None:
     )
 
 
-def test_selected_depths_are_bounded_and_include_full_detail() -> None:
-    cuts = selected_depths(12_000)
+def test_selected_depths_have_no_level_cap_and_include_full_detail() -> None:
+    cuts = selected_depths({str(i): i for i in range(12_001)})
     assert cuts[0] == 0
     assert cuts[-1] == 12_000
-    assert len(cuts) <= 12
+    assert len(cuts) > 12
     assert tuple(sorted(set(cuts))) == cuts
 
 
@@ -1299,10 +1299,10 @@ def test_viewport_cluster_members_carry_public_node_metadata(tmp_path) -> None:
     store = PreparedLayoutStore(tmp_path)
     worker = PreparedLayoutWorker(store)
     result = worker.prepare_dataset(_dataset_with_metadata())
-    cde_cluster = next(
+    branch_cluster = next(
         cluster
         for cluster in result.artifacts.clusters
-        if cluster.member_node_ids == ("c", "d", "e")
+        if cluster.member_node_ids == ("b", "c", "d", "e")
     )
 
     read = store.read_viewport(
@@ -1313,7 +1313,7 @@ def test_viewport_cluster_members_carry_public_node_metadata(tmp_path) -> None:
         ymin=None,
         ymax=None,
         max_nodes=50,
-        cluster_id=cde_cluster.cluster_id,
+        cluster_id=branch_cluster.cluster_id,
     )
     metadata_by_id = {node.node_id: node.metadata for node in read.nodes}
 
@@ -1334,10 +1334,10 @@ def test_viewport_cluster_members_prioritize_focused_node_when_limited(
     store = PreparedLayoutStore(tmp_path)
     worker = PreparedLayoutWorker(store)
     result = worker.prepare_dataset(_dataset_with_metadata())
-    cde_cluster = next(
+    branch_cluster = next(
         cluster
         for cluster in result.artifacts.clusters
-        if cluster.member_node_ids == ("c", "d", "e")
+        if cluster.member_node_ids == ("b", "c", "d", "e")
     )
 
     read = store.read_viewport(
@@ -1348,7 +1348,7 @@ def test_viewport_cluster_members_prioritize_focused_node_when_limited(
         ymin=None,
         ymax=None,
         max_nodes=1,
-        cluster_id=cde_cluster.cluster_id,
+        cluster_id=branch_cluster.cluster_id,
         focus_node_id="c",
     )
 
@@ -1412,14 +1412,14 @@ def test_search_nodes_excludes_internal_keys_and_respects_limit(tmp_path) -> Non
 def test_viewport_expansion_reroutes_boundary_edges_to_neighbor_representatives(
     tmp_path,
 ) -> None:
-    # At hop depth 1, {c,d,e} is attached to visible node b through one edge.
+    # At selected hop depth 0, {b,c,d,e} is attached to visible node a through one edge.
     store = PreparedLayoutStore(tmp_path)
     worker = PreparedLayoutWorker(store)
     result = worker.prepare_dataset(_dataset())
-    cde_cluster = next(
+    branch_cluster = next(
         cluster
         for cluster in result.artifacts.clusters
-        if cluster.member_node_ids == ("c", "d", "e")
+        if cluster.member_node_ids == ("b", "c", "d", "e")
     )
 
     read = store.read_viewport(
@@ -1430,14 +1430,14 @@ def test_viewport_expansion_reroutes_boundary_edges_to_neighbor_representatives(
         ymin=None,
         ymax=None,
         max_nodes=50,
-        cluster_id=cde_cluster.cluster_id,
+        cluster_id=branch_cluster.cluster_id,
     )
 
     node_ids = {node.node_id for node in read.nodes}
     # Members plus the surfaced attachment neighbor.
-    assert node_ids == {"b", "c", "d", "e"}
+    assert node_ids == {"a", "b", "c", "d", "e"}
     reps = {node.node_id for node in read.nodes if node.is_representative}
-    assert reps == {"b"}
+    assert reps == {"a"}
 
     # Every emitted edge references a returned node (visibility invariant).
     for edge in read.edges:
@@ -1447,12 +1447,16 @@ def test_viewport_expansion_reroutes_boundary_edges_to_neighbor_representatives(
     meta_edges = {
         (edge.source, edge.target): edge for edge in read.edges if edge.is_meta
     }
-    assert set(meta_edges) == {("c", "b")}
-    assert meta_edges[("c", "b")].distance == 1.0
+    assert set(meta_edges) == {("b", "a")}
+    assert meta_edges[("b", "a")].distance == 1.0
 
     # Ordinary internal edges stay non-meta.
     internal_edges = [edge for edge in read.edges if not edge.is_meta]
-    assert {edge.edge_id for edge in internal_edges} == {"e_c_d_1", "e_c_e_1"}
+    assert {edge.edge_id for edge in internal_edges} == {
+        "e_b_c_1",
+        "e_c_d_1",
+        "e_c_e_1",
+    }
 
 
 def test_truncated_expansion_only_shows_boundary_when_attachment_is_returned(
@@ -1463,9 +1467,9 @@ def test_truncated_expansion_only_shows_boundary_when_attachment_is_returned(
     cluster = next(
         item
         for item in result.artifacts.clusters
-        if item.member_node_ids == ("c", "d", "e")
+        if item.member_node_ids == ("b", "c", "d", "e")
     )
-    for focus, expected_meta_edges in (("d", 0), ("c", 1)):
+    for focus, expected_meta_edges in (("d", 0), ("b", 1)):
         read = store.read_viewport(
             dataset_id=DATASET_ID,
             layout_version=result.artifacts.layout_version,
