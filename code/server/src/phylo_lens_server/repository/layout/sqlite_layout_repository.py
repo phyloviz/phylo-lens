@@ -22,6 +22,9 @@ from phylo_lens_server.pipeline.models import (
     ViewportReadResult,
 )
 from phylo_lens_server.repository.layout import ancillary_revision
+from phylo_lens_server.repository.layout.lod_reader import (
+    read_viewport_representation_counts,
+)
 
 from . import node_search, region_reader, viewport_reader, writer
 
@@ -191,6 +194,30 @@ class PreparedLayoutStore:
             ).fetchone()
         return None if row is None else row["layout_version"]
 
+    def viewport_representation_counts(
+        self,
+        *,
+        dataset_id: str,
+        layout_version: str,
+        xmin: float | None,
+        xmax: float | None,
+        ymin: float | None,
+        ymax: float | None,
+        max_lod_level: int | None = None,
+    ) -> dict[int, int]:
+        with connect(self._database_path) as connection:
+            return read_viewport_representation_counts(
+                connection,
+                dataset_id=dataset_id,
+                layout_version=layout_version,
+                xmin=xmin,
+                xmax=xmax,
+                ymin=ymin,
+                ymax=ymax,
+                placeholder="?",
+                max_lod_level=max_lod_level,
+            )
+
     def read_viewport(
         self,
         *,
@@ -200,7 +227,7 @@ class PreparedLayoutStore:
         xmax: float | None,
         ymin: float | None,
         ymax: float | None,
-        max_nodes: int,
+        max_nodes: int | None = None,
         lod_level: int | None = None,
         cluster_id: str | None = None,
         focus_node_id: str | None = None,
@@ -228,7 +255,7 @@ class PreparedLayoutStore:
         xmax: float,
         ymin: float,
         ymax: float,
-        max_nodes: int,
+        max_nodes: int | None = None,
     ) -> RegionReadResult:
         return region_reader.read_region(
             connect(self._database_path),

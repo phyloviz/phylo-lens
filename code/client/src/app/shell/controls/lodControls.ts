@@ -1,7 +1,5 @@
 import type { PositionedGraph } from "../../../contracts/positioned";
 
-export const DEFAULT_MAX_NODES = 6000;
-
 export function updateLodPlaybackControls({
   playButton,
   pauseButton,
@@ -28,10 +26,10 @@ export function isLodGraph(graph: PositionedGraph | null): boolean {
   return typeof graph?.viewMeta.sliceNodeCount === "number";
 }
 
-export function parseMaxNodes(value: string | undefined): number {
+export function parseMaxNodes(value: string | undefined): number | undefined {
   const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed < 10) {
-    return DEFAULT_MAX_NODES;
+  if (!Number.isFinite(parsed) || parsed < 1) {
+    return undefined;
   }
   return Math.round(parsed);
 }

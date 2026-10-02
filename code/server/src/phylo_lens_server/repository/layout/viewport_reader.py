@@ -59,7 +59,7 @@ def read_viewport(
     xmax: float | None,
     ymin: float | None,
     ymax: float | None,
-    max_nodes: int,
+    max_nodes: int | None = None,
     lod_level: int | None = None,
     cluster_id: str | None = None,
     focus_node_id: str | None = None,
@@ -81,9 +81,10 @@ def read_viewport(
                 max_nodes=max_nodes,
                 focus_node_id=focus_node_id,
             )
+            members_truncated = max_nodes is not None and total_node_count > len(nodes)
             member_ids = {node.node_id for node in nodes}
             edges = tuple(
-                _read_edges_for_nodes(
+                read_edges_for_nodes(
                     connection,
                     dataset_id=dataset_id,
                     layout_version=layout_version,
@@ -114,7 +115,7 @@ def read_viewport(
                 nodes=enriched,
                 edges=tuple(edges),
                 total_node_count=total_node_count,
-                truncated=total_node_count > len(enriched),
+                truncated=members_truncated,
                 layout_status=layout_status,
                 global_bounds=global_bounds,
                 metadata_schema=load_metadata_schema(
@@ -163,7 +164,7 @@ def read_viewport(
                     dataset_id=dataset_id,
                     layout_version=layout_version,
                     node_ids=neighbor_ids,
-                    max_nodes=len(neighbor_ids),
+                    max_nodes=None,
                 )
                 if neighbor_ids
                 else ()
@@ -175,6 +176,7 @@ def read_viewport(
                 for edge in edges
                 if edge.source in present_ids and edge.target in present_ids
             )
+            truncated = max_nodes is not None and total_node_count > len(ready_nodes)
             total_node_count += len(neighbors)
         else:
             nodes = tuple(
@@ -229,7 +231,11 @@ def read_viewport(
         nodes=nodes,
         edges=tuple(edges),
         total_node_count=total_node_count,
-        truncated=total_node_count > len(nodes),
+        truncated=(
+            truncated
+            if cluster_level is None
+            else max_nodes is not None and total_node_count > len(nodes)
+        ),
         layout_status=layout_status,
         global_bounds=global_bounds,
         metadata_schema=metadata_schema,
@@ -295,8 +301,10 @@ def read_ready_nodes(
     xmax: float | None,
     ymin: float | None,
     ymax: float | None,
-    max_nodes: int,
+    max_nodes: int | None = None,
 ) -> tuple[tuple[ViewportNode, ...], int]:
+    limit_clause = "limit ?" if max_nodes is not None else ""
+    limit_params = (max_nodes,) if max_nodes is not None else ()
     bounds_filter, bounds_params = optional_node_bounds_filter(
         xmin=xmin,
         xmax=xmax,
@@ -323,9 +331,9 @@ def read_ready_nodes(
           and np.layout_version = ?
           {bounds_filter}
         order by np.cluster_id, np.node_id
-        limit ?
+        {limit_clause}
         """,
-        (*count_params, max_nodes),
+        (*count_params, *limit_params),
     ).fetchall()
     return (
         tuple(
@@ -349,9 +357,11 @@ def _read_cluster_member_nodes(
     dataset_id: str,
     layout_version: str,
     cluster_id: str,
-    max_nodes: int,
+    max_nodes: int | None = None,
     focus_node_id: str | None = None,
 ) -> tuple[tuple[ViewportNode, ...], int]:
+    limit_clause = "limit ?" if max_nodes is not None else ""
+    limit_params = (max_nodes,) if max_nodes is not None else ()
     total_row = connection.execute(
         """
         select count(*) as total_count
@@ -364,7 +374,7 @@ def _read_cluster_member_nodes(
     ).fetchone()
     total = int(total_row["total_count"]) if total_row is not None else 0
     rows = connection.execute(
-        """
+        f"""
         select cm.node_id, cm.cluster_id, np.x, np.y, np.status
         from cluster_members cm
         join node_positions np
@@ -375,9 +385,9 @@ def _read_cluster_member_nodes(
           and cm.layout_version = ?
           and cm.cluster_id = ?
         order by case when np.node_id = ? then 0 else 1 end, np.node_id
-        limit ?
+        {limit_clause}
         """,
-        (dataset_id, layout_version, cluster_id, focus_node_id, max_nodes),
+        (dataset_id, layout_version, cluster_id, focus_node_id, *limit_params),
     ).fetchall()
     return (
         tuple(
@@ -539,8 +549,10 @@ def _read_cluster_representatives(
     xmax: float | None,
     ymin: float | None,
     ymax: float | None,
-    max_nodes: int,
+    max_nodes: int | None = None,
 ) -> tuple[ViewportNode, ...]:
+    limit_clause = "limit ?" if max_nodes is not None else ""
+    limit_params = (max_nodes,) if max_nodes is not None else ()
     bounds_filter, bounds_params = optional_cluster_bounds_filter(
         xmin=xmin,
         xmax=xmax,
@@ -557,14 +569,14 @@ def _read_cluster_representatives(
           and x is not null
           {bounds_filter}
         order by member_count desc, cluster_id
-        limit ?
+        {limit_clause}
         """,
         (
             dataset_id,
             layout_version,
             cluster_level,
             *bounds_params,
-            max_nodes,
+            *limit_params,
         ),
     ).fetchall()
     return tuple(
@@ -658,7 +670,7 @@ def _read_prepared_edges_for_nodes(
     )
 
 
-def _read_edges_for_nodes(
+def read_edges_for_nodes(
     connection: sqlite3.Connection,
     *,
     dataset_id: str,
@@ -667,25 +679,29 @@ def _read_edges_for_nodes(
 ) -> tuple[ViewportEdge, ...]:
     if not node_ids:
         return ()
-    placeholders = ",".join("?" for _ in node_ids)
-    params = [
-        dataset_id,
-        layout_version,
-        *sorted(node_ids),
-        *sorted(node_ids),
-    ]
-    rows = connection.execute(
-        f"""
-        select edge_id, source_node_id, target_node_id, distance
-        from graph_edges
-        where dataset_id = ?
-          and layout_version = ?
-          and source_node_id in ({placeholders})
-          and target_node_id in ({placeholders})
-        order by source_node_id, target_node_id, edge_id
-        """,
-        params,
-    ).fetchall()
+    connection.execute(
+        "create temp table if not exists _viewport_node_ids(node_id text primary key)"
+    )
+    try:
+        connection.execute("delete from _viewport_node_ids")
+        connection.executemany(
+            "insert or ignore into _viewport_node_ids(node_id) values (?)",
+            [(node_id,) for node_id in node_ids],
+        )
+        rows = connection.execute(
+            """
+            select e.edge_id, e.source_node_id, e.target_node_id, e.distance
+            from graph_edges e
+            join _viewport_node_ids src on src.node_id = e.source_node_id
+            join _viewport_node_ids tgt on tgt.node_id = e.target_node_id
+            where e.dataset_id = ? and e.layout_version = ?
+            order by e.source_node_id, e.target_node_id, e.edge_id
+            """,
+            (dataset_id, layout_version),
+        ).fetchall()
+    finally:
+        connection.execute("delete from _viewport_node_ids")
+
     return tuple(
         ViewportEdge(
             edge_id=row["edge_id"],
@@ -742,9 +758,11 @@ def _read_node_positions_by_ids(
     dataset_id: str,
     layout_version: str,
     node_ids: set[str],
-    max_nodes: int,
+    max_nodes: int | None = None,
 ) -> list[ViewportNode]:
-    if not node_ids or max_nodes <= 0:
+    limit_clause = "limit ?" if max_nodes is not None else ""
+    limit_params = (max_nodes,) if max_nodes is not None else ()
+    if not node_ids or (max_nodes is not None and max_nodes <= 0):
         return []
     placeholders = ",".join("?" for _ in node_ids)
     rows = connection.execute(
@@ -755,13 +773,13 @@ def _read_node_positions_by_ids(
           and np.layout_version = ?
           and np.node_id in ({placeholders})
         order by np.cluster_id, np.node_id
-        limit ?
+        {limit_clause}
         """,
         (
             dataset_id,
             layout_version,
             *sorted(node_ids),
-            max_nodes,
+            *limit_params,
         ),
     ).fetchall()
     return [

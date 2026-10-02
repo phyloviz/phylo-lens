@@ -6,7 +6,6 @@ import type { PositionedGraph } from "../../contracts/positioned";
 import { buildAncillaryIndex } from "../../ancillary/ancillaryIndex";
 import type { GraphWorkbenchState } from "./graphWorkbench.types";
 
-export const DEFAULT_VIEW_SLICE_MAX_NODES = 6000;
 export const GRAPH_DETAIL_LOD_LEVEL = 3;
 
 export const DEFAULT_VIEWPORT: Viewport = {

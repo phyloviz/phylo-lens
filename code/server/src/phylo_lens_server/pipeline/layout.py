@@ -235,6 +235,7 @@ def graphviz_dot_payload(
     attributes: dict[str, str | float | bool] = {
         **options.dot_attributes(),
         "pack": True,
+        "packmode": "graph",
         "splines": False,
     }
 

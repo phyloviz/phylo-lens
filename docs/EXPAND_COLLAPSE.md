@@ -35,7 +35,7 @@ interface ExpansionState {
   allExpanded: boolean;
   partial: boolean;
   renderedNodeCount: number;
-  maxNodes: number;
+  maxNodes?: number;
 }
 interface ExpansionResult extends ExpansionState {
   status: "complete" | "partial" | "superseded";
@@ -54,12 +54,13 @@ By default, expansions last until the next viewport response. Enabling
 `keepExpanded` pins the current LoD tier and retains explicit cluster patches
 across viewport requests. Panning still queries the corresponding geographic
 region at that tier; retained patches are composed with the new base snapshot.
-Pinning the tier avoids combining overlapping representatives from different
-levels. Turning persistence off resumes automatic semantic zoom and discards
+Pinning the effective tier bypasses adaptive density selection and avoids
+combining overlapping representatives from different levels. Turning persistence off resumes automatic semantic zoom and discards
 explicit patches on the next accepted response. It does not freeze the camera.
 
-Expand-all requests the finest tier over the whole dataset, within the configured
-`load({ lod: { maxNodes } })` budget. With persistence enabled this bounded global
+Expand-all requests the finest tier over the whole dataset. A count budget
+applies only when `load({ lod: { maxNodes } })` explicitly supplies one; otherwise
+every original node is returned. With persistence enabled this global
 snapshot stays at finest detail while zooming. Collapse-all clears explicit state
 and requests the global coarsest tier. Automatic zoom can change that tier again
 when persistence is off. Individual collapse applies to individually expanded
@@ -73,7 +74,7 @@ are composed.
 ## Requests and composition
 
 Individual expansion uses the existing viewport endpoint with `cluster_id`,
-`lod_level: null` and `max_nodes`. The service returns finest-detail members,
+`lod_level: null` and optional explicit `max_nodes`. The service returns finest-detail members,
 original internal edges, neighboring representatives and boundary meta-edges.
 Meta-edges summarize connectivity and never become biological source edges.
 
@@ -82,13 +83,13 @@ composition step combines them by ID, preferring detailed nodes over neighboring
 proxies. Removing one patch reconstructs the graph from the base and remaining
 patches, preserving other expansions. Individual collapse needs no server request.
 
-All display snapshots are capped by the configured node budget, including neighbor
-context supplied by the server. Edges with omitted endpoints are removed. A
-truncated service response, omitted cluster members, or a composition over budget
-sets `partial`. An individual group that cannot fit completely keeps its summary
-intact instead of mixing that summary with an incomplete set of members. Expand-all
-may display a bounded subset of finest-detail nodes. No pagination or unlimited rendering is implied. Increase the
-budget on a new load or inspect smaller regions/groups to see additional detail.
+Normal display snapshots and composition have no node-count cap, including
+neighbor context supplied by the server. Only an explicit `lod.maxNodes` bounds
+composition and queries. Then edges with omitted endpoints are removed, and a
+truncated response, omitted members, or composition over budget sets `partial`.
+An individual group that cannot fit completely keeps its summary intact.
+Without a caller budget, expand-all retains all finest-detail original nodes;
+LoD aggregation and viewport bounds support normal progressive navigation.
 
 Every command invalidates older requests immediately. Camera changes invalidate
 in-flight work when a new viewport is scheduled. Only the latest request may
@@ -104,7 +105,7 @@ the camera; expand-all reported a partial 5,000-node result and collapse-all
 returned to 1,500 representatives. Run the sequence through
 `/navigation-regression.html` → **Run Newick navigation** with that fixture.
 
-The normal demo was also checked with its 6,000-node limit: the feedback explicitly
+That historical demo run used the former 6,000-node default (now removed): the feedback explicitly
 reported a partial result. Unit tests cover gesture separation, checkbox behavior,
 stale responses after collapse, budgets, zoom-out persistence, ancillary replacement
 and public API disposal.

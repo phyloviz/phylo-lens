@@ -9,6 +9,13 @@ const graph = (nodes: PositionedGraph["nodes"], edges: PositionedGraph["edges"] 
 });
 
 describe("expanded viewport composition", () => {
+  it("keeps all representations when no caller budget is supplied", () => {
+    const nodes = Array.from({ length: 6001 }, (_, i) => ({ id: String(i), x: i, y: 0 }));
+    const result = composeExpandedViewport(graph(nodes.slice(0, 3000)), [graph(nodes.slice(3000))], undefined);
+    expect(result.graph.nodes).toHaveLength(6001);
+    expect(result.partial).toBe(false);
+  });
+
   it("never replaces a detailed member with another patch's boundary representative", () => {
     const proxy = { id: "a", x: 0, y: 0, attributes: { is_cluster_proxy: true } };
     const member = { id: "a", x: 4, y: 5, attributes: { is_cluster_proxy: false } };

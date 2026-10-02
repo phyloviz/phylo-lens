@@ -4,7 +4,7 @@ import type { PositionedGraph } from "../../../contracts/positioned";
 export function composeExpandedViewport(
   base: PositionedGraph,
   patches: readonly PositionedGraph[],
-  maxNodes: number,
+  maxNodes: number | undefined,
   priorityNodeId?: string | null,
 ) {
   const nodes = new Map(base.nodes.map((node) => [node.id, node]));
@@ -39,7 +39,7 @@ export function composeExpandedViewport(
     if (node.attributes?.is_cluster_proxy === true && typeof clusterId === "string" && detailedClusters.has(clusterId))
       nodes.delete(id);
   }
-  const partial = nodes.size > maxNodes;
+  const partial = maxNodes !== undefined && nodes.size > maxNodes;
   const ordered = [...nodes.values()];
   const priority = priorityNodeId ? nodes.get(priorityNodeId) : undefined;
   const rendered = (priority ? [priority, ...ordered.filter((node) => node.id !== priority.id)] : ordered).slice(

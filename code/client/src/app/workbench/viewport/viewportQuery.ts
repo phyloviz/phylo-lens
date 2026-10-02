@@ -3,7 +3,7 @@ import type { RenderViewportBounds, RenderViewportSyncState } from "../../../ren
 
 export const DEFAULT_GRAPH_VIEWER_DEBOUNCE_MS = 120;
 export const GRAPH_VIEWER_LOD_CHANGE_DEBOUNCE_MS = 60;
-export const DEFAULT_GRAPH_VIEWER_MAX_NODES = 6_000;
+export const DEFAULT_LOD_REPRESENTATION_SPACING_PX = 24;
 export const GRAPH_VIEWER_SMALL_TREE_NODE_THRESHOLD = 2_500;
 export const GRAPH_VIEWER_VIEWPORT_PADDING_RATIO = 0.5;
 export const GRAPH_VIEWER_DETAIL_RATIO_THRESHOLD = 0.8;
@@ -20,18 +20,24 @@ export function buildGraphViewportQuery({
   forceGlobal = false,
   forceFinestTier = false,
   forcedLodLevel,
+  semanticLodLevel,
   lodTierCount = 1,
   currentLodLevel = null,
+  previousEffectiveLodLevel,
+  representationSpacingPx = DEFAULT_LOD_REPRESENTATION_SPACING_PX,
 }: {
   datasetId: string;
   layoutVersion?: string | null;
   viewState: RenderViewportSyncState | null;
-  maxNodes: number;
+  maxNodes?: number;
   forceGlobal?: boolean;
   forceFinestTier?: boolean;
   forcedLodLevel?: number;
+  semanticLodLevel?: number;
   lodTierCount?: number;
   currentLodLevel?: number | null;
+  previousEffectiveLodLevel?: number | null;
+  representationSpacingPx?: number;
 }): GraphViewportQuery {
   const ratio = viewState?.cameraRatio ?? 1;
   const lodLevel = forceFinestTier
@@ -40,9 +46,12 @@ export function buildGraphViewportQuery({
       ? Math.min(Math.max(Math.round(forcedLodLevel), 0), Math.max(lodTierCount - 1, 0))
       : forceGlobal
         ? 0
-        : semanticLodLevelForCameraRatioWithHysteresis(ratio, lodTierCount, currentLodLevel);
+        : typeof semanticLodLevel === "number" && Number.isFinite(semanticLodLevel)
+          ? Math.min(Math.max(Math.round(semanticLodLevel), 0), Math.max(lodTierCount - 1, 0))
+          : semanticLodLevelForCameraRatioWithHysteresis(ratio, lodTierCount, currentLodLevel);
+  const adaptive = !forceGlobal && !forceFinestTier && forcedLodLevel === undefined && hasViewportPixelSize(viewState);
   const bounds =
-    viewState && !forceFinestTier && lodLevel !== 0
+    viewState && !forceGlobal && !forceFinestTier && (lodLevel !== 0 || adaptive || forcedLodLevel !== undefined)
       ? expandViewportBounds(viewState.bounds, GRAPH_VIEWER_VIEWPORT_PADDING_RATIO)
       : null;
 
@@ -51,8 +60,23 @@ export function buildGraphViewportQuery({
     layout_version: layoutVersion ?? null,
     zoom: displayZoomForCameraRatio(ratio),
     lod_level: lodLevel,
-    max_nodes: maxNodes,
+    ...(maxNodes === undefined ? {} : { max_nodes: maxNodes }),
   };
+  if (adaptive && viewState?.pixelSize) {
+    if (!Number.isFinite(representationSpacingPx) || representationSpacingPx <= 0)
+      throw new Error("LoD representation spacing must be finite and positive.");
+    const effectiveSpacing = Math.max(representationSpacingPx, viewState.representationSpacingPx ?? 0);
+    if (!Number.isFinite(effectiveSpacing)) throw new Error("Projected representation spacing must be finite.");
+    const target = Math.max(
+      1,
+      Math.floor((viewState.pixelSize.width * viewState.pixelSize.height) / effectiveSpacing ** 2),
+    );
+    if (!Number.isSafeInteger(target)) throw new Error("LoD representation target must be a finite safe integer.");
+    query.lod_target_representations = target;
+    query.lod_selection_bounds = viewState.selectionBounds ?? viewState.bounds;
+    if (previousEffectiveLodLevel !== undefined && previousEffectiveLodLevel !== null)
+      query.previous_lod_level = previousEffectiveLodLevel;
+  }
   if (bounds) {
     query.xmin = bounds.xmin;
     query.xmax = bounds.xmax;
@@ -60,6 +84,16 @@ export function buildGraphViewportQuery({
     query.ymax = bounds.ymax;
   }
   return query;
+}
+
+export function hasViewportPixelSize(state: RenderViewportSyncState | null): boolean {
+  return Boolean(
+    state?.pixelSize &&
+    Number.isFinite(state.pixelSize.width) &&
+    state.pixelSize.width > 0 &&
+    Number.isFinite(state.pixelSize.height) &&
+    state.pixelSize.height > 0,
+  );
 }
 
 export function semanticLodLevelForCameraRatio(ratio: number, lodTierCount = 1): number {
@@ -88,11 +122,15 @@ export function semanticLodLevelForCameraRatioWithHysteresis(
   if (currentLodLevel === null || !Number.isFinite(ratio) || ratio <= 0 || naiveTier === currentLodLevel) {
     return naiveTier;
   }
-  const boundaryTier = Math.min(currentLodLevel, naiveTier);
+  // The transition out of the current tier has a different threshold in each
+  // direction. Scale its dead band proportionally so deep zoom stays reachable.
+  const boundaryTier = naiveTier > currentLodLevel ? currentLodLevel : currentLodLevel - 1;
   const boundary = GRAPH_VIEWER_DETAIL_RATIO_THRESHOLD * Math.pow(lodRatioStepForTierCount(lodTierCount), boundaryTier);
-  const inDeadBand =
-    ratio > boundary - GRAPH_VIEWER_LOD_RATIO_HYSTERESIS && ratio < boundary + GRAPH_VIEWER_LOD_RATIO_HYSTERESIS;
-  return inDeadBand ? currentLodLevel : naiveTier;
+  const remainsInCurrentTier =
+    naiveTier > currentLodLevel
+      ? ratio >= boundary * (1 - GRAPH_VIEWER_LOD_RATIO_HYSTERESIS)
+      : ratio <= boundary * (1 + GRAPH_VIEWER_LOD_RATIO_HYSTERESIS);
+  return remainsInCurrentTier ? currentLodLevel : naiveTier;
 }
 
 function lodRatioStepForTierCount(lodTierCount: number): number {

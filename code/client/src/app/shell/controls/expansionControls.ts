@@ -40,7 +40,7 @@ export function expansionControls(workbench: GraphWorkbench, elements: Expansion
   function show(state: ExpansionState) {
     if (!elements.feedback) return;
     elements.feedback.textContent = state.partial
-      ? `Partial result: ${state.renderedNodeCount} nodes shown (limit ${state.maxNodes}). Some nodes remain unavailable in this view.`
+      ? `Partial result: ${state.renderedNodeCount} nodes shown${state.maxNodes === undefined ? "" : ` (limit ${state.maxNodes})`}. Some nodes remain unavailable in this view.`
       : state.allExpanded
         ? `All nodes expanded: ${state.renderedNodeCount}.`
         : `${state.expandedClusterIds.length} groups explicitly expanded.`;

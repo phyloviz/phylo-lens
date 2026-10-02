@@ -1,3 +1,4 @@
+import { centerCameraOnCoordinates } from "../src/render/adapters/sigma/camera/sigmaCameraState";
 import { createElasticSimulation } from "../src/render/adapters/sigma/motion/elasticSimulation";
 import type { MotionCommand, MotionFrame } from "../src/render/adapters/sigma/motion/elastic.worker";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -25,6 +26,8 @@ let downHandler: ((payload: { node: string; event: { x: number; y: number } }) =
 const mouseHandlers = new Map<string, Set<(payload: { x: number; y: number }) => void>>();
 let emitMotion: ((positions: number[]) => void) | undefined;
 let pumpMotion: ((iterations: number) => void) | undefined;
+let lastResizeHandler: (() => void) | null = null;
+let sigmaDimensions = { width: 300, height: 200 };
 let lastStageClickHandler: (() => void) | null = null;
 let lastNodeClickHandler: ((payload: { node?: string; event?: { node?: string } }) => void) | null = null;
 let lastNodeDoubleClickHandler: ((payload: { node?: string; event?: { node?: string } }) => void) | null = null;
@@ -116,6 +119,7 @@ vi.mock("sigma", () => {
     }
 
     on(event: string, handler: (payload?: { node?: string; event?: { node?: string } }) => void) {
+      if (event === "resize") lastResizeHandler = handler;
       if (event === "downNode") downHandler = handler as unknown as typeof downHandler;
       if (event === "clickStage") {
         lastStageClickHandler = handler as () => void;
@@ -130,7 +134,10 @@ vi.mock("sigma", () => {
     }
 
     off(event: string, handler: (payload?: { node?: string; event?: { node?: string } }) => void) {
+      if (event === "resize" && lastResizeHandler === handler) lastResizeHandler = null;
       if (event === "clickStage" && lastStageClickHandler === handler) {
+        lastResizeHandler = null;
+        sigmaDimensions = { width: 300, height: 200 };
         lastStageClickHandler = null;
       }
       if (event === "clickNode" && lastNodeClickHandler === handler) {
@@ -186,7 +193,7 @@ vi.mock("sigma", () => {
     }
 
     getDimensions() {
-      return { width: 300, height: 200 };
+      return sigmaDimensions;
     }
 
     setCustomBBox(bounds: { x: [number, number]; y: [number, number] } | null) {
@@ -280,6 +287,40 @@ describe("sigmaRenderer", () => {
     renderer.unmount();
   });
 
+  it("refreshes viewport detail on resize without requiring a camera change", () => {
+    const renderer = new SigmaRenderer();
+    renderer.mount({ container: document.createElement("div") });
+    renderer.render({ nodes: [{ id: "a", x: 0, y: 0 }], edges: [], viewMeta: { layout: "server" } });
+    const handler = vi.fn();
+    renderer.setViewChangeHandler(handler);
+    sigmaDimensions = { width: 600, height: 400 };
+    lastResizeHandler?.();
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(renderer.getViewportSyncState()?.pixelSize).toEqual({ width: 600, height: 400 });
+    renderer.unmount();
+    expect(lastResizeHandler).toBeNull();
+  });
+
+  it("keeps a stable footprint budget across tiers and resets it for a new render", () => {
+    const renderer = new SigmaRenderer({ forceMotion: { enabled: false } });
+    renderer.mount({ container: document.createElement("div") });
+    const sigma = (renderer as unknown as { sigma: { scaleSize: (size: number) => number } }).sigma;
+    sigma.scaleSize = (size) => size;
+    const snapshot = {
+      nodes: [{ id: "a", x: 0, y: 0, size: 20 }],
+      edges: [],
+      viewMeta: { layout: "server" as const, lodLevel: 0 },
+    };
+    renderer.render(snapshot);
+    expect(renderer.getViewportSyncState()?.representationSpacingPx).toBe(42);
+    const finer = { ...snapshot, nodes: [{ id: "a", x: 0, y: 0, size: 3 }] };
+    renderer.applyGraphSnapshot(finer);
+    expect(renderer.getViewportSyncState()?.representationSpacingPx).toBe(42);
+    renderer.render(finer);
+    expect(renderer.getViewportSyncState()?.representationSpacingPx).toBe(8);
+    renderer.unmount();
+  });
+
   it("exposes renderer-neutral viewport sync state", () => {
     document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
 
@@ -290,6 +331,9 @@ describe("sigmaRenderer", () => {
     expect(renderer.getViewportSyncState()).toEqual({
       bounds: { xmin: 0, xmax: 300, ymin: 0, ymax: 200 },
       cameraRatio: 2,
+      selectionBounds: { xmin: 0, xmax: 300, ymin: 0, ymax: 200 },
+      representationSpacingPx: 0,
+      pixelSize: { width: 300, height: 200 },
     });
 
     renderer.unmount();
@@ -1495,4 +1539,17 @@ describe("applyPieChartNodeTypes", () => {
 
     expect(graph.getNodeAttribute("n", "type")).toBe("triangle");
   });
+});
+
+it("does not suppress the next user event when centering is a camera no-op", () => {
+  const beforeSetState = vi.fn(),
+    setState = vi.fn();
+  const sigma = {
+    getCamera: () => ({ getState: () => ({ x: 1, y: 2, ratio: 0.02 }), setState }),
+    graphToViewport: (p: { x: number; y: number }) => p,
+    viewportToFramedGraph: (p: { x: number; y: number }) => p,
+  };
+  expect(centerCameraOnCoordinates({ sigma: sigma as never, x: 1, y: 2, beforeSetState })).toBe(true);
+  expect(beforeSetState).not.toHaveBeenCalled();
+  expect(setState).not.toHaveBeenCalled();
 });

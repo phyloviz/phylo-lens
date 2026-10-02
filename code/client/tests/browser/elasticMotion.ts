@@ -1,8 +1,11 @@
+import { ViewportSyncController } from "../../src/app/workbench/viewport/viewportSyncController";
 import { SigmaRenderer } from "../../src/render/adapters/sigma/sigmaRenderer";
 import type { PositionedGraph } from "../../src/contracts/positioned";
 // Deterministic server-position fixture. Use the real Sigma renderer and real worker.
-const nodes = Array.from({ length: 127 }, (_, i) => {
+const crowded = new URLSearchParams(location.search).has("crowded");
+const nodes = Array.from({ length: crowded ? 53 : 127 }, (_, i) => {
   const level = Math.floor(Math.log2(i + 1));
+  if (crowded) return { id: String(i), x: 6 + i * 0.000001, y: 1, size: 5 };
   return { id: String(i), x: (12 * (i - (2 ** level - 1) + 0.5)) / 2 ** level, y: level * 0.3, size: 5 };
 });
 const snapshot: PositionedGraph = {
@@ -14,3 +17,39 @@ const renderer = new SigmaRenderer();
 renderer.mount({ container: document.querySelector<HTMLElement>("#graph")! });
 renderer.render(snapshot);
 Object.assign(window, { motionFixture: { renderer, snapshot } });
+
+// Optional integration mode uses real product viewport responses.
+Object.assign(window, {
+  startLiveViewport: async (
+    url: string,
+    datasetId: string,
+    layoutVersion: string,
+    lodTierCount: number,
+    nodeCount: number,
+  ) => {
+    const requests: unknown[] = [];
+    const controller = new ViewportSyncController({
+      datasetId,
+      layoutVersion,
+      lodTierCount,
+      nodeCount,
+      renderer,
+      client: {
+        readViewport: async (query) => {
+          const response = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(query),
+          });
+          if (!response.ok) throw new Error(await response.text());
+          const result = await response.json();
+          requests.push({ query, level: result.lod_level, count: result.nodes.length });
+          return result;
+        },
+      },
+    });
+    Object.assign(window, { liveViewport: { controller, requests } });
+    controller.mount();
+    await controller.waitForInitialViewport();
+  },
+});
