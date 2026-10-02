@@ -30,7 +30,7 @@
     "interaction_protocol": {"enum": ["node-gestures-v1", "explicit-expansion-v1"]},
     "schema_version": { "const": "1" },
     "run_id": { "type": "string" },
-    "experiment_id": { "const": "rq4-interactive-final-v020" },
+    "experiment_id": { "enum": ["rq4-interactive-final-v020", "rq4-interactive-final-v022"] },
     "observation_id": { "type": "string" },
     "scenario": { "type": "string" },
     "role": { "const": "measured" },

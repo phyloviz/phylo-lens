@@ -1,7 +1,7 @@
 """Regenerate RQ1 summaries from raw observations without changing raw data.
 
 RQ: RQ1 server-side preparation scalability.
-Command: ``PYTHONPATH=eval/src python -m phylo_lens_eval.summarize <run-directory>``.
+Command: ``PYTHONPATH=eval/src python -m phylo_lens_eval.pilots.rq1_summary <run-directory>``.
 Input: raw ``observations.jsonl`` files. Output: per-dataset and run ``summary.json``.
 Warm-ups and failed observations remain raw; statistics use successful measured observations only.
 """

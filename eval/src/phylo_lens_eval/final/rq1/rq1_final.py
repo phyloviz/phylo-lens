@@ -1,6 +1,6 @@
 """Final RQ1 runner using only the released public OCI service path.
 
-The legacy :mod:`phylo_lens_eval.rq1` source-import runner remains intact for
+The legacy :mod:`phylo_lens_eval.pilots.rq1` source-import runner remains intact for
 historical pilots.  This module is deliberately separate: every final
 observation starts a fresh pinned service container, uses ``/api/graph/prepare``
 and its public status endpoint, and retains all terminal evidence.

@@ -1,0 +1,128 @@
+{
+  "schema_version": "1",
+  "id": "rq1-final-fullmst-v022",
+  "research_question": "RQ1",
+  "classification": "final",
+  "product": {
+    "release_tag": "v0.2.2",
+    "release_commit": "81e95c5d0b895426e46e02947076e64a40e2b910",
+    "oci_index_reference": "ghcr.io/phyloviz/phylo-lens-service@sha256:e32c644ed70a5ee83f30797b7f2d5cc188d543495478fb6732123b1c9cd9dfe3",
+    "npm_companion_version": "@phyloviz/phylo-lens@0.2.2"
+  },
+  "input_source": {
+    "kind": "thesis_salmonella_cgmlst_fullmst_series",
+    "generation_commit": "237945765fad733fb447e8494ae47b9852c3e486",
+    "relative_root": "../Thesis/data/salmonella/fullmst",
+    "metadata": "metadata/fullmst_series_final.tsv",
+    "generator": "PhyloLib goeburstfullmst"
+  },
+  "warmup_repetitions": 1,
+  "measured_repetitions": 5,
+  "preparation_timeout_seconds": 300,
+  "startup_timeout_seconds": 30,
+  "outer_watchdog_seconds": 345,
+  "poll_interval_ms": 100,
+  "rss_sampling_interval_ms": 20,
+  "conditions": [
+    {
+      "id": "fullmst-12500",
+      "dataset_family": "salmonella-cgmlst-fullmst",
+      "inference_method": "goeburstfullmst",
+      "requested_nodes": 12500,
+      "parsed_nodes": 12500,
+      "parsed_edges": 12499,
+      "path": "tree_fullmst_12500.nwk",
+      "sha256": "1e754a30abaedb80eeeaab8c0ca558743dcde09a72628e912a4fdee31b1a23fa"
+    },
+    {
+      "id": "fullmst-25000",
+      "dataset_family": "salmonella-cgmlst-fullmst",
+      "inference_method": "goeburstfullmst",
+      "requested_nodes": 25000,
+      "parsed_nodes": 25000,
+      "parsed_edges": 24999,
+      "path": "tree_fullmst_25000.nwk",
+      "sha256": "8d7ae96ed83a0e7f62fdf67bb7bdfa2bec7717c33e87b6733c1c88c40c7df50d"
+    },
+    {
+      "id": "fullmst-37500",
+      "dataset_family": "salmonella-cgmlst-fullmst",
+      "inference_method": "goeburstfullmst",
+      "requested_nodes": 37500,
+      "parsed_nodes": 37500,
+      "parsed_edges": 37499,
+      "path": "tree_fullmst_37500.nwk",
+      "sha256": "b71268521e4574ef664e4b0b89f63e0e668ccee635d6307317e3cb83c88d52db"
+    },
+    {
+      "id": "fullmst-50000",
+      "dataset_family": "salmonella-cgmlst-fullmst",
+      "inference_method": "goeburstfullmst",
+      "requested_nodes": 50000,
+      "parsed_nodes": 50000,
+      "parsed_edges": 49999,
+      "path": "tree_fullmst_50000.nwk",
+      "sha256": "2d097bfd3e9fc9931494b2407475e976a5422bcf38d8464269a57befde9b8f88"
+    },
+    {
+      "id": "fullmst-62500",
+      "dataset_family": "salmonella-cgmlst-fullmst",
+      "inference_method": "goeburstfullmst",
+      "requested_nodes": 62500,
+      "parsed_nodes": 62500,
+      "parsed_edges": 62499,
+      "path": "tree_fullmst_62500.nwk",
+      "sha256": "b3eb2c8a44a26bc58a4a9205a822901c6acd424e862784d1d816c4b824409f92"
+    },
+    {
+      "id": "fullmst-75000",
+      "dataset_family": "salmonella-cgmlst-fullmst",
+      "inference_method": "goeburstfullmst",
+      "requested_nodes": 75000,
+      "parsed_nodes": 75000,
+      "parsed_edges": 74999,
+      "path": "tree_fullmst_75000.nwk",
+      "sha256": "6530fc06e6a950d07d96ad0cfc599bfb475a466f3e7b733a737a27dc5416e89b"
+    },
+    {
+      "id": "fullmst-87500",
+      "dataset_family": "salmonella-cgmlst-fullmst",
+      "inference_method": "goeburstfullmst",
+      "requested_nodes": 87500,
+      "parsed_nodes": 87500,
+      "parsed_edges": 87499,
+      "path": "tree_fullmst_87500.nwk",
+      "sha256": "f06d4114639fc30c2cfb5720e4a9c064531ec2163fd16715582bce5ddd4ce262"
+    },
+    {
+      "id": "fullmst-100000",
+      "dataset_family": "salmonella-cgmlst-fullmst",
+      "inference_method": "goeburstfullmst",
+      "requested_nodes": 100000,
+      "parsed_nodes": 100000,
+      "parsed_edges": 99999,
+      "path": "tree_fullmst_100000.nwk",
+      "sha256": "81b2a8a2646335f9217ad957f3879f3f34011866373ed514879b1304e75e2059"
+    },
+    {
+      "id": "fullmst-150000",
+      "dataset_family": "salmonella-cgmlst-fullmst",
+      "inference_method": "goeburstfullmst",
+      "requested_nodes": 150000,
+      "parsed_nodes": 150000,
+      "parsed_edges": 149999,
+      "path": "tree_fullmst_150000.nwk",
+      "sha256": "cfb3989a06efff997896cfe5e3ce43a9f1204d2cef2308b2e53a0a2e915fff01"
+    },
+    {
+      "id": "fullmst-200000",
+      "dataset_family": "salmonella-cgmlst-fullmst",
+      "inference_method": "goeburstfullmst",
+      "requested_nodes": 200000,
+      "parsed_nodes": 200000,
+      "parsed_edges": 199999,
+      "path": "tree_fullmst_200000.nwk",
+      "sha256": "eb3dbb2c66597cb311bc65fc5871d696753f92a90e6f275d29273b17e2b54e4d"
+    }
+  ]
+}

@@ -12,7 +12,7 @@ declare global {
       run: () => Promise<unknown>;
       createView: (apiUrl: string) => void;
       startFrameSampling: () => void;
-      finishFrameSampling: () => number[];
+      finishFrameSampling: (end?: number) => number[];
       dispose: () => void;
       rq4?: {
         createView: (apiUrl: string) => void;
@@ -21,10 +21,13 @@ declare global {
           name: string,
           maxNodes: number,
         ) => Promise<unknown>;
+        configureLocalCapture: (query?: Record<string, unknown>) => void;
+        prepareLocalExpansion: (preserveLevel?: boolean) => Promise<void>;
         beginOperation: () => { t0: number; viewport: unknown };
         observerEvents: () => unknown[];
         observerEventsWithDiagnostics: () => unknown[];
         requestTrace: () => unknown[];
+        timerTrace: () => unknown[];
         operationRequestTrace: () => unknown[];
         finishAtFrame: (sequence: number) => Promise<number>;
         expansionControl: (
@@ -51,6 +54,7 @@ declare global {
           maxNodes: number,
         ) => Promise<unknown>;
         latestSnapshot: () => unknown;
+        pinReplay: () => Promise<unknown>;
         gpuEvidence: () => unknown;
         startFrameSampling: () => void;
         finishFrameSampling: () => number[];
@@ -61,8 +65,18 @@ declare global {
 }
 
 let activeView: ReturnType<typeof createPhyloLensView> | undefined;
+let localInitialQuery: Record<string, unknown> | undefined;
+const localTimers: Array<Record<string, unknown>> = [];
+let localTimersInstalled = false;
 let frameSampling:
-  { samples: number[]; previous?: number; active: boolean } | undefined;
+  | {
+      samples: number[];
+      timestamps: number[];
+      previous?: number;
+      active: boolean;
+    }
+  | undefined;
+const localDisplayBoundaries = new Map<number, Promise<number>>();
 const RQ4_OBSERVER_SYMBOL = Symbol.for(
   "@phyloviz/phylo-lens.internal.snapshot-applied.v1",
 );
@@ -73,6 +87,7 @@ const rq4DiagnosticReaders = new Map<
 >();
 const rq4RequestTrace: Array<Record<string, unknown>> = [];
 let rq4FetchInstalled = false;
+let rq4LocalCapture = false;
 let rq4OperationRequestStart = 0;
 let rq4InputEvent: Record<string, unknown> | null = null;
 const rq2FinalSnapshots: Array<Record<string, unknown>> = [];
@@ -111,23 +126,28 @@ window.phyloLensEvaluation = {
     if (frameSampling) {
       throw new Error("Frame sampling is already active.");
     }
-    frameSampling = { samples: [], active: true };
+    frameSampling = { samples: [], timestamps: [], active: true };
     const tick = (now: number) => {
       const sampler = frameSampling;
       if (!sampler || !sampler.active) return;
       // requestAnimationFrame's frame timestamp can precede a performance.now()
       // captured during the current frame. That boundary is not a frame interval.
-      if (sampler.previous !== undefined && now >= sampler.previous)
+      if (sampler.previous !== undefined && now >= sampler.previous) {
         sampler.samples.push(now - sampler.previous);
+        sampler.timestamps.push(now);
+      }
       sampler.previous = now;
       requestAnimationFrame(tick);
     };
     requestAnimationFrame(tick);
   },
-  finishFrameSampling: () => {
+  finishFrameSampling: (end) => {
     if (!frameSampling) throw new Error("Frame sampling was not started.");
     frameSampling.active = false;
-    const samples = frameSampling.samples;
+    const samples = frameSampling.samples.filter(
+      (_, index) =>
+        end === undefined || frameSampling!.timestamps[index] <= end,
+    );
     frameSampling = undefined;
     return samples;
   },
@@ -137,6 +157,34 @@ window.phyloLensEvaluation = {
   },
 };
 window.phyloLensEvaluation.rq4 = {
+  configureLocalCapture: (query) => {
+    rq4LocalCapture = true;
+    localInitialQuery = query;
+    if (!localTimersInstalled) {
+      localTimersInstalled = true;
+      const schedule = window.setTimeout.bind(window);
+      window.setTimeout = ((
+        handler: TimerHandler,
+        delay?: number,
+        ...args: unknown[]
+      ) => {
+        if (typeof handler !== "function" || (delay !== 60 && delay !== 120))
+          return schedule(handler, delay, ...args);
+        const record: Record<string, unknown> = {
+          delay_ms: delay,
+          scheduled: performance.now(),
+          stack: new Error().stack,
+        };
+        localTimers.push(record);
+        const id = schedule(() => {
+          record.fired = performance.now();
+          handler(...args);
+        }, delay);
+        record.timer_id = id;
+        return id;
+      }) as typeof window.setTimeout;
+    }
+  },
   createView: (apiUrl) => {
     if (activeView) throw new Error("Evaluation view is already active.");
     installRq4FetchTrace();
@@ -150,6 +198,11 @@ window.phyloLensEvaluation.rq4 = {
     ) => {
       const timestamp = performance.now();
       rq4ObserverEvents.push({ timestamp, boundary });
+      if (rq4LocalCapture)
+        localDisplayBoundaries.set(
+          boundary.sequence as number,
+          doubleAnimationFrame(),
+        );
       rq4DiagnosticReaders.set(boundary.sequence as number, readDiagnostics);
     };
     activeView = createPhyloLensView({ container: root, apiUrl });
@@ -160,12 +213,18 @@ window.phyloLensEvaluation.rq4 = {
     const event = rq4ObserverEvents.at(-1);
     return event ? structuredClone(event) : null;
   },
+  prepareLocalExpansion: async (preserveLevel) => {
+    if (!activeView) throw new Error("Evaluation view was not created.");
+    if (!preserveLevel) await activeView.collapseAll();
+    activeView.setKeepExpanded(true);
+  },
   beginOperation: () => {
     const viewport = latestSnapshotViewport();
     const t0 = performance.now();
     rq4OperationRequestStart = rq4RequestTrace.length;
     if (frameSampling) {
       frameSampling.samples = [];
+      frameSampling.timestamps = [];
       frameSampling.previous = t0;
     }
     return { t0, viewport };
@@ -175,6 +234,12 @@ window.phyloLensEvaluation.rq4 = {
   observerEventsWithDiagnostics: () =>
     rq4ObserverEvents.map((event) => observerEventWithDiagnostics(event)),
   requestTrace: () => requestTraceWithResourceTimings(rq4RequestTrace),
+  timerTrace: () =>
+    localTimers.filter(
+      (record) =>
+        typeof rq4InputEvent?.timestamp === "number" &&
+        (record.scheduled as number) >= rq4InputEvent.timestamp,
+    ),
   operationRequestTrace: () =>
     requestTraceWithResourceTimings(
       rq4RequestTrace.slice(rq4OperationRequestStart),
@@ -188,7 +253,9 @@ window.phyloLensEvaluation.rq4 = {
     ) {
       throw new Error("snapshot_application_timeout");
     }
-    return doubleAnimationFrame();
+    return rq4LocalCapture
+      ? localDisplayBoundaries.get(sequence)!
+      : doubleAnimationFrame();
   },
   expansionControl: (clusterId, operation) => {
     root.querySelector("#expansion-action")?.remove();
@@ -218,12 +285,14 @@ window.phyloLensEvaluation.rq4 = {
     rq4OperationRequestStart = rq4RequestTrace.length;
     rq4InputEvent = null;
     armCaptureInput(document, root, specification, (captured) => {
+      rq4OperationRequestStart = rq4RequestTrace.length;
       rq4InputEvent = {
         ...captured,
         viewport: latestSnapshotViewport(),
       };
       if (frameSampling) {
         frameSampling.samples = [];
+        frameSampling.timestamps = [];
         frameSampling.previous = captured.timestamp;
       }
     });
@@ -303,6 +372,19 @@ window.phyloLensEvaluation.rq2Final = {
     return { t0, t1, t2, snapshot: rq2FinalSnapshots.at(-1) ?? null };
   },
   latestSnapshot: () => structuredClone(rq2FinalSnapshots.at(-1) ?? null),
+  pinReplay: async () => {
+    if (!activeView) throw new Error("Missing replay view");
+    activeView?.setKeepExpanded(true);
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    const result = await activeView.expandAll();
+    if (
+      result.status !== "complete" ||
+      !result.allExpanded ||
+      !result.keepExpanded
+    )
+      throw new Error("Replay setup did not complete the pinned expansion");
+    return result;
+  },
   gpuEvidence: () => {
     const canvas = document.createElement("canvas");
     const context = canvas.getContext("webgl2") ?? canvas.getContext("webgl");
@@ -344,6 +426,10 @@ function installRq4FetchTrace(): void {
           : input.toString();
     const method =
       init?.method ?? (input instanceof Request ? input.method : "GET");
+    if (localInitialQuery && new URL(url).pathname === "/api/graph/viewport") {
+      init = { ...init, body: JSON.stringify(localInitialQuery) };
+      localInitialQuery = undefined;
+    }
     const record: Record<string, unknown> = {
       url,
       method,
@@ -353,7 +439,34 @@ function installRq4FetchTrace(): void {
       record.bodyText = init.body;
     }
     rq4RequestTrace.push(record);
-    return originalFetch(input, init);
+    if (!rq4LocalCapture) return originalFetch(input, init);
+    return originalFetch(input, init).then((response) => {
+      if (rq4LocalCapture && new URL(url).pathname === "/api/graph/viewport") {
+        // Observe the one JSON parse the product already performs. Do not clone
+        // the response or rely on Chromium retaining a large inspector body.
+        const parseJson = response.json.bind(response);
+        response.json = async () => {
+          const body: Record<string, unknown> = await parseJson();
+          record.responseMetadata = {
+            status: response.status,
+            node_count: Array.isArray(body.nodes) ? body.nodes.length : null,
+            edge_count: Array.isArray(body.edges) ? body.edges.length : null,
+            total_node_count: body.total_node_count,
+            truncated: body.truncated,
+            lod_level: body.lod_level,
+            layout_version: body.layout_version,
+            payload_bytes: Number(response.headers.get("content-length")),
+            server_timing: response.headers.get("server-timing"),
+            aggregate_count: Array.isArray(body.nodes)
+              ? body.nodes.filter((node) => node.member_count > 1).length
+              : null,
+          };
+          record.jsonParsedTimestamp = performance.now();
+          return body;
+        };
+      }
+      return response;
+    });
   };
 }
 
@@ -396,6 +509,7 @@ function requestTraceWithResourceTimings(
       clock: "browser_performance_now",
       dispatchTimestamp: resource?.startTime ?? null,
       responseTimestamp: resource?.responseEnd ?? null,
+      encodedBodySize: resource?.encodedBodySize ?? null,
       status: typeof responseStatus === "number" ? responseStatus : null,
     };
   });

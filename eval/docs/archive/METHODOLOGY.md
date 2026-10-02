@@ -1,9 +1,11 @@
 # RQ1–RQ4 evaluation methodology
 
+> Historical protocol/document. For the current campaign use [eval/README.md](../../README.md).
+
 ## Final released-OCI RQ1 protocol
 
 The definitive RQ1 campaign is distinct from the legacy direct-import runner
-documented below.  It is executed only by `phylo_lens_eval.rq1_final` using
+documented below.  It is executed only by `phylo_lens_eval.final.rq1.rq1_final` using
 the released PhyloLens `v0.2.0` OCI service, pinned by index digest.  It uses
 the retained pilot Newick inputs, rather than generating inputs during the
 campaign: 5,000, 10,000, 25,000, 50,000, and 100,000 requested leaves, each

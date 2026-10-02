@@ -49,3 +49,5 @@ pnpm-debug.log*
 .vscode/
 
 code/client/*.tgz
+
+.tmp
