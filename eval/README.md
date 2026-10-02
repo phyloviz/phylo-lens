@@ -1,199 +1,68 @@
-# PhyloLens evaluation
+# PhyloLens thesis evaluation
 
-This directory contains reproducible RQ1–RQ4 evaluation harnesses, their
-raw-only audits, and an explicitly separated MSAGL external-tool baseline. It
-does not itself assert thesis-result claims; derived evidence is subject to the
-recorded audit and reporting provenance.
+Start with [current results](CURRENT_RESULTS_20261002.md) for Chapter 5, then
+[the complete protocol](CURRENT_EVALUATION.md) for timing boundaries, versions,
+warm-ups, validity checks and limitations. [The results index](results/README.md)
+identifies each authoritative report and its raw evidence.
 
-## Source layout
+## Current campaign
 
-The evaluation package is organized by responsibility so that each study can be
-reviewed end-to-end:
+| Question | Implementation / audit | Evidence |
+|---|---|---|
+| RQ1 — preparation | `scripts/run_preparation_evaluation.py --campaign rq1`; `scripts/audit_preparation_evaluation.py` | Completed: 50 measurements + 10 excluded warm-ups; independent audit passed |
+| RQ2 — replay and integrated viewport | `scripts/run_final_local_evidence.py --current-source`; `scripts/audit_final_local_evidence.py` | Current combined RQ2/RQ4 report |
+| RQ3 — prepared hierarchy | `scripts/run_local_rq34.py`; hierarchy checks in the combined audit | Fresh 100k master and all 15 levels |
+| RQ4 — interaction | Same combined runner/auditor as RQ2 | Small 2, intermediate 88, large 3,796 members |
+| External first visual | Preparation runner `--campaign external`; preparation auditor | Audited consolidation of first nine sizes and replacement 200k cell |
+| MSAGL MDS preparation | `src/phylo_lens_eval/baselines/` | Preserved historical raw plus paired parsing-excluded analysis |
 
-```text
-eval/src/phylo_lens_eval/
-├── core/        shared schemas, configuration, environment capture, statistics
-├── pilots/      small reproducible RQ1–RQ4 implementation studies
-├── final/       immutable final runners and their raw-only audits, by RQ
-├── baselines/   external-tool adapters and audits
-└── reporting/   final-evidence reconciliation and publication artifacts
-```
+Commands run from the repository root. The shared current runner sources remain
+in `scripts/` because current campaigns start child services that import them.
+There is one implementation per runner; no copied version-suffixed entrypoints.
 
-The documented `python -m phylo_lens_eval.rq…` commands remain supported as
-short compatibility entry points. New code and tests import the structured
-packages directly.
+## Directory guide
 
-## Final RQ1 released-OCI harness
+- `browser/`: browser measurements, fixtures and validity checks; shared by runners.
+- `src/phylo_lens_eval/core/`: configuration, environment, statistics and shared Full-MST definitions.
+- `src/phylo_lens_eval/final/`: reproducible historical release protocols.
+- `src/phylo_lens_eval/pilots/`: discovery and diagnostic protocols used by existing tests.
+- `src/phylo_lens_eval/baselines/`: pinned MSAGL baseline and independent audit.
+- `src/phylo_lens_eval/reporting/`: historical reconciliation and publication rendering.
+- `config/`, `schemas/`, `tests/`: experiment definitions, raw contracts and harness tests.
+- `tools/export_results.py`: reproducibility bundle planner/exporter for Zenodo.
+- `docs/archive/`: historical protocols and setup notes; not the current scientific summary.
+- `docs/cleanup-20261002.json`: removed wrappers and relocation map; original raw contents unchanged.
+- `results/`: authoritative evidence, derived reports and separately archived diagnostics.
 
-`phylo_lens_eval.rq1_final` is the immutable final RQ1 runner.  It is separate
-from the legacy local-import runner: final observations exclusively call the
-released public OCI service API and use the frozen 15-condition input matrix
-in `config/rq1-final-oci-v020.json`.  Run it only from a clean, committed
-evaluation checkout and a clean benchmark checkout at the approved Thesis
-commit:
+The flat Python compatibility wrappers were removed. Use the structured module
+entrypoints, for example `phylo_lens_eval.final.rq1.rq1_final`,
+`phylo_lens_eval.baselines.msagl_baseline`, or
+`phylo_lens_eval.reporting.publication_artifacts`. Historical commands are updated
+in [the archived guide](docs/archive/LEGACY_README.md).
 
-```bash
-PYTHONPATH=eval/src .venv/bin/python -m phylo_lens_eval.rq1_final \
-  --run-id thesis-final-rq1-v020-001 \
-  --thesis-root /Users/goncalofrutuoso/Developer/Thesis
-```
+## Verification and publication
 
-The command refuses any other run ID, an existing raw-result directory, a
-dirty worktree, changed product source, input checksum mismatch, or a Thesis
-commit other than the recorded provenance.  It does not retry observations.
-After a completed campaign, generate deterministic derived artifacts and audit
-them from the raw directory with `phylo_lens_eval.rq1_final_audit`.
+Lightweight Python harness tests: `rtk proxy .venv/bin/python -m pytest eval/tests`.
+Run browser/performance campaigns separately, with no competing benchmarks.
+Do not start tests or compression jobs while a timed campaign is running.
 
-RQ4 measures warm-session interactive responsiveness after the normal public
-client bootstrap. Every operation uses a fresh server/browser process but calls
-the public `PhyloLensView.load()` during unmeasured setup; preparation and first
-load therefore remain outside the RQ4 timing region and are covered by RQ1.
+Results are intentionally ignored by Git. A Git commit alone will not preserve
+local measurements: use the explicit [publication plan](publication.json).
+Preview its contents with `rtk proxy .venv/bin/python eval/tools/export_results.py`.
+The exporter requires a completed, successfully audited RQ1 before writing the
+archive. It includes raw observations, controls, source snapshots, reports,
+inputs, audits and per-file SHA-256 checksums. Historical and smoke runs are
+excluded from the current bundle except the explicitly identified MSAGL baseline.
+No upload or version publication is performed by this tool.
 
-## RQ4 interactive responsiveness
+## Chapter 5 figures
 
-RQ4 measures `viewport_navigation`, `cluster_expand`, and `cluster_collapse`
-after normal public bootstrap. Its server-state policy is
-`fresh_process_public_bootstrap_warm_session`: every repetition has a fresh
-server and browser, calls public `PhyloLensView.load()` during unmeasured setup,
-waits for the initial snapshot observer and configured quiescence, then records
-`t0` immediately before one real Playwright interaction. `t1` and `t2` are the
-first relevant request's browser `PerformanceResourceTiming` dispatch and
-response-end timestamps; `t3` is entry to the internal snapshot observer, and
-`t4` is the second subsequent animation frame. All five use the page's
-`performance.now()` clock domain. Collapse is client-local, so its HTTP
-components are explicitly `not_applicable`. The policy intentionally replaced the withdrawn pre-existing-
-layout startup rule because public `load()` intentionally prepares the graph.
+Run `rtk proxy .venv/bin/python eval/tools/generate_chapter5_figures.py` from the
+repository root. [Figure documentation](FIGURES.md) describes outputs, optional
+figures, reproduction and scientific boundaries. PDFs are vector outputs with
+no internal titles; captions remain in LaTeX. The completed RQ1 is included.
 
-Build the public package and evaluation page, then run the deterministic pilot:
-
-```bash
-(cd code/client && npm run build:lib)
-(cd eval/browser && npm run build)
-PYTHONPATH=eval/src:code/server/src python -m phylo_lens_eval.rq4 \
-  --experiment rq4-interactive-pilot --warmups 0 --repetitions 1
-```
-
-The run retains fresh-process identity, input checksum, final layout identity
-observed after bootstrap, observer and request traces, raw rAF intervals, and
-per-repetition server/browser diagnostics. It is an implementation smoke/pilot,
-not a final thesis run or claim about startup, preparation, cold first use, WAN
-latency, or physical display scanout.
-
-Install the server and evaluation dependencies in one Python environment, from
-the repository root:
-
-```bash
-python -m pip install -e 'code/server[test,dev]'
-python -m pip install -e 'eval[test]'
-PYTHONPATH=eval/src:code/server/src python -m phylo_lens_eval.rq1 \
-  --experiment rq1-direct-tree --dataset small-balanced-newick \
-  --warmups 1 --repetitions 3 --timeout-seconds 60
-```
-
-The command creates an isolated run below
-`eval/results/raw/<experiment-id>/<run-id>/`. The run root contains a manifest,
-resolved configuration, combined raw observations, and a summary. Each dataset
-subdirectory contains its own manifest, resolved configuration, raw
-observations, per-repetition stdout/stderr, and a fresh SQLite directory for
-each preparation. Results are ignored by Git and are not thesis evidence until
-they are generated for a recorded environment and analysed.
-
-Regenerate summaries from raw observations only:
-
-```bash
-PYTHONPATH=eval/src python -m phylo_lens_eval.summarize \
-  eval/results/raw/<experiment-id>/<run-id>
-```
-
-`config/datasets.json` is the single dataset catalog and supports the explicit
-topology labels required by the study. Paths are repository-relative. The RQ1
-direct-tree experiment is declared in `config/experiments.json`; command-line
-overrides are copied into `resolved-config.json`.
-
-The repository has no suitable typing-profile benchmark dataset. Consequently,
-this phase does not run or report typing-profile RQ1 results. A future dataset
-entry must identify a profile file, use `typing_data`, and document its source
-and goeBURST interpretation before that pipeline is enabled.
-
-## RQ2 client-side visualization scalability
-
-RQ2 uses synthetic graphical fixtures only; they are not biological or
-phylogenetic datasets. Python creates an isolated
-`eval/results/raw/rq2-client-pilot/<run-id>/` directory and invokes the bounded
-Node/Playwright child once per warm-up or measured repetition. Each repetition
-has its own request, Chromium runtime state, browser result, frame samples,
-request samples, replay log, screenshot, stdout, and stderr.
-
-Build both browser inputs, then run a small headless smoke:
-
-```bash
-(cd code/client && npm run build:lib)
-(cd eval/browser && npm ci && npx playwright install chromium && npm run build)
-PYTHONPATH=eval/src:code/server/src python -m phylo_lens_eval.rq2 \
-  --experiment rq2-client-pilot --warmups 0 --repetitions 1
-```
-
-Node stdout is exactly one final JSON record. Python owns manifests, schema
-validation, process-tree RSS sampling, raw JSONL observations, and summaries.
-The local replay server is an API contract fixture; its timings are diagnostics,
-not server-performance measurements. Headless smoke outputs are CI validation,
-not final thesis evidence.
-
-The final isolated-client RQ2 is separate from that historical pilot. It uses
-the deterministic replay API with a fixed >6,000-node synthetic prepared
-metadata count and varies only the returned materialized fixture. It requires a
-caller-supplied immutable run ID, headed hardware-accelerated Chromium, and the
-frozen 7 × (1 warm-up + 5 measured) matrix:
-
-```bash
-PYTHONPATH=eval/src:code/server/src python -m phylo_lens_eval.rq2_final \
-  --run-id thesis-final-rq2-v020-001
-```
-
-Generate derived artifacts only after a completed audit-passing final run:
-
-```bash
-PYTHONPATH=eval/src:code/server/src python -m phylo_lens_eval.rq2_final_audit generate \
-  --run-dir eval/results/raw/rq2-client-final-v020/thesis-final-rq2-v020-001 \
-  --output-dir eval/results/derived/rq2-client-final-v020/thesis-final-rq2-v020-001 \
-  --reporting-audit-commit <commit>
-```
-
-## RQ3 paired triangle aggregation
-
-Run the tiny synthetic paired ablation after building the same browser inputs:
-
-```bash
-PYTHONPATH=eval/src:code/server/src python -m phylo_lens_eval.rq3 \
-  --experiment rq3-triangle-pilot --warmups 0 --repetitions 1
-```
-
-## Final RQ3: persisted LoD fidelity and materialization reduction
-
-`phylo_lens_eval.rq3_final` is a deterministic structural study, not a browser
-or performance benchmark. It independently parses the frozen EnteroBase /
-Achtman-MLST-derived goeBURST input, prepares exactly one v0.2.0 SQLite layout,
-and validates persisted LoD levels 0, 1, and 2 over one padded full-world
-bound. It rejects a pre-existing raw run directory and records no retries.
-
-Run only from a clean, committed evaluation harness and only after the final
-run ID has been approved:
-
-```bash
-PYTHONPATH=eval/src:code/server/src python -m phylo_lens_eval.rq3_final \
-  --run-id thesis-final-rq3-v020-001
-```
-
-After a completed audit-passing final run, create deterministic derived
-artifacts without rereading or modifying the product:
-
-```bash
-PYTHONPATH=eval/src:code/server/src python -m phylo_lens_eval.rq3_final_audit generate \
-  --run-dir eval/results/raw/rq3-lod-final-v020/thesis-final-rq3-v020-001 \
-  --output-dir eval/results/derived/rq3-lod-final-v020/thesis-final-rq3-v020-001 \
-  --reporting-audit-commit <commit>
-```
-RQ3 reads only persisted prepared-layout data to expand selected triangle
-members into detail at their original coordinates. Its raw `pairs.jsonl` is the
-statistical unit; it records both condition observations, semantic-population
-validation, counterbalanced order, and pair-level reduction/difference metrics.
+Zenodo upload directory: `eval/results/publication/`. Upload the verified
+`phylo-lens-thesis-evidence-20261002.tar.gz` and its `.sha256` sidecar; this is
+the full selected reproducibility bundle, distinct from the compact Chapter 5 ZIP.
+Do not upload all of `eval/results/`, which also retains superseded campaigns.
