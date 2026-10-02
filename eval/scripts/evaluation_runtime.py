@@ -108,7 +108,7 @@ def server(product, directory, layout_dir=None):
         **os.environ,
         "PYTHONPATH": str(product / "code/server/src")
         + os.pathsep
-        + str(ROOT / "scripts"),
+        + str(ROOT / "eval/scripts"),
         "PHYLO_LENS_PREPARED_LAYOUT_STORE_DIR": str(layout),
         "PHYLO_LENS_PREPARE_JOB_BACKEND": "local",
         "PHYLO_LENS_CORS_ORIGINS": "*",

@@ -196,8 +196,8 @@ def run(args):
     )
     harness = [
         Path(__file__),
-        ROOT / "scripts/evaluation_runtime.py",
-        ROOT / "scripts/local_eval_server.py",
+        ROOT / "eval/scripts/evaluation_runtime.py",
+        ROOT / "eval/scripts/local_eval_server.py",
         ROOT / "eval/browser/src/external-comparison-runner.mjs",
         ROOT / "eval/browser/src/external-bitmap-validator.mjs",
     ]

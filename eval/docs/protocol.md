@@ -8,14 +8,14 @@ prose is outside this task.
 
 ## Canonical entrypoints
 
-- `scripts/run_final_local_evidence.py --current-source`: RQ2 replay, integrated
+- `eval/scripts/run_final_local_evidence.py --current-source`: RQ2 replay, integrated
   RQ2 and RQ4, using the real current client and localhost service.
-- `scripts/audit_final_local_evidence.py RUN`: independent temporal, membership,
+- `eval/scripts/audit_final_local_evidence.py RUN`: independent temporal, membership,
   hierarchy, coordinate and weighted-edge validation; writes `REPORT.md`.
-- `scripts/run_local_rq34.py`: prepare and validate the canonical RQ3 hierarchy.
-- `scripts/run_preparation_evaluation.py --campaign rq1|external`: shared current
+- `eval/scripts/run_local_rq34.py`: prepare and validate the canonical RQ3 hierarchy.
+- `eval/scripts/run_preparation_evaluation.py --campaign rq1|external`: shared current
   server/preparation path, phase wall/CPU instrumentation and process-tree samples.
-- `scripts/audit_preparation_evaluation.py RUN`: raw-data reconciliation and
+- `eval/scripts/audit_preparation_evaluation.py RUN`: raw-data reconciliation and
   derived tables for the preparation/visual campaign.
 
 Version-suffixed duplicate runner sources are retained in the verified archive
@@ -37,9 +37,9 @@ For reproduction, run from the repository root with a **new, unused run ID**,
 without another benchmark running simultaneously:
 
 ```sh
-rtk proxy .venv/bin/python scripts/run_preparation_evaluation.py \
+rtk proxy .venv/bin/python eval/scripts/run_preparation_evaluation.py \
   --campaign rq1 --run-id YOUR-NEW-RUN-ID
-rtk proxy .venv/bin/python scripts/audit_preparation_evaluation.py \
+rtk proxy .venv/bin/python eval/scripts/audit_preparation_evaluation.py \
   eval/results/local/YOUR-NEW-RUN-ID
 ```
 

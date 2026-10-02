@@ -6,7 +6,8 @@ from pathlib import Path
 import pytest
 
 spec = importlib.util.spec_from_file_location(
-    "chapter5_figures", Path(__file__).parents[1] / "tools/generate_chapter5_figures.py"
+    "chapter5_figures",
+    Path(__file__).parents[1] / "scripts/generate_chapter5_figures.py",
 )
 figures = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(figures)

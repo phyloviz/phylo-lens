@@ -95,9 +95,9 @@ def validate_sources(paths):
         external["provenance"]["product_fingerprint"],
         evidence["provenance"]["product_fingerprint"],
     }
-    assert (
-        len(fingerprints) == 1
-    ), "Current campaigns have different product identities."
+    assert len(fingerprints) == 1, (
+        "Current campaigns have different product identities."
+    )
     rq3 = read(paths["rq3"] / "rq3.json")
     assert all(r["invariants"] == "PASS" for r in rq3)
     assert rq3[-1]["aggregates"] == 0
@@ -630,9 +630,9 @@ def generate(paths, output, dpi=220):
                     row["processing_excluding_input_construction_s"],
                 ],
             )
-            assert (
-                abs(total - parse - processing) < 1e-8
-            ), "MSAGL processing must be a paired difference."
+            assert abs(total - parse - processing) < 1e-8, (
+                "MSAGL processing must be a paired difference."
+            )
             grouped[int(row["node_count"])].append(float(row[metric]))
         mrows += [
             dict(condition=str(n), x=n / 1000, series=label, **statistics(vals))

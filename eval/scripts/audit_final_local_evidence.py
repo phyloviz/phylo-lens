@@ -660,8 +660,8 @@ def main():
         + "\n"
         + "rtk proxy env PYTHONPATH="
         + shlex.quote(str(product / "code/server/src"))
-        + " .venv/bin/python -m pytest scripts/test_final_local_evidence.py scripts/test_run_local_rq34.py eval/tests -q\n"
-        + "rtk proxy .venv/bin/python -m ruff check scripts/run_final_local_evidence.py scripts/local_eval_server.py scripts/audit_final_local_evidence.py scripts/test_final_local_evidence.py\nrtk proxy git diff --check\n```\n"
+        + " .venv/bin/python -m pytest -c eval/pyproject.toml eval/tests -q\n"
+        + "rtk proxy .venv/bin/python -m ruff check eval/scripts/run_final_local_evidence.py eval/scripts/local_eval_server.py eval/scripts/audit_final_local_evidence.py eval/tests/test_final_local_evidence.py\nrtk proxy git diff --check\n```\n"
     )
     print("AUDIT PASS", directory)
 

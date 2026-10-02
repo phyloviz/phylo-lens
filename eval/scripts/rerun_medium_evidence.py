@@ -121,7 +121,7 @@ def main():
         **os.environ,
         "PYTHONPATH": str(product / "code/server/src")
         + os.pathsep
-        + str(ROOT / "scripts"),
+        + str(ROOT / "eval/scripts"),
         "PHYLO_LENS_PREPARED_LAYOUT_STORE_DIR": str(
             Path(manifest["prepared_database"]).parent
         ),
@@ -257,7 +257,7 @@ def main():
     subprocess.run(
         [
             sys.executable,
-            str(ROOT / "scripts/audit_final_local_evidence.py"),
+            str(ROOT / "eval/scripts/audit_final_local_evidence.py"),
             str(directory),
         ],
         check=True,

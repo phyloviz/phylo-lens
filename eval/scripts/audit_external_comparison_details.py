@@ -1,7 +1,7 @@
 """Read immutable campaign observations and derive paired timing summaries.
 
 No benchmark runs or raw-file writes. Usage:
-  python3 scripts/audit_external_comparison_details.py --thesis-root ~/Developer/Thesis
+  python3 eval/scripts/audit_external_comparison_details.py --thesis-root ~/Developer/Thesis
 """
 
 import argparse
@@ -30,11 +30,11 @@ def main():
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path(__file__).resolve().parents[1]
+        default=Path(__file__).resolve().parents[2]
         / "eval/results/derived/external-comparison-audit-20261002",
     )
     args = parser.parse_args()
-    repo = Path(__file__).resolve().parents[1]
+    repo = Path(__file__).resolve().parents[2]
     external = (
         args.thesis_root
         / "results/raw/final/final-external-fullmst-phylolens-0.2.0/thesis-final-fullmst-phylolens-v020-004"

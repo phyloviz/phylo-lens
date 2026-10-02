@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 spec = importlib.util.spec_from_file_location(
-    "export_results", Path(__file__).parents[1] / "tools/export_results.py"
+    "export_results", Path(__file__).parents[1] / "scripts/export_results.py"
 )
 exporter = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(exporter)

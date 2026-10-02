@@ -325,9 +325,9 @@ def main():
             shutil.copy(probe, directory / Path(probe).name)
     scripts = [
         Path(__file__),
-        ROOT / "scripts/local_eval_server.py",
-        ROOT / "scripts/evaluation_runtime.py",
-        ROOT / "scripts/run_local_rq34.py",
+        ROOT / "eval/scripts/local_eval_server.py",
+        ROOT / "eval/scripts/evaluation_runtime.py",
+        ROOT / "eval/scripts/run_local_rq34.py",
         ROOT / "eval/browser/src/page.ts",
         ROOT / "eval/browser/src/rq4-final-runner.mjs",
         ROOT / "eval/browser/src/final_runner.mjs",
@@ -538,7 +538,7 @@ def main():
             **os.environ,
             "PYTHONPATH": str(product / "code/server/src")
             + os.pathsep
-            + str(ROOT / "scripts"),
+            + str(ROOT / "eval/scripts"),
             "PHYLO_LENS_PREPARED_LAYOUT_STORE_DIR": str(store.path.parent),
             "PHYLO_LENS_PREPARE_JOB_BACKEND": "local",
             "PHYLO_LENS_CORS_ORIGINS": "*",

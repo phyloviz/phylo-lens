@@ -1,6 +1,6 @@
 """Offline rooted-hop LoD experiment; never imported by production.
 
-Run: code/server/.venv/bin/python scripts/evaluate_lod_growth.py
+Run: code/server/.venv/bin/python eval/scripts/evaluate_lod_growth.py
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ from bisect import bisect_left
 from collections import Counter
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "code/server/src"))
 
 
