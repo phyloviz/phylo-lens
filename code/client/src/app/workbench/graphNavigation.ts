@@ -13,7 +13,7 @@ interface WorkbenchNavigationOptions {
   dispatch: (action: GraphWorkbenchAction) => void;
   renderer: GraphRenderer;
   graphClient: GraphClient;
-  getViewportSync: () => GraphViewportCoordinator | null;
+  getViewportCoordinator: () => GraphViewportCoordinator | null;
 }
 
 export default function createGraphNavigation({
@@ -21,12 +21,12 @@ export default function createGraphNavigation({
   dispatch,
   renderer,
   graphClient,
-  getViewportSync,
+  getViewportCoordinator: getViewportCoordinator,
 }: WorkbenchNavigationOptions) {
   let focusSequence = 0;
   const cancelPendingFocus = () => {
     focusSequence += 1;
-    getViewportSync()?.cancelPendingFocus();
+    getViewportCoordinator()?.cancelPendingFocus();
   };
 
   return {
@@ -111,10 +111,10 @@ export default function createGraphNavigation({
     cancelPendingFocus();
 
     const sequence = focusSequence;
-    const controller = getViewportSync();
+    const controller = getViewportCoordinator();
 
     const isCurrent = () =>
-      sequence === focusSequence && getState().preparedSession === session && getViewportSync() === controller;
+      sequence === focusSequence && getState().preparedSession === session && getViewportCoordinator() === controller;
     const currentGraph = () => getState().graphSnapshot ?? createEmptyGraph();
 
     // A repeated selection must recenter too: the user may have panned away.

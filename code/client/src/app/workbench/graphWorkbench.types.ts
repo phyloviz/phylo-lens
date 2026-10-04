@@ -38,24 +38,23 @@ export interface RegionSelectionResult {
 
 export type RegionSelectedHandler = (bounds: RenderViewportBounds) => void;
 
-export interface RenderNewickOptions extends AncillaryInputOptions {
-  // Source family of `content`: "newick" parses the text directly; "typing_data"
-  // routes an allelic-profile matrix through the server's PhyloLib tree build.
-  // Defaults to "newick" when unset so existing callers are unaffected.
-  sourceFormat?: SourceFormat;
-  visualMapping?: VisualMappingOptions;
-  // Seed presentation toggles with the render request. This keeps the first
-  // viewport snapshot consistent with selections made before loading a graph.
-  displayOptions?: GraphDisplayOptions;
-  // Optional SFDP overrides are sent with preparation. Omitted fields defer to
-  // Graphviz's defaults.
-  sfdpOptions?: SfdpOptions;
-  lod?: {
-    maxNodes?: number;
-    representationSpacingPx?: number;
-    smallTreeThreshold?: number;
-    lodHint?: number;
-    viewport?: Viewport;
+export interface GraphInput {
+  readonly content: string;
+  readonly format: SourceFormat;
+  readonly datasetName?: string;
+}
+
+export interface LoadGraphOptions extends AncillaryInputOptions {
+  readonly visualMapping?: VisualMappingOptions;
+  readonly displayOptions?: GraphDisplayOptions;
+  readonly sfdpOptions?: SfdpOptions;
+
+  readonly lod?: {
+    readonly maxNodes?: number;
+    readonly representationSpacingPx?: number;
+    readonly smallTreeThreshold?: number;
+    readonly lodHint?: number;
+    readonly viewport?: Viewport;
   };
 }
 

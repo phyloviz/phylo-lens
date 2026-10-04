@@ -13,10 +13,15 @@ interface GraphFiltersOptions {
   getState: () => GraphWorkbenchState;
   dispatch: (action: GraphWorkbenchAction) => void;
   renderer: GraphRenderer;
-  getViewportSync: () => GraphViewportCoordinator | null;
+  getViewportCoordinator: () => GraphViewportCoordinator | null;
 }
 
-export default function createGraphFilters({ getState, dispatch, renderer, getViewportSync }: GraphFiltersOptions) {
+export default function createGraphFilters({
+  getState,
+  dispatch,
+  renderer,
+  getViewportCoordinator: getViewportCoordinator,
+}: GraphFiltersOptions) {
   return {
     applyMetadataFilters: applyMetadataFilters,
     clearMetadataFilters: clearMetadataFilters,
@@ -32,7 +37,7 @@ export default function createGraphFilters({ getState, dispatch, renderer, getVi
       filters: filterState,
     });
 
-    getViewportSync()?.refreshNow();
+    getViewportCoordinator()?.refreshNow();
 
     return currentGraph(getState());
   }
@@ -45,7 +50,7 @@ export default function createGraphFilters({ getState, dispatch, renderer, getVi
       filters: EMPTY_ANCILLARY_FILTER_STATE,
     });
 
-    getViewportSync()?.refreshNow();
+    getViewportCoordinator()?.refreshNow();
 
     return currentGraph(getState());
   }
@@ -58,7 +63,7 @@ export default function createGraphFilters({ getState, dispatch, renderer, getVi
       visualMapping,
     });
 
-    getViewportSync()?.refreshNow();
+    getViewportCoordinator()?.refreshNow();
 
     return currentGraph(getState());
   }
@@ -76,7 +81,7 @@ export default function createGraphFilters({ getState, dispatch, renderer, getVi
 
     renderer.updateDisplayOptions?.(displayOptions);
 
-    getViewportSync()?.updateDisplayOptions(getState().preparedSession?.displayOptions ?? displayOptions);
+    getViewportCoordinator()?.updateDisplayOptions(getState().preparedSession?.displayOptions ?? displayOptions);
   }
 }
 

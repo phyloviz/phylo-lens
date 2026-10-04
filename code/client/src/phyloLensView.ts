@@ -106,12 +106,16 @@ export function createPhyloLensView(options: PhyloLensViewOptions): PhyloLensVie
       if (disposed) {
         throw new Error(ERR_PHYLO_LENS_VIEW_DISPOSED);
       }
-      const renderOptions = {
-        ...loadOptions,
-        sourceFormat,
-      } satisfies RenderNewickOptions;
+
       try {
-        await workbench.renderNewick(content, name, renderOptions);
+        await workbench.loadGraph(
+          {
+            content,
+            format: sourceFormat,
+            datasetName: name,
+          },
+          loadOptions,
+        );
       } catch (error) {
         if (disposed && error instanceof Error && error.message === ERR_GRAPH_LOAD_SUPERSEDED) {
           throw new Error(ERR_PHYLO_LENS_VIEW_DISPOSED);
