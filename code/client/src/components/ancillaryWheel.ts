@@ -187,8 +187,3 @@ function escapeHtml(input: string): string {
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
 }
-
-/** @deprecated Use the corresponding Ancillary* names. */
-export const buildMetadataFieldWheelStats = buildAncillaryFieldWheelStats;
-export const collectMetadataFieldSummaries = collectAncillaryFieldSummaries;
-export type MetadataFieldSummary = AncillaryFieldSummary;

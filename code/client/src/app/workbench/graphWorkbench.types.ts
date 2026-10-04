@@ -2,16 +2,15 @@ import type { DragSelection, PngExportOptions } from "../../render/renderer.type
 import type { ExpansionResult, ExpansionState } from "../../contracts/expansion";
 import type { AncillaryData, AncillaryField } from "../../contracts/ancillary";
 import type { AncillaryInputOptions } from "../../ancillary/ancillaryInput";
-import type { GraphClient } from "../../api/graphClient";
 import type {
   GraphAncillaryResponse,
   GraphAncillaryField,
   GraphAncillaryValue,
   SfdpOptions,
+  GraphClient,
 } from "../../api/graphContracts";
 import type { CanonicalDataset, SearchDatasetResponse, SourceFormat, Viewport } from "../../contracts/models";
 import type { PositionedGraph } from "../../contracts/positioned";
-import type { AncillaryIndex } from "../../ancillary/ancillaryIndex";
 import type { AncillaryFilterState } from "../../ancillary/ancillaryTypes";
 import type { VisualMappingOptions } from "../../render/mapping/visualMapping";
 import type {
@@ -131,44 +130,31 @@ export interface GraphWorkbench {
 
 // Internal workbench state.
 
-export interface PreparedDatasetSession {
-  datasetId: string;
-  layoutVersion?: string;
-  ancillarySchema: AncillaryField[];
-  ancillaryByNodeId: Record<string, AncillaryData>;
-  ancillaryRowsByNodeId: CanonicalDataset["ancillary_rows_by_node_id"];
-  visualMapping?: VisualMappingOptions;
-  // Presentation toggles applied during viewport sync (node labels, edge
-  // distance labels, distance-weighted edge thickness).
-  displayOptions?: GraphDisplayOptions;
-  // Prepare-time warnings, surfaced by the shell on every slice.
-  layoutWarnings?: string[];
-  // Total precomputed LoD tiers for the dataset (from the prepare response).
-  // Surfaced in the status bar as "LoD tier X/Y" so semantic-zoom transitions
-  // are observable.
-  lodTierCount?: number;
-  lod: {
-    maxNodes?: number;
-    representationSpacingPx?: number;
-    smallTreeThreshold?: number;
-    lodHint?: number;
-    viewport: Viewport;
+export interface GraphSession {
+  readonly datasetId: string;
+  readonly layoutVersion: string;
+  readonly ancillarySchema: readonly AncillaryField[];
+  readonly ancillaryByNodeId: Readonly<Record<string, AncillaryData>>;
+  readonly ancillaryRowsByNodeId: CanonicalDataset["ancillary_rows_by_node_id"];
+  readonly visualMapping?: VisualMappingOptions;
+  readonly displayOptions?: GraphDisplayOptions;
+  readonly layoutWarnings?: readonly string[];
+  readonly lodTierCount?: number;
+
+  readonly lod: {
+    readonly maxNodes?: number;
+    readonly representationSpacingPx?: number;
+    readonly smallTreeThreshold?: number;
+    readonly lodHint?: number;
+    readonly viewport: Viewport;
   };
 }
 
 export interface GraphWorkbenchState {
-  currentSliceDataset: CanonicalDataset | null;
-  currentGraph: PositionedGraph | null;
-  ancillaryIndex: AncillaryIndex | null;
-  ancillaryIndexSignature: string | null;
-  activeFilters: AncillaryFilterState;
-  preparedSession: PreparedDatasetSession | null;
-  pendingViewRefreshId: number | null;
-  lodRefreshPaused: boolean;
-  graphRenderedHandler: GraphRenderedHandler | null;
-  nodeClickedHandler: GraphNodeClickedHandler | null;
-  // Node currently focused via search. Forwarded to the LoD sync so it is
-  // highlighted (red) on every viewport re-fetch, including the slice pulled in
-  // by focusing a node that was outside the current view.
-  focusedNodeId: string | null;
+  readonly preparedSession: GraphSession | null;
+  readonly graphSnapshot: PositionedGraph | null;
+  readonly focusedNodeId: string | null;
+  readonly activeFilters: AncillaryFilterState;
+  readonly lodRefreshPaused: boolean;
+  readonly currentSliceDataset: CanonicalDataset | null;
 }

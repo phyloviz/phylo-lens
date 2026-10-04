@@ -34,19 +34,12 @@ export interface PositionedGraph {
   viewMeta: {
     layout: LayoutMode;
     lodLevel: number;
-    // Total number of precomputed LoD tiers for the dataset. Together with
-    // lodLevel this lets the shell show "LoD tier X/Y" so a semantic-zoom tier
-    // change is observable (the coarse tier no longer looks distinct once
-    // single-member proxies render as plain leaves).
     lodTierCount?: number;
     sliceNodeCount?: number;
     sliceEdgeCount?: number;
     zoom?: number;
     globalBounds?: PositionedGraphBounds;
-    // Server layout status for the current slice. "degraded" is retained only
-    // for layouts created by earlier service versions.
     layoutStatus?: string;
-    // Human-readable warnings from the prepare step.
-    layoutWarnings?: string[];
+    layoutWarnings?: readonly string[];
   };
 }

@@ -4,7 +4,7 @@ import { RENDERER_KIND_SIGMA } from "../render/renderer.types";
 import { createGraphWorkbench } from "./workbench/graphWorkbench";
 import uiShell, { type UiShell } from "./uiShell";
 
-export const DEFAULT_SERVER_BASE_URL = "";
+export const DEFAULT_SERVER_BASE_URL = ""; //TODO: See a way to remove this, because having an empty constant does not help much..
 
 export const ID_RENDER_FORM = "render-form";
 export const ID_NEWICK_INPUT = "newick-input";
@@ -127,6 +127,8 @@ export default function bootstrapClientShell(baseUrl = DEFAULT_SERVER_BASE_URL):
 
   return shell;
 }
+
+// Helpers
 
 function getButton(id: string): HTMLButtonElement | undefined {
   return getOptionalElement<HTMLButtonElement>(id);

@@ -1,6 +1,6 @@
 import type { AncillaryObservation } from "../../../contracts/ancillary";
 import { type AncillaryInputOptions } from "../../../ancillary/ancillaryInput";
-import { decodeLegacyMetadata } from "../../../ancillary/legacyMetadata";
+import { decodeApiMetadata } from "../../../ancillary/apiMetadata";
 import type { GraphViewportEdge, GraphViewportNode, GraphViewportResponse } from "../../../api/graphContracts";
 import type { PositionedEdge, PositionedGraph, PositionedNode } from "../../../contracts/positioned";
 import { hasActiveFilters, matchesFilterState } from "../../../ancillary/filterEngine";
@@ -181,7 +181,7 @@ function buildGraphViewportNodeAttributes(
     type: isRepresentative ? GRAPH_VIEWER_TRIANGLE_NODE_TYPE : undefined,
     borderColor: undefined,
     layout_status: node.layout_status,
-    annotations: decodeLegacyMetadata(metadata),
+    annotations: decodeApiMetadata(metadata),
     isolates: (node.isolates ?? []).map(({ id, metadata }) => ({ id, ancillaryData: metadata })),
     ancillaryDistribution: observations,
     ...pieNodeAttributes(visuals, distribution),
@@ -230,7 +230,7 @@ function resolveViewportVisuals(
   }
 
   const colorField = resolveColorField(mapping.colorField);
-  const sizeField = mapping.size?.field ?? mapping.sizeField ?? resolveDefaultSizeField(viewportHasProfileCount(nodes));
+  const sizeField = mapping.size?.field ?? resolveDefaultSizeField(viewportHasProfileCount(nodes));
   const scale = mapping.size?.scale ?? SIZE_SCALE_LINEAR;
   const palette = resolveMappingPalette(mapping);
   const numericStats = computeSizeFieldStats(nodes, sizeField);
@@ -238,7 +238,7 @@ function resolveViewportVisuals(
 
   return {
     colorField,
-    customSize: mapping.size !== undefined || mapping.sizeField !== undefined,
+    customSize: mapping.size !== undefined,
     sizeField,
     scale,
     palette,
@@ -286,7 +286,7 @@ function nodeSizeForMemberCount(memberCount: number): number {
 function nodeObservations(node: GraphViewportNode): AncillaryObservation[] {
   if (node.ancillary_distribution?.length) return node.ancillary_distribution;
   if (node.isolates?.length) return node.isolates.map((isolate) => ({ values: isolate.metadata, count: 1 }));
-  const annotations = decodeLegacyMetadata(node.metadata ?? {});
+  const annotations = decodeApiMetadata(node.metadata ?? {});
   return [{ values: { ...annotations.ancillarySummary.values, ...annotations.ancillaryData }, count: 1 }];
 }
 

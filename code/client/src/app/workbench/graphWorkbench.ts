@@ -1,21 +1,18 @@
 import { resolveAncillaryInput } from "../../ancillary/ancillaryInput";
-import type { GraphClient } from "../../api/graphClient";
-import type { NormalizeRequest } from "../../api/graphContracts";
+import type { NormalizeRequest, GraphClient } from "../../api/graphContracts";
 import { SOURCE_FORMAT_NEWICK } from "../../contracts/models";
 import { type PositionedGraph } from "../../contracts/positioned";
 import type { GraphRenderer } from "../../render/renderer.types";
-import { DEFAULT_VIEWPORT, createEmptyGraph } from "./viewportGraph";
+import { DEFAULT_VIEWPORT } from "./viewportGraph";
 import graphFilters from "./graphFilters";
-import {
-  clearPendingViewRefresh,
-  createInitialWorkbenchState,
-  requirePreparedSession,
-  resetWorkbenchState,
-} from "./graphWorkbench.state";
+import { createInitialWorkbenchState, isSessionPrepared, getPreparedSession } from "./graphWorkbench.state";
 import type {
+  GraphNodeClickedHandler,
+  GraphRenderedHandler,
   GraphWorkbench,
   GraphWorkbenchOptions,
   GraphWorkbenchState,
+  GraphSession,
   RenderNewickOptions,
 } from "./graphWorkbench.types";
 import {
@@ -24,9 +21,11 @@ import {
   ERR_NO_GRAPH_RENDERED,
 } from "./graphWorkbench.errors";
 import graphNavigation from "./graphNavigation";
-import { ViewportSyncController } from "./viewport/viewportSyncController";
+import { GraphViewportCoordinator } from "./viewport/viewportCoordinator";
 import type { SnapshotAppliedObserver } from "./internalSnapshotObserver";
 import { GRAPH_VIEWER_SMALL_TREE_NODE_THRESHOLD } from "./viewport/viewportQuery";
+import { ACTIONS, type GraphWorkbenchAction } from "./graphWorkbench.actions";
+import { reduceGraphWorkbenchState } from "./graphWorkbench.reducer";
 
 export { DEFAULT_VIEWPORT } from "./viewportGraph";
 export type {
@@ -47,22 +46,42 @@ export function createGraphWorkbench(
   options: GraphWorkbenchOptions,
   snapshotObserver?: SnapshotAppliedObserver,
 ): GraphWorkbench {
-  const state = createInitialWorkbenchState();
-  let viewportSync: ViewportSyncController | null = null;
+  // Single mutable binding for application state.
+  // Other mutable variables below are locally owned lifecycle resources.
+  let state = createInitialWorkbenchState();
+
+  const getState = (): GraphWorkbenchState => state;
+
+  const dispatch = (action: GraphWorkbenchAction): void => {
+    state = reduceGraphWorkbenchState(state, action);
+  };
+
+  let viewportSync: GraphViewportCoordinator | null = null;
+  let graphRenderedHandler: GraphRenderedHandler | null = null;
+  let nodeClickedHandler: GraphNodeClickedHandler | null = null;
+
   let loadGeneration = 0;
   let snapshotSequence = 0;
   let disposed = false;
-  let applyingAncillary = false;
-  const replaceViewportSync = (controller: ViewportSyncController | null) => {
+
+  const replaceViewportSync = (controller: GraphViewportCoordinator | null) => {
     viewportSync?.unmount();
     viewportSync = controller;
   };
 
   const renderer = options.rendererFactory.createRenderer(options.rendererKind);
   renderer.mount(options.renderContext);
-  const filters = graphFilters({ state, renderer, getViewportSync: () => viewportSync });
+
+  const filters = graphFilters({
+    getState,
+    dispatch,
+    renderer,
+    getViewportSync: () => viewportSync,
+  });
+
   const navigation = graphNavigation({
-    state,
+    getState,
+    dispatch,
     renderer,
     graphClient: options.graphClient,
     getViewportSync: () => viewportSync,
@@ -70,26 +89,39 @@ export function createGraphWorkbench(
 
   renderer.setNodeClickHandler?.((clickState) => {
     navigation.cancelPendingFocus();
-    state.focusedNodeId = clickState.nodeId;
-    state.nodeClickedHandler?.(clickState);
+
+    dispatch({
+      type: ACTIONS.nodeFocused,
+      nodeId: clickState.nodeId,
+    });
+
+    nodeClickedHandler?.(clickState);
   });
 
   async function setLodRefreshPaused(paused: boolean): Promise<PositionedGraph | null> {
-    requirePreparedSession(state, ERR_LOD_PLAYBACK_REQUIRES_LOD);
+    if (!isSessionPrepared(getState())) {
+      return null;
+    }
 
-    state.lodRefreshPaused = paused;
-    clearPendingViewRefresh(state);
-    // On resume, reconcile the frozen view to wherever the camera drifted while
-    // paused. refreshNow() bypasses the pause guard in ViewportSyncController.
+    dispatch({
+      type: ACTIONS.lodRefreshPaused,
+      paused,
+    });
+
+    // keep whatever pending-refresh cleanup you currently need
+
     if (!paused) {
       viewportSync?.refreshNow();
     }
-    return state.currentGraph;
+
+    return getState().graphSnapshot;
   }
 
-  const requireViewportSync = () => {
-    requirePreparedSession(state);
-    if (disposed || !viewportSync) throw new Error(ERR_NO_GRAPH_RENDERED);
+  const requireViewportSync = (): GraphViewportCoordinator => {
+    if (disposed || !viewportSync || !isSessionPrepared(getState())) {
+      throw new Error(ERR_NO_GRAPH_RENDERED);
+    }
+
     return viewportSync;
   };
 
@@ -108,8 +140,9 @@ export function createGraphWorkbench(
     renderNewick: (newick, datasetName, renderOptions) => {
       const generation = ++loadGeneration;
       return renderNewick({
+        getState,
+        dispatch,
         isCurrentLoad: () => !disposed && generation === loadGeneration,
-        state,
         renderer,
         graphClient: options.graphClient,
         setViewportSync: replaceViewportSync,
@@ -118,30 +151,28 @@ export function createGraphWorkbench(
         options: renderOptions,
         snapshotObserver,
         nextSnapshotSequence: () => ++snapshotSequence,
+        onGraphRendered: (graph) => graphRenderedHandler?.(graph),
       });
     },
 
     applyAncillaryData: async (data) => {
-      const session = requirePreparedSession(state);
-      const controller = viewportSync;
-      if (disposed || !controller || !session.layoutVersion || !state.currentGraph || applyingAncillary) {
-        throw new Error("Cannot apply ancillary data to this view while another update is pending or after disposal.");
+      const controller = requireViewportSync();
+      const session = getPreparedSession(getState());
+      const generation = loadGeneration;
+
+      const result = await options.graphClient.applyAncillaryData({
+        dataset_id: session.datasetId,
+        layout_version: session.layoutVersion,
+        ancillary_data: data,
+      });
+
+      if (disposed || generation !== loadGeneration || viewportSync !== controller) {
+        throw new Error(ERR_GRAPH_LOAD_SUPERSEDED);
       }
-      applyingAncillary = true;
-      try {
-        const result = await options.graphClient.applyAncillaryData({
-          dataset_id: session.datasetId,
-          layout_version: session.layoutVersion,
-          ancillary_data: data,
-        });
-        if (disposed || state.preparedSession !== session || viewportSync !== controller) {
-          throw new Error(ERR_GRAPH_LOAD_SUPERSEDED);
-        }
-        await controller.replaceLayoutVersion(result.layout_version);
-        return result;
-      } finally {
-        applyingAncillary = false;
-      }
+
+      await controller.replaceLayoutVersion(result.layout_version);
+
+      return result;
     },
 
     exportPng: (exportOptions) => {
@@ -161,7 +192,7 @@ export function createGraphWorkbench(
 
     setLodRefreshPaused,
 
-    isLodRefreshPaused: () => state.lodRefreshPaused,
+    isLodRefreshPaused: () => getState().lodRefreshPaused,
 
     searchNodes: navigation.searchNodes,
 
@@ -169,11 +200,11 @@ export function createGraphWorkbench(
     cancelPendingFocus: navigation.cancelPendingFocus,
 
     setGraphRenderedHandler: (handler) => {
-      state.graphRenderedHandler = handler;
+      graphRenderedHandler = handler;
     },
 
     setNodeClickedHandler: (handler) => {
-      state.nodeClickedHandler = handler;
+      nodeClickedHandler = handler;
     },
 
     setRegionSelectModeEnabled: (enabled) => {
@@ -193,7 +224,6 @@ export function createGraphWorkbench(
     dispose: () => {
       disposed = true;
       loadGeneration += 1;
-      clearPendingViewRefresh(state);
       renderer.setViewChangeHandler?.(null);
       renderer.setNodeClickHandler?.(null);
       renderer.setNodeDoubleClickHandler?.(null);
@@ -206,20 +236,27 @@ export function createGraphWorkbench(
 }
 
 interface RenderNewickArgs {
-  state: GraphWorkbenchState;
+  getState: () => GraphWorkbenchState;
+  dispatch: (action: GraphWorkbenchAction) => void;
+
   renderer: GraphRenderer;
   graphClient: GraphClient;
-  setViewportSync: (controller: ViewportSyncController | null) => void;
+  setViewportSync: (controller: GraphViewportCoordinator | null) => void;
   isCurrentLoad: () => boolean;
+
   newick: string;
   datasetName?: string;
   options?: RenderNewickOptions;
+
   snapshotObserver?: SnapshotAppliedObserver;
   nextSnapshotSequence: () => number;
+
+  onGraphRendered?: (graph: PositionedGraph) => void;
 }
 
 async function renderNewick({
-  state,
+  getState,
+  dispatch,
   renderer,
   graphClient,
   setViewportSync,
@@ -229,9 +266,12 @@ async function renderNewick({
   options = {},
   snapshotObserver,
   nextSnapshotSequence,
+  onGraphRendered,
 }: RenderNewickArgs): Promise<PositionedGraph> {
   setViewportSync(null);
-  resetWorkbenchState(state);
+  dispatch({
+    type: ACTIONS.reset,
+  });
   const motionEnabled = renderer.isMotionEnabled?.() ?? true;
   renderer.resetLayoutEdits?.();
   renderer.setMotionEnabled?.(motionEnabled);
@@ -261,56 +301,72 @@ async function renderNewick({
 
   const smallTreeThreshold = options.lod?.smallTreeThreshold ?? GRAPH_VIEWER_SMALL_TREE_NODE_THRESHOLD;
 
-  state.preparedSession = {
+  const session: GraphSession = {
     datasetId: preparedGraph.dataset_id,
     layoutVersion: preparedGraph.layout_version,
+
     ancillarySchema: ancillary.ancillarySchema,
     ancillaryByNodeId: ancillary.ancillaryByNodeId,
     ancillaryRowsByNodeId: {},
+
     visualMapping: options.visualMapping,
     displayOptions: options.displayOptions,
+
     layoutWarnings: preparedGraph.warnings,
     lodTierCount: preparedGraph.lod_tier_count,
+
     lod: {
-      maxNodes: maxNodes,
+      maxNodes,
       representationSpacingPx: options.lod?.representationSpacingPx,
-      smallTreeThreshold: smallTreeThreshold,
+      smallTreeThreshold,
       lodHint: options.lod?.lodHint,
       viewport: options.lod?.viewport ?? DEFAULT_VIEWPORT,
     },
   };
-  state.currentSliceDataset = null;
 
-  const viewportSync = new ViewportSyncController({
+  dispatch({
+    type: ACTIONS.graphPrepared,
+    session,
+  });
+
+  const viewportSync = new GraphViewportCoordinator({
     client: graphClient,
-    datasetId: preparedGraph.dataset_id,
-    layoutVersion: preparedGraph.layout_version,
+    datasetId: session.datasetId,
+    layoutVersion: session.layoutVersion!,
     renderer,
-    maxNodes: state.preparedSession.lod.maxNodes,
-    representationSpacingPx: state.preparedSession.lod.representationSpacingPx,
-    smallTreeThreshold: state.preparedSession.lod.smallTreeThreshold,
+
+    maxNodes: session.lod.maxNodes,
+    representationSpacingPx: session.lod.representationSpacingPx,
+    smallTreeThreshold: session.lod.smallTreeThreshold,
     lodTierCount: preparedGraph.lod_tier_count,
     nodeCount: preparedGraph.node_count,
-    getPaused: () => state.lodRefreshPaused,
+    getPaused: () => getState().lodRefreshPaused,
     onGraphSynced: (graph, response) => {
-      if (response && state.preparedSession) {
-        state.preparedSession.ancillarySchema = response.metadata_schema ?? [];
-        state.preparedSession.layoutVersion = response.layout_version;
+      dispatch({
+        type: ACTIONS.viewportSynced,
+        graph,
+        response,
+      });
+
+      const currentGraph = getState().graphSnapshot;
+
+      if (currentGraph) {
+        onGraphRendered?.(currentGraph);
       }
-      graph.viewMeta.lodTierCount = state.preparedSession?.lodTierCount;
-      graph.viewMeta.layoutWarnings = state.preparedSession?.layoutWarnings;
-      state.currentGraph = graph;
-      state.graphRenderedHandler?.(graph);
     },
     snapshotObserver,
     nextSnapshotSequence,
-    getRenderSettings: () => ({
-      visualMapping: state.preparedSession?.visualMapping,
-      filterState: state.activeFilters,
-      ancillarySchema: state.preparedSession?.ancillarySchema,
-      ancillaryByNodeId: state.preparedSession?.ancillaryByNodeId,
-      displayOptions: state.preparedSession?.displayOptions,
-    }),
+    getRenderSettings: () => {
+      const state = getState();
+
+      return {
+        visualMapping: state.preparedSession?.visualMapping,
+        filterState: state.activeFilters,
+        ancillarySchema: state.preparedSession?.ancillarySchema,
+        ancillaryByNodeId: state.preparedSession?.ancillaryByNodeId,
+        displayOptions: state.preparedSession?.displayOptions,
+      };
+    },
   });
   setViewportSync(viewportSync);
   viewportSync.mount();
@@ -325,8 +381,13 @@ async function renderNewick({
     if (!isCurrentLoad()) {
       throw new Error(ERR_GRAPH_LOAD_SUPERSEDED);
     }
+
     setViewportSync(null);
-    state.currentGraph = createEmptyGraph();
+
+    dispatch({
+      type: ACTIONS.graphCleared,
+    });
+
     throw error;
   }
 }

@@ -1,9 +1,21 @@
 import type { AncillaryObservation } from "../contracts/ancillary";
 import type { AncillaryType, SourceFormat } from "../contracts/models";
 
-export type GraphPrepareJobStatus = "pending" | "ready" | "failed";
+export const GraphPrepareJobStatus = {
+  PENDING: "pending",
+  READY: "ready",
+  FAILED: "failed",
+} as const;
+export type GraphPrepareJobStatus = (typeof GraphPrepareJobStatus)[keyof typeof GraphPrepareJobStatus];
 
-export type GraphLayoutStatus = "pending" | "refining" | "ready" | "degraded" | "failed";
+export const GraphLayoutStatus = {
+  PENDING: "pending",
+  REFINING: "refining",
+  READY: "ready",
+  DEGRADED: "degraded",
+  FAILED: "failed",
+} as const;
+export type GraphLayoutStatus = (typeof GraphLayoutStatus)[keyof typeof GraphLayoutStatus];
 
 export type GraphAncillaryValue = import("../contracts/ancillary").AncillaryValue;
 
@@ -33,7 +45,7 @@ export interface NormalizeRequest {
   options?: {
     allow_self_loops?: boolean;
   };
-  metadata_schema?: GraphAncillaryField[];
+  metadata_schema?: readonly GraphAncillaryField[];
   metadata_by_node_id?: Record<string, GraphAncillaryData>;
   ancillary_data?: {
     content: string;
@@ -199,7 +211,24 @@ export interface GraphAncillaryResponse {
   matched_node_count: number;
   warnings: string[];
 }
-/** @deprecated API v1 terminology; use the Ancillary* aliases. */
-export type GraphMetadataValue = GraphAncillaryValue;
-export type GraphMetadata = GraphAncillaryData;
-export type GraphMetadataField = GraphAncillaryField;
+
+export interface PrepareGraphOptions {
+  onPending?: (status: GraphPrepareStatus) => void;
+  pollIntervalMs?: number;
+  // Optional host-side wait limit. The default is unlimited so a valid global
+  // `sfdp` preparation is not abandoned merely because it is expensive.
+  pollTimeoutMs?: number | null;
+  sleep?: (ms: number) => Promise<void>;
+}
+
+export interface GraphClient {
+  prepareGraph(request: NormalizeRequest, options?: PrepareGraphOptions): Promise<GraphPrepareResponse>;
+
+  applyAncillaryData(request: GraphAncillaryRequest): Promise<GraphAncillaryResponse>;
+
+  readViewport(query: GraphViewportQuery): Promise<GraphViewportResponse>;
+
+  readRegion(query: GraphRegionQuery): Promise<GraphRegionResponse>;
+
+  searchGraph(query: GraphSearchQuery): Promise<GraphSearchResponse>;
+}

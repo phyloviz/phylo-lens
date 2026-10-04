@@ -1,6 +1,5 @@
 import { ancillaryValues } from "./ancillaryAccess";
-import { decodeLegacyMetadata } from "./legacyMetadata";
-import { METADATA_TYPE_NUMBER, type LegacyCanonicalDataset, type CanonicalDataset } from "../contracts/models";
+import { METADATA_TYPE_NUMBER, type CanonicalDataset } from "../contracts/models";
 import type { AncillaryData, NumericStats } from "./ancillaryTypes";
 
 export const EMPTY_ANCILLARY_DATA: AncillaryData = {};
@@ -13,20 +12,15 @@ export interface AncillaryIndex {
   numericStats: Map<string, NumericStats>;
 }
 
-export function buildAncillaryIndex(dataset: CanonicalDataset | LegacyCanonicalDataset): AncillaryIndex {
-  const annotations =
-    "annotationsByNodeId" in dataset
-      ? dataset.annotationsByNodeId
-      : Object.fromEntries(
-          Object.entries(dataset.metadata_by_node_id).map(([id, values]) => [id, decodeLegacyMetadata(values)]),
-        );
+export function buildAncillaryIndex(dataset: CanonicalDataset): AncillaryIndex {
+  const annotations = dataset.annotationsByNodeId;
   const byNodeId = new Map(
     dataset.nodes.map(({ id }) => [id, annotations[id] ? ancillaryValues(annotations[id]) : {}]),
   );
   const categoricalInverted = new Map<string, Map<string, Set<string>>>();
   const numericStats = new Map<string, NumericStats>();
 
-  for (const field of "ancillarySchema" in dataset ? dataset.ancillarySchema : dataset.metadata_schema) {
+  for (const field of dataset.ancillarySchema) {
     if (field.type === METADATA_TYPE_NUMBER) {
       addNumericStats(field.key, byNodeId, numericStats);
       continue;

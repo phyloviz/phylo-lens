@@ -10,10 +10,6 @@ export type SourceFormat = typeof SOURCE_FORMAT_NEWICK | typeof SOURCE_FORMAT_TY
 
 export type { AncillaryField, AncillaryType } from "./ancillary";
 import type { AncillaryField, AncillaryData, NodeAnnotations, Isolate } from "./ancillary";
-/** @deprecated Use AncillaryField. */
-export type MetadataField = AncillaryField;
-/** @deprecated Use AncillaryType. */
-export type MetadataType = import("./ancillary").AncillaryType;
 
 export interface CanonicalNode {
   id: string;
@@ -37,21 +33,6 @@ export interface DatasetSource {
   format: SourceFormat;
   generated_at: string;
   provenance?: string;
-}
-
-/** API v1 / persisted flat representation. Decode before using domain data. */
-export interface LegacyCanonicalDataset {
-  isolates_by_node_id?: Record<
-    string,
-    Array<{ id: string; metadata: Record<string, string | number | boolean | null> }>
-  >;
-  dataset_id: string;
-  nodes: CanonicalNode[];
-  edges: CanonicalEdge[];
-  metadata_schema: AncillaryField[];
-  metadata_by_node_id: Record<string, Record<string, string | number | boolean | null>>;
-  ancillary_rows_by_node_id?: Record<string, Array<Record<string, string | number | boolean | null>>>;
-  source: DatasetSource;
 }
 
 export interface CanonicalDataset {

@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildAncillaryWheelStats,
-  buildMetadataFieldWheelStats,
+  buildAncillaryFieldWheelStats,
   collectMetadataFieldKeys,
 } from "../src/components/ancillaryWheel";
 import type { PositionedGraph } from "../src/contracts/positioned";
@@ -74,7 +74,7 @@ describe("ancillaryWheel metadata distributions", () => {
   });
 
   it("builds categorical pie stats for a selected metadata field", () => {
-    const stats = buildMetadataFieldWheelStats(GRAPH, "country");
+    const stats = buildAncillaryFieldWheelStats(GRAPH, "country");
 
     expect(stats?.total).toBe(3);
     expect(stats?.slices.map((slice) => [slice.label, slice.value])).toEqual([
@@ -100,7 +100,7 @@ describe("ancillaryWheel metadata distributions", () => {
     };
 
     // When
-    const stats = buildMetadataFieldWheelStats(graph, "country");
+    const stats = buildAncillaryFieldWheelStats(graph, "country");
 
     // Then
     expect(stats?.total).toBe(1);
@@ -128,7 +128,7 @@ describe("ancillaryWheel metadata distributions", () => {
     };
 
     // When
-    const stats = buildMetadataFieldWheelStats(graph, "country");
+    const stats = buildAncillaryFieldWheelStats(graph, "country");
 
     // Then
     expect(stats?.total).toBe(4);
@@ -169,7 +169,7 @@ describe("ancillaryWheel metadata distributions", () => {
       viewMeta: { layout: "force", lodLevel: 0 },
     };
 
-    const stats = buildMetadataFieldWheelStats(graph, "country");
+    const stats = buildAncillaryFieldWheelStats(graph, "country");
 
     expect(stats?.slices.map((slice) => slice.label)).toEqual(["Iceland", "Canada", "Portugal"]);
     const colors = stats?.slices.map((slice) => slice.color) ?? [];
@@ -208,7 +208,7 @@ describe("ancillaryWheel metadata distributions", () => {
       viewMeta: { layout: "force", lodLevel: 0 },
     };
 
-    const overridden = buildMetadataFieldWheelStats(graph, "country", {
+    const overridden = buildAncillaryFieldWheelStats(graph, "country", {
       categoryColors: { Peru: "#123456" },
     });
     const peru = overridden?.slices.find((slice) => slice.label === "Peru");
@@ -236,7 +236,7 @@ describe("ancillaryWheel metadata distributions", () => {
     };
 
     const swapped = ["#111111", "#222222"];
-    const stats = buildMetadataFieldWheelStats(graph, "country", {
+    const stats = buildAncillaryFieldWheelStats(graph, "country", {
       palette: swapped,
     });
     const iceland = stats?.slices.find((slice) => slice.label === "Iceland");
@@ -271,7 +271,7 @@ describe("ancillaryWheel metadata distributions", () => {
       viewMeta: { layout: "force", lodLevel: 0 },
     };
 
-    const overview = buildMetadataFieldWheelStats(graph, "country");
+    const overview = buildAncillaryFieldWheelStats(graph, "country");
     const overviewColorByLabel = new Map((overview?.slices ?? []).map((slice) => [slice.label, slice.color]));
 
     // The Peru node (least frequent) must match the colour Peru has in the
@@ -281,7 +281,7 @@ describe("ancillaryWheel metadata distributions", () => {
       ["Iceland", "Iceland", "Iceland", "Portugal", "Peru"],
       DEFAULT_COLOR_PALETTE,
     );
-    const peruStats = buildMetadataFieldWheelStats(graph, "country", {
+    const peruStats = buildAncillaryFieldWheelStats(graph, "country", {
       includeNodeIds: new Set(["n4"]),
     });
     expect(peruStats?.slices).toHaveLength(1);
@@ -335,7 +335,7 @@ describe("ancillaryWheel metadata distributions", () => {
     }));
     const sigmaColors = resolvePieSliceColors(sigmaNodeViews, detectPieSliceKeys(sigmaNodeViews));
 
-    const wheel = buildMetadataFieldWheelStats(graph, "country");
+    const wheel = buildAncillaryFieldWheelStats(graph, "country");
     for (const slice of wheel?.slices ?? []) {
       expect(slice.color).toBe(sigmaColors[pieCategoricalAttributeKey("country", slice.label)]);
     }

@@ -41,8 +41,6 @@ export interface PieMappingOptions {
   categoryGrouping?: PieCategoryGrouping;
 }
 
-/** @deprecated Use AncillaryData. */
-export type MetadataRecord = AncillaryData;
 export type AncillaryRow = AncillaryData;
 
 export interface CategoryCountEntry {

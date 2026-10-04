@@ -1,21 +1,24 @@
-import type { GraphClient } from "../../api/graphClient";
 import type { SearchDatasetResponse } from "../../contracts/models";
 import type { PositionedGraph } from "../../contracts/positioned";
 import type { GraphRenderer, RenderViewportBounds } from "../../render/renderer.types";
-import { requirePreparedSession } from "./graphWorkbench.state";
+import { getPreparedSession } from "./graphWorkbench.state";
 import type { GraphWorkbenchState, RegionSelectionResult } from "./graphWorkbench.types";
 import { createEmptyGraph } from "./viewportGraph";
-import type { ViewportSyncController } from "./viewport/viewportSyncController";
+import type { GraphViewportCoordinator } from "./viewport/viewportCoordinator";
+import type { GraphClient } from "../../api/graphContracts";
+import { ACTIONS, type GraphWorkbenchAction } from "./graphWorkbench.actions";
 
 interface WorkbenchNavigationOptions {
-  state: GraphWorkbenchState;
+  getState: () => GraphWorkbenchState;
+  dispatch: (action: GraphWorkbenchAction) => void;
   renderer: GraphRenderer;
   graphClient: GraphClient;
-  getViewportSync: () => ViewportSyncController | null;
+  getViewportSync: () => GraphViewportCoordinator | null;
 }
 
 export default function createGraphNavigation({
-  state,
+  getState,
+  dispatch,
   renderer,
   graphClient,
   getViewportSync,
@@ -34,7 +37,7 @@ export default function createGraphNavigation({
   };
 
   async function selectRegion(bounds: RenderViewportBounds): Promise<RegionSelectionResult> {
-    const session = requirePreparedSession(state);
+    const session = getPreparedSession(getState());
 
     // The server cannot select a rectangle in a deformed layout. Select the loaded
     // display explicitly; its ancillary wheel is built from these same node IDs.
@@ -73,7 +76,7 @@ export default function createGraphNavigation({
   }
 
   async function searchNodes(query: { query: string; limit?: number }): Promise<SearchDatasetResponse> {
-    const session = requirePreparedSession(state);
+    const session = getPreparedSession(getState());
     cancelPendingFocus();
 
     const response = await graphClient.searchGraph({
@@ -103,20 +106,25 @@ export default function createGraphNavigation({
     nodeId: string,
     coordinates?: { x: number | null; y: number | null; clusterId?: string | null },
   ): Promise<PositionedGraph> {
-    const session = requirePreparedSession(state);
+    const session = getPreparedSession(getState());
+
     cancelPendingFocus();
+
     const sequence = focusSequence;
     const controller = getViewportSync();
+
     const isCurrent = () =>
-      sequence === focusSequence && state.preparedSession === session && getViewportSync() === controller;
-    const currentGraph = () => state.currentGraph ?? createEmptyGraph();
+      sequence === focusSequence && getState().preparedSession === session && getViewportSync() === controller;
+    const currentGraph = () => getState().graphSnapshot ?? createEmptyGraph();
 
     // A repeated selection must recenter too: the user may have panned away.
-    const visible = state.currentGraph?.nodes.some(
+    const visible = getState().graphSnapshot?.nodes.some(
       (node) => node.id === nodeId && node.attributes?.is_cluster_proxy !== true,
     );
+
     if (!visible || !renderer.centerOnNode?.(nodeId)) {
       let location = coordinates;
+
       if (!location?.clusterId) {
         const response = await graphClient.searchGraph({
           dataset_id: session.datasetId,
@@ -129,17 +137,30 @@ export default function createGraphNavigation({
         if (!match) throw new Error(`Profile ${nodeId} was not found.`);
         location = { x: match.x ?? null, y: match.y ?? null, clusterId: match.cluster_id };
       }
-      if (!location.clusterId || !controller) throw new Error(`Profile ${nodeId} has no available layout location.`);
+
+      if (!location.clusterId || !controller) {
+        throw new Error(`Profile ${nodeId} has no available layout location.`);
+      }
+
       const result = await controller.expandCluster(location.clusterId, { focusNodeId: nodeId });
-      if (!isCurrent() || result.status === "superseded") return currentGraph();
+
+      if (!isCurrent() || result.status === "superseded") {
+        return currentGraph();
+      }
+
       if (!renderer.centerOnNode?.(nodeId) && location.x != null && location.y != null) {
         renderer.centerOnCoordinates?.(location.x, location.y);
       }
     }
+
     if (isCurrent()) {
-      state.focusedNodeId = nodeId;
+      dispatch({
+        type: ACTIONS.nodeFocused,
+        nodeId,
+      });
       renderer.focusNode?.(nodeId);
     }
+
     return currentGraph();
   }
 }

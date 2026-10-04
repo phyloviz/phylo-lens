@@ -120,7 +120,3 @@ export function hasActiveFilters(filterState: AncillaryFilterState): boolean {
     filterState.numeric.some((filter) => filter.min != null || filter.max != null)
   );
 }
-
-/** @deprecated Use EMPTY_ANCILLARY_FILTER_STATE / filterGraphByAncillaryData. */
-export const EMPTY_METADATA_FILTER_STATE = EMPTY_ANCILLARY_FILTER_STATE;
-export const filterGraphByMetadata = filterGraphByAncillaryData;

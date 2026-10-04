@@ -3,8 +3,8 @@ import type { AncillaryData, NodeAnnotations } from "../contracts/ancillary";
 const CATEGORY_PREFIX = "__category_count__";
 const CATEGORY_SEPARATOR = "__value__";
 
-/** Decode API v1 / stored layouts once, before data reaches domain consumers. */
-export function decodeLegacyMetadata(metadata: AncillaryData = {}): NodeAnnotations {
+/** Convert current API metadata and summary counts into node annotations. */
+export function decodeApiMetadata(metadata: AncillaryData = {}): NodeAnnotations {
   const ancillaryData = new Map<string, AncillaryData[string]>();
   const categoryCounts = new Map<string, Map<string, number>>();
   let isolateCount: number | undefined;
@@ -22,7 +22,7 @@ export function decodeLegacyMetadata(metadata: AncillaryData = {}): NodeAnnotati
         counts.set(category, value);
         categoryCounts.set(field, counts);
       } catch {
-        /* Malformed legacy fields are not user observations. */
+        /* Malformed summary fields are not user observations. */
       }
     } else {
       ancillaryData.set(key, value);

@@ -1,7 +1,7 @@
 import type { AncillaryData, NodeAnnotations } from "../contracts/ancillary";
-import { decodeLegacyMetadata } from "./legacyMetadata";
+import { decodeApiMetadata } from "./apiMetadata";
 
-/** New snapshots carry typed annotations; legacy renderer inputs remain readable. */
+/** Read typed node annotations or decode flat API metadata supplied to a renderer. */
 export function readNodeAnnotations(attributes: Record<string, unknown> | undefined): NodeAnnotations {
   const annotations = attributes?.annotations;
   if (
@@ -14,7 +14,7 @@ export function readNodeAnnotations(attributes: Record<string, unknown> | undefi
     return annotations as NodeAnnotations;
   }
   const metadata = attributes?.metadata;
-  return decodeLegacyMetadata(
+  return decodeApiMetadata(
     metadata && typeof metadata === "object" && !Array.isArray(metadata) ? (metadata as AncillaryData) : {},
   );
 }

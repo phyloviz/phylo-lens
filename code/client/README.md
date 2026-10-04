@@ -320,23 +320,20 @@ A graph node may represent one profile shared by multiple isolates, or a LoD
 cluster containing multiple profiles. Neither a graph node nor a metadata row
 is automatically a distinct isolate.
 
-Prefer `ancillarySchema` and `ancillaryByNodeId` in `view.load`. Existing
-`metadataSchema`, `metadataByNodeId` and the exported `MetadataField` type remain
-supported as deprecated aliases. Supplying both names for the same option is an
-error. `ancillaryData` continues to accept a CSV/TSV table input; its shape is
+Use `ancillarySchema`, `ancillaryByNodeId`, and the exported `AncillaryField`
+type in `view.load`. `ancillaryData` accepts a CSV/TSV table input; its shape is
 exported as `AncillaryTableInput`, distinct from an individual `AncillaryData`
-record.
+record. Earlier metadata option names and type aliases have been removed.
 
-The API v1 wire format and SQL storage retain their `metadata_*` names. The
-client translates these at the boundary, so existing services/layouts remain
-readable. Advanced Ancillary JSON accepts `ancillary_schema` and
-`ancillary_by_node_id`, as well as the deprecated `metadata_*` names.
+The current API wire format and SQL storage use `metadata_*` names. The client
+converts these fields into typed annotations at the API boundary. Advanced
+Ancillary JSON accepts `ancillary_schema` and `ancillary_by_node_id`.
 Technical layout information and provenance are not ancillary data.
 
 Scalar values produced by grouping (for example, a concatenated set of countries)
 are stored in `AncillarySummary.values`, alongside category frequencies. Original
-per-isolate values remain in `Isolate` ancillary data. Flat legacy records with
-computed counts are decoded as node summaries; legacy records without counts
+per-isolate values remain in `Isolate` ancillary data. API records with
+computed counts are decoded as node summaries; records without counts
 remain direct ancillary values.
 
 ## Visual mapping
@@ -344,7 +341,6 @@ remain direct ancillary values.
 ```ts
 interface VisualMappingOptions {
   colorField?: string;
-  sizeField?: string;
   size?: {
     field?: string;
     scale?: "linear" | "log";
@@ -363,7 +359,7 @@ Behavior:
 
 - `colorField` selects a metadata field for frequency-ranked categorical
   coloring;
-- `size.field` or the legacy `sizeField` selects a numeric metadata field;
+- `size.field` selects a numeric metadata field;
 - `size.scale` selects linear or logarithmic scaling;
 - `palette` overrides the node-color palette;
 - `pie` controls pie attributes for aggregate nodes.

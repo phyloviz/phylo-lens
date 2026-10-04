@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { GraphViewportQuery, GraphViewportResponse } from "../src/api/graphContracts";
-import { ViewportSyncController } from "../src/app/workbench/viewport/viewportSyncController";
+import { GraphViewportCoordinator } from "../src/app/workbench/viewport/viewportCoordinator";
 import type { PositionedGraph } from "../src/contracts/positioned";
 import type { GraphRenderer, RenderViewportSyncState } from "../src/render/renderer.types";
 
@@ -98,7 +98,7 @@ function createRenderer(): GraphRenderer & {
   return renderer;
 }
 
-describe("ViewportSyncController", () => {
+describe("GraphViewportCoordinator", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     viewportState = {
@@ -120,7 +120,7 @@ describe("ViewportSyncController", () => {
     };
     const renderer = createRenderer();
     const readViewport = vi.fn().mockResolvedValue(viewportResponse());
-    const controller = new ViewportSyncController({
+    const controller = new GraphViewportCoordinator({
       datasetId: "tree",
       renderer,
       client: { readViewport },
@@ -148,7 +148,7 @@ describe("ViewportSyncController", () => {
       .mockImplementation(async (query: GraphViewportQuery) =>
         viewportResponse({ lod_level: query.lod_target_representations ? 1 : query.lod_level }),
       );
-    const controller = new ViewportSyncController({
+    const controller = new GraphViewportCoordinator({
       datasetId: "tree",
       renderer,
       client: { readViewport },
@@ -185,7 +185,7 @@ describe("ViewportSyncController", () => {
       .mockImplementation(async (query: GraphViewportQuery) =>
         viewportResponse({ lod_level: query.lod_target_representations ? 1 : query.lod_level }),
       );
-    const controller = new ViewportSyncController({
+    const controller = new GraphViewportCoordinator({
       datasetId: "tree",
       renderer,
       client: { readViewport },
@@ -216,7 +216,7 @@ describe("ViewportSyncController", () => {
           }),
       )
       .mockResolvedValue(viewportResponse({ lod_level: 1 }));
-    const controller = new ViewportSyncController({
+    const controller = new GraphViewportCoordinator({
       datasetId: "tree",
       renderer,
       client: { readViewport },
@@ -260,7 +260,7 @@ describe("ViewportSyncController", () => {
           metadata: { country: "PT" },
         })),
       }));
-    const controller = new ViewportSyncController({
+    const controller = new GraphViewportCoordinator({
       datasetId: "tree",
       client: { readViewport },
       renderer,
@@ -302,7 +302,7 @@ describe("ViewportSyncController", () => {
             resolveReplacement = resolve;
           }),
       );
-    const controller = new ViewportSyncController({ datasetId: "tree", client: { readViewport }, renderer });
+    const controller = new GraphViewportCoordinator({ datasetId: "tree", client: { readViewport }, renderer });
     controller.mount();
     await vi.advanceTimersByTimeAsync(0);
     const pending = controller.replaceLayoutVersion("metadata-1");
@@ -317,7 +317,7 @@ describe("ViewportSyncController", () => {
     const renderer = createRenderer();
     const readViewport = vi.fn(async () => viewportResponse());
     const onGraphSynced = vi.fn();
-    const controller = new ViewportSyncController({
+    const controller = new GraphViewportCoordinator({
       datasetId: "tree",
       layoutVersion: "layout-0",
       client: { readViewport },
@@ -354,7 +354,7 @@ describe("ViewportSyncController", () => {
   it("leaves the normal snapshot lifecycle unchanged when no observer is installed", async () => {
     const renderer = createRenderer();
     const nextSnapshotSequence = vi.fn(() => 1);
-    const controller = new ViewportSyncController({
+    const controller = new GraphViewportCoordinator({
       datasetId: "tree",
       client: { readViewport: vi.fn(async () => viewportResponse()) },
       renderer,
@@ -379,7 +379,7 @@ describe("ViewportSyncController", () => {
       renderer.appliedGraphs.push(graph);
       order.push("applied");
     });
-    const controller = new ViewportSyncController({
+    const controller = new GraphViewportCoordinator({
       datasetId: "tree",
       layoutVersion: "layout-0",
       client: { readViewport: vi.fn(async () => viewportResponse()) },
@@ -428,7 +428,7 @@ describe("ViewportSyncController", () => {
   it("isolates observer failures from the applied snapshot lifecycle", async () => {
     const renderer = createRenderer();
     const onGraphSynced = vi.fn();
-    const controller = new ViewportSyncController({
+    const controller = new GraphViewportCoordinator({
       datasetId: "tree",
       client: { readViewport: vi.fn(async () => viewportResponse()) },
       renderer,
@@ -453,7 +453,7 @@ describe("ViewportSyncController", () => {
     });
     const onGraphSynced = vi.fn();
     const diagnostics = vi.fn();
-    const controller = new ViewportSyncController({
+    const controller = new GraphViewportCoordinator({
       datasetId: "tree",
       client: { readViewport: vi.fn(async () => viewportResponse()) },
       renderer,
@@ -488,7 +488,7 @@ describe("ViewportSyncController", () => {
         edges: [],
       }),
     );
-    const controller = new ViewportSyncController({
+    const controller = new GraphViewportCoordinator({
       datasetId: "tree",
       client: { readViewport },
       renderer,
@@ -503,7 +503,7 @@ describe("ViewportSyncController", () => {
   it("reads a bounded viewport when the renderer reports a camera change", async () => {
     const renderer = createRenderer();
     const readViewport = vi.fn(async () => viewportResponse());
-    const controller = new ViewportSyncController({
+    const controller = new GraphViewportCoordinator({
       datasetId: "tree",
       client: { readViewport },
       renderer,
@@ -536,7 +536,7 @@ describe("ViewportSyncController", () => {
   it("loads known small datasets at the finest tier", async () => {
     const renderer = createRenderer();
     const readViewport = vi.fn(async () => viewportResponse());
-    const controller = new ViewportSyncController({
+    const controller = new GraphViewportCoordinator({
       datasetId: "tree",
       client: { readViewport },
       renderer,
@@ -562,7 +562,7 @@ describe("ViewportSyncController", () => {
   it("keeps medium datasets at coarse LoD even when they fit within the node budget", async () => {
     const renderer = createRenderer();
     const readViewport = vi.fn(async () => viewportResponse());
-    const controller = new ViewportSyncController({
+    const controller = new GraphViewportCoordinator({
       datasetId: "tree",
       client: { readViewport },
       renderer,
@@ -594,7 +594,7 @@ describe("ViewportSyncController", () => {
           pending.push(resolve);
         }),
     );
-    const controller = new ViewportSyncController({
+    const controller = new GraphViewportCoordinator({
       datasetId: "tree",
       client: { readViewport },
       renderer,
@@ -627,7 +627,7 @@ describe("ViewportSyncController", () => {
     const renderer = createRenderer();
     const pending: Array<(response: GraphViewportResponse) => void> = [];
     const readViewport = vi.fn(() => new Promise<GraphViewportResponse>((resolve) => pending.push(resolve)));
-    const controller = new ViewportSyncController({
+    const controller = new GraphViewportCoordinator({
       datasetId: "tree",
       client: { readViewport },
       renderer,
@@ -657,7 +657,7 @@ describe("ViewportSyncController", () => {
   it("fetches the final camera position when input interrupts a fitted response", async () => {
     const renderer = createRenderer();
     const readViewport = vi.fn().mockResolvedValue(viewportResponse());
-    const controller = new ViewportSyncController({
+    const controller = new GraphViewportCoordinator({
       datasetId: "tree",
       client: { readViewport },
       renderer,
@@ -682,7 +682,7 @@ describe("ViewportSyncController", () => {
     const readViewport = vi.fn(async (query: GraphViewportQuery) =>
       query.cluster_id ? clusterResponse() : viewportResponse(),
     );
-    const controller = new ViewportSyncController({ datasetId: "tree", client: { readViewport }, renderer });
+    const controller = new GraphViewportCoordinator({ datasetId: "tree", client: { readViewport }, renderer });
     controller.mount();
     await vi.advanceTimersByTimeAsync(0);
     const click = { nodeId: "cluster-a", attributes: { cluster_id: "cluster-a", is_cluster_proxy: true } };
@@ -702,7 +702,7 @@ describe("ViewportSyncController", () => {
     const readViewport = vi.fn(async (query: GraphViewportQuery) =>
       query.cluster_id ? clusterResponse() : viewportResponse({ lod_level: query.lod_level }),
     );
-    const controller = new ViewportSyncController({
+    const controller = new GraphViewportCoordinator({
       datasetId: "tree",
       client: { readViewport },
       renderer,
@@ -733,7 +733,7 @@ describe("ViewportSyncController", () => {
   it("leaves a group's summary intact when its full expansion exceeds the budget", async () => {
     const renderer = createRenderer();
     const readViewport = vi.fn().mockResolvedValueOnce(viewportResponse()).mockResolvedValue(clusterResponse());
-    const controller = new ViewportSyncController({
+    const controller = new GraphViewportCoordinator({
       datasetId: "tree",
       client: { readViewport },
       renderer,
@@ -760,7 +760,7 @@ describe("ViewportSyncController", () => {
     }));
     const detailed = viewportResponse({ nodes, edges: [], total_node_count: nodes.length });
     const readViewport = vi.fn().mockResolvedValueOnce(viewportResponse()).mockResolvedValue(detailed);
-    const controller = new ViewportSyncController({
+    const controller = new GraphViewportCoordinator({
       datasetId: "tree",
       client: { readViewport },
       renderer,
@@ -791,7 +791,7 @@ describe("ViewportSyncController", () => {
           nodes: [...viewportResponse().nodes, ...clusterResponse().nodes],
         }),
       );
-    const controller = new ViewportSyncController({
+    const controller = new GraphViewportCoordinator({
       datasetId: "tree",
       client: { readViewport },
       renderer,
@@ -819,7 +819,7 @@ describe("ViewportSyncController", () => {
             resolve = done;
           }),
       );
-    const controller = new ViewportSyncController({ datasetId: "tree", client: { readViewport }, renderer });
+    const controller = new GraphViewportCoordinator({ datasetId: "tree", client: { readViewport }, renderer });
     controller.mount();
     await vi.advanceTimersByTimeAsync(0);
     const pending = controller.expandCluster("cluster-a");
@@ -835,7 +835,7 @@ describe("ViewportSyncController", () => {
     const readViewport = vi.fn(async (query: GraphViewportQuery) =>
       viewportResponse({ layout_version: query.layout_version ?? "layout-1", lod_level: query.lod_level }),
     );
-    const controller = new ViewportSyncController({
+    const controller = new GraphViewportCoordinator({
       datasetId: "tree",
       client: { readViewport },
       renderer,
@@ -871,7 +871,7 @@ describe("ViewportSyncController", () => {
           resolveResponse = resolve;
         }),
     );
-    const controller = new ViewportSyncController({
+    const controller = new GraphViewportCoordinator({
       datasetId: "tree",
       client: { readViewport },
       renderer,
@@ -890,7 +890,7 @@ describe("ViewportSyncController", () => {
     let paused = false;
     const renderer = createRenderer();
     const readViewport = vi.fn(async () => viewportResponse());
-    const controller = new ViewportSyncController({
+    const controller = new GraphViewportCoordinator({
       datasetId: "tree",
       client: { readViewport },
       renderer,
@@ -924,7 +924,7 @@ describe("ViewportSyncController", () => {
       setViewChangeHandler: vi.fn(),
       getViewportSyncState: vi.fn(() => viewportState),
     };
-    const controller = new ViewportSyncController({
+    const controller = new GraphViewportCoordinator({
       datasetId: "tree",
       client: { readViewport },
       renderer,
@@ -946,7 +946,7 @@ describe("ViewportSyncController", () => {
     const readViewport = vi.fn(async (query: GraphViewportQuery) =>
       query.cluster_id === "cluster-a" ? clusterResponse() : viewportResponse(),
     );
-    const controller = new ViewportSyncController({
+    const controller = new GraphViewportCoordinator({
       datasetId: "tree",
       client: { readViewport },
       renderer,
@@ -998,7 +998,7 @@ describe("ViewportSyncController", () => {
       edges: [...viewportResponse().edges, { id: "root-cluster-b", source: "root", target: "cluster-b" }],
     });
     const readViewport = vi.fn(async (query: GraphViewportQuery) => (query.cluster_id ? clusterResponse() : initial));
-    const controller = new ViewportSyncController({
+    const controller = new GraphViewportCoordinator({
       datasetId: "tree",
       client: { readViewport },
       renderer,
@@ -1024,7 +1024,7 @@ describe("ViewportSyncController", () => {
     const readViewport = vi.fn(async (query: GraphViewportQuery) =>
       query.cluster_id === "cluster-a" ? clusterResponse() : viewportResponse(),
     );
-    const controller = new ViewportSyncController({
+    const controller = new GraphViewportCoordinator({
       datasetId: "tree",
       client: { readViewport },
       renderer,
@@ -1062,7 +1062,7 @@ describe("ViewportSyncController", () => {
       .mockResolvedValueOnce(
         viewportResponse({ ...clusterResponse(), nodes: [clusterResponse().nodes[1]], truncated: true }),
       );
-    const controller = new ViewportSyncController({
+    const controller = new GraphViewportCoordinator({
       datasetId: "tree",
       client: { readViewport },
       renderer,
@@ -1091,7 +1091,7 @@ describe("ViewportSyncController", () => {
             resolve = done;
           }),
       );
-    const controller = new ViewportSyncController({ datasetId: "tree", client: { readViewport }, renderer });
+    const controller = new GraphViewportCoordinator({ datasetId: "tree", client: { readViewport }, renderer });
     controller.mount();
     await vi.runAllTimersAsync();
     const focus = controller.expandCluster("cluster-a", { focusNodeId: "a1" });

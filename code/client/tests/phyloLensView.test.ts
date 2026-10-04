@@ -76,8 +76,8 @@ describe("createPhyloLensView", () => {
     await view.load({
       content: "(a:1,b:1)root;",
       name: "example-tree",
-      metadataSchema: [{ key: "country", type: "string" }],
-      metadataByNodeId: {
+      ancillarySchema: [{ key: "country", type: "string" }],
+      ancillaryByNodeId: {
         a: { country: "PT" },
       },
     });
@@ -95,8 +95,8 @@ describe("createPhyloLensView", () => {
     });
     expect(mocks.renderNewick).toHaveBeenCalledWith("(a:1,b:1)root;", "example-tree", {
       sourceFormat: "newick",
-      metadataSchema: [{ key: "country", type: "string" }],
-      metadataByNodeId: {
+      ancillarySchema: [{ key: "country", type: "string" }],
+      ancillaryByNodeId: {
         a: { country: "PT" },
       },
     });

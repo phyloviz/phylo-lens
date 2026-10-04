@@ -1,6 +1,6 @@
 import { pieDistribution } from "./pieDistribution";
 export * from "./pieDistribution";
-import { decodeLegacyMetadata } from "../../ancillary/legacyMetadata";
+import { decodeApiMetadata } from "../../ancillary/apiMetadata";
 import { type AncillaryData, type AncillaryRow, type PieCategory, type PieMappingOptions } from "./pieMapping.types";
 import { categoryCountsForField } from "./pieCategoryCounts";
 
@@ -41,7 +41,7 @@ function mappingDistribution(
   rows: AncillaryRow[],
 ): PieCategory[] {
   if (options.enabled === false) return [];
-  const fields = (options.fields ?? Object.keys(decodeLegacyMetadata(metadata).ancillaryData)).filter(
+  const fields = (options.fields ?? Object.keys(decodeApiMetadata(metadata).ancillaryData)).filter(
     (field) => !excluded.includes(field),
   );
   if (!rows.length && fields.length === 1) {

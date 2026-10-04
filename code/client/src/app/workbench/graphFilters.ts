@@ -3,18 +3,20 @@ import type { AncillaryFilterState } from "../../ancillary/ancillaryTypes";
 import type { PositionedGraph } from "../../contracts/positioned";
 import type { VisualMappingOptions } from "../../render/mapping/visualMapping";
 import type { GraphDisplayOptions, GraphRenderer } from "../../render/renderer.types";
-import { requirePreparedSession } from "./graphWorkbench.state";
+import { getPreparedSession } from "./graphWorkbench.state";
 import type { GraphWorkbenchState } from "./graphWorkbench.types";
 import { createEmptyGraph } from "./viewportGraph";
-import type { ViewportSyncController } from "./viewport/viewportSyncController";
+import type { GraphViewportCoordinator } from "./viewport/viewportCoordinator";
+import { ACTIONS, type GraphWorkbenchAction } from "./graphWorkbench.actions";
 
 interface GraphFiltersOptions {
-  state: GraphWorkbenchState;
+  getState: () => GraphWorkbenchState;
+  dispatch: (action: GraphWorkbenchAction) => void;
   renderer: GraphRenderer;
-  getViewportSync: () => ViewportSyncController | null;
+  getViewportSync: () => GraphViewportCoordinator | null;
 }
 
-export default function createGraphFilters({ state, renderer, getViewportSync }: GraphFiltersOptions) {
+export default function createGraphFilters({ getState, dispatch, renderer, getViewportSync }: GraphFiltersOptions) {
   return {
     applyMetadataFilters: applyMetadataFilters,
     clearMetadataFilters: clearMetadataFilters,
@@ -23,33 +25,42 @@ export default function createGraphFilters({ state, renderer, getViewportSync }:
   };
 
   function applyMetadataFilters(filterState: AncillaryFilterState): PositionedGraph {
-    requirePreparedSession(state);
+    getPreparedSession(getState());
 
-    // Filtering is applied inside the viewport sync via getRenderSettings; the
-    // refresh re-fetches the current viewport and re-runs the filter/visual pass.
-    state.activeFilters = filterState;
+    dispatch({
+      type: ACTIONS.filtersUpdated,
+      filters: filterState,
+    });
+
     getViewportSync()?.refreshNow();
 
-    return currentGraph(state);
+    return currentGraph(getState());
   }
 
   function clearMetadataFilters(): PositionedGraph {
-    requirePreparedSession(state);
+    getPreparedSession(getState());
 
-    state.activeFilters = EMPTY_ANCILLARY_FILTER_STATE;
+    dispatch({
+      type: ACTIONS.filtersUpdated,
+      filters: EMPTY_ANCILLARY_FILTER_STATE,
+    });
+
     getViewportSync()?.refreshNow();
 
-    return currentGraph(state);
+    return currentGraph(getState());
   }
 
   function updateVisualMapping(visualMapping: VisualMappingOptions): PositionedGraph {
-    const session = requirePreparedSession(state);
+    getPreparedSession(getState());
 
-    // Persist the mapping so the viewport sync re-derives visuals on refresh.
-    session.visualMapping = visualMapping;
+    dispatch({
+      type: ACTIONS.visualMappingUpdated,
+      visualMapping,
+    });
+
     getViewportSync()?.refreshNow();
 
-    return currentGraph(state);
+    return currentGraph(getState());
   }
 
   // Apply presentation toggles (node labels, edge distance labels, distance-
@@ -58,17 +69,17 @@ export default function createGraphFilters({ state, renderer, getViewportSync }:
   // This avoids a redundant viewport request and does not call renderer.render,
   // which would replace the live LoD graph with a stale coarse snapshot.
   function updateDisplayOptions(displayOptions: GraphDisplayOptions): void {
-    if (state.preparedSession) {
-      state.preparedSession.displayOptions = {
-        ...state.preparedSession.displayOptions,
-        ...displayOptions,
-      };
-    }
+    dispatch({
+      type: ACTIONS.displayOptionsUpdated,
+      displayOptions,
+    });
+
     renderer.updateDisplayOptions?.(displayOptions);
-    getViewportSync()?.updateDisplayOptions(state.preparedSession?.displayOptions ?? displayOptions);
+
+    getViewportSync()?.updateDisplayOptions(getState().preparedSession?.displayOptions ?? displayOptions);
   }
 }
 
 function currentGraph(state: GraphWorkbenchState): PositionedGraph {
-  return state.currentGraph ?? createEmptyGraph();
+  return state.graphSnapshot ?? createEmptyGraph();
 }

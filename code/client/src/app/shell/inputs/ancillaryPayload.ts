@@ -2,16 +2,13 @@ import { resolveAncillaryInput } from "../../../ancillary/ancillaryInput";
 import type { AncillaryField } from "../../../contracts/models";
 import type { VisualMappingOptions } from "../../../render/mapping/visualMapping";
 
-export const ERR_INVALID_ANCILLARY_JSON =
-  "Ancillary JSON must include ancillary_schema and/or ancillary_by_node_id (legacy metadata aliases are also accepted).";
+export const ERR_INVALID_ANCILLARY_JSON = "Ancillary JSON must include ancillary_schema and/or ancillary_by_node_id.";
 
-const KEY_METADATA_SCHEMA = "metadata_schema";
-const KEY_METADATA_BY_NODE_ID = "metadata_by_node_id";
 const KEY_VISUAL_MAPPING = "visual_mapping";
 
 export interface AncillaryPayload {
-  ancillarySchema?: AncillaryField[];
-  ancillaryByNodeId?: Record<string, Record<string, string | number | boolean | null>>;
+  ancillarySchema?: readonly AncillaryField[];
+  ancillaryByNodeId?: Readonly<Record<string, Record<string, string | number | boolean | null>>>;
   visual_mapping?: VisualMappingOptions;
 }
 
@@ -26,8 +23,8 @@ export function parseAncillaryPayload(rawInput: string): AncillaryPayload {
   }
 
   const record = parsed as Record<string, unknown>;
-  const metadataSchema = record.ancillary_schema ?? record[KEY_METADATA_SCHEMA];
-  const metadataByNodeId = record.ancillary_by_node_id ?? record[KEY_METADATA_BY_NODE_ID];
+  const metadataSchema = record.ancillary_schema;
+  const metadataByNodeId = record.ancillary_by_node_id;
   const visualMapping = record[KEY_VISUAL_MAPPING];
 
   const hasSchema = Array.isArray(metadataSchema);
@@ -41,10 +38,7 @@ export function parseAncillaryPayload(rawInput: string): AncillaryPayload {
   return {
     ...resolveAncillaryInput({
       ancillarySchema: record.ancillary_schema as AncillaryField[] | undefined,
-      metadataSchema: record[KEY_METADATA_SCHEMA] as AncillaryField[] | undefined,
       ancillaryByNodeId: record.ancillary_by_node_id as
-        Record<string, Record<string, string | number | boolean | null>> | undefined,
-      metadataByNodeId: record[KEY_METADATA_BY_NODE_ID] as
         Record<string, Record<string, string | number | boolean | null>> | undefined,
     }),
     visual_mapping:

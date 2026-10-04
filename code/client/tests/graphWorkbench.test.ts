@@ -125,15 +125,6 @@ describe("graphWorkbench navigation", () => {
     workbench.dispose();
   });
 
-  it("rejects conflicting option names before submitting a prepare job", async () => {
-    const { workbench, graphClient } = createWorkbenchHarness();
-    await expect(
-      workbench.renderNewick("(a:1)b;", "tree", { ancillarySchema: [], metadataSchema: [] }),
-    ).rejects.toThrow("not both");
-    expect(graphClient.prepareGraph).not.toHaveBeenCalled();
-    workbench.dispose();
-  });
-
   it("resolves renderNewick only after prepare, first viewport, and renderer update", async () => {
     const events: string[] = [];
     const { renderer, workbench } = createWorkbenchHarness({

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { decodeLegacyMetadata } from "../src/ancillary/legacyMetadata";
+import { decodeApiMetadata } from "../src/ancillary/apiMetadata";
+import { parseAncillaryPayload } from "../src/app/shell/inputs/ancillaryPayload";
 import { resolveAncillaryInput } from "../src/ancillary/ancillaryInput";
 import { readNodeAnnotations } from "../src/ancillary/ancillaryAccess";
 import { buildAncillaryFieldWheelStats } from "../src/components/ancillaryWheel";
@@ -15,17 +16,17 @@ const metadata = {
 
 describe("ancillary domain boundaries", () => {
   it("separates observations, category frequencies and represented isolate counts", () => {
-    expect(decodeLegacyMetadata(metadata)).toEqual({
+    expect(decodeApiMetadata(metadata)).toEqual({
       ancillaryData: {},
       ancillarySummary: { values: { country: "PT;ES" }, categoryCounts: { country: { PT: 2, ES: 1 } } },
       profileSummary: { isolateCount: 3 },
     });
-    expect(decodeLegacyMetadata({}).profileSummary.isolateCount).toBeUndefined();
-    expect(readNodeAnnotations({ metadata })).toEqual(decodeLegacyMetadata(metadata));
+    expect(decodeApiMetadata({}).profileSummary.isolateCount).toBeUndefined();
+    expect(readNodeAnnotations({ metadata })).toEqual(decodeApiMetadata(metadata));
   });
 
   it("handles arbitrary field names without interpreting them as object properties", () => {
-    const decoded = decodeLegacyMetadata(
+    const decoded = decodeApiMetadata(
       JSON.parse('{"__proto__":"observation","__category_count__constructor__value____proto__":2}'),
     );
     expect(Object.hasOwn(decoded.ancillarySummary.values, "__proto__")).toBe(true);
@@ -33,13 +34,22 @@ describe("ancillary domain boundaries", () => {
     expect(decoded.ancillarySummary.categoryCounts.constructor).toEqual({ ["__proto__"]: 2 });
   });
 
-  it("accepts either option vocabulary and rejects ambiguous aliases", () => {
+  it("uses ancillary options and supplies empty defaults", () => {
     const values = { a: { country: "PT" } };
-    expect(resolveAncillaryInput({ ancillaryByNodeId: values })).toEqual(
-      resolveAncillaryInput({ metadataByNodeId: values }),
+    expect(resolveAncillaryInput({ ancillaryByNodeId: values })).toEqual({
+      ancillarySchema: [],
+      ancillaryByNodeId: values,
+    });
+    expect(resolveAncillaryInput({})).toEqual({ ancillarySchema: [], ancillaryByNodeId: {} });
+  });
+
+  it("accepts current ancillary JSON and rejects removed metadata aliases", () => {
+    expect(parseAncillaryPayload('{"ancillary_by_node_id":{"a":{"country":"PT"}}}')).toMatchObject({
+      ancillaryByNodeId: { a: { country: "PT" } },
+    });
+    expect(() => parseAncillaryPayload('{"metadata_by_node_id":{"a":{"country":"PT"}}}')).toThrow(
+      "Ancillary JSON must include ancillary_schema and/or ancillary_by_node_id",
     );
-    expect(() => resolveAncillaryInput({ ancillaryByNodeId: {}, metadataByNodeId: {} })).toThrow("not both");
-    expect(() => resolveAncillaryInput({ ancillarySchema: [], metadataSchema: [] })).toThrow("not both");
   });
 
   it("renders v1 inputs through typed annotations without changing pie proportions", () => {
@@ -72,7 +82,7 @@ describe("ancillary domain boundaries", () => {
     };
     const graph = graphSnapshotFromViewportResponse(response, { visualMapping: { pie: { fields: ["country"] } } });
     expect(graph.nodes[0]?.attributes?.metadata).toBeUndefined();
-    expect(graph.nodes[0]?.attributes?.annotations).toEqual(decodeLegacyMetadata(metadata));
+    expect(graph.nodes[0]?.attributes?.annotations).toEqual(decodeApiMetadata(metadata));
     expect(graph.nodes[0]?.attributes?.isolates).toEqual([
       { id: "A", ancillaryData: { country: "PT" } },
       { id: "B", ancillaryData: { country: "PT" } },

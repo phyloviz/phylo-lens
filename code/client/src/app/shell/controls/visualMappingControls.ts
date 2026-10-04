@@ -17,12 +17,8 @@ export function buildVisualMappingForControls(
   const mapping: VisualMappingOptions = { ...baseVisualMapping };
   const hasSizeControls = sizeFieldKey !== undefined || sizeScaleValue !== undefined;
 
-  if (hasSizeControls || baseVisualMapping.size || baseVisualMapping.sizeField) {
-    const selectedSizeField =
-      sizeFieldKey?.trim() ||
-      baseVisualMapping.size?.field ||
-      baseVisualMapping.sizeField ||
-      DEFAULT_PROFILE_COUNT_FIELD;
+  if (hasSizeControls || baseVisualMapping.size) {
+    const selectedSizeField = sizeFieldKey?.trim() || baseVisualMapping.size?.field || DEFAULT_PROFILE_COUNT_FIELD;
     mapping.size = {
       ...(baseVisualMapping.size ?? {}),
       field: selectedSizeField,

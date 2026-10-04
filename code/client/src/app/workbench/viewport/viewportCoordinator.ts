@@ -1,8 +1,7 @@
 import { retainMovedNodes } from "./retainMovedNodes";
 import type { ExpansionState, ExpansionResult } from "../../../contracts/expansion";
 import { composeExpandedViewport } from "./expandedViewport";
-import type { GraphClient } from "../../../api/graphClient";
-import type { GraphViewportQuery, GraphViewportResponse } from "../../../api/graphContracts";
+import type { GraphClient, GraphViewportQuery, GraphViewportResponse } from "../../../api/graphContracts";
 import type { PositionedGraph } from "../../../contracts/positioned";
 import type { GraphRenderer } from "../../../render/renderer.types";
 import {
@@ -53,7 +52,7 @@ export interface ViewportSyncRefreshOptions {
 export const VIEWPORT_SYNC_INITIAL_FIT_DURATION_MS = 300;
 export const ERR_VIEWPORT_SYNC_UNMOUNTED = "Viewport sync was unmounted before the initial viewport loaded.";
 
-export class ViewportSyncController {
+export class GraphViewportCoordinator {
   private readonly datasetId: string;
   private layoutVersion?: string | null;
   private readonly client: Pick<GraphClient, "readViewport">;

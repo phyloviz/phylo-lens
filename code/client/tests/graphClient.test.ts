@@ -9,15 +9,12 @@ import {
   ERR_INVALID_NORMALIZE_REQUEST,
   ROUTE_GRAPH_PREPARE,
   ROUTE_GRAPH_SEARCH,
+  ROUTE_SERVICE_HEALTH,
   ROUTE_GRAPH_VIEWPORT,
+  SUPPORTED_PHYLO_LENS_API_VERSION,
 } from "../src/api/graphClient";
 import type { GraphPrepareStatus } from "../src/api/graphContracts";
-import {
-  IncompatiblePhyloLensServiceError,
-  PhyloLensServiceProtocolError,
-  ROUTE_SERVICE_HEALTH,
-  SUPPORTED_PHYLO_LENS_API_VERSION,
-} from "../src/api/serviceCompatibility";
+import { IncompatiblePhyloLensServiceError, PhyloLensServiceProtocolError } from "../src/services/serviceErrors";
 import { SOURCE_FORMAT_NEWICK } from "../src/contracts/models";
 
 const BASE_URL = "http://localhost:8000";

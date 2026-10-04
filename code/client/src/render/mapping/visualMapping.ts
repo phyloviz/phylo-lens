@@ -30,7 +30,6 @@ export interface SizeMappingOptions {
 
 export interface VisualMappingOptions {
   colorField?: string;
-  sizeField?: string;
   size?: SizeMappingOptions;
   palette?: string[];
   pie?: PieMappingOptions;
@@ -71,9 +70,8 @@ export function deriveSize(
   return scaleNumberToRange(value, stats.min, stats.max, MIN_NODE_SIZE, MAX_NODE_SIZE, scale, DEFAULT_NODE_SIZE);
 }
 
-// Metadata stored by older prepared layouts can retain numeric cells as JSON
-// strings. Treat finite numeric strings exactly like JSON numbers so changing
-// the scale remains effective across both payload shapes.
+// Ancillary fields can contain numeric strings. Accept finite numeric values
+// when a field is selected explicitly for node sizing.
 export function numericMetadataValue(value: string | number | boolean | null | undefined): number | null {
   if (typeof value === "number") {
     return Number.isFinite(value) ? value : null;
