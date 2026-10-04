@@ -11,7 +11,7 @@ create table if not exists prepared_clusters(
     dataset_id text not null,
     layout_version text not null,
     cluster_id text not null,
-    threshold real,
+    lod_level integer not null,
     representative_node_id text,
     member_count integer not null default 0,
     x real,
@@ -95,11 +95,11 @@ create index if not exists idx_node_positions_cluster_id
     on node_positions(dataset_id, layout_version, cluster_id);
 create index if not exists idx_node_positions_xy
     on node_positions(dataset_id, layout_version, x, y);
-create index if not exists idx_prepared_clusters_threshold
-    on prepared_clusters(dataset_id, layout_version, threshold);
-create index if not exists idx_prepared_clusters_bounds
+create index if not exists idx_prepared_clusters_level
+    on prepared_clusters(dataset_id, layout_version, lod_level);
+create index if not exists idx_prepared_clusters_hop_bounds
     on prepared_clusters(
-        dataset_id, layout_version, threshold, max_x, min_x, max_y, min_y
+        dataset_id, layout_version, lod_level, max_x, min_x, max_y, min_y
     );
 create index if not exists idx_prepared_edges_lod
     on prepared_edges(dataset_id, layout_version, lod_level);

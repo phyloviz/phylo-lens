@@ -53,7 +53,6 @@ def graph_viewport_response_from_result(
                 target=edge.target,
                 distance=edge.distance,
                 is_meta=edge.is_meta,
-                bundled_edge_count=edge.bundled_edge_count,
             )
             for edge in result.edges
         ],
@@ -105,7 +104,6 @@ def graph_region_response_from_result(
                 target=edge.target,
                 distance=edge.distance,
                 is_meta=edge.is_meta,
-                bundled_edge_count=edge.bundled_edge_count,
             )
             for edge in result.edges
         ],

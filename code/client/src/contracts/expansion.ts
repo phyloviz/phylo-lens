@@ -5,7 +5,7 @@ export interface ExpansionState {
   allExpanded: boolean;
   partial: boolean;
   renderedNodeCount: number;
-  maxNodes: number;
+  maxNodes?: number;
 }
 
 export interface ExpansionResult extends ExpansionState {

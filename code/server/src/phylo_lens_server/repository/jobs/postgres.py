@@ -6,7 +6,7 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any, Literal, Protocol
 
-from phylo_lens_server.database.schema_files import CREATE_SCHEMA_FILE, read_schema_sql
+from phylo_lens_server.database.schema_files import read_schema_sql
 from phylo_lens_server.domain.models import CanonicalDataset
 from phylo_lens_server.pipeline.ingest import layout_version_for_dataset
 from phylo_lens_server.pipeline.sfdp import SfdpOptions, resolve_sfdp_options
@@ -47,7 +47,7 @@ ACTIVE_DURABLE_STATUSES = (
 
 DEFAULT_LEASE_SECONDS = 300
 ERR_DURABLE_JOB_INSERT_CONFLICT = "Prepare job insert conflicted unexpectedly."
-POSTGRES_SCHEMA_FILE = CREATE_SCHEMA_FILE
+POSTGRES_SCHEMA_VERSION = "rooted-hop-schema-v2"
 POSTGRES_SUBMIT_ADVISORY_LOCK_KEY = (2_024_072_1, 11_031_337)
 POSTGRES_SCHEMA_VERSION_TABLE = "phylo_lens_schema_version"
 ERR_POSTGRES_SCHEMA_NOT_CURRENT = (
@@ -532,7 +532,7 @@ def postgres_create_schema_statements() -> tuple[str, ...]:
 
 def postgres_schema() -> PostgresSchema:
     return PostgresSchema(
-        version=POSTGRES_SCHEMA_FILE,
+        version=POSTGRES_SCHEMA_VERSION,
         checksum=hashlib.sha256(POSTGRES_CREATE_SCHEMA_SQL.encode("utf-8")).hexdigest(),
         sql=POSTGRES_CREATE_SCHEMA_SQL,
     )

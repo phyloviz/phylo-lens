@@ -2,6 +2,8 @@ import pytest
 
 from phylo_lens_server.data.normalizer import NormalizeRequest, normalize_dataset
 from phylo_lens_server.data.parsers import ParseError, parse_newick
+from phylo_lens_server.data.phylolib import RootedTypingTree
+from phylo_lens_server.data.typing_profiles import collapse_profile_graph
 from phylo_lens_server.pipeline.ingest import layout_version_for_dataset
 from phylo_lens_server.pipeline.worker import PreparedLayoutWorker
 from phylo_lens_server.repository.layout.sqlite_layout_repository import (
@@ -15,12 +17,15 @@ ANCILLARY = (
 
 
 def grouped_dataset(monkeypatch, **kwargs):
-    def convert(content):
-        assert content.count("\t1\t2\n") == 2  # Frequency survives the algorithm input.
-        return parse_newick("(b_02:0,c:2)a_01;")
+    def convert(profiles):
+        assert profiles.algorithm_content().count("\t1\t2\n") == 2
+        parsed = parse_newick("(b_02:0,c:2)a_01;")
+        return RootedTypingTree(
+            parsed, collapse_profile_graph(parsed, profiles.membership()), "a_01"
+        )
 
     monkeypatch.setattr(
-        "phylo_lens_server.data.normalizer.typing_profiles_to_graph", convert
+        "phylo_lens_server.data.normalizer.typing_profiles_to_rooted_tree", convert
     )
     return normalize_dataset(
         NormalizeRequest(format="typing_data", content=PROFILES, **kwargs)
@@ -82,7 +87,7 @@ def test_direct_metadata_overrides_only_its_isolate(monkeypatch):
 
 def test_identical_profiles_and_single_isolate_need_no_java(monkeypatch):
     monkeypatch.setattr(
-        "phylo_lens_server.data.normalizer.typing_profiles_to_graph",
+        "phylo_lens_server.data.phylolib._run_phylolib_cli",
         lambda *_: pytest.fail("No algorithm needed for one unique profile"),
     )
     for rows in ["A\t1\n", "A\t1\nB\t1\n"]:

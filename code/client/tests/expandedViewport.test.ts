@@ -9,6 +9,13 @@ const graph = (nodes: PositionedGraph["nodes"], edges: PositionedGraph["edges"] 
 });
 
 describe("expanded viewport composition", () => {
+  it("keeps all representations when no caller budget is supplied", () => {
+    const nodes = Array.from({ length: 6001 }, (_, i) => ({ id: String(i), x: i, y: 0 }));
+    const result = composeExpandedViewport(graph(nodes.slice(0, 3000)), [graph(nodes.slice(3000))], undefined);
+    expect(result.graph.nodes).toHaveLength(6001);
+    expect(result.partial).toBe(false);
+  });
+
   it("never replaces a detailed member with another patch's boundary representative", () => {
     const proxy = { id: "a", x: 0, y: 0, attributes: { is_cluster_proxy: true } };
     const member = { id: "a", x: 4, y: 5, attributes: { is_cluster_proxy: false } };
@@ -35,5 +42,27 @@ describe("expanded viewport composition", () => {
     expect(result.graph.edges.map((edge) => edge.id)).toEqual(["ab"]);
     expect(base.nodes).toHaveLength(1);
     expect(patch.nodes).toHaveLength(2);
+  });
+
+  it("replaces a quotient edge with the expanded branch's boundary edge", () => {
+    const base = graph(
+      [
+        { id: "b", x: 0, y: 0 },
+        { id: "c", x: 1, y: 0, attributes: { is_cluster_proxy: true, cluster_id: "branch" } },
+      ],
+      [{ id: "quotient", source: "b", target: "c" }],
+    );
+    const patch = graph(
+      [
+        { id: "c", x: 1, y: 0, attributes: { is_cluster_proxy: false, cluster_id: "branch" } },
+        { id: "d", x: 2, y: 0, attributes: { is_cluster_proxy: false, cluster_id: "branch" } },
+      ],
+      [
+        { id: "internal", source: "c", target: "d" },
+        { id: "boundary", source: "c", target: "b", attributes: { isMeta: true } },
+      ],
+    );
+    const result = composeExpandedViewport(base, [patch], 10);
+    expect(result.graph.edges.map((edge) => edge.id)).toEqual(["internal", "boundary"]);
   });
 });

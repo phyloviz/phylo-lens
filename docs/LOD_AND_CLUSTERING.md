@@ -1,240 +1,124 @@
-# Level of detail and distance clustering
+# Level of detail and tree clusters
 
-PhyloLens uses a server-prepared level-of-detail (LoD) hierarchy to reduce the
-number of graph elements returned and rendered at broad views. The hierarchy is
-based on canonical edge distances and remains aligned to one global layout.
+PhyloLens simplifies a tree for display. A cluster is a *pendant subtree*: a
+connected set of original nodes attached to the remaining tree by one edge.
+It is not a goeBURST clonal complex or an inferred biological founder.
 
-LoD is a display and query mechanism. It does not alter the canonical topology or
-claim a new biological grouping model beyond the supplied distances.
+## Technical roots
 
-## Terminology
+The unrooted goeBURST Full MST is oriented from one technical root. After
+equivalent typing profiles are grouped, the PhyloLib Hamming matrix is read
+row by row to count distances between distinct profiles. No second pairwise
+distance calculation is needed. The root has
+the most distance-1 neighbours (SLVs); ties compare distance-2 counts, then
+distance-3 counts, and so on. An exact tie goes to the profile occurring first
+in the original typing input. The choice does not use MST degree, edge lengths,
+or the Newick serialization root. Each MST vertex must be a named profile.
 
-- **canonical node** — a node in the normalized input graph;
-- **distance threshold** — maximum edge distance admitted when computing
-  connected components;
-- **prepared cluster** — one connected component at one selected threshold;
-- **representative** — one canonical member used to display a prepared cluster;
-- **LoD level** — client/server index that selects a prepared threshold or the
-  finest-detail node table;
-- **quotient edge** — an edge between representatives at a coarse tier;
-- **cluster expansion** — an explicit request for all members of one cluster.
+Direct Newick input has no original profile-distance matrix, so each component
+uses the root expressed by its Newick serialization. Anonymous internal nodes
+are valid here. A direct Newick forest has one technical root per component.
 
-## Threshold clustering
+Technical roots are explicit in `CanonicalDataset.technical_roots`; the source
+records the rooting strategy. Both participate in the layout fingerprint.
 
-For a threshold `t`, PhyloLens considers canonical edges with:
+## Hop-depth hierarchy
 
-```text
-edge.distance <= t
-```
+One hop is one tree edge, irrespective of its branch/allelic distance. Orient
+each component from its technical root and assign every node its hop depth.
+For a cut at depth `d`:
 
-Connected components of that subgraph form the partition for `t`.
+1. Nodes with depth at most `d` remain visible as singleton clusters.
+2. Each connected child branch with depth greater than `d` is one collapsed
+   cluster, represented by its member incident to the boundary edge.
 
-With thresholds ordered from high to low:
+The cut partitions all nodes exactly once. Every collapsed branch is connected
+and has exactly one boundary edge. Its representative is only an attachment
+point for drawing, not a founder. Contracting a branch cannot produce
+`visible node -> collapsed cluster -> visible node`.
 
-- a high threshold generally produces fewer, larger components;
-- a lower threshold produces more, smaller components;
-- the minimum selected threshold resolves to finest detail.
+Increasing `d` reveals more of an existing branch. A node never moves between
+unrelated clusters. Keeping distances on canonical edges preserves their data
+and labels, but distances do not determine LoD membership.
 
-The graph may be disconnected. Components from separate trees or goeBURST
-components remain independent at every threshold.
-
-## Threshold selection
-
-The pipeline selects at most 16 thresholds. It does not choose evenly spaced
-numeric distances because edge-distance distributions are often highly skewed.
-Instead, it targets a progressive number of representatives.
-
-The broadest target is derived from graph size:
-
-- for graphs up to 300 nodes, approximately `7 × sqrt(node_count)`, capped by
-  the node count;
-- for larger graphs, the target is bounded between 300 and 800 representatives.
-
-Subsequent targets grow toward the canonical node count. Growth uses the smaller
-of:
-
-- a geometric progression toward the full graph;
-- a maximum factor of 2.5 over the previous target.
-
-For each target, the selected distance is the threshold whose component count is
-closest without falling below the target when possible. Duplicate thresholds are
-removed. The minimum edge distance is always included as the finest selected
-threshold.
-
-This policy adapts the number of tiers to topology and distance distribution. A
-dataset with few unique distances may expose fewer tiers.
-
-## Deterministic cluster identity
-
-A prepared cluster identifier includes:
-
-- the distance threshold;
-- the first sorted member identifier;
-- a short SHA-1 digest of the sorted member identifiers.
-
-Cluster identity is deterministic for the same canonical graph and threshold.
-It is internal to one prepared layout and should not be used as an external
-biological identifier.
-
-## Representative selection
-
-The representative is always a canonical member of the cluster.
-
-When canonical nodes carry coordinates, PhyloLens selects the member closest to
-the member centroid. Ties prefer higher internal degree, then identifier order.
-
-When coordinates are absent during cluster preparation, selection prefers:
-
-1. highest internal degree within the cluster;
-2. lexicographically smallest node identifier.
-
-Graphviz positions are computed later. Therefore, in the normal Newick and
-typing-data path, the representative is an internally well-connected member, not
-the node nearest the final `sfdp` centroid.
-
-## Cluster records
-
-Each prepared cluster stores:
-
-- members;
-- representative;
-- internal original edges;
-- boundary original edges;
-- threshold;
-- member count;
-- representative position;
-- member-derived bounds and radius;
-- aggregated public metadata.
-
-Internal and boundary edge lists support explicit expansion and connectivity
-preservation.
-
-## Quotient graph per tier
-
-For each coarse tier, canonical edge endpoints are mapped to representatives.
-
-- edges whose endpoints map to the same representative are internal and omitted;
-- edges between different representatives become prepared quotient edges;
-- duplicate representative pairs are collapsed deterministically;
-- the minimum available canonical distance is retained for each pair.
-
-The quotient graph is materialized during preparation. Viewport reads do not
-recompute cluster connectivity.
-
-## Server LoD level semantics
-
-The store loads distinct non-null thresholds in descending order. A requested
-`lod_level` is clamped to that list.
-
-The minimum threshold is treated as finest detail and maps to the
-`node_positions` table rather than cluster representatives. Consequently:
+Cluster membership is defined for any hop depth. A separate presentation policy
+selects materialized levels using visible representation counts:
 
 ```text
-lod_level 0            → broadest available prepared tier
-intermediate levels    → progressively finer representative tiers
-last available level   → individual canonical nodes
+n[k] = canonical nodes at hop depth k
+R(d) = sum(n[k] for k <= d) + n[d + 1]
 ```
 
-When the graph has no meaningful coarse threshold, reads fall back to individual
-nodes.
+The final term is omitted at maximum depth. The rooted prefix is explicit and
+each depth `d + 1` node attaches one complete descendant branch. Starting at
+the coarsest cut, target `2.0 * R(current)` and choose the later cut nearest in
+multiplicative terms (`abs(log(R(d) / target))`). A forward pass brackets each
+target; ties prefer the smaller depth. Counts redundant with full detail are
+omitted, keeping maximum depth as the explicit final level. There is no fixed
+maximum number of levels. Full detail represents every original node individually.
+The policy chooses among valid structural cuts; it cannot eliminate jumps
+caused by the actual branching topology.
 
-A request without `lod_level` uses server compatibility behavior:
+## Interaction: semantic zoom and viewport complexity
 
-- `zoom < 1` selects LoD level `0`;
-- otherwise it reads finest detail.
+Semantic zoom expresses a preferred prepared tier, not a hard ceiling. Spatial
+count queries inspect every prepared tier and select the finest one that meets
+its viewport complexity target. Dense regions can defer the preferred tier;
+sparse regions can refine beyond it. Each tier ahead of the zoom preference
+halves the base target, requiring progressively more spare capacity. For a base
+target of 1,000 representations, the preferred tier may contain 1,000; one tier
+ahead may contain 500; two ahead may contain 250. Zoom therefore remains useful
+without preventing early refinement in sparse regions.
+Known small trees retain finest-tier preference but use the same density
+selection on subsequent navigation. Explicit tier commands and pinned expansion
+are exact. A complete cached overview is still reassessed during navigation.
 
-The browser library normally sends an explicit LoD level.
+The normal client derives the target from CSS-pixel screen area divided by
+`lod.representationSpacingPx²` (default spacing 24 pixels). This is a tunable
+visual density preference, not a count limit. A 15% hysteresis band retains the
+previous effective tier near its zoom-adjusted target to prevent flicker.
+Zoom thresholds also use a proportional 5% hysteresis band; the band shrinks
+with deeper zoom, so no prepared tier becomes unreachable. The response's
+`lod_level` reports the effective tier; the request's level remains zoom intent.
 
-## Browser semantic zoom
+Selection uses unpadded visible bounds; retrieval uses padded bounds for
+prefetch. Cluster counts use bounding-box overlap, matching cluster retrieval.
+Finest-detail counts include the complete one-hop boundary-neighbor union.
+Local counts need not be monotonic, so selection examines all prepared tiers
+rather than stopping at the first dense cut. Only spatial counts are inspected;
+intermediate graphs are not fetched or materialized during interaction.
 
-The browser maps Sigma camera ratio to a LoD level. A larger camera ratio means
-a broader view; a smaller ratio means a closer view.
+If even the coarsest valid tier exceeds the target, it is returned complete.
+No sibling grouping is invented and the target never causes SQL truncation.
+Bounding-box overlap conservatively counts aggregates whose representative
+position may be off-screen. Geometry, labels and overlapping edges can still
+cause clutter: representation counts estimate complexity rather than guarantee
+collision-free rendering.
 
-Current defaults:
+Normal viewport and expansion requests have no node-count limit. Scalability
+comes from aggregation, viewport bounds, spatial queries and progressive
+structural refinement. An explicit caller may supply positive `max_nodes` (or
+client `lod.maxNodes`) for a bounded request, without a server hard upper bound.
+Only such explicit bounded reads can report count truncation. They are partial
+views; normal navigation does not discard nodes after selecting a valid level.
 
-| Setting | Value | Meaning |
-| --- | ---: | --- |
-| Broad-detail boundary | `0.8` | Ratios at or above this value use level `0` |
-| Standard tier ratio step | `0.4` | Boundary multiplier when fewer than 8 tiers exist |
-| Dense tier ratio step | `2/3` | Boundary multiplier when 8 or more tiers exist |
-| Tier-change hysteresis | `0.05` | Dead band around a boundary |
-| Camera debounce | `120 ms` | Standard viewport refresh delay |
-| LoD-change debounce | `60 ms` | Faster refresh when the semantic tier changes |
+Materialized cluster records total `sum R(d)`. Membership records still store
+every canonical node at every selected level (`N * levels`); geometric cluster
+counts do not imply linear storage for all prepared state.
 
-Hysteresis prevents rapid alternation between adjacent levels near a zoom
-boundary.
+## Prepared edges and expansion
 
-## Small-graph behavior
+At each level, an original edge within one cluster disappears from the
+quotient view. An edge between clusters connects their representatives. Since
+the input is a tree and each collapsed subtree has one boundary edge, the
+quotient has no parallel edges and a multi-node collapsed cluster has degree
+one. These properties are checked during preparation.
 
-The browser treats a prepared graph with at most 6,000 canonical nodes as small.
-It requests the finest tier and, once loaded, suppresses camera-driven viewport
-refreshes. This avoids unnecessary server queries when the complete graph fits
-within the intended renderer budget.
+Expanding a cluster loads its original members and internal edges and surfaces
+its attachment neighbour. Its single boundary edge becomes a meta-edge to
+that neighbour's representative at the same level. Forest components remain
+disconnected throughout.
 
-The public browser load path defaults to a viewport budget of 6,000 nodes, while
-the server HTTP default is 2,500 and the hard maximum is 20,000. The client may request a different
-budget through the public load options.
-
-The service can include neighbour nodes required to preserve edge endpoints, so
-the response node count can exceed the number selected directly by the viewport
-bounds.
-
-## Viewport bounds
-
-For non-global coarse or intermediate reads, the client expands the camera bounds
-by 50% in each direction before querying. The padded region reduces visible
-loading at the screen edge during small camera movements.
-
-The initial broad request omits bounds. Finest-tier requests for known small
-graphs also omit bounds.
-
-## Metadata at different levels
-
-Finest-detail nodes receive their public node metadata.
-
-Cluster representatives receive aggregated metadata:
-
-- numeric fields: mean of non-null member values;
-- categorical and boolean fields: mode with deterministic tie-breaking;
-- internal category counts remain available to the visual-mapping layer but are
-  not exposed as public metadata fields.
-
-A representative is therefore a visual summary of a set of members, not an
-ordinary sample record.
-
-## Truncation
-
-Every viewport request has `max_nodes`. The response reports:
-
-- `total_node_count`, the number of directly eligible nodes or representatives;
-- `truncated`, whether the direct selection exceeded the budget.
-
-Truncation is observable and should not be interpreted as a complete graph view.
-Host applications may adjust the budget, change zoom, or use explicit cluster
-expansion.
-
-## Explicit cluster expansion
-
-A viewport query with `cluster_id` bypasses normal tier selection and returns:
-
-- all cluster members at finest detail;
-- internal canonical edges;
-- neighbouring representatives needed for external connectivity;
-- server-generated meta-edges for bundled boundary connections.
-
-Expansion is described in [Cluster interaction](./EXPAND_COLLAPSE.md).
-
-## Evaluation considerations
-
-LoD evaluation should distinguish:
-
-- preparation cost of materializing thresholds and quotient edges;
-- response size per tier;
-- visible node and edge counts;
-- viewport query latency;
-- client snapshot-application latency;
-- stability around tier boundaries;
-- topology and metadata preserved by representative aggregation.
-
-The threshold policy is deterministic but heuristic. Its effectiveness should be
-supported by experimental results rather than described as optimal.
+The SQLite and PostgreSQL `prepared_clusters` rows record `lod_level`;
+cluster members and prepared edges are keyed by the corresponding
+layout version. Changing the root, rooting strategy or level-selection policy creates a new version.

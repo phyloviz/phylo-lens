@@ -141,7 +141,7 @@ graph updates.
 
 After loading, `view.setKeepExpanded(true)` pins the current detail tier while
 retaining expanded groups across viewport changes. `await view.expandAll()` requests
-all finest-detail nodes within the configured `lod.maxNodes` budget. Inspect the
+all finest-detail nodes, bounded only when `lod.maxNodes` is explicitly supplied. Inspect the
 returned `status` (`complete`, `partial`, or `superseded`): a partial result must not
 be presented as a fully expanded tree. `await view.collapseAll()` returns to the
 coarsest tier. Disabling persistence resumes automatic detail selection.
@@ -183,6 +183,7 @@ interface PhyloLensLoadOptions {
   };
   lod?: {
     maxNodes?: number;
+    representationSpacingPx?: number;
     lodHint?: number;
     viewport?: Viewport;
   };
@@ -198,7 +199,8 @@ interface PhyloLensLoadOptions {
 | `ancillaryByNodeId` | no | `{}` | Direct ancillary data keyed by node ID |
 | `ancillaryData` | no | — | CSV/TSV metadata joined by an explicit column |
 | `visualMapping` | no | library defaults | Controls node color, size and pie attributes |
-| `lod.maxNodes` | no | `6000` | Primary node budget used for viewport requests |
+| `lod.maxNodes` | no | unbounded | Optional explicit viewport/expansion node budget |
+| `lod.representationSpacingPx` | no | `24` | CSS-pixel spacing preference; viewport area / spacing² selects structural tiers without dropping nodes |
 | `layout.forceIterations` | no | — | Reserved by the current public type; not applied by the server pipeline |
 | `lod.lodHint` | no | — | Reserved by the current public type; semantic zoom is currently derived from camera ratio |
 | `lod.viewport` | no | — | Reserved by the current public type; the initial query is derived from renderer state |

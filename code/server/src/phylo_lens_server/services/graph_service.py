@@ -7,7 +7,6 @@ from phylo_lens_server.data.normalizer import (
     NormalizeRequest,
     normalize_dataset,
 )
-from phylo_lens_server.domain.models import CanonicalDataset, CanonicalEdge
 from phylo_lens_server.http.graph.responses import (
     graph_region_response_from_result,
     graph_search_response_from_result,
@@ -35,6 +34,7 @@ from phylo_lens_server.repository.jobs.result_payload import prepare_result_payl
 from phylo_lens_server.repository.layout.sqlite_layout_repository import (
     PreparedLayoutStore,
 )
+from phylo_lens_server.services.viewport_lod import select_viewport_lod_level
 
 logger = logging.getLogger(__name__)
 
@@ -51,21 +51,19 @@ def prepare_graph_job(
     if callable(reservation):
         with reservation():
             normalized = normalize_dataset(request, expose_internal_schema=True)
-            dataset, distance_warnings = ensure_graph_edge_distances(normalized.dataset)
-            submit_warnings = (*normalized.warnings, *distance_warnings)
+            dataset = normalized.dataset
             job_id = registry.submit(
                 dataset,
-                submit_warnings,
+                normalized.warnings,
                 sfdp_options=request.sfdp_options,
                 reserved_capacity=True,
             )
     else:
         normalized = normalize_dataset(request, expose_internal_schema=True)
-        dataset, distance_warnings = ensure_graph_edge_distances(normalized.dataset)
-        submit_warnings = (*normalized.warnings, *distance_warnings)
+        dataset = normalized.dataset
         job_id = registry.submit(
             dataset,
-            submit_warnings,
+            normalized.warnings,
             sfdp_options=request.sfdp_options,
         )
     return GraphPrepareJob(
@@ -113,9 +111,29 @@ def read_graph_viewport(
     layout_version = resolve_layout_version(
         store, query.dataset_id, query.layout_version
     )
-    lod_level = effective_lod_level(query)
-
     read_started = perf_counter()
+    lod_level = effective_lod_level(query)
+    if query.lod_target_representations is not None and query.cluster_id is None:
+        bounds = query.lod_selection_bounds or query
+        counts = store.viewport_representation_counts(
+            dataset_id=query.dataset_id,
+            layout_version=layout_version,
+            xmin=bounds.xmin,
+            xmax=bounds.xmax,
+            ymin=bounds.ymin,
+            ymax=bounds.ymax,
+        )
+        if counts:
+            semantic_level = (
+                min(lod_level, max(counts)) if lod_level is not None else max(counts)
+            )
+            lod_level = select_viewport_lod_level(
+                counts,
+                semantic_level,
+                query.lod_target_representations,
+                query.previous_lod_level,
+            )
+
     result = store.read_viewport(
         dataset_id=query.dataset_id,
         layout_version=layout_version,
@@ -198,30 +216,6 @@ def effective_lod_level(query: GraphViewportQuery) -> int | None:
     if query.zoom < 1.0:
         return 0
     return None
-
-
-def ensure_graph_edge_distances(
-    dataset: CanonicalDataset,
-) -> tuple[CanonicalDataset, list[str]]:
-    if not dataset.edges or any(edge.distance is not None for edge in dataset.edges):
-        return dataset, []
-
-    return (
-        dataset.model_copy(
-            update={
-                "edges": [
-                    CanonicalEdge(
-                        id=edge.id,
-                        source=edge.source,
-                        target=edge.target,
-                        distance=1.0,
-                    )
-                    for edge in dataset.edges
-                ]
-            }
-        ),
-        ["Missing edge distances were assigned a unit distance for layout."],
-    )
 
 
 def resolve_layout_version(

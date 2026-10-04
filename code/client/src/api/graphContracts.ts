@@ -54,7 +54,11 @@ export interface GraphViewportQuery {
   ymax?: number;
   zoom?: number;
   lod_level?: number | null;
-  max_nodes?: number;
+  max_nodes?: number | null;
+  /** Adaptive selection ceiling is lod_level; counts never limit retrieval. */
+  lod_target_representations?: number;
+  lod_selection_bounds?: { xmin: number; xmax: number; ymin: number; ymax: number };
+  previous_lod_level?: number | null;
 }
 
 export interface GraphPrepareResponse {
@@ -115,7 +119,6 @@ export interface GraphViewportEdge {
   target: string;
   distance?: number | null;
   is_meta?: boolean | null;
-  bundled_edge_count?: number | null;
 }
 
 export interface GraphLayoutBounds {
@@ -146,7 +149,7 @@ export interface GraphRegionQuery {
   xmax: number;
   ymin: number;
   ymax: number;
-  max_nodes?: number;
+  max_nodes?: number | null;
 }
 
 export interface GraphRegionResponse {

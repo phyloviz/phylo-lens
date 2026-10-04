@@ -21,6 +21,13 @@ const response = (ids: string[]): GraphViewportResponse => ({
   edges: [{ id: "ab", source: "a", target: "b", distance: 7 }],
 });
 describe("budgeted viewport retention", () => {
+  it("retains displaced nodes without dropping incoming nodes when unbounded", () => {
+    const ids = Array.from({ length: 6001 }, (_, i) => String(i));
+    const retained = retainMovedNodes(response(ids), response(["a"]), ["a"], undefined);
+    expect(retained.nodes).toHaveLength(6002);
+    expect(retained.truncated).toBe(false);
+  });
+
   it("retains a visible dragged node and its available edges within the budget", () => {
     const previous = response(["a", "b"]),
       next = response(["b", "c"]);

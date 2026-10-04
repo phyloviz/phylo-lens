@@ -178,8 +178,7 @@ function isGraphViewportEdge(value: unknown): value is GraphViewportEdge {
     isString(value.source) &&
     isString(value.target) &&
     isOptionalFiniteNumber(value.distance) &&
-    isOptionalBoolean(value.is_meta) &&
-    isOptionalFiniteNumber(value.bundled_edge_count)
+    isOptionalBoolean(value.is_meta)
   );
 }
 

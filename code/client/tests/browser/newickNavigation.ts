@@ -118,8 +118,9 @@ button.addEventListener("click", async () => {
     }
     const allResult = await controller.expandAll();
     records.push({ operation: "expand all", ...allResult });
-    if (allResult.renderedNodeCount > allResult.maxNodes) throw new Error("Expansion exceeded its budget.");
-    if (prepared.node_count > allResult.maxNodes && allResult.status !== "partial")
+    if (allResult.maxNodes !== undefined && allResult.renderedNodeCount > allResult.maxNodes)
+      throw new Error("Expansion exceeded its budget.");
+    if (allResult.maxNodes !== undefined && prepared.node_count > allResult.maxNodes && allResult.status !== "partial")
       throw new Error("Partial expansion was not reported.");
     const collapsed = await controller.collapseAll();
     records.push({ operation: "collapse all", ...collapsed });

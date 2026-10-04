@@ -4,11 +4,21 @@ import type { PositionedGraph } from "../../../contracts/positioned";
 export function composeExpandedViewport(
   base: PositionedGraph,
   patches: readonly PositionedGraph[],
-  maxNodes: number,
+  maxNodes: number | undefined,
   priorityNodeId?: string | null,
 ) {
   const nodes = new Map(base.nodes.map((node) => [node.id, node]));
   const edges = new Map(base.edges.map((edge) => [edge.id, edge]));
+  const boundaryPairs = new Set(
+    patches.flatMap((patch) =>
+      patch.edges
+        .filter((edge) => edge.attributes?.isMeta === true)
+        .map((edge) => [edge.source, edge.target].sort().join("\0")),
+    ),
+  );
+  for (const [id, edge] of edges) {
+    if (boundaryPairs.has([edge.source, edge.target].sort().join("\0"))) edges.delete(id);
+  }
   for (const patch of patches) {
     for (const node of patch.nodes) {
       if (node.attributes?.is_cluster_proxy !== true || !nodes.has(node.id)) nodes.set(node.id, node);
@@ -29,7 +39,7 @@ export function composeExpandedViewport(
     if (node.attributes?.is_cluster_proxy === true && typeof clusterId === "string" && detailedClusters.has(clusterId))
       nodes.delete(id);
   }
-  const partial = nodes.size > maxNodes;
+  const partial = maxNodes !== undefined && nodes.size > maxNodes;
   const ordered = [...nodes.values()];
   const priority = priorityNodeId ? nodes.get(priorityNodeId) : undefined;
   const rendered = (priority ? [priority, ...ordered.filter((node) => node.id !== priority.id)] : ordered).slice(

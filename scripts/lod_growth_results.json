@@ -1,0 +1,1573 @@
+{
+  "path": {
+    "max_depth": 12000,
+    "node_count": 12001,
+    "histogram_runs": [
+      [
+        0,
+        12000,
+        1
+      ]
+    ],
+    "invariants": "passed at all selected depths",
+    "policies": {
+      "CURRENT": {
+        "depths": [
+          0,
+          1,
+          2,
+          4,
+          8,
+          16,
+          32,
+          64,
+          128,
+          256,
+          512,
+          12000
+        ],
+        "representations": [
+          2,
+          3,
+          4,
+          6,
+          10,
+          18,
+          34,
+          66,
+          130,
+          258,
+          514,
+          12001
+        ],
+        "growth_ratios": [
+          1.5,
+          1.3333333333333333,
+          1.5,
+          1.6666666666666667,
+          1.8,
+          1.8888888888888888,
+          1.9411764705882353,
+          1.9696969696969697,
+          1.9846153846153847,
+          1.9922480620155039,
+          23.348249027237355
+        ],
+        "levels": 12,
+        "sum_representations": 13046,
+        "sum_over_nodes": 1.0870760769935839,
+        "membership_rows": 144012,
+        "max_absolute_jump": 11487,
+        "max_multiplicative_jump": 23.348249027237355
+      },
+      "threshold gamma=1.5": {
+        "depths": [
+          0,
+          1,
+          3,
+          6,
+          10,
+          16,
+          25,
+          39,
+          60,
+          91,
+          138,
+          208,
+          313,
+          471,
+          708,
+          1063,
+          1596,
+          2395,
+          3594,
+          5392,
+          8089,
+          12000
+        ],
+        "representations": [
+          2,
+          3,
+          5,
+          8,
+          12,
+          18,
+          27,
+          41,
+          62,
+          93,
+          140,
+          210,
+          315,
+          473,
+          710,
+          1065,
+          1598,
+          2397,
+          3596,
+          5394,
+          8091,
+          12001
+        ],
+        "growth_ratios": [
+          1.5,
+          1.6666666666666667,
+          1.6,
+          1.5,
+          1.5,
+          1.5,
+          1.5185185185185186,
+          1.5121951219512195,
+          1.5,
+          1.5053763440860215,
+          1.5,
+          1.5,
+          1.5015873015873016,
+          1.5010570824524312,
+          1.5,
+          1.5004694835680752,
+          1.5,
+          1.5002085940759282,
+          1.5,
+          1.5,
+          1.4832529971573354
+        ],
+        "levels": 22,
+        "sum_representations": 36261,
+        "sum_over_nodes": 3.0214982084826265,
+        "membership_rows": 264022,
+        "max_absolute_jump": 3910,
+        "max_multiplicative_jump": 1.6666666666666667
+      },
+      "nearest gamma=1.5": {
+        "depths": [
+          0,
+          1,
+          2,
+          4,
+          7,
+          11,
+          17,
+          26,
+          40,
+          61,
+          92,
+          139,
+          209,
+          314,
+          472,
+          709,
+          1064,
+          1597,
+          2396,
+          3595,
+          5393,
+          8090,
+          12000
+        ],
+        "representations": [
+          2,
+          3,
+          4,
+          6,
+          9,
+          13,
+          19,
+          28,
+          42,
+          63,
+          94,
+          141,
+          211,
+          316,
+          474,
+          711,
+          1066,
+          1599,
+          2398,
+          3597,
+          5395,
+          8092,
+          12001
+        ],
+        "growth_ratios": [
+          1.5,
+          1.3333333333333333,
+          1.5,
+          1.5,
+          1.4444444444444444,
+          1.4615384615384615,
+          1.4736842105263157,
+          1.5,
+          1.5,
+          1.492063492063492,
+          1.5,
+          1.49645390070922,
+          1.4976303317535544,
+          1.5,
+          1.5,
+          1.49929676511955,
+          1.5,
+          1.4996873045653534,
+          1.5,
+          1.4998609952738393,
+          1.4999073215940686,
+          1.4830696984676224
+        ],
+        "levels": 23,
+        "sum_representations": 36284,
+        "sum_over_nodes": 3.02341471544038,
+        "membership_rows": 276023,
+        "max_absolute_jump": 3909,
+        "max_multiplicative_jump": 1.5
+      },
+      "threshold gamma=2.0": {
+        "depths": [
+          0,
+          2,
+          6,
+          14,
+          30,
+          62,
+          126,
+          254,
+          510,
+          1022,
+          2046,
+          4094,
+          8190,
+          12000
+        ],
+        "representations": [
+          2,
+          4,
+          8,
+          16,
+          32,
+          64,
+          128,
+          256,
+          512,
+          1024,
+          2048,
+          4096,
+          8192,
+          12001
+        ],
+        "growth_ratios": [
+          2.0,
+          2.0,
+          2.0,
+          2.0,
+          2.0,
+          2.0,
+          2.0,
+          2.0,
+          2.0,
+          2.0,
+          2.0,
+          2.0,
+          1.4649658203125
+        ],
+        "levels": 14,
+        "sum_representations": 28383,
+        "sum_over_nodes": 2.365052912257312,
+        "membership_rows": 168014,
+        "max_absolute_jump": 4096,
+        "max_multiplicative_jump": 2.0
+      },
+      "nearest gamma=2.0": {
+        "depths": [
+          0,
+          2,
+          6,
+          14,
+          30,
+          62,
+          126,
+          254,
+          510,
+          1022,
+          2046,
+          4094,
+          8190,
+          12000
+        ],
+        "representations": [
+          2,
+          4,
+          8,
+          16,
+          32,
+          64,
+          128,
+          256,
+          512,
+          1024,
+          2048,
+          4096,
+          8192,
+          12001
+        ],
+        "growth_ratios": [
+          2.0,
+          2.0,
+          2.0,
+          2.0,
+          2.0,
+          2.0,
+          2.0,
+          2.0,
+          2.0,
+          2.0,
+          2.0,
+          2.0,
+          1.4649658203125
+        ],
+        "levels": 14,
+        "sum_representations": 28383,
+        "sum_over_nodes": 2.365052912257312,
+        "membership_rows": 168014,
+        "max_absolute_jump": 4096,
+        "max_multiplicative_jump": 2.0
+      },
+      "threshold gamma=2.5": {
+        "depths": [
+          0,
+          3,
+          11,
+          31,
+          81,
+          206,
+          518,
+          1298,
+          3248,
+          8123,
+          12000
+        ],
+        "representations": [
+          2,
+          5,
+          13,
+          33,
+          83,
+          208,
+          520,
+          1300,
+          3250,
+          8125,
+          12001
+        ],
+        "growth_ratios": [
+          2.5,
+          2.6,
+          2.5384615384615383,
+          2.515151515151515,
+          2.5060240963855422,
+          2.5,
+          2.5,
+          2.5,
+          2.5,
+          1.477046153846154
+        ],
+        "levels": 11,
+        "sum_representations": 25540,
+        "sum_over_nodes": 2.128155987001083,
+        "membership_rows": 132011,
+        "max_absolute_jump": 4875,
+        "max_multiplicative_jump": 2.6
+      },
+      "nearest gamma=2.5": {
+        "depths": [
+          0,
+          3,
+          10,
+          28,
+          73,
+          185,
+          465,
+          1165,
+          2915,
+          7290,
+          12000
+        ],
+        "representations": [
+          2,
+          5,
+          12,
+          30,
+          75,
+          187,
+          467,
+          1167,
+          2917,
+          7292,
+          12001
+        ],
+        "growth_ratios": [
+          2.5,
+          2.4,
+          2.5,
+          2.5,
+          2.493333333333333,
+          2.4973262032085564,
+          2.498929336188437,
+          2.499571550985433,
+          2.4998285910181695,
+          1.645776193088316
+        ],
+        "levels": 11,
+        "sum_representations": 24155,
+        "sum_over_nodes": 2.012748937588534,
+        "membership_rows": 132011,
+        "max_absolute_jump": 4709,
+        "max_multiplicative_jump": 2.5
+      }
+    }
+  },
+  "balanced": {
+    "max_depth": 12,
+    "node_count": 8191,
+    "histogram_runs": [
+      [
+        0,
+        0,
+        1
+      ],
+      [
+        1,
+        1,
+        2
+      ],
+      [
+        2,
+        2,
+        4
+      ],
+      [
+        3,
+        3,
+        8
+      ],
+      [
+        4,
+        4,
+        16
+      ],
+      [
+        5,
+        5,
+        32
+      ],
+      [
+        6,
+        6,
+        64
+      ],
+      [
+        7,
+        7,
+        128
+      ],
+      [
+        8,
+        8,
+        256
+      ],
+      [
+        9,
+        9,
+        512
+      ],
+      [
+        10,
+        10,
+        1024
+      ],
+      [
+        11,
+        11,
+        2048
+      ],
+      [
+        12,
+        12,
+        4096
+      ]
+    ],
+    "invariants": "passed at all selected depths",
+    "policies": {
+      "CURRENT": {
+        "depths": [
+          0,
+          1,
+          2,
+          4,
+          8,
+          12
+        ],
+        "representations": [
+          3,
+          7,
+          15,
+          63,
+          1023,
+          8191
+        ],
+        "growth_ratios": [
+          2.3333333333333335,
+          2.142857142857143,
+          4.2,
+          16.238095238095237,
+          8.006842619745846
+        ],
+        "levels": 6,
+        "sum_representations": 9302,
+        "sum_over_nodes": 1.1356366743987303,
+        "membership_rows": 49146,
+        "max_absolute_jump": 7168,
+        "max_multiplicative_jump": 16.238095238095237
+      },
+      "threshold gamma=1.5": {
+        "depths": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12
+        ],
+        "representations": [
+          3,
+          7,
+          15,
+          31,
+          63,
+          127,
+          255,
+          511,
+          1023,
+          2047,
+          4095,
+          8191,
+          8191
+        ],
+        "growth_ratios": [
+          2.3333333333333335,
+          2.142857142857143,
+          2.066666666666667,
+          2.032258064516129,
+          2.015873015873016,
+          2.0078740157480315,
+          2.003921568627451,
+          2.0019569471624266,
+          2.0009775171065494,
+          2.0004885197850513,
+          2.0002442002442002,
+          1.0
+        ],
+        "levels": 13,
+        "sum_representations": 24559,
+        "sum_over_nodes": 2.9982908069832743,
+        "membership_rows": 106483,
+        "max_absolute_jump": 4096,
+        "max_multiplicative_jump": 2.3333333333333335
+      },
+      "nearest gamma=1.5": {
+        "depths": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12
+        ],
+        "representations": [
+          3,
+          7,
+          15,
+          31,
+          63,
+          127,
+          255,
+          511,
+          1023,
+          2047,
+          4095,
+          8191,
+          8191
+        ],
+        "growth_ratios": [
+          2.3333333333333335,
+          2.142857142857143,
+          2.066666666666667,
+          2.032258064516129,
+          2.015873015873016,
+          2.0078740157480315,
+          2.003921568627451,
+          2.0019569471624266,
+          2.0009775171065494,
+          2.0004885197850513,
+          2.0002442002442002,
+          1.0
+        ],
+        "levels": 13,
+        "sum_representations": 24559,
+        "sum_over_nodes": 2.9982908069832743,
+        "membership_rows": 106483,
+        "max_absolute_jump": 4096,
+        "max_multiplicative_jump": 2.3333333333333335
+      },
+      "threshold gamma=2.0": {
+        "depths": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12
+        ],
+        "representations": [
+          3,
+          7,
+          15,
+          31,
+          63,
+          127,
+          255,
+          511,
+          1023,
+          2047,
+          4095,
+          8191,
+          8191
+        ],
+        "growth_ratios": [
+          2.3333333333333335,
+          2.142857142857143,
+          2.066666666666667,
+          2.032258064516129,
+          2.015873015873016,
+          2.0078740157480315,
+          2.003921568627451,
+          2.0019569471624266,
+          2.0009775171065494,
+          2.0004885197850513,
+          2.0002442002442002,
+          1.0
+        ],
+        "levels": 13,
+        "sum_representations": 24559,
+        "sum_over_nodes": 2.9982908069832743,
+        "membership_rows": 106483,
+        "max_absolute_jump": 4096,
+        "max_multiplicative_jump": 2.3333333333333335
+      },
+      "nearest gamma=2.0": {
+        "depths": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12
+        ],
+        "representations": [
+          3,
+          7,
+          15,
+          31,
+          63,
+          127,
+          255,
+          511,
+          1023,
+          2047,
+          4095,
+          8191,
+          8191
+        ],
+        "growth_ratios": [
+          2.3333333333333335,
+          2.142857142857143,
+          2.066666666666667,
+          2.032258064516129,
+          2.015873015873016,
+          2.0078740157480315,
+          2.003921568627451,
+          2.0019569471624266,
+          2.0009775171065494,
+          2.0004885197850513,
+          2.0002442002442002,
+          1.0
+        ],
+        "levels": 13,
+        "sum_representations": 24559,
+        "sum_over_nodes": 2.9982908069832743,
+        "membership_rows": 106483,
+        "max_absolute_jump": 4096,
+        "max_multiplicative_jump": 2.3333333333333335
+      },
+      "threshold gamma=2.5": {
+        "depths": [
+          0,
+          2,
+          4,
+          6,
+          8,
+          10,
+          12
+        ],
+        "representations": [
+          3,
+          15,
+          63,
+          255,
+          1023,
+          4095,
+          8191
+        ],
+        "growth_ratios": [
+          5.0,
+          4.2,
+          4.0476190476190474,
+          4.011764705882353,
+          4.002932551319648,
+          2.0002442002442002
+        ],
+        "levels": 7,
+        "sum_representations": 13645,
+        "sum_over_nodes": 1.6658527652301307,
+        "membership_rows": 57337,
+        "max_absolute_jump": 4096,
+        "max_multiplicative_jump": 5.0
+      },
+      "nearest gamma=2.5": {
+        "depths": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          12
+        ],
+        "representations": [
+          3,
+          7,
+          15,
+          31,
+          63,
+          127,
+          255,
+          511,
+          1023,
+          2047,
+          4095,
+          8191
+        ],
+        "growth_ratios": [
+          2.3333333333333335,
+          2.142857142857143,
+          2.066666666666667,
+          2.032258064516129,
+          2.015873015873016,
+          2.0078740157480315,
+          2.003921568627451,
+          2.0019569471624266,
+          2.0009775171065494,
+          2.0004885197850513,
+          2.0002442002442002
+        ],
+        "levels": 12,
+        "sum_representations": 16368,
+        "sum_over_nodes": 1.9982908069832743,
+        "membership_rows": 98292,
+        "max_absolute_jump": 4096,
+        "max_multiplicative_jump": 2.3333333333333335
+      }
+    }
+  },
+  "star": {
+    "max_depth": 1,
+    "node_count": 10001,
+    "histogram_runs": [
+      [
+        0,
+        0,
+        1
+      ],
+      [
+        1,
+        1,
+        10000
+      ]
+    ],
+    "invariants": "passed at all selected depths",
+    "policies": {
+      "CURRENT": {
+        "depths": [
+          0,
+          1
+        ],
+        "representations": [
+          10001,
+          10001
+        ],
+        "growth_ratios": [
+          1.0
+        ],
+        "levels": 2,
+        "sum_representations": 20002,
+        "sum_over_nodes": 2.0,
+        "membership_rows": 20002,
+        "max_absolute_jump": 0,
+        "max_multiplicative_jump": 1.0
+      },
+      "threshold gamma=1.5": {
+        "depths": [
+          0,
+          1
+        ],
+        "representations": [
+          10001,
+          10001
+        ],
+        "growth_ratios": [
+          1.0
+        ],
+        "levels": 2,
+        "sum_representations": 20002,
+        "sum_over_nodes": 2.0,
+        "membership_rows": 20002,
+        "max_absolute_jump": 0,
+        "max_multiplicative_jump": 1.0
+      },
+      "nearest gamma=1.5": {
+        "depths": [
+          0,
+          1
+        ],
+        "representations": [
+          10001,
+          10001
+        ],
+        "growth_ratios": [
+          1.0
+        ],
+        "levels": 2,
+        "sum_representations": 20002,
+        "sum_over_nodes": 2.0,
+        "membership_rows": 20002,
+        "max_absolute_jump": 0,
+        "max_multiplicative_jump": 1.0
+      },
+      "threshold gamma=2.0": {
+        "depths": [
+          0,
+          1
+        ],
+        "representations": [
+          10001,
+          10001
+        ],
+        "growth_ratios": [
+          1.0
+        ],
+        "levels": 2,
+        "sum_representations": 20002,
+        "sum_over_nodes": 2.0,
+        "membership_rows": 20002,
+        "max_absolute_jump": 0,
+        "max_multiplicative_jump": 1.0
+      },
+      "nearest gamma=2.0": {
+        "depths": [
+          0,
+          1
+        ],
+        "representations": [
+          10001,
+          10001
+        ],
+        "growth_ratios": [
+          1.0
+        ],
+        "levels": 2,
+        "sum_representations": 20002,
+        "sum_over_nodes": 2.0,
+        "membership_rows": 20002,
+        "max_absolute_jump": 0,
+        "max_multiplicative_jump": 1.0
+      },
+      "threshold gamma=2.5": {
+        "depths": [
+          0,
+          1
+        ],
+        "representations": [
+          10001,
+          10001
+        ],
+        "growth_ratios": [
+          1.0
+        ],
+        "levels": 2,
+        "sum_representations": 20002,
+        "sum_over_nodes": 2.0,
+        "membership_rows": 20002,
+        "max_absolute_jump": 0,
+        "max_multiplicative_jump": 1.0
+      },
+      "nearest gamma=2.5": {
+        "depths": [
+          0,
+          1
+        ],
+        "representations": [
+          10001,
+          10001
+        ],
+        "growth_ratios": [
+          1.0
+        ],
+        "levels": 2,
+        "sum_representations": 20002,
+        "sum_over_nodes": 2.0,
+        "membership_rows": 20002,
+        "max_absolute_jump": 0,
+        "max_multiplicative_jump": 1.0
+      }
+    }
+  },
+  "irregular": {
+    "max_depth": 1200,
+    "node_count": 2314,
+    "histogram_runs": [
+      [
+        0,
+        0,
+        1
+      ],
+      [
+        1,
+        1,
+        4
+      ],
+      [
+        2,
+        2,
+        1111
+      ],
+      [
+        3,
+        1200,
+        1
+      ]
+    ],
+    "invariants": "passed at all selected depths",
+    "policies": {
+      "CURRENT": {
+        "depths": [
+          0,
+          1,
+          2,
+          4,
+          8,
+          16,
+          32,
+          64,
+          128,
+          256,
+          512,
+          1200
+        ],
+        "representations": [
+          5,
+          1116,
+          1117,
+          1119,
+          1123,
+          1131,
+          1147,
+          1179,
+          1243,
+          1371,
+          1627,
+          2314
+        ],
+        "growth_ratios": [
+          223.2,
+          1.0008960573476702,
+          1.001790510295434,
+          1.003574620196604,
+          1.0071237756010685,
+          1.0141467727674625,
+          1.027898866608544,
+          1.0542832909245123,
+          1.1029766693483507,
+          1.186725018234865,
+          1.4222495390288876
+        ],
+        "levels": 12,
+        "sum_representations": 14492,
+        "sum_over_nodes": 6.262748487467588,
+        "membership_rows": 27768,
+        "max_absolute_jump": 1111,
+        "max_multiplicative_jump": 223.2
+      },
+      "threshold gamma=1.5": {
+        "depths": [
+          0,
+          1,
+          559,
+          1200
+        ],
+        "representations": [
+          5,
+          1116,
+          1674,
+          2314
+        ],
+        "growth_ratios": [
+          223.2,
+          1.5,
+          1.3823178016726403
+        ],
+        "levels": 4,
+        "sum_representations": 5109,
+        "sum_over_nodes": 2.207865168539326,
+        "membership_rows": 9256,
+        "max_absolute_jump": 1111,
+        "max_multiplicative_jump": 223.2
+      },
+      "nearest gamma=1.5": {
+        "depths": [
+          0,
+          1,
+          559,
+          1200
+        ],
+        "representations": [
+          5,
+          1116,
+          1674,
+          2314
+        ],
+        "growth_ratios": [
+          223.2,
+          1.5,
+          1.3823178016726403
+        ],
+        "levels": 4,
+        "sum_representations": 5109,
+        "sum_over_nodes": 2.207865168539326,
+        "membership_rows": 9256,
+        "max_absolute_jump": 1111,
+        "max_multiplicative_jump": 223.2
+      },
+      "threshold gamma=2.0": {
+        "depths": [
+          0,
+          1,
+          1117,
+          1200
+        ],
+        "representations": [
+          5,
+          1116,
+          2232,
+          2314
+        ],
+        "growth_ratios": [
+          223.2,
+          2.0,
+          1.0367383512544803
+        ],
+        "levels": 4,
+        "sum_representations": 5667,
+        "sum_over_nodes": 2.4490060501296456,
+        "membership_rows": 9256,
+        "max_absolute_jump": 1116,
+        "max_multiplicative_jump": 223.2
+      },
+      "nearest gamma=2.0": {
+        "depths": [
+          0,
+          1,
+          1117,
+          1200
+        ],
+        "representations": [
+          5,
+          1116,
+          2232,
+          2314
+        ],
+        "growth_ratios": [
+          223.2,
+          2.0,
+          1.0367383512544803
+        ],
+        "levels": 4,
+        "sum_representations": 5667,
+        "sum_over_nodes": 2.4490060501296456,
+        "membership_rows": 9256,
+        "max_absolute_jump": 1116,
+        "max_multiplicative_jump": 223.2
+      },
+      "threshold gamma=2.5": {
+        "depths": [
+          0,
+          1,
+          1200
+        ],
+        "representations": [
+          5,
+          1116,
+          2314
+        ],
+        "growth_ratios": [
+          223.2,
+          2.0734767025089607
+        ],
+        "levels": 3,
+        "sum_representations": 3435,
+        "sum_over_nodes": 1.4844425237683665,
+        "membership_rows": 6942,
+        "max_absolute_jump": 1198,
+        "max_multiplicative_jump": 223.2
+      },
+      "nearest gamma=2.5": {
+        "depths": [
+          0,
+          1,
+          1200
+        ],
+        "representations": [
+          5,
+          1116,
+          2314
+        ],
+        "growth_ratios": [
+          223.2,
+          2.0734767025089607
+        ],
+        "levels": 3,
+        "sum_representations": 3435,
+        "sum_over_nodes": 1.4844425237683665,
+        "membership_rows": 6942,
+        "max_absolute_jump": 1198,
+        "max_multiplicative_jump": 223.2
+      }
+    }
+  },
+  "phyloviz-spneumoniae": {
+    "max_depth": 25,
+    "node_count": 379,
+    "histogram_runs": [
+      [
+        0,
+        0,
+        1
+      ],
+      [
+        1,
+        1,
+        2
+      ],
+      [
+        2,
+        2,
+        4
+      ],
+      [
+        3,
+        3,
+        8
+      ],
+      [
+        4,
+        5,
+        14
+      ],
+      [
+        6,
+        6,
+        20
+      ],
+      [
+        7,
+        7,
+        24
+      ],
+      [
+        8,
+        8,
+        12
+      ],
+      [
+        9,
+        9,
+        14
+      ],
+      [
+        10,
+        10,
+        20
+      ],
+      [
+        11,
+        11,
+        14
+      ],
+      [
+        12,
+        12,
+        20
+      ],
+      [
+        13,
+        13,
+        30
+      ],
+      [
+        14,
+        16,
+        28
+      ],
+      [
+        17,
+        17,
+        26
+      ],
+      [
+        18,
+        18,
+        22
+      ],
+      [
+        19,
+        19,
+        14
+      ],
+      [
+        20,
+        20,
+        12
+      ],
+      [
+        21,
+        21,
+        10
+      ],
+      [
+        22,
+        22,
+        6
+      ],
+      [
+        23,
+        23,
+        4
+      ],
+      [
+        24,
+        25,
+        2
+      ]
+    ],
+    "invariants": "passed at all selected depths",
+    "policies": {
+      "CURRENT": {
+        "depths": [
+          0,
+          1,
+          2,
+          4,
+          8,
+          16,
+          25
+        ],
+        "representations": [
+          3,
+          7,
+          15,
+          43,
+          113,
+          307,
+          379
+        ],
+        "growth_ratios": [
+          2.3333333333333335,
+          2.142857142857143,
+          2.8666666666666667,
+          2.627906976744186,
+          2.7168141592920354,
+          1.234527687296417
+        ],
+        "levels": 7,
+        "sum_representations": 867,
+        "sum_over_nodes": 2.287598944591029,
+        "membership_rows": 2653,
+        "max_absolute_jump": 194,
+        "max_multiplicative_jump": 2.8666666666666667
+      },
+      "threshold gamma=1.5": {
+        "depths": [
+          0,
+          1,
+          2,
+          3,
+          5,
+          7,
+          11,
+          14,
+          25
+        ],
+        "representations": [
+          3,
+          7,
+          15,
+          29,
+          63,
+          99,
+          167,
+          253,
+          379
+        ],
+        "growth_ratios": [
+          2.3333333333333335,
+          2.142857142857143,
+          1.9333333333333333,
+          2.1724137931034484,
+          1.5714285714285714,
+          1.6868686868686869,
+          1.5149700598802396,
+          1.4980237154150198
+        ],
+        "levels": 9,
+        "sum_representations": 1015,
+        "sum_over_nodes": 2.678100263852243,
+        "membership_rows": 3411,
+        "max_absolute_jump": 126,
+        "max_multiplicative_jump": 2.3333333333333335
+      },
+      "nearest gamma=1.5": {
+        "depths": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          7,
+          10,
+          13,
+          18,
+          25
+        ],
+        "representations": [
+          3,
+          7,
+          15,
+          29,
+          43,
+          63,
+          99,
+          147,
+          225,
+          343,
+          379
+        ],
+        "growth_ratios": [
+          2.3333333333333335,
+          2.142857142857143,
+          1.9333333333333333,
+          1.4827586206896552,
+          1.4651162790697674,
+          1.5714285714285714,
+          1.4848484848484849,
+          1.530612244897959,
+          1.5244444444444445,
+          1.1049562682215743
+        ],
+        "levels": 11,
+        "sum_representations": 1353,
+        "sum_over_nodes": 3.569920844327177,
+        "membership_rows": 4169,
+        "max_absolute_jump": 118,
+        "max_multiplicative_jump": 2.3333333333333335
+      },
+      "threshold gamma=2.0": {
+        "depths": [
+          0,
+          1,
+          2,
+          4,
+          6,
+          12,
+          25
+        ],
+        "representations": [
+          3,
+          7,
+          15,
+          43,
+          87,
+          197,
+          379
+        ],
+        "growth_ratios": [
+          2.3333333333333335,
+          2.142857142857143,
+          2.8666666666666667,
+          2.0232558139534884,
+          2.264367816091954,
+          1.9238578680203047
+        ],
+        "levels": 7,
+        "sum_representations": 731,
+        "sum_over_nodes": 1.928759894459103,
+        "membership_rows": 2653,
+        "max_absolute_jump": 182,
+        "max_multiplicative_jump": 2.8666666666666667
+      },
+      "nearest gamma=2.0": {
+        "depths": [
+          0,
+          1,
+          2,
+          3,
+          5,
+          9,
+          14,
+          25
+        ],
+        "representations": [
+          3,
+          7,
+          15,
+          29,
+          63,
+          133,
+          253,
+          379
+        ],
+        "growth_ratios": [
+          2.3333333333333335,
+          2.142857142857143,
+          1.9333333333333333,
+          2.1724137931034484,
+          2.111111111111111,
+          1.9022556390977443,
+          1.4980237154150198
+        ],
+        "levels": 8,
+        "sum_representations": 882,
+        "sum_over_nodes": 2.3271767810026387,
+        "membership_rows": 3032,
+        "max_absolute_jump": 126,
+        "max_multiplicative_jump": 2.3333333333333335
+      },
+      "threshold gamma=2.5": {
+        "depths": [
+          0,
+          2,
+          4,
+          8,
+          16,
+          25
+        ],
+        "representations": [
+          3,
+          15,
+          43,
+          113,
+          307,
+          379
+        ],
+        "growth_ratios": [
+          5.0,
+          2.8666666666666667,
+          2.627906976744186,
+          2.7168141592920354,
+          1.234527687296417
+        ],
+        "levels": 6,
+        "sum_representations": 860,
+        "sum_over_nodes": 2.2691292875989446,
+        "membership_rows": 2274,
+        "max_absolute_jump": 194,
+        "max_multiplicative_jump": 5.0
+      },
+      "nearest gamma=2.5": {
+        "depths": [
+          0,
+          1,
+          2,
+          4,
+          8,
+          15,
+          25
+        ],
+        "representations": [
+          3,
+          7,
+          15,
+          43,
+          113,
+          281,
+          379
+        ],
+        "growth_ratios": [
+          2.3333333333333335,
+          2.142857142857143,
+          2.8666666666666667,
+          2.627906976744186,
+          2.4867256637168142,
+          1.3487544483985765
+        ],
+        "levels": 7,
+        "sum_representations": 841,
+        "sum_over_nodes": 2.2189973614775726,
+        "membership_rows": 2653,
+        "max_absolute_jump": 168,
+        "max_multiplicative_jump": 2.8666666666666667
+      }
+    }
+  }
+}

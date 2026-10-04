@@ -41,3 +41,36 @@ test("one deliberate viewport request after initial render invalidates the repet
     },
   );
 });
+
+test("fixed pilot replay accepts camera refreshes without hiding contract failures", () => {
+  const input = {
+    unexpectedNetworkCount: 0,
+    unexpectedViewportRequests: 2,
+    frameSampleCount: 10,
+    minimumFrameSampleCount: 4,
+    replayContractFailure: false,
+    fixedReplayViewport: true,
+  };
+  assert.deepEqual(observationValidity(input), {
+    status: "success",
+    failure_kind: "none",
+  });
+  assert.deepEqual(
+    observationValidity({ ...input, replayContractFailure: true }),
+    {
+      status: "failure",
+      failure_kind: "replay_contract_failure",
+    },
+  );
+  assert.deepEqual(
+    observationValidity({ ...input, unexpectedNetworkCount: 1 }),
+    {
+      status: "invalid",
+      failure_kind: "unexpected_network_request",
+    },
+  );
+  assert.deepEqual(observationValidity({ ...input, frameSampleCount: 0 }), {
+    status: "invalid",
+    failure_kind: "insufficient_frame_samples",
+  });
+});

@@ -14,7 +14,13 @@ Python measures Chromium rather than Node or Python.
 
 The child records `view.load()` through a double rAF opportunity, takes CDP heap
 snapshots where supported, then samples rAF intervals during deterministic
-Playwright canvas input. It rejects external network traffic and marks any
-post-initial replay graph/viewport response invalid. The loopback replay API is
+Playwright canvas input. It rejects external network traffic and malformed replay
+responses. The pilot fixed-fixture replay permits camera-driven viewport refreshes:
+these return the same nodes, edges and positions and their count remains recorded
+in every observation. The result records `camera_viewport_policy` explicitly.
+Camera frame intervals therefore include loopback refresh/application work; they
+are not a renderer-only measurement. Other protocols retain their own request
+pattern checks, and the validity helper rejects post-initial refreshes by default.
+The loopback replay API is
 an API contract fixture, never a server-performance measurement. Headless mode
 is for smoke validation only; final runs should be headed and recorded.

@@ -12,8 +12,9 @@ import {
 } from "../internalSnapshotObserver";
 import {
   buildGraphViewportQuery,
+  hasViewportPixelSize,
+  DEFAULT_LOD_REPRESENTATION_SPACING_PX,
   DEFAULT_GRAPH_VIEWER_DEBOUNCE_MS,
-  DEFAULT_GRAPH_VIEWER_MAX_NODES,
   GRAPH_VIEWER_LOD_CHANGE_DEBOUNCE_MS,
   GRAPH_VIEWER_SMALL_TREE_NODE_THRESHOLD,
   displayZoomForCameraRatio,
@@ -31,6 +32,7 @@ export interface ViewportSyncControllerOptions {
   renderer: GraphRenderer;
   debounceMs?: number;
   maxNodes?: number;
+  representationSpacingPx?: number;
   lodTierCount?: number;
   smallTreeThreshold?: number;
   nodeCount?: number | null;
@@ -57,7 +59,8 @@ export class ViewportSyncController {
   private readonly client: Pick<GraphClient, "readViewport">;
   private readonly renderer: GraphRenderer;
   private readonly debounceMs: number;
-  private readonly maxNodes: number;
+  private readonly maxNodes: number | undefined;
+  private readonly representationSpacingPx: number;
   private readonly lodTierCount: number;
   private readonly smallTreeThreshold: number;
   private readonly preparedNodeCount: number | null;
@@ -118,7 +121,10 @@ export class ViewportSyncController {
     this.client = options.client;
     this.renderer = options.renderer;
     this.debounceMs = options.debounceMs ?? DEFAULT_GRAPH_VIEWER_DEBOUNCE_MS;
-    this.maxNodes = options.maxNodes ?? DEFAULT_GRAPH_VIEWER_MAX_NODES;
+    this.maxNodes = options.maxNodes;
+    this.representationSpacingPx = options.representationSpacingPx ?? DEFAULT_LOD_REPRESENTATION_SPACING_PX;
+    if (!Number.isFinite(this.representationSpacingPx) || this.representationSpacingPx <= 0)
+      throw new Error("LoD representation spacing must be finite and positive.");
     this.lodTierCount = Math.max(options.lodTierCount ?? 1, 1);
     this.smallTreeThreshold = options.smallTreeThreshold ?? GRAPH_VIEWER_SMALL_TREE_NODE_THRESHOLD;
     this.preparedNodeCount = options.nodeCount ?? null;
@@ -292,7 +298,7 @@ export class ViewportSyncController {
       dataset_id: this.datasetId,
       layout_version: this.layoutVersion,
       lod_level: expand ? this.lodTierCount - 1 : 0,
-      max_nodes: this.maxNodes,
+      ...(this.maxNodes === undefined ? {} : { max_nodes: this.maxNodes }),
     };
     const response = await this.readExpansion(this.client.readViewport(query), sequence);
     if (!response) return this.expansionResult("superseded");
@@ -373,14 +379,14 @@ export class ViewportSyncController {
     if (this.getPaused?.()) {
       return;
     }
-    if ((this.keepExpanded && this.allExpanded) || this.isSmallTreeLoaded()) {
+    if ((this.keepExpanded && this.allExpanded) || (!this.viewportLodEnabled() && this.isSmallTreeLoaded())) {
       return;
     }
     const nextLodLevel = this.keepExpanded
       ? (this.expansionLodLevel ?? this.currentLodLevel())
       : this.currentLodLevel();
     const lodChanged = this.loadedInitialViewport && nextLodLevel !== this.lastRequestedLodLevel;
-    if (!lodChanged && nextLodLevel === 0) {
+    if (!this.keepExpanded && !lodChanged && nextLodLevel === 0 && !this.viewportLodEnabled()) {
       return;
     }
     // Keep the last camera change even when a fit animation is still settling.
@@ -391,6 +397,10 @@ export class ViewportSyncController {
         this.suppressCameraRefreshUntil - Date.now(),
       ),
     );
+  }
+
+  private viewportLodEnabled(): boolean {
+    return hasViewportPixelSize(this.renderer.getViewportSyncState?.() ?? null);
   }
 
   private isSmallTreeLoaded(): boolean {
@@ -440,7 +450,10 @@ export class ViewportSyncController {
     const sequence = ++this.requestSequence;
     const pinned = this.keepExpanded && this.expansionLodLevel !== undefined;
     const finestTier =
-      (this.keepExpanded && this.allExpanded) || (!pinned && (this.isKnownSmallTree() || this.isSmallTreeLoaded()));
+      (this.keepExpanded && this.allExpanded) ||
+      (!pinned &&
+        (!this.loadedInitialViewport || !this.viewportLodEnabled()) &&
+        (this.isKnownSmallTree() || this.isSmallTreeLoaded()));
     const forcedLodLevel = this.nextForcedLodLevel ?? (this.keepExpanded ? this.expansionLodLevel : undefined);
     const fitResponse = this.fitNextResponse;
     this.nextForcedLodLevel = undefined;
@@ -453,8 +466,11 @@ export class ViewportSyncController {
       forceGlobal: !this.loadedInitialViewport && !finestTier,
       forceFinestTier: finestTier,
       forcedLodLevel,
+      semanticLodLevel: this.isKnownSmallTree() ? this.lodTierCount - 1 : undefined,
       lodTierCount: this.lodTierCount,
       currentLodLevel: this.lastRequestedLodLevel ?? null,
+      previousEffectiveLodLevel: this.baseResponse?.lod_level,
+      representationSpacingPx: this.representationSpacingPx,
     });
     this.lastRequestedLodLevel = query.lod_level;
 
@@ -533,7 +549,11 @@ export class ViewportSyncController {
     this.requireExpansionReady();
     if (!clusterId) throw new Error("A cluster ID is required.");
     if (!options.focusNodeId && this.expandedPatches.has(clusterId)) return this.expansionResult();
-    if (!options.focusNodeId && (this.currentGraph?.nodes.length ?? 0) >= this.maxNodes) {
+    if (
+      !options.focusNodeId &&
+      this.maxNodes !== undefined &&
+      (this.currentGraph?.nodes.length ?? 0) >= this.maxNodes
+    ) {
       this.expansionPartial = true;
       return this.expansionResult();
     }
@@ -589,7 +609,7 @@ export class ViewportSyncController {
       focus_node_id: focusNodeId ?? null,
       zoom: displayZoomForCameraRatio(viewState?.cameraRatio ?? 1),
       lod_level: null,
-      max_nodes: this.maxNodes,
+      ...(this.maxNodes === undefined ? {} : { max_nodes: this.maxNodes }),
     });
   }
 
@@ -626,6 +646,7 @@ export class ViewportSyncController {
         forceGlobal: !this.loadedInitialViewport,
         lodTierCount: this.lodTierCount,
         currentLodLevel: this.lastRequestedLodLevel ?? null,
+        semanticLodLevel: this.isKnownSmallTree() ? this.lodTierCount - 1 : undefined,
       }).lod_level ?? null
     );
   }

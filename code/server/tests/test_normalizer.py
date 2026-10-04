@@ -500,21 +500,37 @@ def test_normalize_ancillary_data_allows_blank_cells_in_typed_columns() -> None:
 
 
 TYPING_PROFILES = "ST\tadk\tfumC\nA\t1\t2\nB\t1\t3\nC\t4\t5\n"
-TYPING_NEWICK = "((A:1,B:1):1,C:2);"
+TYPING_NEWICK = "((C:2)B:1)A;"
+TYPING_MATRIX = "3\na\nb\t1\nc\t2\t2\n"
+
+
+def _write_phylolib_output(command, *, newick=TYPING_NEWICK, matrix=TYPING_MATRIX):
+    output = next(arg for arg in command if arg.startswith("--out="))
+    if "distance" in command:
+        Path(output.removeprefix("--out=symmetric:")).write_text(
+            matrix, encoding="utf-8"
+        )
+    else:
+        Path(output.removeprefix("--out=newick:")).write_text(newick, encoding="utf-8")
 
 
 def test_typing_data_maps_phylolib_graph_into_pipeline(monkeypatch) -> None:
     """A typing_data request converts profiles to a graph then normalizes as usual."""
     from phylo_lens_server.data.parsers import parse_newick
+    from phylo_lens_server.data.phylolib import RootedTypingTree
+    from phylo_lens_server.data.typing_profiles import collapse_profile_graph
 
     calls: list[str] = []
 
-    def fake_convert(profiles: str, **kwargs):
-        calls.append(profiles)
-        return parse_newick(TYPING_NEWICK)
+    def fake_convert(profiles):
+        calls.append(profiles.algorithm_content())
+        parsed = parse_newick(TYPING_NEWICK)
+        return RootedTypingTree(
+            parsed, collapse_profile_graph(parsed, profiles.membership()), "a"
+        )
 
     monkeypatch.setattr(
-        "phylo_lens_server.data.normalizer.typing_profiles_to_graph", fake_convert
+        "phylo_lens_server.data.normalizer.typing_profiles_to_rooted_tree", fake_convert
     )
 
     result = normalize_dataset(
@@ -531,6 +547,8 @@ def test_typing_data_maps_phylolib_graph_into_pipeline(monkeypatch) -> None:
         .replace("\nC", "\nc")
     ]
     assert result.dataset.source.format == "typing_data"
+    assert result.dataset.technical_roots == ("a",)
+    assert result.dataset.source.rooting_strategy == "goeburst-lv-v1"
     assert len(result.dataset.nodes) == len(
         normalize_dataset(
             NormalizeRequest(
@@ -558,7 +576,7 @@ def test_typing_data_runtime_missing_raises_parse_error(monkeypatch) -> None:
     assert "PhyloLib" in str(excinfo.value)
 
 
-def test_typing_profiles_to_newick_prefers_local_phylolib_jar(
+def test_typing_profiles_to_rooted_tree_prefers_local_phylolib_jar(
     monkeypatch, tmp_path
 ) -> None:
     """Production runs the configured PhyloLib JAR directly."""
@@ -571,10 +589,7 @@ def test_typing_profiles_to_newick_prefers_local_phylolib_jar(
 
     def fake_run(command, **kwargs):
         commands.append(command)
-        if "algorithm" in command:
-            out_arg = next(arg for arg in command if arg.startswith("--out=newick:"))
-            tree_path = Path(out_arg.removeprefix("--out=newick:"))
-            tree_path.write_text(TYPING_NEWICK, encoding="utf-8")
+        _write_phylolib_output(command)
 
         class _Completed:
             stdout = ""
@@ -584,9 +599,14 @@ def test_typing_profiles_to_newick_prefers_local_phylolib_jar(
 
     monkeypatch.setattr(phylolib.subprocess, "run", fake_run)
 
-    newick = phylolib.typing_profiles_to_newick(TYPING_PROFILES)
+    from phylo_lens_server.data.typing_profiles import prepare_typing_profiles
 
-    assert newick == TYPING_NEWICK
+    tree = phylolib.typing_profiles_to_rooted_tree(
+        prepare_typing_profiles(TYPING_PROFILES)
+    )
+
+    assert tree.root == "a"
+    assert sorted(tree.distinct.nodes) == ["a", "b", "c"]
     assert commands
     expected_prefix = ["/opt/java/openjdk/bin/java", "-jar", str(jar_path)]
     assert all(command[:3] == expected_prefix for command in commands)
@@ -600,7 +620,7 @@ def test_typing_profiles_to_newick_prefers_local_phylolib_jar(
     assert len(commands[1]) == 7
 
 
-def test_typing_profiles_to_newick_reads_jar_output(monkeypatch, tmp_path) -> None:
+def test_typing_profiles_to_rooted_tree_reads_jar_output(monkeypatch, tmp_path) -> None:
     """The two-stage PhyloLib path returns the Newick the JAR wrote."""
     jar_path = tmp_path / "phylolib.jar"
     jar_path.write_text("fake jar", encoding="utf-8")
@@ -610,11 +630,11 @@ def test_typing_profiles_to_newick_reads_jar_output(monkeypatch, tmp_path) -> No
     def fake_run(command, **kwargs):
         # The algorithm stage is responsible for producing the tree file. We
         # locate the output path from the newick reference and write the tree.
+        _write_phylolib_output(command)
         if "algorithm" in command:
             out_arg = next(arg for arg in command if arg.startswith("--out=newick:"))
             tree_path = Path(out_arg.removeprefix("--out=newick:"))
             temp_dirs.append(tree_path.parent)
-            tree_path.write_text(TYPING_NEWICK, encoding="utf-8")
 
         class _Completed:
             stdout = ""
@@ -624,14 +644,20 @@ def test_typing_profiles_to_newick_reads_jar_output(monkeypatch, tmp_path) -> No
 
     monkeypatch.setattr(phylolib.subprocess, "run", fake_run)
 
-    newick = phylolib.typing_profiles_to_newick(TYPING_PROFILES)
+    from phylo_lens_server.data.typing_profiles import prepare_typing_profiles
 
-    assert newick == TYPING_NEWICK
+    tree = phylolib.typing_profiles_to_rooted_tree(
+        prepare_typing_profiles(TYPING_PROFILES)
+    )
+
+    assert tree.root == "a"
     assert temp_dirs
     assert all(not temp_dir.exists() for temp_dir in temp_dirs)
 
 
-def test_typing_profiles_to_newick_stage_failure_raises(monkeypatch, tmp_path) -> None:
+def test_typing_profiles_to_rooted_tree_stage_failure_raises(
+    monkeypatch, tmp_path
+) -> None:
     """A non-zero PhyloLib process exit surfaces a typed TypingNormalizeError."""
     jar_path = tmp_path / "phylolib.jar"
     jar_path.write_text("fake jar", encoding="utf-8")
@@ -645,12 +671,16 @@ def test_typing_profiles_to_newick_stage_failure_raises(monkeypatch, tmp_path) -
     monkeypatch.setattr(phylolib.subprocess, "run", fake_run)
 
     with pytest.raises(phylolib.TypingNormalizeError) as excinfo:
-        phylolib.typing_profiles_to_newick(TYPING_PROFILES)
+        from phylo_lens_server.data.typing_profiles import prepare_typing_profiles
+
+        phylolib.typing_profiles_to_rooted_tree(
+            prepare_typing_profiles(TYPING_PROFILES)
+        )
 
     assert excinfo.value.reason == phylolib.TYPING_PHYLOLIB_DISTANCE_FAILED
 
 
-def test_typing_profiles_to_newick_stage_timeout_raises_typed_error(
+def test_typing_profiles_to_rooted_tree_stage_timeout_raises_typed_error(
     monkeypatch, tmp_path
 ) -> None:
     jar_path = tmp_path / "phylolib.jar"
@@ -666,41 +696,30 @@ def test_typing_profiles_to_newick_stage_timeout_raises_typed_error(
     monkeypatch.setattr(phylolib.subprocess, "run", fake_run)
 
     with pytest.raises(phylolib.TypingNormalizeError) as excinfo:
-        phylolib.typing_profiles_to_newick(TYPING_PROFILES)
+        from phylo_lens_server.data.typing_profiles import prepare_typing_profiles
+
+        phylolib.typing_profiles_to_rooted_tree(
+            prepare_typing_profiles(TYPING_PROFILES)
+        )
 
     assert excinfo.value.reason == phylolib.TYPING_PHYLOLIB_DISTANCE_TIMEOUT
     assert timeouts == [7.5]
 
 
-TYPING_FOREST_NEWICK = "(B:1.0)A;(D:1.0)C;"
+def test_typing_full_mst_rejects_forest(monkeypatch, tmp_path) -> None:
+    from phylo_lens_server.data.typing_profiles import prepare_typing_profiles
 
-
-def test_typing_profiles_to_graph_merges_forest(monkeypatch) -> None:
-    """A goeBURST forest is kept as one disconnected graph, no ST dropped."""
+    jar_path = tmp_path / "phylolib.jar"
+    jar_path.write_text("fake jar", encoding="utf-8")
+    monkeypatch.setenv(phylolib.ENV_PHYLOLIB_JAR, str(jar_path))
     monkeypatch.setattr(
-        phylolib,
-        "typing_profiles_to_newick",
-        lambda profiles, **kwargs: TYPING_FOREST_NEWICK,
+        phylolib.subprocess,
+        "run",
+        lambda command, **kwargs: _write_phylolib_output(
+            command, newick="A;B;", matrix="2\na\nb\t1\n"
+        ),
     )
-
-    graph = phylolib.typing_profiles_to_graph(TYPING_PROFILES)
-
-    assert sorted(graph.nodes) == ["a", "b", "c", "d"]
-    assert sorted((edge.source, edge.target) for edge in graph.edges) == [
-        ("a", "b"),
-        ("c", "d"),
-    ]
-    assert any("disconnected components" in warning for warning in graph.warnings)
-
-
-def test_typing_profiles_to_graph_single_tree_has_no_forest_warning(
-    monkeypatch,
-) -> None:
-    """A single connected component passes through without a forest warning."""
-    monkeypatch.setattr(
-        phylolib, "typing_profiles_to_newick", lambda profiles, **kwargs: TYPING_NEWICK
-    )
-
-    graph = phylolib.typing_profiles_to_graph(TYPING_PROFILES)
-
-    assert not any("disconnected components" in warning for warning in graph.warnings)
+    with pytest.raises(ParseError, match="one connected profile tree"):
+        phylolib.typing_profiles_to_rooted_tree(
+            prepare_typing_profiles("ST\tL1\nA\t1\nB\t2\n")
+        )

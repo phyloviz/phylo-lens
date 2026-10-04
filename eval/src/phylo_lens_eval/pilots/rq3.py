@@ -20,6 +20,7 @@ from phylo_lens_server.domain.models import (
     CanonicalEdge,
     CanonicalNode,
     DatasetSource,
+    NEWICK_ROOTING_STRATEGY,
     SourceFormat,
 )
 from phylo_lens_server.pipeline.worker import PreparedLayoutWorker
@@ -167,24 +168,23 @@ def synthetic_dataset(config: dict[str, Any]) -> CanonicalDataset:
     nodes = [CanonicalNode(id=f"n-{index}") for index in range(count)]
     edges: list[CanonicalEdge] = []
     for index in range(count - 1):
-        # Three persisted hierarchy tiers: 240, 150, then one component.
-        distance = 0.01 if index < 60 else 0.1 if index < 150 else 10.0
         edges.append(
             CanonicalEdge(
                 id=f"e-{index}",
                 source=f"n-{index}",
                 target=f"n-{index + 1}",
-                distance=distance,
             )
         )
     return CanonicalDataset(
         dataset_id=config["id"],
         nodes=nodes,
         edges=edges,
+        technical_roots=("n-0",),
         source=DatasetSource(
             format=SourceFormat.NEWICK,
             generated_at="1970-01-01T00:00:00Z",
             provenance=f"synthetic seed {seed}; not biological data",
+            rooting_strategy=NEWICK_ROOTING_STRATEGY,
         ),
     )
 

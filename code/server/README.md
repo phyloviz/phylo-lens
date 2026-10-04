@@ -6,7 +6,7 @@ of the browser:
 - Newick and typing-data normalization;
 - PhyloLib distance and goeBURST processing;
 - Graphviz `sfdp` layout computation;
-- distance-threshold clustering and LoD materialization;
+- rooted hop-depth pendant subtrees and LoD preparation;
 - persistent storage of prepared layouts;
 - bounded viewport, region and search queries.
 
@@ -155,13 +155,11 @@ response models, defaults, validation and examples.
 
 ### Newick
 
-Newick input may contain one tree or a `;`-separated forest. Branch lengths are
-used as edge distances for clustering and layout. Quoted labels, comments and
-labeled internal nodes are accepted.
-
-A fully unweighted graph, where every edge distance is absent, is assigned unit
-edge distances before preparation. A partially weighted graph is rejected by
-the preparation pipeline because every edge must carry a distance.
+Newick input may contain one tree or a `;`-separated forest. Supplied branch
+lengths are retained as edge distances, but LoD uses tree hops and Graphviz
+layout does not use those distances. Quoted labels, comments and labeled
+internal nodes are accepted. Missing branch lengths remain absent, including
+in partially weighted trees.
 
 ### Typing data
 

@@ -21,7 +21,6 @@ from phylo_lens_server.pipeline.worker import PreparedLayoutWorker
 from phylo_lens_server.repository.layout.sqlite_layout_repository import (
     PreparedLayoutStore,
 )
-from phylo_lens_server.services.graph_service import ensure_graph_edge_distances
 
 from .. import SCHEMA_VERSION
 from ..core.common import persisted_size_bytes, validate_observation, write_json
@@ -63,7 +62,7 @@ def main() -> None:
         )
         stages["parsing"] = normalized.stats.ingest_ms / 1000
         stages["normalization"] = normalized.stats.normalize_ms / 1000
-        dataset, distance_warnings = ensure_graph_edge_distances(normalized.dataset)
+        dataset = normalized.dataset
         count_warnings = _declared_count_warnings(request, dataset)
         worker = PreparedLayoutWorker(
             PreparedLayoutStore(persistence_dir),
@@ -86,11 +85,11 @@ def main() -> None:
             "observed_node_count": len(dataset.nodes),
             "edge_count": len(dataset.edges),
             "lod_tier_count": len(
-                {cluster.threshold for cluster in result.artifacts.clusters}
+                {cluster.lod_level for cluster in result.artifacts.clusters}
             ),
             "cluster_count": len(result.artifacts.clusters),
             "layout_status": result.layout_status,
-            "warnings": normalized.warnings + distance_warnings + count_warnings,
+            "warnings": normalized.warnings + count_warnings,
             "exit_status": 0,
             "error": None,
             "peak_rss_bytes": None,

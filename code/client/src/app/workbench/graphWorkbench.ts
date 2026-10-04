@@ -4,7 +4,7 @@ import type { NormalizeRequest } from "../../api/graphContracts";
 import { SOURCE_FORMAT_NEWICK } from "../../contracts/models";
 import { type PositionedGraph } from "../../contracts/positioned";
 import type { GraphRenderer } from "../../render/renderer.types";
-import { DEFAULT_VIEWPORT, DEFAULT_VIEW_SLICE_MAX_NODES, createEmptyGraph } from "./viewportGraph";
+import { DEFAULT_VIEWPORT, createEmptyGraph } from "./viewportGraph";
 import graphFilters from "./graphFilters";
 import {
   clearPendingViewRefresh,
@@ -28,7 +28,7 @@ import { ViewportSyncController } from "./viewport/viewportSyncController";
 import type { SnapshotAppliedObserver } from "./internalSnapshotObserver";
 import { GRAPH_VIEWER_SMALL_TREE_NODE_THRESHOLD } from "./viewport/viewportQuery";
 
-export { DEFAULT_VIEWPORT, DEFAULT_VIEW_SLICE_MAX_NODES } from "./viewportGraph";
+export { DEFAULT_VIEWPORT } from "./viewportGraph";
 export type {
   GraphNodeClickedHandler,
   GraphRenderedHandler,
@@ -257,7 +257,7 @@ async function renderNewick({
     throw new Error(ERR_GRAPH_LOAD_SUPERSEDED);
   }
 
-  const maxNodes = options.lod?.maxNodes ?? DEFAULT_VIEW_SLICE_MAX_NODES;
+  const maxNodes = options.lod?.maxNodes;
 
   const smallTreeThreshold = options.lod?.smallTreeThreshold ?? GRAPH_VIEWER_SMALL_TREE_NODE_THRESHOLD;
 
@@ -273,6 +273,7 @@ async function renderNewick({
     lodTierCount: preparedGraph.lod_tier_count,
     lod: {
       maxNodes: maxNodes,
+      representationSpacingPx: options.lod?.representationSpacingPx,
       smallTreeThreshold: smallTreeThreshold,
       lodHint: options.lod?.lodHint,
       viewport: options.lod?.viewport ?? DEFAULT_VIEWPORT,
@@ -286,6 +287,7 @@ async function renderNewick({
     layoutVersion: preparedGraph.layout_version,
     renderer,
     maxNodes: state.preparedSession.lod.maxNodes,
+    representationSpacingPx: state.preparedSession.lod.representationSpacingPx,
     smallTreeThreshold: state.preparedSession.lod.smallTreeThreshold,
     lodTierCount: preparedGraph.lod_tier_count,
     nodeCount: preparedGraph.node_count,

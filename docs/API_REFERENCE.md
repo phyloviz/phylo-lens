@@ -298,7 +298,7 @@ bounds.
   "ymax": 80,
   "zoom": 2.0,
   "lod_level": 1,
-  "max_nodes": 2500
+  "max_nodes": null
 }
 ```
 
@@ -310,12 +310,25 @@ bounds.
 | `focus_node_id` | `string \| null` | no | `null` | Requests a slice containing a searched node |
 | `xmin`, `xmax`, `ymin`, `ymax` | `number \| null` | no | absent | All four must be present together |
 | `zoom` | number ≥ 0 | no | `1.0` | Echoed display zoom; used only when `lod_level` is omitted |
-| `lod_level` | integer ≥ 0 or `null` | no | `null` | Zero-based LoD tier, coarse to fine |
-| `max_nodes` | integer 1–20000 | no | `2500` | Primary slice budget |
+| `lod_level` | integer ≥ 0 or `null` | no | `null` | Exact tier without adaptive target; Preferred tier when a target is supplied |
+| `max_nodes` | positive integer or null | no | `null` | Explicit caller slice limit; absent/null reads are unbounded |
+| `lod_target_representations` | positive integer or null | no | `null` | Optional viewport complexity target for tier selection; never limits retrieval |
+| `lod_selection_bounds` | object `{xmin,xmax,ymin,ymax}` or null | no | request bounds | Ordered finite visible bounds used for selection, separately from padded retrieval bounds |
+| `previous_lod_level` | integer ≥ 0 or null | no | `null` | Previous effective tier for 15% density hysteresis against its zoom-adjusted target |
 
 When `lod_level` is omitted, the service uses a minimal fallback rule:
 `zoom < 1.0` selects tier `0`; otherwise the finest path is requested. The
 browser library normally calculates `lod_level` explicitly from camera ratio.
+The normal Sigma client also supplies a target derived from viewport pixel area
+and configurable representation spacing. The server counts all prepared tiers
+and selects the finest that fits its zoom-adjusted target (subject to 15%
+hysteresis). The preferred and coarser tiers use the base target; each tier
+ahead of the preference halves it. Sparse regions can therefore refine earlier.
+When no tier fits, the coarsest valid tier is returned complete.
+The response `lod_level` is the effective level. Selection counts include
+finest-detail boundary neighbors; retrieval bounds can include additional
+prefetch context. Cluster expansion ignores adaptive selection. Omit the target
+for exact tier retrieval, including explicit expand-all and pinned expansion.
 
 Bounds are ignored for explicit cluster expansion so the complete cluster can be
 returned. Edge-preserving neighbour nodes and expansion results can make the
@@ -335,7 +348,7 @@ returned node count exceed the primary `max_nodes` read.
   "nodes": [
     {
       "id": "a",
-      "cluster_id": "distance_cluster_1_a_1f8c4b6b2d",
+      "cluster_id": "lod_1_a",
       "x": 12.3,
       "y": 45.6,
       "layout_status": "ready",
@@ -411,7 +424,7 @@ the selection.
   "xmax": 20,
   "ymin": -15,
   "ymax": 15,
-  "max_nodes": 2500
+  "max_nodes": null
 }
 ```
 
@@ -420,7 +433,7 @@ the selection.
 | `dataset_id` | non-empty `string` | yes | — |
 | `layout_version` | `string \| null` | no | latest published |
 | `xmin`, `xmax`, `ymin`, `ymax` | `number` | yes | — |
-| `max_nodes` | integer 1–20000 | no | `2500` |
+| `max_nodes` | positive integer or null | no | `null` |
 
 `xmax` must be greater than or equal to `xmin`; `ymax` must be greater than or
 equal to `ymin`.
@@ -493,7 +506,7 @@ Generated anonymous union-node IDs and internal metadata fields are excluded.
       "node_id": "p09",
       "score": 20,
       "matched_text": "p09 Portugal",
-      "cluster_id": "distance_cluster_1_p09_...",
+      "cluster_id": "lod_1_p09",
       "x": 10.5,
       "y": -3.2
     }
@@ -575,3 +588,9 @@ This operation copies persisted geometry into a new immutable version. Its cost
 includes table parsing, database copying, and metadata aggregation, and it consumes
 additional storage. Large uploads can take time even though layout computation is
 skipped. No new prepare job is submitted.
+
+Node-count limits are optional and have no hard upper bound. Normal LoD,
+viewport, region and expansion reads omit them. `truncated` indicates an
+explicit bounded request omitted primary nodes/representations; spatial bounds
+alone do not cause truncation. Detail and expansion reads may additionally
+surface attachment neighbors to retain complete edge endpoints.

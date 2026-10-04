@@ -14,7 +14,7 @@ release information across several files.
 | Integrate directly with the HTTP service | [API reference](API_REFERENCE.md) |
 | Understand canonical, prepared, wire, and persistence models | [Data model](DATA_MODEL.md) |
 | Understand normalization, clustering, layout, jobs, and publication | [Server preparation pipeline](SERVER_PIPELINE.md) |
-| Understand distance-threshold tiers and semantic zoom | [LoD and clustering](LOD_AND_CLUSTERING.md) |
+| Understand hop-depth tiers and semantic zoom | [LoD and clustering](LOD_AND_CLUSTERING.md) |
 | Understand viewport synchronization and Sigma rendering | [Client rendering](CLIENT_RENDERING.md) |
 | Understand representative expansion, meta-edges, and collapse | [Cluster expand/collapse](EXPAND_COLLAPSE.md) |
 | Configure CI, npm publication, and multi-platform Docker releases | [Release and CI](RELEASE.md) |
@@ -54,7 +54,7 @@ The documentation uses the following names consistently:
 - **prepared layout** — the persisted result of normalization, clustering,
   layout, LoD construction, and metadata materialization;
 - **viewport slice** — the bounded graph subset returned for a camera state;
-- **level of detail (LoD)** — a distance-threshold tier used for semantic zoom;
+- **level of detail (LoD)** — a rooted hop-depth cut used for semantic zoom;
 - **representative** — the node displayed in place of a multi-node cluster;
 - **typing data** — an MLST/cgMLST-style allelic-profile matrix;
 - **ancillary metadata** — tabular isolate or sample metadata joined to graph

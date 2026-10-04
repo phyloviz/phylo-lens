@@ -25,6 +25,8 @@ let downHandler: ((payload: { node: string; event: { x: number; y: number } }) =
 const mouseHandlers = new Map<string, Set<(payload: { x: number; y: number }) => void>>();
 let emitMotion: ((positions: number[]) => void) | undefined;
 let pumpMotion: ((iterations: number) => void) | undefined;
+let lastResizeHandler: (() => void) | null = null;
+let sigmaDimensions = { width: 300, height: 200 };
 let lastStageClickHandler: (() => void) | null = null;
 let lastNodeClickHandler: ((payload: { node?: string; event?: { node?: string } }) => void) | null = null;
 let lastNodeDoubleClickHandler: ((payload: { node?: string; event?: { node?: string } }) => void) | null = null;
@@ -116,6 +118,7 @@ vi.mock("sigma", () => {
     }
 
     on(event: string, handler: (payload?: { node?: string; event?: { node?: string } }) => void) {
+      if (event === "resize") lastResizeHandler = handler;
       if (event === "downNode") downHandler = handler as unknown as typeof downHandler;
       if (event === "clickStage") {
         lastStageClickHandler = handler as () => void;
@@ -130,7 +133,10 @@ vi.mock("sigma", () => {
     }
 
     off(event: string, handler: (payload?: { node?: string; event?: { node?: string } }) => void) {
+      if (event === "resize" && lastResizeHandler === handler) lastResizeHandler = null;
       if (event === "clickStage" && lastStageClickHandler === handler) {
+        lastResizeHandler = null;
+        sigmaDimensions = { width: 300, height: 200 };
         lastStageClickHandler = null;
       }
       if (event === "clickNode" && lastNodeClickHandler === handler) {
@@ -186,7 +192,7 @@ vi.mock("sigma", () => {
     }
 
     getDimensions() {
-      return { width: 300, height: 200 };
+      return sigmaDimensions;
     }
 
     setCustomBBox(bounds: { x: [number, number]; y: [number, number] } | null) {
@@ -280,6 +286,20 @@ describe("sigmaRenderer", () => {
     renderer.unmount();
   });
 
+  it("refreshes viewport detail on resize without requiring a camera change", () => {
+    const renderer = new SigmaRenderer();
+    renderer.mount({ container: document.createElement("div") });
+    renderer.render({ nodes: [{ id: "a", x: 0, y: 0 }], edges: [], viewMeta: { layout: "server" } });
+    const handler = vi.fn();
+    renderer.setViewChangeHandler(handler);
+    sigmaDimensions = { width: 600, height: 400 };
+    lastResizeHandler?.();
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(renderer.getViewportSyncState()?.pixelSize).toEqual({ width: 600, height: 400 });
+    renderer.unmount();
+    expect(lastResizeHandler).toBeNull();
+  });
+
   it("exposes renderer-neutral viewport sync state", () => {
     document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
 
@@ -290,6 +310,7 @@ describe("sigmaRenderer", () => {
     expect(renderer.getViewportSyncState()).toEqual({
       bounds: { xmin: 0, xmax: 300, ymin: 0, ymax: 200 },
       cameraRatio: 2,
+      pixelSize: { width: 300, height: 200 },
     });
 
     renderer.unmount();
@@ -604,11 +625,11 @@ describe("sigmaRenderer", () => {
         { id: "internal_7", x: 0.5, y: 0.5 },
         { id: "profile_1", x: 1, y: 1 },
         {
-          id: "cluster_proxy:threshold_cluster_4_42",
+          id: "cluster_proxy:lod_4_42",
           x: 2,
           y: 2,
           attributes: {
-            cluster_id: "threshold_cluster_4_42",
+            cluster_id: "lod_4_42",
             is_cluster_proxy: true,
           },
         },
@@ -626,7 +647,7 @@ describe("sigmaRenderer", () => {
     expect(lastGraph?.getNodeAttribute("internal_7", "label")).toBe("internal_7");
     expect(lastGraph?.getNodeAttribute("internal_7", "size")).not.toBe(0);
     expect(lastGraph?.getNodeAttribute("profile_1", "label")).toBe("profile_1");
-    expect(lastGraph?.getNodeAttribute("cluster_proxy:threshold_cluster_4_42", "label")).toBe("");
+    expect(lastGraph?.getNodeAttribute("cluster_proxy:lod_4_42", "label")).toBe("");
 
     renderer.unmount();
   });

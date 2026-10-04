@@ -161,56 +161,65 @@ class LayoutPublicationAbortedError(RuntimeError):
 def compute_prepared_edges(
     artifacts: PreparedLayoutArtifacts,
 ) -> tuple[PreparedEdge, ...]:
-    prepared_by_key: dict[tuple[int, str, str], PreparedEdge] = {}
-    clusters_by_threshold: dict[float, list[PreparedCluster]] = {}
+    prepared: list[PreparedEdge] = []
+    clusters_by_level: dict[int, list[PreparedCluster]] = {}
     for cluster in artifacts.clusters:
-        if cluster.threshold is not None:
-            clusters_by_threshold.setdefault(cluster.threshold, []).append(cluster)
+        clusters_by_level.setdefault(cluster.lod_level, []).append(cluster)
 
-    for lod_level, threshold in enumerate(sorted(clusters_by_threshold, reverse=True)):
-        clusters = clusters_by_threshold[threshold]
+    for lod_level, clusters in sorted(clusters_by_level.items()):
+        members = [
+            node_id for cluster in clusters for node_id in cluster.member_node_ids
+        ]
+        if len(members) != len(set(members)) or set(members) != {
+            node.id for node in artifacts.dataset.nodes
+        }:
+            raise ValueError(
+                "Each LoD level must partition all tree nodes exactly once."
+            )
         node_to_rep = {
             node_id: cluster.representative_node_id
             for cluster in clusters
             for node_id in cluster.member_node_ids
         }
+        seen_pairs: set[tuple[str, str]] = set()
+        degree: dict[str, int] = {}
 
         for edge in artifacts.dataset.edges:
-            source_rep = node_to_rep.get(edge.source)
-            target_rep = node_to_rep.get(edge.target)
-            if source_rep is None or target_rep is None or source_rep == target_rep:
+            source_rep = node_to_rep[edge.source]
+            target_rep = node_to_rep[edge.target]
+            if source_rep == target_rep:
                 continue
 
             source, target = sorted((source_rep, target_rep))
-            key = (lod_level, source, target)
-            current = prepared_by_key.get(key)
-            if current is not None and _edge_distance(current) <= _raw_distance(
-                edge.distance
-            ):
-                continue
-
-            prepared_by_key[key] = PreparedEdge(
-                dataset_id=artifacts.dataset.dataset_id,
-                layout_version=artifacts.layout_version,
-                lod_level=lod_level,
-                edge_id=f"quotient_edge:{lod_level}:{source}:{target}",
-                source=source,
-                target=target,
-                distance=edge.distance,
+            pair = (source, target)
+            if pair in seen_pairs:
+                raise ValueError("Contracting a tree cannot create parallel edges.")
+            seen_pairs.add(pair)
+            degree[source] = degree.get(source, 0) + 1
+            degree[target] = degree.get(target, 0) + 1
+            prepared.append(
+                PreparedEdge(
+                    dataset_id=artifacts.dataset.dataset_id,
+                    layout_version=artifacts.layout_version,
+                    lod_level=lod_level,
+                    edge_id=f"quotient_edge:{lod_level}:{source}:{target}",
+                    source=source,
+                    target=target,
+                    distance=edge.distance,
+                )
             )
+        for cluster in clusters:
+            if (
+                cluster.member_count > 1
+                and degree.get(cluster.representative_node_id, 0) > 1
+            ):
+                raise ValueError(
+                    "A collapsed cluster cannot connect two visible tree parts."
+                )
 
     return tuple(
-        prepared_by_key[key]
-        for key in sorted(prepared_by_key, key=lambda item: (item[0], item[1], item[2]))
+        sorted(prepared, key=lambda edge: (edge.lod_level, edge.source, edge.target))
     )
-
-
-def _edge_distance(edge: PreparedEdge) -> float:
-    return _raw_distance(edge.distance)
-
-
-def _raw_distance(distance: float | None) -> float:
-    return float("inf") if distance is None else distance
 
 
 def ensure_should_continue(should_continue: Callable[[], bool] | None) -> None:

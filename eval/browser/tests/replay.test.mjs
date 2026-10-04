@@ -81,3 +81,41 @@ test("replay rejects malformed prepare requests", async () => {
     await replay.close();
   }
 });
+
+test("pilot camera refreshes preserve the fixed fixture and record every request", async () => {
+  const fixture = createFixture({
+    id: "camera",
+    nodeCount: 3,
+    triangleCount: 1,
+    seed: 7,
+    labelsEnabled: false,
+  });
+  const replay = await startReplayServer(fixture);
+  try {
+    assert.equal(replay.fixedViewport, true);
+    for (const zoom of [1, 8]) {
+      const response = await fetch(`${replay.apiUrl}/api/graph/viewport`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          dataset_id: fixture.id,
+          zoom,
+          lod_level: zoom === 1 ? 0 : 3,
+        }),
+      });
+      assert.equal(response.status, 200);
+      const body = await response.json();
+      assert.deepEqual(body.nodes, fixture.nodes);
+      assert.deepEqual(body.edges, fixture.edges);
+      assert.deepEqual(body.global_bounds, fixture.bounds);
+      assert.equal(body.truncated, false);
+    }
+    assert.equal(
+      replay.accessLog.filter((item) => item.path === "/api/graph/viewport")
+        .length,
+      2,
+    );
+  } finally {
+    await replay.close();
+  }
+});

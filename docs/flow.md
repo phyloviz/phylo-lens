@@ -58,7 +58,7 @@ flowchart TD
   Parse[Parse Newick or run PhyloLib]
   Canonical[CanonicalDataset]
   Fingerprint[Compute layout_version]
-  Cluster[Select distance thresholds and clusters]
+  Cluster[Select hop depths and pendant subtrees]
   PersistBase[Persist refining artifacts]
   Edges[Build per-tier quotient edges]
   Layout[Graphviz sfdp global layout]

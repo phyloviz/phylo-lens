@@ -2,13 +2,13 @@ import type { GraphViewportResponse } from "../../../api/graphContracts";
 
 /** A node dragged into view must not disappear just because a budgeted server
  * query omits its original position. Merge raw records before visual filters,
- * only within the same dataset, layout version and tier. Never exceed the budget.
+ * only within the same dataset, layout version and tier. Only enforce a budget when explicitly supplied.
  */
 export function retainMovedNodes(
   next: GraphViewportResponse,
   previous: GraphViewportResponse | null,
   visibleMovedIds: readonly string[],
-  maxNodes: number,
+  maxNodes: number | undefined,
 ): GraphViewportResponse {
   if (
     !previous ||
@@ -25,11 +25,11 @@ export function retainMovedNodes(
 
   for (const id of visibleMovedIds) {
     const n = incoming.get(id) ?? old.get(id);
-    if (n && nodes.size < maxNodes) nodes.set(id, n);
+    if (n && (maxNodes === undefined || nodes.size < maxNodes)) nodes.set(id, n);
   }
 
   for (const n of next.nodes) {
-    if (nodes.size < maxNodes || nodes.has(n.id)) {
+    if (maxNodes === undefined || nodes.size < maxNodes || nodes.has(n.id)) {
       nodes.set(n.id, n);
     }
   }

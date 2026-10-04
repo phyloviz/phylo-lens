@@ -451,6 +451,9 @@ try {
     frameSampleCount: frameIntervalsMs.length,
     minimumFrameSampleCount,
     replayContractFailure,
+    // Adaptive LoD refreshes are expected during pilot camera input. Only the
+    // immutable replay permits them; other protocols retain strict validation.
+    fixedReplayViewport: replay.fixedViewport === true,
   });
   stage("result_emitted");
   const output = {
@@ -483,6 +486,9 @@ try {
     replay_request_count: replay.accessLog.length,
     initial_viewport_request_count: graphResponsesBeforeCamera,
     post_initial_viewport_request_count: unexpectedViewportRequests,
+    camera_viewport_policy: replay.fixedViewport
+      ? "fixed_fixture_refresh_allowed"
+      : "no_post_initial_requests",
     diagnostics: logs,
     resource_timings: resourceTimings,
     replay_access_log: replay.accessLog,

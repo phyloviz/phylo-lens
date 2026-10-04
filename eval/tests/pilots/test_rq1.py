@@ -115,6 +115,8 @@ def test_tiny_end_to_end_direct_tree_preparation_validates_raw_artifacts(
     assert len(observation_files) == 1
     observation = json.loads(observation_files[0].read_text(encoding="utf-8"))
     validate_observation(observation)
+    assert observation["lod_tier_count"] >= 1
+    assert not any("unit distance" in warning for warning in observation["warnings"])
     run_directory = observation_files[0].parents[4]
     validate_manifest(json.loads((run_directory / "manifest.json").read_text()))
     validate_manifest(
