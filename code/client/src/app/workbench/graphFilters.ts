@@ -30,42 +30,24 @@ export default function createGraphFilters({
   };
 
   function applyMetadataFilters(filterState: AncillaryFilterState): PositionedGraph {
-    getGraphSession(getState());
-
-    dispatch({
+    return updateGraphState({
       type: ACTIONS.filtersUpdated,
       filters: filterState,
     });
-
-    getViewportCoordinator()?.refreshNow();
-
-    return currentGraph(getState());
   }
 
   function clearMetadataFilters(): PositionedGraph {
-    getGraphSession(getState());
-
-    dispatch({
+    return updateGraphState({
       type: ACTIONS.filtersUpdated,
       filters: EMPTY_ANCILLARY_FILTER_STATE,
     });
-
-    getViewportCoordinator()?.refreshNow();
-
-    return currentGraph(getState());
   }
 
   function updateVisualMapping(visualMapping: VisualMappingOptions): PositionedGraph {
-    getGraphSession(getState());
-
-    dispatch({
+    return updateGraphState({
       type: ACTIONS.visualMappingUpdated,
       visualMapping,
     });
-
-    getViewportCoordinator()?.refreshNow();
-
-    return currentGraph(getState());
   }
 
   // Apply presentation toggles (node labels, edge distance labels, distance-
@@ -83,8 +65,18 @@ export default function createGraphFilters({
 
     getViewportCoordinator()?.updateDisplayOptions(getState().graphSession?.displayOptions ?? displayOptions);
   }
+
+  function updateGraphState(action: GraphWorkbenchAction): PositionedGraph {
+    getGraphSession(getState());
+
+    dispatch(action);
+
+    getViewportCoordinator()?.refreshNow();
+
+    return currentSnapshot(getState());
+  }
 }
 
-function currentGraph(state: GraphWorkbenchState): PositionedGraph {
+function currentSnapshot(state: GraphWorkbenchState): PositionedGraph {
   return state.graphSnapshot ?? createEmptyGraph();
 }
