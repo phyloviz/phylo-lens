@@ -102,6 +102,9 @@ export function centerCameraOnCoordinates({
   const viewportPoint = sigma.graphToViewport({ x, y }, conversion);
   const nextCenter = sigma.viewportToFramedGraph(viewportPoint, conversion);
 
+  // Sigma emits no update for a no-op. Arming a one-shot suppression here
+  // would swallow the next real user pan/zoom instead of a programmatic move.
+  if (currentState.x === nextCenter.x && currentState.y === nextCenter.y) return true;
   beforeSetState?.();
   camera.setState({
     x: nextCenter.x,

@@ -15,6 +15,33 @@ function settle(sim: ReturnType<typeof createElasticSimulation>) {
   expect(sim.settled()).toBe(true);
 }
 describe("elastic motion on a prepared layout", () => {
+  it.each([0.001, 1, 1000])("separates a 53-node crowded slice using projected radii at scale %s", (scale) => {
+    const nodes = Array.from({ length: 53 }, (_, i) => ({
+      id: String(i),
+      x: i * 0.00001 * scale,
+      y: 0,
+      referenceX: i * 0.00001 * scale,
+      referenceY: 0,
+      anchorX: i * 0.00001 * scale,
+      anchorY: 0,
+      collisionRadius: 0.02 * scale,
+    }));
+    const graph = { nodes, links: nodes.slice(1).map((n) => ({ source: "0", target: n.id })) };
+    const original = JSON.stringify(graph);
+    const sim = createElasticSimulation(graph);
+    settle(sim);
+    const positions = sim.positions();
+    let minimum = Infinity;
+    for (let i = 0; i < nodes.length; i++)
+      for (let j = i + 1; j < nodes.length; j++) {
+        minimum = Math.min(
+          minimum,
+          Math.hypot(positions[2 * i] - positions[2 * j], positions[2 * i + 1] - positions[2 * j + 1]) / scale,
+        );
+      }
+    expect(minimum).toBeGreaterThan(0.039);
+    expect(JSON.stringify(graph)).toBe(original);
+  });
   it.each([0.001, 1, 1000])("preserves the server tree without oscillation at scale %s", (scale) => {
     const graph = tree(scale),
       sim = createElasticSimulation(graph);

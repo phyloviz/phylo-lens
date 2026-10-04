@@ -20,6 +20,8 @@ UPSTREAM_COMMIT = "db1ecbba39f46ca83aa90a87bad2012757e51f42"
 TIMEOUT_SECONDS = 300
 RUN_ID_PATTERN = re.compile(r"thesis-msagljs-mds-v001-[0-9]{3}")
 DEVELOPMENT_SMOKE_RUN_ID_PATTERN = re.compile(r"dev-msagljs-mds-smoke-[0-9]{3}")
+FULLMST_RUN_ID_PATTERN = re.compile(r"thesis-msagljs-fullmst-v001-[0-9]{3}")
+FULLMST_SMOKE_RUN_ID_PATTERN = re.compile(r"dev-msagljs-fullmst-smoke-[0-9]{3}")
 TILE_LEVEL_UPPER_BOUND = 30
 TILE_CAPACITY = 500
 NATIVE_MAX_MEMORY_BYTES = 4 * 1024 * 1024 * 1024
@@ -92,8 +94,18 @@ def validate_adaptation(adaptation: dict, *, nodes: int, edges: int) -> None:
         raise ValueError("adapted graph has duplicate edges")
 
 
-def selected_conditions(root: Path | None = None) -> list[dict]:
+def selected_conditions(
+    root: Path | None = None, *, fullmst: bool = False
+) -> list[dict]:
     root = root or repository_root()
+    if fullmst:
+        from ..core.fullmst import verified_fullmst_conditions
+
+        return [
+            item
+            for item in verified_fullmst_conditions(root)
+            if item["requested_nodes"] <= 100_000
+        ]
     return [
         item
         for item in verified_conditions(root, load_config(root))
@@ -255,26 +267,36 @@ def _validate_native_success(payload: dict, adaptation: dict) -> str | None:
 def run(args) -> Path:
     """Run the frozen 9-condition campaign; callers must provide a new raw ID."""
     smoke = getattr(args, "smoke", False)
-    if not (
-        RUN_ID_PATTERN.fullmatch(args.run_id)
-        or (smoke and DEVELOPMENT_SMOKE_RUN_ID_PATTERN.fullmatch(args.run_id))
+    fullmst = getattr(args, "fullmst", False)
+    run_pattern = FULLMST_RUN_ID_PATTERN if fullmst else RUN_ID_PATTERN
+    smoke_pattern = (
+        FULLMST_SMOKE_RUN_ID_PATTERN if fullmst else DEVELOPMENT_SMOKE_RUN_ID_PATTERN
+    )
+    if not smoke and (
+        DEVELOPMENT_SMOKE_RUN_ID_PATTERN.fullmatch(args.run_id)
+        or FULLMST_SMOKE_RUN_ID_PATTERN.fullmatch(args.run_id)
     ):
-        raise ValueError(
-            "run ID must match thesis-msagljs-mds-v001-[0-9]{3}; "
-            "development smoke IDs must match dev-msagljs-mds-smoke-[0-9]{3}"
-        )
-    if DEVELOPMENT_SMOKE_RUN_ID_PATTERN.fullmatch(args.run_id) and not smoke:
         raise ValueError("development smoke IDs require --smoke")
+    if not (
+        run_pattern.fullmatch(args.run_id)
+        or (smoke and smoke_pattern.fullmatch(args.run_id))
+    ):
+        raise ValueError("run ID does not match the selected RQ5 campaign mode")
     root = repository_root()
     results = (args.results_root or root / "eval/results/raw").resolve()
-    run_dir = results / "rq5-msagljs-current-mds-v001" / args.run_id
+    campaign = "rq5-msagljs-fullmst-v001" if fullmst else "rq5-msagljs-current-mds-v001"
+    run_dir = results / campaign / args.run_id
     if run_dir.exists():
         raise FileExistsError(f"immutable raw run directory exists: {run_dir}")
     upstream = Path(args.upstream).resolve()
     core = upstream / "modules/core/dist.min.js"
     lock = upstream / "yarn.lock"
     if not core.is_file() or not lock.is_file():
-        raise FileNotFoundError("pinned MSAGLJS build or yarn.lock missing")
+        raise FileNotFoundError(
+            "Pinned MSAGLJS checkout is incomplete: expected "
+            f"{core} and {lock}. Replace --upstream /path/to/msagljs with "
+            "the actual checkout path and build it first."
+        )
     if (
         subprocess.run(
             ["git", "-C", str(upstream), "rev-parse", "HEAD"],
@@ -285,16 +307,18 @@ def run(args) -> Path:
     ):
         raise ValueError("unexpected MSAGLJS upstream commit")
     run_dir.mkdir(parents=True)
-    conditions = selected_conditions(root)
+    conditions = selected_conditions(root, fullmst=fullmst)
     if smoke:
-        conditions = [item for item in conditions if item["id"] == "balanced-5000"]
+        smoke_id = "fullmst-12500" if fullmst else "balanced-5000"
+        conditions = [item for item in conditions if item["id"] == smoke_id]
+    expected_observations = len(conditions) * (1 if smoke else 6)
     manifest = {
         "schema_version": "1",
         "state": "running",
         "run_id": args.run_id,
         "run_kind": "development_smoke" if smoke else "final_campaign",
         "development_evidence_only": smoke,
-        "expected_raw_observations": 1 if smoke else 54,
+        "expected_raw_observations": expected_observations,
         "created_utc": utc_now(),
         "provenance": {
             "msagljs_commit": UPSTREAM_COMMIT,
@@ -337,6 +361,12 @@ def run(args) -> Path:
                 "measured_per_condition": 5,
                 "retries_permitted": 0,
             },
+            "dataset_mode": "fullmst" if fullmst else "legacy-synthetic",
+            "timeout_policy": (
+                "timeouts are retained as terminal observations"
+                if fullmst
+                else "timeouts are retained as terminal observations"
+            ),
         },
     }
     write_json(run_dir / "manifest.json", manifest)
@@ -408,6 +438,11 @@ def main() -> None:
     parser.add_argument("--upstream", type=Path, required=True)
     parser.add_argument("--results-root", type=Path)
     parser.add_argument("--smoke", action="store_true")
+    parser.add_argument(
+        "--fullmst",
+        action="store_true",
+        help="Run the retained Salmonella Full MST size series, including 100k.",
+    )
     print(run(parser.parse_args()))
 
 

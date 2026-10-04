@@ -30,7 +30,7 @@ export function fitSigmaToGraphSnapshot(
   const start = () => {
     if (cancelled) return;
     sigma.refresh?.();
-    const target = cameraTargetForGraph(sigma, graph, GRAPH_VIEWER_FIT_PADDING_RATIO);
+    const target = cameraTargetForGraph(sigma, graph, GRAPH_VIEWER_FIT_PADDING_RATIO, options.resetFirst !== false);
     const state = camera.getState();
     if (options.resetFirst === false && shouldStageFocusAnimation(state, target, state.ratio)) {
       animate(
@@ -86,27 +86,43 @@ function stagedZoomOutRatio(currentRatio: number, targetRatio: number): number {
 }
 
 function graphBounds(graph: PositionedGraph): SigmaViewportBounds {
-  const xs = graph.nodes.map((node) => node.x);
-  const ys = graph.nodes.map((node) => node.y);
-  return {
-    xmin: Math.min(...xs),
-    xmax: Math.max(...xs),
-    ymin: Math.min(...ys),
-    ymax: Math.max(...ys),
-  };
+  let xmin = Infinity,
+    xmax = -Infinity,
+    ymin = Infinity,
+    ymax = -Infinity;
+  for (const node of graph.nodes) {
+    xmin = Math.min(xmin, node.x);
+    xmax = Math.max(xmax, node.x);
+    ymin = Math.min(ymin, node.y);
+    ymax = Math.max(ymax, node.y);
+  }
+  return { xmin, xmax, ymin, ymax };
 }
 
 function cameraTargetForGraph(
   sigma: SigmaViewportLike,
   graph: PositionedGraph,
   paddingRatio: number,
+  overview = false,
 ): { x: number; y: number; ratio: number } {
-  const bounds = graphBounds(graph);
+  // Initial framing must describe the prepared tree, not its few nearby
+  // attachment representatives. Explicit focus/expansion still fits the slice.
+  const global = overview ? graph.viewMeta.globalBounds : undefined;
+  const bounds =
+    global && [global.minX, global.maxX, global.minY, global.maxY].every(Number.isFinite)
+      ? { xmin: global.minX, xmax: global.maxX, ymin: global.minY, ymax: global.maxY }
+      : graphBounds(graph);
   const center = graphPointToFramedGraph(sigma, {
     x: (bounds.xmin + bounds.xmax) / 2,
     y: (bounds.ymin + bounds.ymax) / 2,
   });
-  const ratio = cameraRatioForGraph(sigma, graph, center, paddingRatio);
+  const points = [
+    { x: bounds.xmin, y: bounds.ymin },
+    { x: bounds.xmin, y: bounds.ymax },
+    { x: bounds.xmax, y: bounds.ymin },
+    { x: bounds.xmax, y: bounds.ymax },
+  ];
+  const ratio = cameraRatioForGraph(sigma, points, center, paddingRatio);
   return {
     x: center.x,
     y: center.y,
@@ -116,7 +132,7 @@ function cameraTargetForGraph(
 
 function cameraRatioForGraph(
   sigma: SigmaViewportLike,
-  graph: PositionedGraph,
+  points: { x: number; y: number }[],
   center: { x: number; y: number },
   paddingRatio: number,
 ): number {
@@ -125,7 +141,7 @@ function cameraRatioForGraph(
   const cameraState = camera.getState?.() ?? camera;
   const currentRatio =
     typeof cameraState.ratio === "number" && Number.isFinite(cameraState.ratio) ? cameraState.ratio : 1;
-  const viewportPoints = graph.nodes.map((node) =>
+  const viewportPoints = points.map((node) =>
     sigma.graphToViewport(
       { x: node.x, y: node.y },
       {

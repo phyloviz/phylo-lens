@@ -20,6 +20,8 @@ export interface MotionNode {
   anchorX: number;
   anchorY: number;
   size?: number;
+  /** Actual glyph radius plus clearance, converted to prepared graph coordinates. */
+  collisionRadius?: number;
 }
 
 export interface MotionGraph {
@@ -36,6 +38,7 @@ interface Particle extends SimulationNodeDatum {
   anchorX: number;
   anchorY: number;
   size: number;
+  collisionRadius: number;
 }
 
 export const DEFAULT_MOTION_SETTINGS = {
@@ -100,6 +103,10 @@ export function createElasticSimulation(graph: MotionGraph, options: MotionSetti
     y: (n.y - origin.y) / unit,
     anchorX: (n.anchorX - origin.x) / unit,
     anchorY: (n.anchorY - origin.y) / unit,
+    collisionRadius:
+      typeof n.collisionRadius === "number" && Number.isFinite(n.collisionRadius) && n.collisionRadius >= 0
+        ? n.collisionRadius / unit
+        : settings.collisionRadius * ((n.size ?? medianSize) / medianSize),
     size: typeof n.size === "number" && Number.isFinite(n.size) && n.size > 0 ? n.size : medianSize,
   }));
 
@@ -126,7 +133,7 @@ export function createElasticSimulation(graph: MotionGraph, options: MotionSetti
   if (settings.collisionRadius > 0) {
     simulation.force(
       "collide",
-      forceCollide<Particle>((node) => settings.collisionRadius * (node.size / medianSize))
+      forceCollide<Particle>((node) => node.collisionRadius)
         .strength(settings.collisionStrength)
         .iterations(settings.collisionIterations),
     );

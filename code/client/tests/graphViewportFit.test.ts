@@ -12,6 +12,31 @@ const graph = {
 } as const;
 
 describe("graphViewportFit", () => {
+  it("fits the full prepared bounds initially while explicit focus fits just the slice", async () => {
+    vi.useFakeTimers();
+    const camera = { getState: () => ({ x: 0, y: 0, ratio: 1, angle: 0 }), animate: vi.fn() };
+    const sigma = {
+      getCamera: () => camera,
+      getDimensions: () => ({ width: 100, height: 100 }),
+      graphToViewport: (p: { x: number; y: number }) => p,
+      viewportToFramedGraph: (p: { x: number; y: number }) => p,
+      refresh: vi.fn(),
+    };
+    const slice = {
+      ...graph,
+      viewMeta: { ...graph.viewMeta, globalBounds: { minX: -100, maxX: 100, minY: -100, maxY: 100 } },
+    };
+    try {
+      fitSigmaToGraphSnapshot(sigma as never, slice);
+      await vi.advanceTimersByTimeAsync(50);
+      expect(camera.animate.mock.calls[0][0]).toEqual({ x: 0, y: 0, ratio: 2.3 });
+      camera.animate.mockClear();
+      fitSigmaToGraphSnapshot(sigma as never, slice, { resetFirst: false });
+      expect(camera.animate.mock.calls[0][0]).toEqual({ x: 15, y: 5, ratio: 0.115 });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
   it("fits graph snapshots using Sigma framed coordinates instead of raw graph coordinates", () => {
     const camera = {
       getState: () => ({ x: 0, y: 0, ratio: 2, angle: 0 }),

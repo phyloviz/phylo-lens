@@ -1,3 +1,4 @@
+import { centerCameraOnCoordinates } from "../src/render/adapters/sigma/camera/sigmaCameraState";
 import { createElasticSimulation } from "../src/render/adapters/sigma/motion/elasticSimulation";
 import type { MotionCommand, MotionFrame } from "../src/render/adapters/sigma/motion/elastic.worker";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -300,6 +301,26 @@ describe("sigmaRenderer", () => {
     expect(lastResizeHandler).toBeNull();
   });
 
+  it("keeps a stable footprint budget across tiers and resets it for a new render", () => {
+    const renderer = new SigmaRenderer({ forceMotion: { enabled: false } });
+    renderer.mount({ container: document.createElement("div") });
+    const sigma = (renderer as unknown as { sigma: { scaleSize: (size: number) => number } }).sigma;
+    sigma.scaleSize = (size) => size;
+    const snapshot = {
+      nodes: [{ id: "a", x: 0, y: 0, size: 20 }],
+      edges: [],
+      viewMeta: { layout: "server" as const, lodLevel: 0 },
+    };
+    renderer.render(snapshot);
+    expect(renderer.getViewportSyncState()?.representationSpacingPx).toBe(42);
+    const finer = { ...snapshot, nodes: [{ id: "a", x: 0, y: 0, size: 3 }] };
+    renderer.applyGraphSnapshot(finer);
+    expect(renderer.getViewportSyncState()?.representationSpacingPx).toBe(42);
+    renderer.render(finer);
+    expect(renderer.getViewportSyncState()?.representationSpacingPx).toBe(8);
+    renderer.unmount();
+  });
+
   it("exposes renderer-neutral viewport sync state", () => {
     document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
 
@@ -310,6 +331,8 @@ describe("sigmaRenderer", () => {
     expect(renderer.getViewportSyncState()).toEqual({
       bounds: { xmin: 0, xmax: 300, ymin: 0, ymax: 200 },
       cameraRatio: 2,
+      selectionBounds: { xmin: 0, xmax: 300, ymin: 0, ymax: 200 },
+      representationSpacingPx: 0,
       pixelSize: { width: 300, height: 200 },
     });
 
@@ -1516,4 +1539,17 @@ describe("applyPieChartNodeTypes", () => {
 
     expect(graph.getNodeAttribute("n", "type")).toBe("triangle");
   });
+});
+
+it("does not suppress the next user event when centering is a camera no-op", () => {
+  const beforeSetState = vi.fn(),
+    setState = vi.fn();
+  const sigma = {
+    getCamera: () => ({ getState: () => ({ x: 1, y: 2, ratio: 0.02 }), setState }),
+    graphToViewport: (p: { x: number; y: number }) => p,
+    viewportToFramedGraph: (p: { x: number; y: number }) => p,
+  };
+  expect(centerCameraOnCoordinates({ sigma: sigma as never, x: 1, y: 2, beforeSetState })).toBe(true);
+  expect(beforeSetState).not.toHaveBeenCalled();
+  expect(setState).not.toHaveBeenCalled();
 });

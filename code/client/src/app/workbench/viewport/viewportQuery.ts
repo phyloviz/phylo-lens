@@ -65,13 +65,15 @@ export function buildGraphViewportQuery({
   if (adaptive && viewState?.pixelSize) {
     if (!Number.isFinite(representationSpacingPx) || representationSpacingPx <= 0)
       throw new Error("LoD representation spacing must be finite and positive.");
+    const effectiveSpacing = Math.max(representationSpacingPx, viewState.representationSpacingPx ?? 0);
+    if (!Number.isFinite(effectiveSpacing)) throw new Error("Projected representation spacing must be finite.");
     const target = Math.max(
       1,
-      Math.floor((viewState.pixelSize.width * viewState.pixelSize.height) / representationSpacingPx ** 2),
+      Math.floor((viewState.pixelSize.width * viewState.pixelSize.height) / effectiveSpacing ** 2),
     );
     if (!Number.isSafeInteger(target)) throw new Error("LoD representation target must be a finite safe integer.");
     query.lod_target_representations = target;
-    query.lod_selection_bounds = viewState.bounds;
+    query.lod_selection_bounds = viewState.selectionBounds ?? viewState.bounds;
     if (previousEffectiveLodLevel !== undefined && previousEffectiveLodLevel !== null)
       query.previous_lod_level = previousEffectiveLodLevel;
   }

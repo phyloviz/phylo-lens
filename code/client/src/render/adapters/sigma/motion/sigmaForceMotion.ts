@@ -13,6 +13,7 @@ export interface SigmaForceMotionCallbacks {
   onError?: (message: string) => void;
   reference: (id: string) => Point | undefined;
   anchor: (id: string) => Point | undefined;
+  collisionRadius?: (id: string, size: number) => number | undefined;
   constrain: (id: string, point: Point) => Point;
 }
 
@@ -30,7 +31,16 @@ export default function createSigmaForceMotion(
     revision = 0,
     minimumRevision = 0;
   let pins: MotionPoint[] = [];
+  let geometryTimer: ReturnType<typeof setTimeout> | undefined;
+  let previousRadius: number | undefined;
+  function radius() {
+    if (!graph?.order) return undefined;
+    const id = graph.findNode(() => true)!;
+    return callbacks.collisionRadius?.(id, graph.getNodeAttribute(id, "size") ?? 5);
+  }
   function stop() {
+    clearTimeout(geometryTimer);
+    geometryTimer = undefined;
     worker?.terminate();
     worker = null;
     minimumRevision = ++revision;
@@ -39,10 +49,11 @@ export default function createSigmaForceMotion(
     worker?.postMessage(command);
   }
   function resume() {
-    if (!enabled || suspended || !graph || graph.order < 2 || !graph.size || worker) return;
+    if (!enabled || suspended || !graph || graph.order < 2 || worker) return;
     try {
       const active = new ElasticWorker();
       worker = active;
+      previousRadius = radius();
       const ids = graph.nodes();
       const indices = new Map(ids.map((id, i) => [id, i]));
 
@@ -82,6 +93,7 @@ export default function createSigmaForceMotion(
               referenceY: reference.y,
               anchorX: anchor.x,
               anchorY: anchor.y,
+              collisionRadius: callbacks.collisionRadius?.(id, typeof a.size === "number" ? a.size : 5),
               size: typeof a.size === "number" && Number.isFinite(a.size) && a.size > 0 ? a.size : undefined,
             };
           }),
@@ -102,6 +114,22 @@ export default function createSigmaForceMotion(
       resume();
     },
     stop,
+    // Camera translation does not change glyph footprints. Reheat only after a
+    // meaningful scale/resize change and debounce animations; never reset anchors.
+    refreshGeometry() {
+      if (!enabled || suspended || !graph) return;
+      const next = radius();
+      if (
+        next === undefined ||
+        (previousRadius !== undefined && Math.abs(next - previousRadius) <= previousRadius * 0.05)
+      )
+        return;
+      clearTimeout(geometryTimer);
+      geometryTimer = setTimeout(() => {
+        stop();
+        resume();
+      }, 120);
+    },
     setPins(points: MotionPoint[], released: MotionPoint[] = []) {
       const changedMembers = points.length !== pins.length || points.some((point, i) => point.id !== pins[i]?.id);
       pins = points;

@@ -100,7 +100,13 @@ retrieval bounds are expanded by 50% to prefetch the area around the screen.
 Panning can change the effective tier without changing zoom, including when the
 semantic tier is zero. Container resize triggers a new selection as screen area
 changes. Normal queries derive a target from area / `representationSpacingPx²`
-(default 24 pixels), with server-side density hysteresis of 15%.
+(default 24 pixels), with server-side density hysteresis of 15%. The Sigma
+adapter also reports a conservative projected glyph diameter (including triangle
+extent and clearance). It retains the largest base glyph footprint observed since
+the initial render, excluding selection enlargement, so changing tiers cannot
+loosen/tighten the budget solely because their glyph sizes differ. The larger of that footprint and the configured spacing
+sets the budget, so large zoomed-in glyphs do not receive the same count budget
+as small glyphs. This remains a capacity estimate, not proof of no overlap.
 
 The server can defer the preferred tier in dense regions or advance beyond it
 in sparse regions. Each tier ahead of the preference halves the base target,
@@ -307,3 +313,56 @@ Client evaluation should distinguish:
 
 `load()` completion is a useful data-readiness boundary, but it is not by itself
 a browser first-paint measurement.
+
+## Camera framing and screen-space readability
+
+Selection uses unpadded camera bounds. Motion displacement halos and retrieval
+prefetch padding protect moved nodes during retrieval but must not inflate the
+region used to decide detail. Otherwise a fixed world-space halo can prevent
+density from decreasing as the camera zooms in. A no-op programmatic focus does
+not arm camera-event suppression; the next real pan/zoom must still refresh.
+
+The initial fit uses the complete prepared coordinate bounds when available.
+Fitting only the first coarse slice can magnify a few adjacent attachment nodes
+and accidentally drive semantic zoom into deeper tiers. Explicit cluster focus
+still fits its requested slice; ordinary viewport replacements preserve the
+camera. The semantic thresholds express an interaction preference, not a
+biological distance or a guarantee of readability. Their proportional hysteresis
+prevents oscillation near zoom boundaries; density selection remains independent.
+
+Glyphs shrink in proportion to positional distances on zoom-out (camera ratios
+above one). On zoom-in, square-root size growth is capped at 1.5 times the base marker size;
+deep zoom reveals detail without indefinitely enlarging markers.
+This is a deliberate change from Sigma's default square-root scaling in both
+directions; see [Sigma size semantics](https://www.sigmajs.org/docs/advanced/sizes/).
+
+When Motion is enabled, collision radii use the actual projected glyph radius
+and one CSS pixel of clearance, converted through Sigma's viewport transform to
+prepared graph coordinates. Triangles use their 1.35 circumradius multiplier.
+The worker uses these radii in its quadtree collision force while spring rest
+lengths and anchors continue to reference the prepared arrangement. Zoom/resize
+changes exceeding 5% in collision scale reheat the worker after a 120 ms debounce;
+panning alone does not restart physics. Motion off and manipulation suspension
+cancel pending reheating. The simulation sleeps after cooling rather than running
+continuously. Finite settling is approximate; collisions between pinned nodes,
+or deliberately disabling collision strength, can prevent complete separation.
+
+These changes affect display coordinates and retrieval budgets only. Canonical
+coordinates, branch/allelic values, topology, rooted-hop membership, and pendant
+subtree boundaries are unchanged. Elastic edge geometry must not be interpreted
+as a phylogram scale. Literature distinguishes phylograms/cladograms and rooted/
+unrooted views and supports explicit clade interaction; see
+[Letunic and Bork, iTOL v3 (2016)](https://itol.embl.de/help/gkw290.pdf).
+Our technical root is an orientation device, not an inferred evolutionary root;
+its pendant aggregates are not claims of biological monophyly.
+
+The collision force uses a quadtree (typically O(n log n) per iteration; densely
+coincident points can degrade this), plus O(n + m) spring/anchor work. Radius
+conversion and snapshot construction are linear in the retrieved slice. Viewport
+LoD queries retain the existing prepared-tier selection; no new product-wide
+layout, sibling grouping, or tree traversal is introduced.
+
+Regression coverage includes a 53-node nearly coincident slice at three coordinate
+scales and a real Sigma/worker browser fixture checking separation, zoom reheating,
+panning notification, and Motion off. Previous thesis measurements apply to their
+recorded product commit, not these subsequent changes, and remain untouched.

@@ -69,6 +69,8 @@ export class SigmaRenderer implements GraphRenderer {
     this.cancelFit = null;
   };
   private graph: Graph | null = null;
+  private glyphFootprintDirty = true;
+  private maxGlyphSize = 0;
   private dragSelection: DragSelection = { kind: "node" };
   private readonly positions = new DisplayPositions();
   private readonly dragPins = new Map<string, Point>();
@@ -208,6 +210,20 @@ export class SigmaRenderer implements GraphRenderer {
       onError: (message) => this.feedbackHandler?.(message),
       reference: (id) => this.positions.reference(id),
       anchor: (id) => this.positions.anchor(id),
+      collisionRadius: (id, size) => {
+        const sigma = this.sigma;
+        if (!sigma?.scaleSize) return undefined;
+        const a = sigma.viewportToGraph({ x: 0, y: 0 });
+        const b = sigma.viewportToGraph({ x: 1, y: 0 });
+        const graphUnitsPerPixel = Math.hypot(b.x - a.x, b.y - a.y);
+        // Use the same zoom/resize transform as the GPU, including glyph sizes.
+        const shapeScale =
+          this.graph?.getNodeAttribute(id, "type") === SIGMA_NODE_TYPE_TRIANGLE ||
+          this.graph?.getNodeAttribute(id, "is_cluster_proxy") === true
+            ? 1.35
+            : 1;
+        return (sigma.scaleSize(size) * shapeScale + 1) * graphUnitsPerPixel;
+      },
       constrain: (id, point) => this.positions.set(id, this.dragPins.get(id) ?? point),
     });
     this.dragController = sigmaDragController({
@@ -278,10 +294,12 @@ export class SigmaRenderer implements GraphRenderer {
     this.cancelTransition();
     this.dragController.reset();
     this.sourceSnapshot = graph;
+    this.maxGlyphSize = 0;
     this.positions.clear();
     this.forceMotion.stop();
     this.lastRenderedGraph = graph;
     this.graph.clear();
+    this.glyphFootprintDirty = true;
     this.graphBounds = deriveGraphBounds(graph.nodes);
     this.coordinateBounds = normalizeGraphBounds(graph.viewMeta.globalBounds) ?? this.graphBounds;
     this.ensureSigmaPiePrograms(graph);
@@ -401,6 +419,7 @@ export class SigmaRenderer implements GraphRenderer {
     this.positions.clear();
     this.dragSelection = { kind: "node" };
     this.selectedNodeId = null;
+    this.glyphFootprintDirty = true;
     this.selectedClusterStyle = null;
     this.highlightedNodeIds = null;
     this.dragController.reset();
@@ -429,7 +448,9 @@ export class SigmaRenderer implements GraphRenderer {
         ymax: bounds.ymax + halo.y,
       },
       cameraRatio: this.currentCameraRatio(),
+      selectionBounds: bounds,
       pixelSize: this.sigma.getDimensions(),
+      representationSpacingPx: this.projectedRepresentationSpacing(),
     };
   }
 
@@ -470,8 +491,10 @@ export class SigmaRenderer implements GraphRenderer {
     const cameraState = readCameraState(this.sigma);
     const previousCoordinateBounds = this.coordinateBounds;
     this.lastRenderedGraph = graph;
+    this.glyphFootprintDirty = true;
     this.selectedClusterStyle = null;
     this.graph.clear();
+    this.glyphFootprintDirty = true;
     this.graphBounds = deriveGraphBounds(graph.nodes);
     this.coordinateBounds = normalizeGraphBounds(graph.viewMeta.globalBounds) ?? this.graphBounds;
     if (!graphBoundsEqual(previousCoordinateBounds, this.coordinateBounds)) {
@@ -864,6 +887,7 @@ export class SigmaRenderer implements GraphRenderer {
   }
 
   private handleCameraUpdated(): void {
+    this.forceMotion.refreshGeometry();
     const viewState = this.readSemanticViewState();
     this.updateEdgeLabelVisibility(viewState);
     this.emitViewChange(viewState);
@@ -881,6 +905,26 @@ export class SigmaRenderer implements GraphRenderer {
       getState?: () => { x?: number; y?: number; ratio?: number };
     };
     return sigmaCameraToSemanticViewState(this.coordinateBounds, camera.getState?.() ?? camera);
+  }
+
+  private projectedRepresentationSpacing(): number {
+    const sigma = this.sigma;
+    if (!sigma?.scaleSize || !this.graph?.order) return 0;
+    // Snapshot/style changes scan once; camera events only apply the scalar
+    // zoom transform, so panning does not scan the loaded graph each frame.
+    if (this.glyphFootprintDirty) {
+      // Keep a per-render high-water footprint: switching to a tier with small
+      // glyphs must not immediately loosen the budget and oscillate back.
+      this.graph.forEachNode((id, attributes) => {
+        const baseSize = this.selectedClusterStyle?.id === id ? this.selectedClusterStyle.size : attributes.size;
+        const size = typeof baseSize === "number" ? baseSize : 5;
+        const shapeScale =
+          attributes.type === SIGMA_NODE_TYPE_TRIANGLE || attributes.is_cluster_proxy === true ? 1.35 : 1;
+        this.maxGlyphSize = Math.max(this.maxGlyphSize, size * shapeScale);
+      });
+      this.glyphFootprintDirty = false;
+    }
+    return this.maxGlyphSize > 0 ? 2 * sigma.scaleSize(this.maxGlyphSize) + 2 : 0;
   }
 
   private currentViewportBounds(): RenderViewportBounds {
@@ -1018,6 +1062,7 @@ export class SigmaRenderer implements GraphRenderer {
           size: this.selectedClusterStyle.size,
         });
       }
+      this.glyphFootprintDirty = true;
       this.selectedClusterStyle = null;
     }
 
@@ -1027,6 +1072,7 @@ export class SigmaRenderer implements GraphRenderer {
     if (attributes.type !== SIGMA_NODE_TYPE_TRIANGLE && attributes.is_cluster_proxy !== true) return;
 
     const size = typeof attributes.size === "number" ? attributes.size : 5;
+    this.glyphFootprintDirty = true;
     this.selectedClusterStyle = {
       id: this.selectedNodeId,
       color: attributes.color,

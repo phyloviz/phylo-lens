@@ -13,6 +13,11 @@ import {
 import { drawCenteredNodeLabel, drawDistanceEdgeLabel } from "./attributes/sigmaLabels";
 import type { SigmaNodeProgramClasses, SigmaRendererOptions } from "./sigmaRenderer.types";
 
+/** Shrink with positions on zoom-out; bound zoom-in marker growth to 1.5x. */
+export function zoomToGlyphSizeRatio(ratio: number): number {
+  return Math.max(ratio, Math.sqrt(ratio), 1 / 1.5);
+}
+
 export function buildSigmaSettings(
   rendererOptions: SigmaRendererOptions,
   nodeProgramClasses: SigmaNodeProgramClasses = {},
@@ -21,6 +26,7 @@ export function buildSigmaSettings(
   return {
     renderLabels: rendererOptions.label?.enabled !== false && nodeLabelsEnabled,
     renderEdgeLabels: false,
+    zoomToSizeRatioFunction: zoomToGlyphSizeRatio,
     minCameraRatio: SIGMA_MIN_CAMERA_RATIO,
     maxCameraRatio: SIGMA_MAX_CAMERA_RATIO,
     zoomingRatio: SIGMA_ZOOMING_RATIO,

@@ -27,6 +27,10 @@ export interface RenderViewportBounds {
 }
 
 export interface RenderViewportSyncState {
+  /** Unpadded camera bounds for choosing detail; bounds may include a motion halo. */
+  selectionBounds?: RenderViewportBounds;
+  /** Conservative CSS-pixel footprint including glyph clearance, if available. */
+  representationSpacingPx?: number;
   bounds: RenderViewportBounds;
   cameraRatio: number;
   /** CSS-pixel area used to select structural detail by visible complexity. */

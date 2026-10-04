@@ -7,7 +7,7 @@
   "properties": {
     "schema_version": {"const": "1"},
     "run_id": {"type": "string", "minLength": 1},
-    "experiment_id": {"const": "rq3-lod-final-v020"},
+    "experiment_id": {"enum": ["rq3-lod-final-v020", "rq3-lod-final-v022"]},
     "case_id": {"type": "string", "minLength": 1},
     "status": {"enum": ["success", "invalid", "failure"]},
     "terminal_classification": {"enum": ["PASS", "FAIL"]},

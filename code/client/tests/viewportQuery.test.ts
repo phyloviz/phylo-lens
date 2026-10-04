@@ -162,3 +162,31 @@ describe("viewportQuery", () => {
     });
   });
 });
+
+it("uses projected glyph footprints when they exceed nominal representation spacing", () => {
+  const state = {
+    cameraRatio: 1,
+    bounds: { xmin: 0, xmax: 1, ymin: 0, ymax: 1 },
+    pixelSize: { width: 480, height: 240 },
+    representationSpacingPx: 48,
+  };
+  expect(buildGraphViewportQuery({ datasetId: "test", viewState: state }).lod_target_representations).toBe(50);
+  expect(
+    buildGraphViewportQuery({ datasetId: "test", viewState: { ...state, representationSpacingPx: 6 } })
+      .lod_target_representations,
+  ).toBe(200);
+});
+
+it("keeps motion/retrieval padding out of density selection at deep zoom", () => {
+  const raw = { xmin: 1.13, xmax: 1.15, ymin: 1.42, ymax: 1.44 };
+  const halo = { xmin: 1.09, xmax: 1.19, ymin: 1.38, ymax: 1.48 };
+  const q = buildGraphViewportQuery({
+    datasetId: "test",
+    lodTierCount: 16,
+    viewState: { cameraRatio: 1 / 51.22, bounds: halo, selectionBounds: raw, pixelSize: { width: 1500, height: 700 } },
+  });
+  expect(q.lod_selection_bounds).toEqual(raw);
+  expect(q.xmin).toBeLessThan(halo.xmin);
+  expect(q.xmax).toBeGreaterThan(halo.xmax);
+  expect(q.lod_level).toBeGreaterThan(8);
+});
