@@ -93,6 +93,8 @@ export async function startReplayServer(fixture) {
   const address = server.address();
   return {
     apiUrl: `http://127.0.0.1:${address.port}`,
+    // Pilot camera refreshes always replay the same nodes, edges and positions.
+    fixedViewport: true,
     accessLog,
     close: () => new Promise((resolve) => server.close(resolve)),
   };
