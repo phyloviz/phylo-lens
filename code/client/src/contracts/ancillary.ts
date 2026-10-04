@@ -33,3 +33,9 @@ export interface AncillaryObservation {
   values: AncillaryData;
   count: number;
 }
+
+export interface AncillaryDataInput {
+  content: string;
+  join_column: string;
+  format?: "auto" | "csv" | "tsv";
+}

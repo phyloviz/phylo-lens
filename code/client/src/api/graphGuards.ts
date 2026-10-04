@@ -26,15 +26,15 @@ import type {
   GraphViewportEdge,
   GraphViewportNode,
   GraphViewportResponse,
-  NormalizeRequest,
+  GraphPrepareRequest,
   SfdpOptions,
 } from "./graphContracts";
 
-export function isNormalizeRequest(value: unknown): value is NormalizeRequest {
+export function isGraphPrepareRequest(value: unknown): value is GraphPrepareRequest {
   return (
     isRecord(value) &&
     isSourceFormat(value.format) &&
-    isString(value.dataset_name) &&
+    isOptionalString(value.dataset_name) &&
     isString(value.content) &&
     isOptionalNormalizeOptions(value.options) &&
     isOptionalGraphMetadataSchema(value.metadata_schema) &&

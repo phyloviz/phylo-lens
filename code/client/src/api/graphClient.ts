@@ -7,7 +7,7 @@ import {
   isGraphRegionResponse,
   isGraphSearchResponse,
   isGraphViewportResponse,
-  isNormalizeRequest,
+  isGraphPrepareRequest,
 } from "./graphGuards";
 import {
   GraphPrepareJobStatus,
@@ -22,7 +22,7 @@ import {
   type GraphSearchResponse,
   type GraphViewportQuery,
   type GraphViewportResponse,
-  type NormalizeRequest,
+  type GraphPrepareRequest,
   type PrepareGraphOptions,
 } from "./graphContracts";
 import {
@@ -32,25 +32,8 @@ import {
   PhyloLensServiceUnavailableError,
 } from "../services/serviceErrors";
 import { isServiceInformation } from "../services/serviceGuards";
-
-// Routes
-export const ROUTE_SERVICE_HEALTH = "/health";
-export const ROUTE_GRAPH_PREPARE = "/api/graph/prepare";
-export const ROUTE_GRAPH_VIEWPORT = "/api/graph/viewport";
-export const ROUTE_GRAPH_REGION = "/api/graph/region";
-export const ROUTE_GRAPH_SEARCH = "/api/graph/search";
-
-// Error messages
-export const ERR_INVALID_GRAPH_PREPARE_RESPONSE = "Invalid graph prepare response contract.";
-export const ERR_INVALID_GRAPH_PREPARE_JOB = "Invalid graph prepare job contract.";
-export const ERR_INVALID_GRAPH_PREPARE_STATUS = "Invalid graph prepare status contract.";
-export const ERR_GRAPH_PREPARE_FAILED = "Graph layout preparation failed.";
-export const ERR_GRAPH_PREPARE_TIMED_OUT = "Graph layout preparation did not complete in time.";
-export const ERR_INVALID_GRAPH_VIEWPORT_RESPONSE = "Invalid graph viewport response contract.";
-export const ERR_INVALID_GRAPH_REGION_RESPONSE = "Invalid graph region response contract.";
-export const ERR_INVALID_GRAPH_SEARCH_RESPONSE = "Invalid graph search response contract.";
-export const ERR_INVALID_NORMALIZE_REQUEST = "Invalid graph normalize request contract.";
-export const ERR_INVALID_GRAPH_ANCILLARY_PREPARE_RESPONSE = "Invalid graph ancillary response contract.";
+import { GRAPH_ROUTES } from "./graphRoutes";
+import { GRAPH_API_ERRORS } from "./graphErrors";
 
 export const SUPPORTED_PHYLO_LENS_API_VERSION = "1";
 
@@ -77,7 +60,7 @@ export function createGraphClient(options: GraphClientOptions): GraphClient {
 
 async function prepareGraph(
   http: HttpClient,
-  request: NormalizeRequest,
+  request: GraphPrepareRequest,
   options: PrepareGraphOptions = {},
   ensureCompatible: () => Promise<void> = () => checkAPIService(http),
 ): Promise<GraphPrepareResponse> {
@@ -91,37 +74,37 @@ async function applyAncillaryData(http: HttpClient, request: GraphAncillaryReque
   const response = await http.put<GraphAncillaryRequest, unknown>("/api/graph/ancillary", request); //TODO: Have a common place for backend API URIs
 
   if (!isGraphAncillaryResponse(response) || response.dataset_id !== request.dataset_id) {
-    throw new Error(ERR_INVALID_GRAPH_ANCILLARY_PREPARE_RESPONSE);
+    throw new Error(GRAPH_API_ERRORS.invalidAncillaryResponse);
   }
 
   return response;
 }
 
 async function readGraphViewport(http: HttpClient, query: GraphViewportQuery): Promise<GraphViewportResponse> {
-  const response = await http.post<GraphViewportQuery, unknown>(ROUTE_GRAPH_VIEWPORT, query);
+  const response = await http.post<GraphViewportQuery, unknown>(GRAPH_ROUTES.viewport, query);
 
   if (!isGraphViewportResponse(response)) {
-    throw new Error(ERR_INVALID_GRAPH_VIEWPORT_RESPONSE);
+    throw new Error(GRAPH_API_ERRORS.invalidViewportResponse);
   }
 
   return response;
 }
 
 async function readGraphRegion(http: HttpClient, query: GraphRegionQuery): Promise<GraphRegionResponse> {
-  const response = await http.post<GraphRegionQuery, unknown>(ROUTE_GRAPH_REGION, query);
+  const response = await http.post<GraphRegionQuery, unknown>(GRAPH_ROUTES.region, query);
 
   if (!isGraphRegionResponse(response)) {
-    throw new Error(ERR_INVALID_GRAPH_REGION_RESPONSE);
+    throw new Error(GRAPH_API_ERRORS.invalidRegionResponse);
   }
 
   return response;
 }
 
 async function searchGraph(http: HttpClient, query: GraphSearchQuery): Promise<GraphSearchResponse> {
-  const response = await http.post<GraphSearchQuery, unknown>(ROUTE_GRAPH_SEARCH, query);
+  const response = await http.post<GraphSearchQuery, unknown>(GRAPH_ROUTES.search, query);
 
   if (!isGraphSearchResponse(response)) {
-    throw new Error(ERR_INVALID_GRAPH_SEARCH_RESPONSE);
+    throw new Error(GRAPH_API_ERRORS.invalidSearchResponse);
   }
 
   return response;
@@ -129,15 +112,15 @@ async function searchGraph(http: HttpClient, query: GraphSearchQuery): Promise<G
 
 // Helpers
 
-async function submitPrepareGraph(http: HttpClient, request: NormalizeRequest) {
-  if (!isNormalizeRequest(request)) {
-    throw new Error(ERR_INVALID_NORMALIZE_REQUEST);
+async function submitPrepareGraph(http: HttpClient, request: GraphPrepareRequest) {
+  if (!isGraphPrepareRequest(request)) {
+    throw new Error(GRAPH_API_ERRORS.invalidGraphPrepareRequest);
   }
 
-  const response = await http.post<NormalizeRequest, unknown>(ROUTE_GRAPH_PREPARE, request);
+  const response = await http.post<GraphPrepareRequest, unknown>(GRAPH_ROUTES.prepare, request);
 
   if (!isGraphPrepareJob(response)) {
-    throw new Error(ERR_INVALID_GRAPH_PREPARE_JOB);
+    throw new Error(GRAPH_API_ERRORS.invalidPrepareJob);
   }
 
   return response;
@@ -147,7 +130,7 @@ async function checkAPIService(http: HttpClient): Promise<void> {
   let response: unknown;
 
   try {
-    response = await http.get<unknown>(ROUTE_SERVICE_HEALTH);
+    response = await http.get<unknown>(GRAPH_ROUTES.health);
   } catch (error) {
     if (error instanceof SyntaxError) {
       throw new PhyloLensServiceProtocolError(undefined, { cause: error });
@@ -190,20 +173,20 @@ async function pollPrepareGraph(
 
     if (status.status === GraphPrepareJobStatus.READY) {
       if (!isGraphPrepareResponse(status.result)) {
-        throw new Error(ERR_INVALID_GRAPH_PREPARE_RESPONSE);
+        throw new Error(GRAPH_API_ERRORS.invalidPrepareResponse);
       }
 
       return status.result;
     }
 
     if (status.status === GraphPrepareJobStatus.FAILED) {
-      throw new Error(status.error ?? ERR_GRAPH_PREPARE_FAILED);
+      throw new Error(status.error ?? GRAPH_API_ERRORS.prepareFailed);
     }
 
     options.onPending?.(status);
 
     if (deadline !== null && Date.now() >= deadline) {
-      throw new Error(ERR_GRAPH_PREPARE_TIMED_OUT);
+      throw new Error(GRAPH_API_ERRORS.prepareTimedOut);
     }
 
     await sleep(intervalMs);
@@ -211,10 +194,10 @@ async function pollPrepareGraph(
 }
 
 export async function getPrepareGraphStatus(http: HttpClient, jobId: string): Promise<GraphPrepareStatus> {
-  const response = await http.get<unknown>(`${ROUTE_GRAPH_PREPARE}/${jobId}`); //TODO: Add a DTO of the API Service Response...
+  const response = await http.get<unknown>(`${GRAPH_ROUTES.prepare}/${jobId}`);
 
   if (!isGraphPrepareStatus(response)) {
-    throw new Error(ERR_INVALID_GRAPH_PREPARE_STATUS);
+    throw new Error(GRAPH_API_ERRORS.invalidPrepareStatus);
   }
 
   return response;

@@ -1,4 +1,4 @@
-import type { AncillaryObservation } from "../contracts/ancillary";
+import type { AncillaryDataInput, AncillaryObservation } from "../contracts/ancillary";
 import type { AncillaryType, SourceFormat } from "../contracts/models";
 
 export const GraphPrepareJobStatus = {
@@ -38,7 +38,7 @@ export interface GraphAncillaryField {
   type: AncillaryType;
 }
 
-export interface NormalizeRequest {
+export interface GraphPrepareRequest {
   format: SourceFormat;
   dataset_name?: string;
   content: string;
@@ -202,7 +202,7 @@ export interface GraphSearchResponse {
 export interface GraphAncillaryRequest {
   dataset_id: string;
   layout_version: string;
-  ancillary_data: NonNullable<NormalizeRequest["ancillary_data"]>;
+  ancillary_data: AncillaryDataInput;
 }
 
 export interface GraphAncillaryResponse {
@@ -222,7 +222,7 @@ export interface PrepareGraphOptions {
 }
 
 export interface GraphClient {
-  prepareGraph(request: NormalizeRequest, options?: PrepareGraphOptions): Promise<GraphPrepareResponse>;
+  prepareGraph(request: GraphPrepareRequest, options?: PrepareGraphOptions): Promise<GraphPrepareResponse>;
 
   applyAncillaryData(request: GraphAncillaryRequest): Promise<GraphAncillaryResponse>;
 
