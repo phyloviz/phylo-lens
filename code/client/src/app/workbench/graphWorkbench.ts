@@ -26,7 +26,6 @@ export type {
   GraphWorkbenchOptions,
 } from "./graphWorkbench.types";
 
-export const DEFAULT_DATASET_NAME = "uploaded-dataset";
 export const DEFAULT_SEARCH_RESULT_LIMIT = 50;
 
 export function createGraphWorkbench(
@@ -72,6 +71,7 @@ export function createGraphWorkbench(
     renderer,
     graphClient: options.graphClient,
     getViewportCoordinator: () => viewportCoordinator,
+    getLoadGeneration: () => loadGeneration,
   });
 
   renderer.setNodeClickHandler?.((clickState) => {

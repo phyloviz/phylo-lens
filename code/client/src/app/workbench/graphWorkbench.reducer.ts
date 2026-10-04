@@ -69,7 +69,6 @@ export function reduceGraphWorkbenchState(
       return {
         ...state,
         preparedSession: action.session,
-        currentSliceDataset: null,
       };
 
     case ACTIONS.viewportSynced: {

@@ -70,7 +70,7 @@ export default function createGraphFilters({
 
   // Apply presentation toggles (node labels, edge distance labels, distance-
   // weighted edges) to the live LoD view. The renderer rebuilds its settings,
-  // while the sync controller derives a new snapshot from the current slice.
+  // while the viewport coordinator derives a new snapshot from the current slice.
   // This avoids a redundant viewport request and does not call renderer.render,
   // which would replace the live LoD graph with a stale coarse snapshot.
   function updateDisplayOptions(displayOptions: GraphDisplayOptions): void {

@@ -155,5 +155,4 @@ export interface GraphWorkbenchState {
   readonly focusedNodeId: string | null;
   readonly activeFilters: AncillaryFilterState;
   readonly lodRefreshPaused: boolean;
-  readonly currentSliceDataset: CanonicalDataset | null;
 }

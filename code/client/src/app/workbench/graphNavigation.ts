@@ -14,6 +14,7 @@ interface WorkbenchNavigationOptions {
   renderer: GraphRenderer;
   graphClient: GraphClient;
   getViewportCoordinator: () => GraphViewportCoordinator | null;
+  getLoadGeneration: () => number;
 }
 
 export default function createGraphNavigation({
@@ -22,6 +23,7 @@ export default function createGraphNavigation({
   renderer,
   graphClient,
   getViewportCoordinator,
+  getLoadGeneration,
 }: WorkbenchNavigationOptions) {
   let focusSequence = 0;
   const cancelPendingFocus = () => {
@@ -107,6 +109,7 @@ export default function createGraphNavigation({
     coordinates?: { x: number | null; y: number | null; clusterId?: string | null },
   ): Promise<PositionedGraph> {
     const session = getPreparedSession(getState());
+    const generation = getLoadGeneration();
 
     cancelPendingFocus();
 
@@ -114,8 +117,8 @@ export default function createGraphNavigation({
     const controller = getViewportCoordinator();
 
     const isCurrent = () =>
-      sequence === focusSequence && getState().preparedSession === session && getViewportCoordinator() === controller;
-    const currentGraph = () => getState().graphSnapshot ?? createEmptyGraph();
+      sequence === focusSequence && generation === getLoadGeneration() && getViewportCoordinator() === controller;
+    const currentSnapshot = () => getState().graphSnapshot ?? createEmptyGraph();
 
     // A repeated selection must recenter too: the user may have panned away.
     const visible = getState().graphSnapshot?.nodes.some(
@@ -132,7 +135,7 @@ export default function createGraphNavigation({
           query: nodeId,
           limit: 50,
         });
-        if (!isCurrent()) return currentGraph();
+        if (!isCurrent()) return currentSnapshot();
         const match = response.matches.find((item) => item.node_id === nodeId);
         if (!match) throw new Error(`Profile ${nodeId} was not found.`);
         location = { x: match.x ?? null, y: match.y ?? null, clusterId: match.cluster_id };
@@ -145,7 +148,7 @@ export default function createGraphNavigation({
       const result = await controller.expandCluster(location.clusterId, { focusNodeId: nodeId });
 
       if (!isCurrent() || result.status === "superseded") {
-        return currentGraph();
+        return currentSnapshot();
       }
 
       if (!renderer.centerOnNode?.(nodeId) && location.x != null && location.y != null) {
@@ -161,6 +164,6 @@ export default function createGraphNavigation({
       renderer.focusNode?.(nodeId);
     }
 
-    return currentGraph();
+    return currentSnapshot(); 
   }
 }
