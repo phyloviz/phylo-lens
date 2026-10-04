@@ -84,7 +84,7 @@ export function createGraphWorkbench(
     nodeClickedHandler?.(clickState);
   });
 
-  async function setLodRefreshPaused(paused: boolean): Promise<PositionedGraph | null> {
+  function setLodRefreshPaused(paused: boolean): PositionedGraph | null {
     if (!hasGraphSession(getState())) {
       return null;
     }
@@ -93,8 +93,6 @@ export function createGraphWorkbench(
       type: ACTIONS.lodRefreshPaused,
       paused,
     });
-
-    // keep whatever pending-refresh cleanup you currently need
 
     if (!paused) {
       viewportCoordinator?.refreshNow();

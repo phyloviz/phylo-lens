@@ -116,10 +116,10 @@ export default function createGraphNavigation({
     cancelPendingFocus();
 
     const sequence = focusSequence;
-    const controller = getViewportCoordinator();
+    const coordinator = getViewportCoordinator();
 
     const isCurrent = () =>
-      sequence === focusSequence && generation === getLoadGeneration() && getViewportCoordinator() === controller;
+      sequence === focusSequence && generation === getLoadGeneration() && getViewportCoordinator() === coordinator;
     const currentSnapshot = () => getState().graphSnapshot ?? createEmptyGraph();
 
     // A repeated selection must recenter too: the user may have panned away.
@@ -143,11 +143,11 @@ export default function createGraphNavigation({
         location = { x: match.x ?? null, y: match.y ?? null, clusterId: match.cluster_id };
       }
 
-      if (!location.clusterId || !controller) {
+      if (!location.clusterId || !coordinator) {
         throw new Error(`Profile ${nodeId} has no available layout location.`);
       }
 
-      const result = await controller.expandCluster(location.clusterId, { focusNodeId: nodeId });
+      const result = await coordinator.expandCluster(location.clusterId, { focusNodeId: nodeId });
 
       if (!isCurrent() || result.status === "superseded") {
         return currentSnapshot();

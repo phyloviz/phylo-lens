@@ -95,7 +95,7 @@ export interface GraphWorkbench {
 
   updateDisplayOptions: (displayOptions: GraphDisplayOptions) => void;
 
-  setLodRefreshPaused: (paused: boolean) => Promise<PositionedGraph | null>;
+  setLodRefreshPaused: (paused: boolean) => PositionedGraph | null;
 
   isLodRefreshPaused: () => boolean;
 

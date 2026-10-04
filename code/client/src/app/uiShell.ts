@@ -1,5 +1,5 @@
 import { expansionControls, type ExpansionControlsElements } from "./shell/controls/expansionControls";
-import type { GraphWorkbench, RenderNewickOptions } from "./workbench/graphWorkbench";
+import type { GraphWorkbench } from "./workbench/graphWorkbench";
 import type { PositionedGraph } from "../contracts/positioned";
 import { SOURCE_FORMAT_NEWICK, SOURCE_FORMAT_TYPING_DATA, type SourceFormat } from "../contracts/models";
 import { buildRenderedStatus } from "./shell/status/renderedStatus";
@@ -528,9 +528,9 @@ export default function (options: UiShellOptions): UiShell {
     }
   }
 
-  async function handleLodPlaybackChange(paused: boolean): Promise<void> {
+  function handleLodPlaybackChange(paused: boolean): void {
     try {
-      await workbench.setLodRefreshPaused(paused);
+      workbench.setLodRefreshPaused(paused);
       updateLodPlaybackControls(isLodGraph(lastRenderedGraph));
       if (paused) {
         setStatus("LoD paused: navigate freely without slice refreshes");
