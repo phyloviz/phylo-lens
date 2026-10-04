@@ -4,7 +4,7 @@ import type { GraphWorkbenchState, GraphSession } from "./graphWorkbench.types";
 
 export function createInitialWorkbenchState(): GraphWorkbenchState {
   return {
-    preparedSession: null,
+    graphSession: null,
     graphSnapshot: null,
     activeFilters: EMPTY_ANCILLARY_FILTER_STATE,
     lodRefreshPaused: false,
@@ -12,17 +12,17 @@ export function createInitialWorkbenchState(): GraphWorkbenchState {
   };
 }
 
-export function isSessionPrepared(state: GraphWorkbenchState): boolean {
-  return state.preparedSession !== null;
+export function hasGraphSession(state: GraphWorkbenchState): boolean {
+  return state.graphSession !== null;
 }
 
-export function getPreparedSession(
+export function getGraphSession(
   state: GraphWorkbenchState,
   errorMessage = GRAPH_WORKBENCH_ERRORS.noGraphRendered,
 ): GraphSession {
-  if (!state.preparedSession) {
+  if (!state.graphSession) {
     throw new Error(errorMessage);
   }
 
-  return state.preparedSession;
+  return state.graphSession;
 }

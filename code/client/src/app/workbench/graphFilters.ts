@@ -3,7 +3,7 @@ import type { AncillaryFilterState } from "../../ancillary/ancillaryTypes";
 import type { PositionedGraph } from "../../contracts/positioned";
 import type { VisualMappingOptions } from "../../render/mapping/visualMapping";
 import type { GraphDisplayOptions, GraphRenderer } from "../../render/renderer.types";
-import { getPreparedSession } from "./graphWorkbench.state";
+import { getGraphSession } from "./graphWorkbench.state";
 import type { GraphWorkbenchState } from "./graphWorkbench.types";
 import { createEmptyGraph } from "./viewportGraph";
 import type { GraphViewportCoordinator } from "./viewport/viewportCoordinator";
@@ -30,7 +30,7 @@ export default function createGraphFilters({
   };
 
   function applyMetadataFilters(filterState: AncillaryFilterState): PositionedGraph {
-    getPreparedSession(getState());
+    getGraphSession(getState());
 
     dispatch({
       type: ACTIONS.filtersUpdated,
@@ -43,7 +43,7 @@ export default function createGraphFilters({
   }
 
   function clearMetadataFilters(): PositionedGraph {
-    getPreparedSession(getState());
+    getGraphSession(getState());
 
     dispatch({
       type: ACTIONS.filtersUpdated,
@@ -56,7 +56,7 @@ export default function createGraphFilters({
   }
 
   function updateVisualMapping(visualMapping: VisualMappingOptions): PositionedGraph {
-    getPreparedSession(getState());
+    getGraphSession(getState());
 
     dispatch({
       type: ACTIONS.visualMappingUpdated,
@@ -81,7 +81,7 @@ export default function createGraphFilters({
 
     renderer.updateDisplayOptions?.(displayOptions);
 
-    getViewportCoordinator()?.updateDisplayOptions(getState().preparedSession?.displayOptions ?? displayOptions);
+    getViewportCoordinator()?.updateDisplayOptions(getState().graphSession?.displayOptions ?? displayOptions);
   }
 }
 

@@ -113,11 +113,11 @@ export async function loadGraph(
       const state = getState();
 
       return {
-        visualMapping: state.preparedSession?.visualMapping,
+        visualMapping: state.graphSession?.visualMapping,
         filterState: state.activeFilters,
-        ancillarySchema: state.preparedSession?.ancillarySchema,
-        ancillaryByNodeId: state.preparedSession?.ancillaryByNodeId,
-        displayOptions: state.preparedSession?.displayOptions,
+        ancillarySchema: state.graphSession?.ancillarySchema,
+        ancillaryByNodeId: state.graphSession?.ancillaryByNodeId,
+        displayOptions: state.graphSession?.displayOptions,
       };
     },
   });

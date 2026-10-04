@@ -1,7 +1,8 @@
 import { type PositionedGraph } from "../../contracts/positioned";
+import { updateGraphAncillaryData } from "./updateGraphAncillaryData";
 import graphFilters from "./graphFilters";
 import { loadGraph } from "./loadGraph";
-import { createInitialWorkbenchState, isSessionPrepared, getPreparedSession } from "./graphWorkbench.state";
+import { createInitialWorkbenchState, hasGraphSession } from "./graphWorkbench.state";
 import type {
   GraphNodeClickedHandler,
   GraphRenderedHandler,
@@ -25,8 +26,6 @@ export type {
   GraphWorkbench,
   GraphWorkbenchOptions,
 } from "./graphWorkbench.types";
-
-export const DEFAULT_SEARCH_RESULT_LIMIT = 50;
 
 export function createGraphWorkbench(
   options: GraphWorkbenchOptions,
@@ -86,7 +85,7 @@ export function createGraphWorkbench(
   });
 
   async function setLodRefreshPaused(paused: boolean): Promise<PositionedGraph | null> {
-    if (!isSessionPrepared(getState())) {
+    if (!hasGraphSession(getState())) {
       return null;
     }
 
@@ -105,7 +104,7 @@ export function createGraphWorkbench(
   }
 
   const requireViewportCoordinator = (): GraphViewportCoordinator => {
-    if (disposed || !viewportCoordinator || !isSessionPrepared(getState())) {
+    if (disposed || !viewportCoordinator || !hasGraphSession(getState())) {
       throw new Error(GRAPH_WORKBENCH_ERRORS.noGraphRendered);
     }
 
@@ -148,25 +147,17 @@ export function createGraphWorkbench(
       );
     },
 
-    applyAncillaryData: async (data) => {
-      const controller = requireViewportCoordinator();
-      const session = getPreparedSession(getState());
-      const generation = loadGeneration;
-
-      const result = await options.graphClient.applyAncillaryData({
-        dataset_id: session.datasetId,
-        layout_version: session.layoutVersion,
-        ancillary_data: data,
-      });
-
-      if (disposed || generation !== loadGeneration || viewportCoordinator !== controller) {
-        throw new Error(GRAPH_WORKBENCH_ERRORS.loadSuperseded);
-      }
-
-      await controller.replaceLayoutVersion(result.layout_version);
-
-      return result;
-    },
+    applyAncillaryData: (data) =>
+      updateGraphAncillaryData(
+        {
+          getState,
+          graphClient: options.graphClient,
+          requireViewportCoordinator,
+          getLoadGeneration: () => loadGeneration,
+          getViewportCoordinator: () => viewportCoordinator,
+        },
+        data,
+      ),
 
     exportPng: (exportOptions) => {
       if (!renderer.exportPng) {

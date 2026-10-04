@@ -11,7 +11,7 @@ export function reduceGraphWorkbenchState(
     case ACTIONS.reset:
       return {
         ...state,
-        preparedSession: null,
+        graphSession: null,
         graphSnapshot: null,
         focusedNodeId: null,
         activeFilters: EMPTY_ANCILLARY_FILTER_STATE,
@@ -37,29 +37,29 @@ export function reduceGraphWorkbenchState(
       };
 
     case ACTIONS.visualMappingUpdated:
-      if (!state.preparedSession) {
+      if (!state.graphSession) {
         return state;
       }
 
       return {
         ...state,
-        preparedSession: {
-          ...state.preparedSession,
+        graphSession: {
+          ...state.graphSession,
           visualMapping: action.visualMapping,
         },
       };
 
     case ACTIONS.displayOptionsUpdated:
-      if (!state.preparedSession) {
+      if (!state.graphSession) {
         return state;
       }
 
       return {
         ...state,
-        preparedSession: {
-          ...state.preparedSession,
+        graphSession: {
+          ...state.graphSession,
           displayOptions: {
-            ...state.preparedSession.displayOptions,
+            ...state.graphSession.displayOptions,
             ...action.displayOptions,
           },
         },
@@ -68,22 +68,22 @@ export function reduceGraphWorkbenchState(
     case ACTIONS.graphPrepared:
       return {
         ...state,
-        preparedSession: action.session,
+        graphSession: action.session,
       };
 
     case ACTIONS.viewportSynced: {
       const preparedSession =
-        action.response && state.preparedSession
+        action.response && state.graphSession
           ? {
-              ...state.preparedSession,
+              ...state.graphSession,
               ancillarySchema: action.response.metadata_schema ?? [],
               layoutVersion: action.response.layout_version,
             }
-          : state.preparedSession;
+          : state.graphSession;
 
       return {
         ...state,
-        preparedSession,
+        graphSession: preparedSession,
         graphSnapshot: {
           ...action.graph,
           viewMeta: {

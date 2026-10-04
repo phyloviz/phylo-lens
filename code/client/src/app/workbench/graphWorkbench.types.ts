@@ -1,7 +1,6 @@
 import type { DragSelection, PngExportOptions } from "../../render/renderer.types";
 import type { ExpansionResult, ExpansionState } from "../../contracts/expansion";
-import type { AncillaryData, AncillaryField } from "../../contracts/ancillary";
-import type { AncillaryInputOptions } from "../../ancillary/ancillaryInput";
+import type { AncillaryData, AncillaryField, AncillaryTableInput } from "../../contracts/ancillary";
 import type {
   GraphAncillaryResponse,
   GraphAncillaryField,
@@ -21,6 +20,7 @@ import type {
   RendererFactory,
   RendererKind,
 } from "../../render/renderer.types";
+import type { AncillaryInputOptions } from "../../ancillary/ancillaryInput";
 
 // Public workbench contracts.
 
@@ -78,7 +78,7 @@ export interface GraphWorkbench {
 
   loadGraph: (input: GraphInput, options?: LoadGraphOptions) => Promise<PositionedGraph>;
 
-  applyAncillaryData: (data: NonNullable<LoadGraphOptions["ancillaryData"]>) => Promise<GraphAncillaryResponse>;
+  applyAncillaryData: (data: AncillaryTableInput) => Promise<GraphAncillaryResponse>;
 
   setMotionEnabled: (enabled: boolean) => void;
   isMotionEnabled: () => boolean;
@@ -150,7 +150,7 @@ export interface GraphSession {
 }
 
 export interface GraphWorkbenchState {
-  readonly preparedSession: GraphSession | null;
+  readonly graphSession: GraphSession | null;
   readonly graphSnapshot: PositionedGraph | null;
   readonly focusedNodeId: string | null;
   readonly activeFilters: AncillaryFilterState;

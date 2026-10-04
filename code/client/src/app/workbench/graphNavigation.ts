@@ -1,12 +1,14 @@
 import type { SearchDatasetResponse } from "../../contracts/models";
 import type { PositionedGraph } from "../../contracts/positioned";
 import type { GraphRenderer, RenderViewportBounds } from "../../render/renderer.types";
-import { getPreparedSession } from "./graphWorkbench.state";
+import { getGraphSession } from "./graphWorkbench.state";
 import type { GraphWorkbenchState, RegionSelectionResult } from "./graphWorkbench.types";
 import { createEmptyGraph } from "./viewportGraph";
 import type { GraphViewportCoordinator } from "./viewport/viewportCoordinator";
 import type { GraphClient } from "../../api/graphContracts";
 import { ACTIONS, type GraphWorkbenchAction } from "./graphWorkbench.actions";
+
+const DEFAULT_SEARCH_RESULT_LIMIT = 50;
 
 interface WorkbenchNavigationOptions {
   getState: () => GraphWorkbenchState;
@@ -39,7 +41,7 @@ export default function createGraphNavigation({
   };
 
   async function selectRegion(bounds: RenderViewportBounds): Promise<RegionSelectionResult> {
-    const session = getPreparedSession(getState());
+    const session = getGraphSession(getState());
 
     // The server cannot select a rectangle in a deformed layout. Select the loaded
     // display explicitly; its ancillary wheel is built from these same node IDs.
@@ -78,7 +80,7 @@ export default function createGraphNavigation({
   }
 
   async function searchNodes(query: { query: string; limit?: number }): Promise<SearchDatasetResponse> {
-    const session = getPreparedSession(getState());
+    const session = getGraphSession(getState());
     cancelPendingFocus();
 
     const response = await graphClient.searchGraph({
@@ -108,7 +110,7 @@ export default function createGraphNavigation({
     nodeId: string,
     coordinates?: { x: number | null; y: number | null; clusterId?: string | null },
   ): Promise<PositionedGraph> {
-    const session = getPreparedSession(getState());
+    const session = getGraphSession(getState());
     const generation = getLoadGeneration();
 
     cancelPendingFocus();
@@ -133,7 +135,7 @@ export default function createGraphNavigation({
           dataset_id: session.datasetId,
           layout_version: session.layoutVersion ?? null,
           query: nodeId,
-          limit: 50,
+          limit: DEFAULT_SEARCH_RESULT_LIMIT,
         });
         if (!isCurrent()) return currentSnapshot();
         const match = response.matches.find((item) => item.node_id === nodeId);
@@ -164,6 +166,6 @@ export default function createGraphNavigation({
       renderer.focusNode?.(nodeId);
     }
 
-    return currentSnapshot(); 
+    return currentSnapshot();
   }
 }
