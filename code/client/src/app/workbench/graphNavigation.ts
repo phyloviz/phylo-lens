@@ -21,7 +21,7 @@ export default function createGraphNavigation({
   dispatch,
   renderer,
   graphClient,
-  getViewportCoordinator: getViewportCoordinator,
+  getViewportCoordinator,
 }: WorkbenchNavigationOptions) {
   let focusSequence = 0;
   const cancelPendingFocus = () => {

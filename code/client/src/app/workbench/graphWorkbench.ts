@@ -9,11 +9,7 @@ import type {
   GraphWorkbenchOptions,
   GraphWorkbenchState,
 } from "./graphWorkbench.types";
-import {
-  ERR_GRAPH_VIEWPORT_SYNC_REQUIRED,
-  ERR_LOD_PLAYBACK_REQUIRES_LOD,
-  ERR_NO_GRAPH_RENDERED,
-} from "./graphWorkbench.errors";
+import { GRAPH_WORKBENCH_ERRORS } from "./graphWorkbench.errors";
 import graphNavigation from "./graphNavigation";
 import { GraphViewportCoordinator } from "./viewport/viewportCoordinator";
 import type { SnapshotAppliedObserver } from "./internalSnapshotObserver";
@@ -22,16 +18,16 @@ import { reduceGraphWorkbenchState } from "./graphWorkbench.reducer";
 
 export { DEFAULT_VIEWPORT } from "./viewportGraph";
 export type {
+  GraphInput,
+  LoadGraphOptions,
   GraphNodeClickedHandler,
   GraphRenderedHandler,
   GraphWorkbench,
   GraphWorkbenchOptions,
-  RenderNewickOptions,
 } from "./graphWorkbench.types";
 
 export const DEFAULT_DATASET_NAME = "uploaded-dataset";
 export const DEFAULT_SEARCH_RESULT_LIMIT = 50;
-export { ERR_GRAPH_VIEWPORT_SYNC_REQUIRED, ERR_LOD_PLAYBACK_REQUIRES_LOD, ERR_NO_GRAPH_RENDERED };
 
 export function createGraphWorkbench(
   options: GraphWorkbenchOptions,
@@ -110,7 +106,7 @@ export function createGraphWorkbench(
 
   const requireViewportCoordinator = (): GraphViewportCoordinator => {
     if (disposed || !viewportCoordinator || !isSessionPrepared(getState())) {
-      throw new Error(ERR_NO_GRAPH_RENDERED);
+      throw new Error(GRAPH_WORKBENCH_ERRORS.noGraphRendered);
     }
 
     return viewportCoordinator;
@@ -164,7 +160,7 @@ export function createGraphWorkbench(
       });
 
       if (disposed || generation !== loadGeneration || viewportCoordinator !== controller) {
-        throw new Error(ERR_GRAPH_LOAD_SUPERSEDED);
+        throw new Error(GRAPH_WORKBENCH_ERRORS.loadSuperseded);
       }
 
       await controller.replaceLayoutVersion(result.layout_version);
@@ -174,7 +170,7 @@ export function createGraphWorkbench(
 
     exportPng: (exportOptions) => {
       if (!renderer.exportPng) {
-        throw new Error(ERR_GRAPH_PNG_EXPORT_UNAVAILABLE);
+        throw new Error(GRAPH_WORKBENCH_ERRORS.pngExportUnavailable);
       }
       return renderer.exportPng(exportOptions);
     },

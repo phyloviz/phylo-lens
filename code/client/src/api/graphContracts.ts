@@ -40,7 +40,7 @@ export interface GraphAncillaryField {
 
 export interface NormalizeRequest {
   format: SourceFormat;
-  dataset_name: string;
+  dataset_name?: string;
   content: string;
   options?: {
     allow_self_loops?: boolean;

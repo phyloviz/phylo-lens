@@ -76,9 +76,9 @@ export interface GraphWorkbench {
   setKeepExpanded: (keep: boolean) => ExpansionState;
   getExpansionState: () => ExpansionState;
 
-  renderNewick: (newick: string, datasetName?: string, options?: RenderNewickOptions) => Promise<PositionedGraph>;
+  loadGraph: (input: GraphInput, options?: LoadGraphOptions) => Promise<PositionedGraph>;
 
-  applyAncillaryData: (data: NonNullable<RenderNewickOptions["ancillaryData"]>) => Promise<GraphAncillaryResponse>;
+  applyAncillaryData: (data: NonNullable<LoadGraphOptions["ancillaryData"]>) => Promise<GraphAncillaryResponse>;
 
   setMotionEnabled: (enabled: boolean) => void;
   isMotionEnabled: () => boolean;

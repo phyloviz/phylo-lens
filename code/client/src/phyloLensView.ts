@@ -8,13 +8,9 @@ import { SOURCE_FORMAT_NEWICK, type SourceFormat, type Viewport } from "./contra
 import rendererFactory from "./render/rendererFactory";
 import { RENDERER_KIND_SIGMA } from "./render/renderer.types";
 import type { VisualMappingOptions } from "./render/mapping/visualMapping";
-import {
-  createGraphWorkbench,
-  ERR_GRAPH_LOAD_SUPERSEDED,
-  type GraphWorkbench,
-  type RenderNewickOptions,
-} from "./app/workbench/graphWorkbench";
+import { createGraphWorkbench, type GraphWorkbench } from "./app/workbench/graphWorkbench";
 import type { GraphWorkbenchOptions } from "./app/workbench/graphWorkbench.types";
+import { GRAPH_WORKBENCH_ERRORS } from "./app/workbench/graphWorkbench.errors";
 import { snapshotAppliedObserverForContainer } from "./app/workbench/internalSnapshotObserver";
 
 export const ERR_PHYLO_LENS_VIEW_DISPOSED = "PhyloLens view has been disposed.";
@@ -117,7 +113,7 @@ export function createPhyloLensView(options: PhyloLensViewOptions): PhyloLensVie
           loadOptions,
         );
       } catch (error) {
-        if (disposed && error instanceof Error && error.message === ERR_GRAPH_LOAD_SUPERSEDED) {
+        if (disposed && error instanceof Error && error.message === GRAPH_WORKBENCH_ERRORS.loadSuperseded) {
           throw new Error(ERR_PHYLO_LENS_VIEW_DISPOSED);
         }
         throw error;

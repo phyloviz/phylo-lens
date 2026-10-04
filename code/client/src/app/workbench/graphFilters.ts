@@ -20,7 +20,7 @@ export default function createGraphFilters({
   getState,
   dispatch,
   renderer,
-  getViewportCoordinator: getViewportCoordinator,
+  getViewportCoordinator,
 }: GraphFiltersOptions) {
   return {
     applyMetadataFilters: applyMetadataFilters,

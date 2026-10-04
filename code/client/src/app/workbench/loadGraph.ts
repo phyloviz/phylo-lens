@@ -1,12 +1,14 @@
 import { resolveAncillaryInput } from "../../ancillary/ancillaryInput";
-import type { NormalizeRequest, GraphClient } from "../../api/graphContracts";
+import type { NormalizeRequest, GraphClient, GraphPrepareResponse } from "../../api/graphContracts";
 import type { PositionedGraph } from "../../contracts/positioned";
 import type { GraphRenderer } from "../../render/renderer.types";
 import { ACTIONS, type GraphWorkbenchAction } from "./graphWorkbench.actions";
-import { ERR_GRAPH_LOAD_SUPERSEDED } from "./graphWorkbench.errors";
-import type { GraphInput, GraphWorkbenchState, LoadGraphOptions } from "./graphWorkbench.types";
+import { GRAPH_WORKBENCH_ERRORS } from "./graphWorkbench.errors";
+import type { GraphInput, GraphSession, GraphWorkbenchState, LoadGraphOptions } from "./graphWorkbench.types";
 import type { SnapshotAppliedObserver } from "./internalSnapshotObserver";
 import { GraphViewportCoordinator } from "./viewport/viewportCoordinator";
+import { GRAPH_VIEWER_SMALL_TREE_NODE_THRESHOLD } from "./viewport/viewportQuery";
+import { DEFAULT_VIEWPORT } from "./viewportGraph";
 
 export interface LoadGraphDependencies {
   readonly getState: () => GraphWorkbenchState;
@@ -62,7 +64,7 @@ export async function loadGraph(
     sfdp_options: options.sfdpOptions,
   };
 
-  replaceViewportCoordinator(renderer);
+  requireViewportRenderer(renderer);
 
   const preparedGraph = await graphClient.prepareGraph(request);
 
@@ -146,6 +148,49 @@ export async function loadGraph(
 
 function assertCurrentLoad(isCurrentLoad: () => boolean): void {
   if (!isCurrentLoad()) {
-    throw new Error(ERR_GRAPH_LOAD_SUPERSEDED);
+    throw new Error(GRAPH_WORKBENCH_ERRORS.loadSuperseded);
   }
+}
+
+function requireViewportRenderer(renderer: GraphRenderer): void {
+  if (!renderer.getViewportSyncState || !renderer.applyGraphSnapshot) {
+    throw new Error(GRAPH_WORKBENCH_ERRORS.viewportRequired);
+  }
+}
+
+function resetRenderer(renderer: GraphRenderer): void {
+  const motionEnabled = renderer.isMotionEnabled?.() ?? true;
+
+  renderer.resetLayoutEdits?.();
+  renderer.setMotionEnabled?.(motionEnabled);
+  renderer.focusNode?.(null);
+}
+
+function createGraphSession(
+  preparedGraph: GraphPrepareResponse,
+  ancillary: ReturnType<typeof resolveAncillaryInput>,
+  options: LoadGraphOptions,
+): GraphSession {
+  return {
+    datasetId: preparedGraph.dataset_id,
+    layoutVersion: preparedGraph.layout_version,
+
+    ancillarySchema: ancillary.ancillarySchema,
+    ancillaryByNodeId: ancillary.ancillaryByNodeId,
+    ancillaryRowsByNodeId: {},
+
+    visualMapping: options.visualMapping,
+    displayOptions: options.displayOptions,
+
+    layoutWarnings: preparedGraph.warnings,
+    lodTierCount: preparedGraph.lod_tier_count,
+
+    lod: {
+      maxNodes: options.lod?.maxNodes,
+      representationSpacingPx: options.lod?.representationSpacingPx,
+      smallTreeThreshold: options.lod?.smallTreeThreshold ?? GRAPH_VIEWER_SMALL_TREE_NODE_THRESHOLD,
+      lodHint: options.lod?.lodHint,
+      viewport: options.lod?.viewport ?? DEFAULT_VIEWPORT,
+    },
+  };
 }
