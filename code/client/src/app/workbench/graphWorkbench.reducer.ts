@@ -13,15 +13,8 @@ export function reduceGraphWorkbenchState(
         ...state,
         graphSession: null,
         graphSnapshot: null,
-        focusedNodeId: null,
         activeFilters: EMPTY_ANCILLARY_FILTER_STATE,
         lodRefreshPaused: false,
-      };
-
-    case ACTIONS.nodeFocused:
-      return {
-        ...state,
-        focusedNodeId: action.nodeId,
       };
 
     case ACTIONS.lodRefreshPaused:

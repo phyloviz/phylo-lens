@@ -7,7 +7,6 @@ import type { GraphSession } from "./graphWorkbench.types";
 
 export const ACTIONS = {
   reset: "reset",
-  nodeFocused: "nodeFocused",
   lodRefreshPaused: "lodRefreshPaused",
   filtersUpdated: "filtersUpdated",
   visualMappingUpdated: "visualMappingUpdated",
@@ -20,10 +19,6 @@ export const ACTIONS = {
 export type GraphWorkbenchAction =
   | {
       readonly type: typeof ACTIONS.reset;
-    }
-  | {
-      readonly type: typeof ACTIONS.nodeFocused;
-      readonly nodeId: string | null;
     }
   | {
       readonly type: typeof ACTIONS.lodRefreshPaused;

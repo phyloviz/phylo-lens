@@ -76,11 +76,6 @@ export function createGraphWorkbench(
   renderer.setNodeClickHandler?.((clickState) => {
     navigation.cancelPendingFocus();
 
-    dispatch({
-      type: ACTIONS.nodeFocused,
-      nodeId: clickState.nodeId,
-    });
-
     nodeClickedHandler?.(clickState);
   });
 

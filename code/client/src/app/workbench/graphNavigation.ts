@@ -6,7 +6,7 @@ import type { GraphWorkbenchState, RegionSelectionResult } from "./graphWorkbenc
 import { createEmptyGraph } from "./viewportGraph";
 import type { GraphViewportCoordinator } from "./viewport/viewportCoordinator";
 import type { GraphClient } from "../../api/graphContracts";
-import { ACTIONS, type GraphWorkbenchAction } from "./graphWorkbench.actions";
+import { type GraphWorkbenchAction } from "./graphWorkbench.actions";
 
 const DEFAULT_SEARCH_RESULT_LIMIT = 50;
 
@@ -21,7 +21,6 @@ interface WorkbenchNavigationOptions {
 
 export default function createGraphNavigation({
   getState,
-  dispatch,
   renderer,
   graphClient,
   getViewportCoordinator,
@@ -159,10 +158,6 @@ export default function createGraphNavigation({
     }
 
     if (isCurrent()) {
-      dispatch({
-        type: ACTIONS.nodeFocused,
-        nodeId,
-      });
       renderer.focusNode?.(nodeId);
     }
 

@@ -177,7 +177,6 @@ function createGraphSession(
 
     ancillarySchema: ancillary.ancillarySchema,
     ancillaryByNodeId: ancillary.ancillaryByNodeId,
-    ancillaryRowsByNodeId: {},
 
     visualMapping: options.visualMapping,
     displayOptions: options.displayOptions,

@@ -8,7 +8,7 @@ import type {
   SfdpOptions,
   GraphClient,
 } from "../../api/graphContracts";
-import type { CanonicalDataset, SearchDatasetResponse, SourceFormat, Viewport } from "../../contracts/models";
+import type { SearchDatasetResponse, SourceFormat, Viewport } from "../../contracts/models";
 import type { PositionedGraph } from "../../contracts/positioned";
 import type { AncillaryFilterState } from "../../ancillary/ancillaryTypes";
 import type { VisualMappingOptions } from "../../render/mapping/visualMapping";
@@ -134,7 +134,6 @@ export interface GraphSession {
   readonly layoutVersion: string;
   readonly ancillarySchema: readonly AncillaryField[];
   readonly ancillaryByNodeId: Readonly<Record<string, AncillaryData>>;
-  readonly ancillaryRowsByNodeId: CanonicalDataset["ancillary_rows_by_node_id"];
   readonly visualMapping?: VisualMappingOptions;
   readonly displayOptions?: GraphDisplayOptions;
   readonly layoutWarnings?: readonly string[];
@@ -152,7 +151,6 @@ export interface GraphSession {
 export interface GraphWorkbenchState {
   readonly graphSession: GraphSession | null;
   readonly graphSnapshot: PositionedGraph | null;
-  readonly focusedNodeId: string | null;
   readonly activeFilters: AncillaryFilterState;
   readonly lodRefreshPaused: boolean;
 }

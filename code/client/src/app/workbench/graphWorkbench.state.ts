@@ -8,7 +8,6 @@ export function createInitialWorkbenchState(): GraphWorkbenchState {
     graphSnapshot: null,
     activeFilters: EMPTY_ANCILLARY_FILTER_STATE,
     lodRefreshPaused: false,
-    focusedNodeId: null,
   };
 }
 
