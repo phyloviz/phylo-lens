@@ -1,6 +1,7 @@
+import type { DatasetId, LayoutVersion } from "../graphIdentifiers";
 export interface GraphRegionRequest {
-  datasetId: string;
-  layoutVersion?: string | null;
+  datasetId: DatasetId;
+  layoutVersion?: LayoutVersion | null;
   xmin: number;
   xmax: number;
   ymin: number;

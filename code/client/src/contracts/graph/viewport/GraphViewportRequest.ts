@@ -1,8 +1,9 @@
+import type { ClusterId, DatasetId, LayoutVersion, NodeId } from "../graphIdentifiers";
 export interface GraphViewportRequest {
-  datasetId: string;
-  layoutVersion?: string | null;
-  clusterId?: string | null;
-  focusNodeId?: string | null;
+  datasetId: DatasetId;
+  layoutVersion?: LayoutVersion | null;
+  clusterId?: ClusterId | null;
+  focusNodeId?: NodeId | null;
   xmin?: number;
   xmax?: number;
   ymin?: number;

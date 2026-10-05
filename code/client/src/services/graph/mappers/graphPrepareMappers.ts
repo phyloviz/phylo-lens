@@ -1,3 +1,4 @@
+import { toDatasetId, toLayoutVersion } from "../../../contracts/graph/graphIdentifiers";
 import type { GraphPrepareRequest } from "../../../contracts/graph/prepare/GraphPrepareRequest";
 import type { GraphPrepareRequestDto } from "../models/prepare/GraphPrepareRequestDto";
 import { toAncillaryDataInputDto } from "./graphAncillaryMappers";
@@ -23,8 +24,8 @@ export function toGraphPrepareRequestDto(request: GraphPrepareRequest): GraphPre
 
 function toGraphPrepareResult(dto: GraphPrepareResponseDto): GraphPrepareResult {
   return {
-    datasetId: dto.dataset_id,
-    layoutVersion: dto.layout_version,
+    datasetId: toDatasetId(dto.dataset_id),
+    layoutVersion: toLayoutVersion(dto.layout_version),
     nodeCount: dto.node_count,
     edgeCount: dto.edge_count,
     clusterCount: dto.cluster_count,
@@ -35,7 +36,7 @@ function toGraphPrepareResult(dto: GraphPrepareResponseDto): GraphPrepareResult 
 }
 
 export function toGraphPrepareJob(dto: GraphPrepareJobDto): GraphPrepareJob {
-  return { jobId: dto.job_id, status: dto.status, datasetId: dto.dataset_id };
+  return { jobId: dto.job_id, status: dto.status, datasetId: toDatasetId(dto.dataset_id) };
 }
 
 export function toGraphPrepareStatus(dto: GraphPrepareStatusDto): GraphPrepareStatus {

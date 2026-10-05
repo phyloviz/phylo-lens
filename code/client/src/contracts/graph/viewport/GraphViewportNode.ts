@@ -1,9 +1,10 @@
+import type { ClusterId, NodeId } from "../graphIdentifiers";
 import { GraphLayoutStatus } from "../graphTypes";
 import type { NodeAnnotations, Isolate, AncillaryObservation } from "../../ancillary";
 
 export interface GraphViewportNode {
-  id: string;
-  clusterId: string;
+  id: NodeId;
+  clusterId: ClusterId;
   x: number;
   y: number;
   layoutStatus: GraphLayoutStatus;

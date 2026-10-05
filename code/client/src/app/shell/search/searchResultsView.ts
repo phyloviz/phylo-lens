@@ -1,8 +1,9 @@
+import type { ClusterId, NodeId } from "../../../contracts/graph/graphIdentifiers";
 export interface SearchResultItem {
-  nodeId: string;
+  nodeId: NodeId;
   matchedText: string;
   score: number;
-  clusterId?: string | null;
+  clusterId?: ClusterId | null;
   // Global layout coordinates of the matched node (omitted when unavailable),
   // forwarded to the focus handler so it can fetch a region around the hit.
   x?: number | null;

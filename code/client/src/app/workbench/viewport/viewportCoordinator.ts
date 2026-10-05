@@ -1,3 +1,5 @@
+import { toNodeId } from "../../../contracts/graph/graphIdentifiers";
+import type { ClusterId, DatasetId, LayoutVersion, NodeId } from "../../../contracts/graph/graphIdentifiers";
 import { retainMovedNodes } from "./retainMovedNodes";
 import type { ExpansionState, ExpansionResult } from "../../../contracts/expansion";
 import { composeExpandedViewport } from "./expandedViewport";
@@ -27,8 +29,8 @@ import {
 } from "./viewportSnapshot";
 
 export interface GraphViewportCoordinatorOptions {
-  datasetId: string;
-  layoutVersion?: string | null;
+  datasetId: DatasetId;
+  layoutVersion?: LayoutVersion | null;
   client: Pick<GraphClient, "readViewport">;
   renderer: GraphRenderer;
   debounceMs?: number;
@@ -54,8 +56,8 @@ export const VIEWPORT_INITIAL_FIT_DURATION_MS = 300;
 export const ERR_VIEWPORT_COORDINATOR_UNMOUNTED = "Viewport sync was unmounted before the initial viewport loaded.";
 
 export class GraphViewportCoordinator {
-  private readonly datasetId: string;
-  private layoutVersion?: string | null;
+  private readonly datasetId: DatasetId;
+  private layoutVersion?: LayoutVersion | null;
   private readonly client: Pick<GraphClient, "readViewport">;
   private readonly renderer: GraphRenderer;
   private readonly debounceMs: number;
@@ -106,10 +108,10 @@ export class GraphViewportCoordinator {
   private readonly initialViewportLoaded: Promise<PositionedGraph>;
   private resolveInitialViewport: (graph: PositionedGraph) => void = () => undefined;
   private rejectInitialViewport: (error: unknown) => void = () => undefined;
-  private readonly expandedPatches = new Map<string, GraphViewportResult>();
+  private readonly expandedPatches = new Map<ClusterId, GraphViewportResult>();
   private baseResponse: GraphViewportResult | null = null;
   private keepExpanded = false;
-  private priorityNodeId: string | null = null;
+  private priorityNodeId: NodeId | null = null;
   private allExpanded = false;
   private expansionPartial = false;
   private expansionLodLevel: number | undefined;
@@ -190,7 +192,7 @@ export class GraphViewportCoordinator {
     this.scheduleViewportRefresh(0);
   }
 
-  async replaceLayoutVersion(version: string): Promise<void> {
+  async replaceLayoutVersion(version: LayoutVersion): Promise<void> {
     if (!this.mounted || !this.loadedInitialViewport || !this.lastViewportRequest || this.replacingLayout) {
       throw new Error(
         "Cannot replace ancillary data before the view is ready or while another replacement is pending.",
@@ -279,8 +281,8 @@ export class GraphViewportCoordinator {
   }
 
   async expandCluster(
-    clusterId: string,
-    options: { fitToResponse?: boolean; focusNodeId?: string | null } = {},
+    clusterId: ClusterId,
+    options: { fitToResponse?: boolean; focusNodeId?: NodeId | null } = {},
   ): Promise<ExpansionResult> {
     this.requireExpansionReady();
     if (!clusterId) throw new Error("A cluster ID is required.");
@@ -363,7 +365,7 @@ export class GraphViewportCoordinator {
     return this.expansionResult();
   }
 
-  collapseCluster(clusterId: string): ExpansionState {
+  collapseCluster(clusterId: ClusterId): ExpansionState {
     this.requireExpansionReady();
     this.beginExpansion();
     this.expandedPatches.delete(clusterId);
@@ -540,7 +542,7 @@ export class GraphViewportCoordinator {
         response = retainMovedNodes(
           response,
           this.baseResponse,
-          this.renderer.getVisibleDisplacedNodeIds?.() ?? [],
+          (this.renderer.getVisibleDisplacedNodeIds?.() ?? []).map(toNodeId),
           this.maxNodes,
         );
       }
@@ -601,8 +603,8 @@ export class GraphViewportCoordinator {
   // Cluster requests and rendering
 
   private readCluster(
-    clusterId: string,
-    focusNodeId?: string | null,
+    clusterId: ClusterId,
+    focusNodeId?: NodeId | null,
     version = this.layoutVersion,
   ): Promise<GraphViewportResult> {
     const viewState = this.renderer.getViewportState?.() ?? null;
@@ -620,7 +622,7 @@ export class GraphViewportCoordinator {
   private applyGraph(
     graph: PositionedGraph,
     reason: SnapshotApplicationReason,
-    clusterId: string | null = null,
+    clusterId: ClusterId | null = null,
     preservePositions = false,
   ): void {
     if (!this.renderer.applyGraphSnapshot) {

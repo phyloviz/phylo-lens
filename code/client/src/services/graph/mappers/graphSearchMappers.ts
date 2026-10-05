@@ -1,3 +1,4 @@
+import { toClusterId, toDatasetId, toNodeId } from "../../../contracts/graph/graphIdentifiers";
 import type { GraphSearchRequest } from "../../../contracts/graph/search/GraphSearchRequest";
 import type { GraphSearchRequestDto } from "../models/search/GraphSearchRequestDto";
 import type { GraphSearchResponseDto } from "../models/search/GraphSearchResponseDto";
@@ -14,14 +15,14 @@ export function toGraphSearchRequestDto(request: GraphSearchRequest): GraphSearc
 
 export function toGraphSearchResult(dto: GraphSearchResponseDto): GraphSearchResult {
   return {
-    datasetId: dto.dataset_id,
+    datasetId: toDatasetId(dto.dataset_id),
     query: dto.query,
     totalCount: dto.total_count,
     matches: dto.matches.map((match) => ({
-      nodeId: match.node_id,
+      nodeId: toNodeId(match.node_id),
       score: match.score,
       matchedText: match.matched_text,
-      clusterId: match.cluster_id,
+      clusterId: match.cluster_id == null ? match.cluster_id : toClusterId(match.cluster_id),
       x: match.x,
       y: match.y,
     })),

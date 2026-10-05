@@ -1,3 +1,4 @@
+import { toClusterId, toDatasetId, toLayoutVersion, toNodeId } from "../../../contracts/graph/graphIdentifiers";
 import { decodeApiMetadata } from "../../../ancillary/apiMetadata";
 import type { GraphViewportRequest } from "../../../contracts/graph/viewport/GraphViewportRequest";
 import type { GraphViewportRequestDto } from "../models/viewport/GraphViewportRequestDto";
@@ -37,8 +38,8 @@ function toGraphIsolate(dto: GraphIsolateDto): Isolate {
 
 export function toGraphViewportNode(dto: GraphViewportNodeDto): GraphViewportNode {
   return {
-    id: dto.id,
-    clusterId: dto.cluster_id,
+    id: toNodeId(dto.id),
+    clusterId: toClusterId(dto.cluster_id),
     x: dto.x,
     y: dto.y,
     layoutStatus: dto.layout_status,
@@ -51,7 +52,13 @@ export function toGraphViewportNode(dto: GraphViewportNodeDto): GraphViewportNod
 }
 
 export function toGraphViewportEdge(dto: GraphViewportEdgeDto): GraphViewportEdge {
-  return { id: dto.id, source: dto.source, target: dto.target, distance: dto.distance, isMeta: dto.is_meta };
+  return {
+    id: dto.id,
+    source: toNodeId(dto.source),
+    target: toNodeId(dto.target),
+    distance: dto.distance,
+    isMeta: dto.is_meta,
+  };
 }
 
 function toGraphLayoutBounds(dto: GraphLayoutBoundsDto): GraphLayoutBounds {
@@ -60,8 +67,8 @@ function toGraphLayoutBounds(dto: GraphLayoutBoundsDto): GraphLayoutBounds {
 
 export function toGraphViewportResult(dto: GraphViewportResponseDto): GraphViewportResult {
   return {
-    datasetId: dto.dataset_id,
-    layoutVersion: dto.layout_version,
+    datasetId: toDatasetId(dto.dataset_id),
+    layoutVersion: toLayoutVersion(dto.layout_version),
     lodLevel: dto.lod_level,
     zoom: dto.zoom,
     layoutStatus: dto.layout_status,

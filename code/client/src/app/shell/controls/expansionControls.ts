@@ -1,3 +1,4 @@
+import { toClusterId } from "../../../contracts/graph/graphIdentifiers";
 import type { GraphWorkbench } from "../../workbench/graphWorkbench.types";
 import type { RenderNodeClickState } from "../../../render/renderer.types";
 import type { ExpansionState } from "../../../contracts/expansion";
@@ -19,7 +20,7 @@ export function expansionControls(workbench: GraphWorkbench, elements: Expansion
   let busy = false;
   let failure: string | null = null;
   const available = Object.values(elements).some(Boolean);
-  const clusterId = () => String(selected?.attributes?.clusterId ?? selected?.nodeId ?? "");
+  const clusterId = () => toClusterId(String(selected?.attributes?.clusterId ?? selected?.nodeId ?? ""));
 
   function update() {
     if (!available) return;

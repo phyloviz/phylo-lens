@@ -1,3 +1,4 @@
+import type { ClusterId, DatasetId, LayoutVersion, NodeId } from "../../contracts/graph/graphIdentifiers";
 import type { GraphSearchResult } from "../../contracts/graph/search/GraphSearchResult";
 import type { AncillaryValue } from "../../contracts/ancillary";
 import type { DragSelection, PngExportOptions } from "../../render/renderer.types";
@@ -28,7 +29,7 @@ import type { AncillaryInputOptions } from "../../ancillary/ancillaryInput";
 // region stats panel.
 export interface RegionSelectionResult {
   scope?: "display";
-  nodeIds: string[];
+  nodeIds: NodeId[];
   nodeCount: number;
   truncated: boolean;
   aggregatedMetadata: Record<string, AncillaryValue>;
@@ -65,8 +66,8 @@ export type GraphRenderedHandler = (graph: PositionedGraph) => void;
 export type GraphNodeClickedHandler = (state: RenderNodeClickState) => void;
 
 export interface GraphWorkbench {
-  expandCluster: (clusterId: string) => Promise<ExpansionResult>;
-  collapseCluster: (clusterId: string) => ExpansionState;
+  expandCluster: (clusterId: ClusterId) => Promise<ExpansionResult>;
+  collapseCluster: (clusterId: ClusterId) => ExpansionState;
   expandAll: () => Promise<ExpansionResult>;
   collapseAll: () => Promise<ExpansionResult>;
   setKeepExpanded: (keep: boolean) => ExpansionState;
@@ -99,8 +100,8 @@ export interface GraphWorkbench {
 
   cancelPendingFocus: () => void;
   focusNode: (
-    nodeId: string,
-    coordinates?: { x: number | null; y: number | null; clusterId?: string | null },
+    nodeId: NodeId,
+    coordinates?: { x: number | null; y: number | null; clusterId?: ClusterId | null },
   ) => Promise<PositionedGraph>;
 
   setErrorHandler: (handler: ((error: unknown) => void) | null) => void;
@@ -128,8 +129,8 @@ export interface GraphWorkbench {
 // Internal workbench state.
 
 export interface GraphSession {
-  readonly datasetId: string;
-  readonly layoutVersion: string;
+  readonly datasetId: DatasetId;
+  readonly layoutVersion: LayoutVersion;
   readonly visualMapping?: VisualMappingOptions;
   readonly displayOptions?: GraphDisplayOptions;
   readonly layoutWarnings?: readonly string[];

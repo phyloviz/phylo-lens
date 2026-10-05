@@ -1,3 +1,5 @@
+import { toNodeId } from "../../contracts/graph/graphIdentifiers";
+import type { ClusterId, NodeId } from "../../contracts/graph/graphIdentifiers";
 import type { GraphSearchResult } from "../../contracts/graph/search/GraphSearchResult";
 
 import type { PositionedGraph } from "../../contracts/positioned";
@@ -54,7 +56,7 @@ export default function createGraphNavigation({
     // display explicitly; its ancillary wheel is built from these same node IDs.
     const displayed = renderer.getDisplayedNodesInBounds?.(bounds);
     if (displayed) {
-      const nodeIds = [...displayed];
+      const nodeIds = [...displayed].map(toNodeId);
       renderer.setHighlightedNodes?.(new Set(nodeIds));
       return {
         nodeIds,
@@ -118,8 +120,8 @@ export default function createGraphNavigation({
   }
 
   async function focusNode(
-    nodeId: string,
-    coordinates?: { x: number | null; y: number | null; clusterId?: string | null },
+    nodeId: NodeId,
+    coordinates?: { x: number | null; y: number | null; clusterId?: ClusterId | null },
   ): Promise<PositionedGraph> {
     const session = getGraphSession(getState());
     const generation = getLoadGeneration();

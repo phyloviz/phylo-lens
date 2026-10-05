@@ -1,6 +1,7 @@
+import type { DatasetId, LayoutVersion } from "../graphIdentifiers";
 export interface GraphSearchRequest {
-  datasetId: string;
-  layoutVersion?: string | null;
+  datasetId: DatasetId;
+  layoutVersion?: LayoutVersion | null;
   query: string;
   limit?: number;
 }

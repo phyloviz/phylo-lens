@@ -1,3 +1,4 @@
+import { toDatasetId, toLayoutVersion } from "../../../contracts/graph/graphIdentifiers";
 import type { GraphRegionRequest } from "../../../contracts/graph/region/GraphRegionRequest";
 import type { GraphRegionRequestDto } from "../models/region/GraphRegionRequestDto";
 import type { GraphRegionResponseDto } from "../models/region/GraphRegionResponseDto";
@@ -18,8 +19,8 @@ export function toGraphRegionRequestDto(request: GraphRegionRequest): GraphRegio
 
 export function toGraphRegionResult(dto: GraphRegionResponseDto): GraphRegionResult {
   return {
-    datasetId: dto.dataset_id,
-    layoutVersion: dto.layout_version,
+    datasetId: toDatasetId(dto.dataset_id),
+    layoutVersion: toLayoutVersion(dto.layout_version),
     layoutStatus: dto.layout_status,
     truncated: dto.truncated,
     totalNodeCount: dto.total_node_count,

@@ -1,3 +1,4 @@
+import { toDatasetId, toLayoutVersion } from "../../../contracts/graph/graphIdentifiers";
 import type { AncillaryDataInput } from "../../../contracts/ancillary";
 import type { AncillaryDataInputDto } from "../models/ancillary/AncillaryDataInputDto";
 import type { GraphAncillaryRequest } from "../../../contracts/graph/ancillary/GraphAncillaryRequest";
@@ -19,8 +20,8 @@ export function toGraphAncillaryRequestDto(request: GraphAncillaryRequest): Grap
 
 export function toGraphAncillaryResult(dto: GraphAncillaryResponseDto): GraphAncillaryResult {
   return {
-    datasetId: dto.dataset_id,
-    layoutVersion: dto.layout_version,
+    datasetId: toDatasetId(dto.dataset_id),
+    layoutVersion: toLayoutVersion(dto.layout_version),
     matchedNodeCount: dto.matched_node_count,
     warnings: dto.warnings,
   };

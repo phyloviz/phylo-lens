@@ -1,3 +1,4 @@
+import type { NodeId } from "../../../contracts/graph/graphIdentifiers";
 import type { GraphViewportResult } from "../../../contracts/graph/viewport/GraphViewportResult";
 
 /** A node dragged into view must not disappear just because a budgeted server
@@ -7,7 +8,7 @@ import type { GraphViewportResult } from "../../../contracts/graph/viewport/Grap
 export function retainMovedNodes(
   next: GraphViewportResult,
   previous: GraphViewportResult | null,
-  visibleMovedIds: readonly string[],
+  visibleMovedIds: readonly NodeId[],
   maxNodes: number | undefined,
 ): GraphViewportResult {
   if (
@@ -21,7 +22,7 @@ export function retainMovedNodes(
 
   const incoming = new Map(next.nodes.map((n) => [n.id, n]));
   const old = new Map(previous.nodes.map((n) => [n.id, n]));
-  const nodes = new Map<string, GraphViewportResult["nodes"][number]>();
+  const nodes = new Map<NodeId, GraphViewportResult["nodes"][number]>();
 
   for (const id of visibleMovedIds) {
     const n = incoming.get(id) ?? old.get(id);

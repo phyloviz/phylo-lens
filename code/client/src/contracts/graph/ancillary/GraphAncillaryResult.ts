@@ -1,6 +1,7 @@
+import type { DatasetId, LayoutVersion } from "../graphIdentifiers";
 export interface GraphAncillaryResult {
-  datasetId: string;
-  layoutVersion: string;
+  datasetId: DatasetId;
+  layoutVersion: LayoutVersion;
   matchedNodeCount: number;
   warnings: string[];
 }

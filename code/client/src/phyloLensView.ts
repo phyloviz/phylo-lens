@@ -1,3 +1,5 @@
+import { toNodeId, toClusterId } from "./contracts/graph/graphIdentifiers";
+import type { ClusterId, NodeId } from "./contracts/graph/graphIdentifiers";
 import type { DragSelection, PngExportOptions } from "./render/renderer.types";
 import type { ExpansionState, ExpansionResult } from "./contracts/expansion";
 import type { AncillaryTableInput } from "./contracts/ancillary";
@@ -20,7 +22,7 @@ export interface PhyloLensViewOptions {
   container: HTMLElement;
   apiUrl: string;
   onError?: (error: unknown) => void;
-  onNodeSelected?: (selection: { nodeId: string | null; clusterId: string | null; expandable: boolean }) => void;
+  onNodeSelected?: (selection: { nodeId: NodeId | null; clusterId: ClusterId | null; expandable: boolean }) => void;
   onInteractionFeedback?: (message: string) => void;
   onExpansionChanged?: (state: ExpansionState) => void;
 }
@@ -47,8 +49,8 @@ export interface PhyloLensView {
   searchNodes: GraphWorkbench["searchNodes"];
   focusNode: GraphWorkbench["focusNode"];
   cancelPendingFocus: () => void;
-  expandCluster: (clusterId: string) => Promise<ExpansionResult>;
-  collapseCluster: (clusterId: string) => ExpansionState;
+  expandCluster: (clusterId: ClusterId) => Promise<ExpansionResult>;
+  collapseCluster: (clusterId: ClusterId) => ExpansionState;
   expandAll: () => Promise<ExpansionResult>;
   collapseAll: () => Promise<ExpansionResult>;
   setKeepExpanded: (keep: boolean) => ExpansionState;
@@ -73,8 +75,8 @@ export function createPhyloLensView(options: PhyloLensViewOptions): PhyloLensVie
   workbench.setInteractionFeedbackHandler(options.onInteractionFeedback ?? null);
   workbench.setNodeClickedHandler((state) =>
     options.onNodeSelected?.({
-      nodeId: state.nodeId,
-      clusterId: typeof state.attributes?.clusterId === "string" ? state.attributes.clusterId : null,
+      nodeId: state.nodeId === null ? null : toNodeId(state.nodeId),
+      clusterId: typeof state.attributes?.clusterId === "string" ? toClusterId(state.attributes.clusterId) : null,
       expandable: state.attributes?.isClusterProxy === true,
     }),
   );

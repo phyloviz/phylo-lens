@@ -1,3 +1,4 @@
+import type { DatasetId, LayoutVersion } from "../../../contracts/graph/graphIdentifiers";
 import type { GraphViewportRequest } from "../../../contracts/graph/viewport/GraphViewportRequest";
 import type { RenderViewportBounds, RenderViewportRequestState } from "../../../render/renderer.types";
 
@@ -26,8 +27,8 @@ export function buildGraphViewportRequest({
   previousEffectiveLodLevel,
   representationSpacingPx = DEFAULT_LOD_REPRESENTATION_SPACING_PX,
 }: {
-  datasetId: string;
-  layoutVersion?: string | null;
+  datasetId: DatasetId;
+  layoutVersion?: LayoutVersion | null;
   viewState: RenderViewportRequestState | null;
   maxNodes?: number;
   forceGlobal?: boolean;
