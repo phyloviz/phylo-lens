@@ -14,7 +14,7 @@ import type {
   RenderInteractiveAggregateTarget,
   RenderNodeClickState,
   RenderViewportBounds,
-  RenderViewportSyncState,
+  RenderViewportRequestState,
   RendererKind,
   RenderViewportState,
 } from "../../renderer.types";
@@ -434,7 +434,7 @@ export class SigmaRenderer implements GraphRenderer {
     this.regionSelectedHandler = handler;
   }
 
-  getViewportSyncState(): RenderViewportSyncState | null {
+  getViewportState(): RenderViewportRequestState | null {
     if (!this.sigma) {
       return null;
     }

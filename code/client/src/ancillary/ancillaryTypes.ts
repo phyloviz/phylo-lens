@@ -15,8 +15,3 @@ export interface AncillaryFilterState {
   categorical: CategoricalFieldFilter[];
   numeric: NumericFieldFilter[];
 }
-
-export interface NumericStats {
-  min: number;
-  max: number;
-}

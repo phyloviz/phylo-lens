@@ -1,4 +1,5 @@
-import type { GraphAncillaryResult, GraphClient } from "../../contracts/graph";
+import type { GraphAncillaryResult } from "../../contracts/graph/ancillary/GraphAncillaryResult";
+import type { GraphClient } from "../../contracts/graph/GraphClient";
 import type { AncillaryTableInput } from "../../contracts/ancillary";
 import { GRAPH_WORKBENCH_ERRORS } from "./graphWorkbench.errors";
 import { getGraphSession } from "./graphWorkbench.state";
@@ -15,29 +16,38 @@ export interface UpdateGraphAncillaryDataDependencies {
   readonly getViewportCoordinator: () => GraphViewportCoordinator | null;
 }
 
-export async function updateGraphAncillaryData(
-  dependencies: UpdateGraphAncillaryDataDependencies,
-  data: AncillaryTableInput,
-): Promise<GraphAncillaryResult> {
-  const { getState, graphClient, requireViewportCoordinator, getLoadGeneration, getViewportCoordinator } = dependencies;
+export function createGraphAncillaryUpdater(dependencies: UpdateGraphAncillaryDataDependencies) {
+  let pending: { coordinator: GraphViewportCoordinator; generation: number } | null = null;
 
-  const coordinator = requireViewportCoordinator();
-  const session = getGraphSession(getState());
-  const generation = getLoadGeneration();
-
-  const result = await graphClient.applyAncillaryData({
-    datasetId: session.datasetId,
-    layoutVersion: session.layoutVersion,
-    ancillaryData: data,
-  });
-
-  assertCurrentGraph(generation, coordinator, getLoadGeneration, getViewportCoordinator);
-
-  await coordinator.replaceLayoutVersion(result.layoutVersion);
-
-  assertCurrentGraph(generation, coordinator, getLoadGeneration, getViewportCoordinator);
-
-  return result;
+  return async function updateGraphAncillaryData(data: AncillaryTableInput): Promise<GraphAncillaryResult> {
+    const { getState, graphClient, requireViewportCoordinator, getLoadGeneration, getViewportCoordinator } =
+      dependencies;
+    const coordinator = requireViewportCoordinator();
+    const session = getGraphSession(getState());
+    const generation = getLoadGeneration();
+    if (pending?.coordinator === coordinator && pending.generation === generation) {
+      throw new Error("An ancillary update is already pending for this graph.");
+    }
+    const operation = { coordinator, generation };
+    pending = operation;
+    const assertCurrent = () => assertCurrentGraph(generation, coordinator, getLoadGeneration, getViewportCoordinator);
+    try {
+      const result = await graphClient.applyAncillaryData({
+        datasetId: session.datasetId,
+        layoutVersion: session.layoutVersion,
+        ancillaryData: data,
+      });
+      assertCurrent();
+      await coordinator.replaceLayoutVersion(result.layoutVersion);
+      assertCurrent();
+      return result;
+    } catch (error) {
+      assertCurrent();
+      throw error;
+    } finally {
+      if (pending === operation) pending = null;
+    }
+  };
 }
 
 function assertCurrentGraph(

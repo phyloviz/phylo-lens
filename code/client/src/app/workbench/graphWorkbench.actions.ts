@@ -1,5 +1,5 @@
 import type { AncillaryFilterState } from "../../ancillary/ancillaryTypes";
-import type { GraphViewportResult } from "../../contracts/graph";
+import type { GraphViewportResult } from "../../contracts/graph/viewport/GraphViewportResult";
 import type { PositionedGraph } from "../../contracts/positioned";
 import type { GraphDisplayOptions } from "../../render/renderer.types";
 import type { VisualMappingOptions } from "../../render/mapping/visualMapping";
@@ -12,7 +12,7 @@ export const ACTIONS = {
   visualMappingUpdated: "visualMappingUpdated",
   displayOptionsUpdated: "displayOptionsUpdated",
   graphPrepared: "graphPrepared",
-  viewportSynced: "viewportSynced",
+  viewportApplied: "viewportApplied",
   graphCleared: "graphCleared",
 } as const;
 
@@ -41,7 +41,7 @@ export type GraphWorkbenchAction =
       readonly session: GraphSession;
     }
   | {
-      readonly type: typeof ACTIONS.viewportSynced;
+      readonly type: typeof ACTIONS.viewportApplied;
       readonly graph: PositionedGraph;
       readonly response?: GraphViewportResult;
     }

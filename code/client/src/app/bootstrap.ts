@@ -1,10 +1,8 @@
-import { createGraphClient } from "../api/graphClient";
+import { createGraphClient } from "../services/graph/graphService";
 import rendererFactory from "../render/rendererFactory";
 import { RENDERER_KIND_SIGMA } from "../render/renderer.types";
 import { createGraphWorkbench } from "./workbench/graphWorkbench";
 import uiShell, { type UiShell } from "./uiShell";
-
-export const DEFAULT_SERVER_BASE_URL = ""; //TODO: See a way to remove this, because having an empty constant does not help much..
 
 export const ID_RENDER_FORM = "render-form";
 export const ID_NEWICK_INPUT = "newick-input";
@@ -46,7 +44,7 @@ export const ERR_MISSING_NEWICK_INPUT = "Missing Newick input element.";
 export const ERR_MISSING_STATUS = "Missing status element.";
 export const ERR_MISSING_GRAPH_ROOT = "Missing graph root element.";
 
-export default function bootstrapClientShell(baseUrl = DEFAULT_SERVER_BASE_URL): UiShell {
+export default function bootstrapClientShell(baseUrl = ""): UiShell {
   const elements = {
     form: requireElement<HTMLFormElement>(ID_RENDER_FORM, ERR_MISSING_RENDER_FORM),
     newickInput: requireElement<HTMLTextAreaElement>(ID_NEWICK_INPUT, ERR_MISSING_NEWICK_INPUT),

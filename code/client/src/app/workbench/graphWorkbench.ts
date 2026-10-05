@@ -1,5 +1,5 @@
 import { type PositionedGraph } from "../../contracts/positioned";
-import { updateGraphAncillaryData } from "./updateGraphAncillaryData";
+import { createGraphAncillaryUpdater } from "./updateGraphAncillaryData";
 import graphFilters from "./graphFilters";
 import { loadGraph } from "./loadGraph";
 import { createInitialWorkbenchState, hasGraphSession } from "./graphWorkbench.state";
@@ -17,7 +17,6 @@ import type { SnapshotAppliedObserver } from "./internalSnapshotObserver";
 import { ACTIONS, type GraphWorkbenchAction } from "./graphWorkbench.actions";
 import { reduceGraphWorkbenchState } from "./graphWorkbench.reducer";
 
-export { DEFAULT_VIEWPORT } from "./viewportGraph";
 export type {
   GraphInput,
   LoadGraphOptions,
@@ -49,9 +48,9 @@ export function createGraphWorkbench(
   let snapshotSequence = 0;
   let disposed = false;
 
-  const replaceViewportCoordinator = (controller: GraphViewportCoordinator | null) => {
+  const replaceViewportCoordinator = (coordinator: GraphViewportCoordinator | null) => {
     viewportCoordinator?.unmount();
-    viewportCoordinator = controller;
+    viewportCoordinator = coordinator;
   };
 
   const renderer = options.rendererFactory.createRenderer(options.rendererKind);
@@ -66,7 +65,6 @@ export function createGraphWorkbench(
 
   const navigation = graphNavigation({
     getState,
-    dispatch,
     renderer,
     graphClient: options.graphClient,
     getViewportCoordinator: () => viewportCoordinator,
@@ -104,6 +102,14 @@ export function createGraphWorkbench(
     return viewportCoordinator;
   };
 
+  const updateAncillaryData = createGraphAncillaryUpdater({
+    getState,
+    graphClient: options.graphClient,
+    requireViewportCoordinator,
+    getLoadGeneration: () => loadGeneration,
+    getViewportCoordinator: () => viewportCoordinator,
+  });
+
   return {
     setMotionEnabled: (enabled) => renderer.setMotionEnabled?.(enabled),
     isMotionEnabled: () => renderer.isMotionEnabled?.() ?? false,
@@ -118,6 +124,7 @@ export function createGraphWorkbench(
     getExpansionState: () => requireViewportCoordinator().getExpansionState(),
     loadGraph: (input, loadOptions) => {
       const generation = ++loadGeneration;
+      navigation.cancelPendingRegionSelection();
 
       return loadGraph(
         {
@@ -140,17 +147,7 @@ export function createGraphWorkbench(
       );
     },
 
-    applyAncillaryData: (data) =>
-      updateGraphAncillaryData(
-        {
-          getState,
-          graphClient: options.graphClient,
-          requireViewportCoordinator,
-          getLoadGeneration: () => loadGeneration,
-          getViewportCoordinator: () => viewportCoordinator,
-        },
-        data,
-      ),
+    applyAncillaryData: updateAncillaryData,
 
     exportPng: (exportOptions) => {
       if (!renderer.exportPng) {
@@ -195,6 +192,7 @@ export function createGraphWorkbench(
     },
 
     clearRegionSelection: () => {
+      navigation.cancelPendingRegionSelection();
       renderer.setHighlightedNodes?.(null);
     },
 

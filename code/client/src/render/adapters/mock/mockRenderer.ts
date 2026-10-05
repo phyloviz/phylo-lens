@@ -4,7 +4,7 @@ import {
   RENDERER_KIND_MOCK,
   type RenderContext,
   type RenderNodeClickState,
-  type RenderViewportSyncState,
+  type RenderViewportRequestState,
   type RendererKind,
   type RenderViewportState,
 } from "../../renderer.types";
@@ -21,7 +21,7 @@ export default function () {
   let viewChangeHandler: ((state: RenderViewportState) => void) | null = null;
   let nodeClickHandler: ((state: RenderNodeClickState) => void) | null = null;
   let nodeDoubleClickHandler: ((state: RenderNodeClickState) => void) | null = null;
-  let viewportSyncState: RenderViewportSyncState | null = {
+  let viewportState: RenderViewportRequestState | null = {
     bounds: { xmin: 0, xmax: 100, ymin: 0, ymax: 100 },
     cameraRatio: 1,
   };
@@ -35,7 +35,7 @@ export default function () {
     centerOnNode: centerOnNode,
     centerOnCoordinates: centerOnCoordinates,
     focusNode: focusNode,
-    getViewportSyncState: getViewportSyncState,
+    getViewportState: getViewportState,
     applyGraphSnapshot: render,
     fitGraphSnapshot: fitGraphSnapshot,
     setNodeDoubleClickHandler: setNodeDoubleClickHandler,
@@ -45,7 +45,7 @@ export default function () {
     getLastCenteredNodeId: getLastCenteredNodeId,
     getLastCenteredCoordinates: getLastCenteredCoordinates,
     getLastFocusedNodeId: getLastFocusedNodeId,
-    setViewportSyncState: setViewportSyncState,
+    setViewportState: setViewportState,
     emitViewChange: emitViewChange,
     emitNodeClick: emitNodeClick,
     emitNodeDoubleClick: emitNodeDoubleClick,
@@ -56,7 +56,7 @@ export default function () {
     getLastCenteredNodeId: typeof getLastCenteredNodeId;
     getLastCenteredCoordinates: typeof getLastCenteredCoordinates;
     getLastFocusedNodeId: typeof getLastFocusedNodeId;
-    setViewportSyncState: typeof setViewportSyncState;
+    setViewportState: typeof setViewportState;
     emitViewChange: typeof emitViewChange;
     emitNodeClick: typeof emitNodeClick;
     emitNodeDoubleClick: typeof emitNodeDoubleClick;
@@ -98,12 +98,12 @@ export default function () {
     lastFocusedNodeId = nodeId;
   }
 
-  function getViewportSyncState(): RenderViewportSyncState | null {
-    return viewportSyncState;
+  function getViewportState(): RenderViewportRequestState | null {
+    return viewportState;
   }
 
-  function setViewportSyncState(state: RenderViewportSyncState | null): void {
-    viewportSyncState = state;
+  function setViewportState(state: RenderViewportRequestState | null): void {
+    viewportState = state;
   }
 
   function fitGraphSnapshot(): null {

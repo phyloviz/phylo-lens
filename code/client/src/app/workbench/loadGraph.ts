@@ -1,5 +1,7 @@
 import { resolveAncillaryInput } from "../../ancillary/ancillaryInput";
-import type { GraphPrepareRequest, GraphClient, GraphPrepareResult } from "../../contracts/graph";
+import type { GraphPrepareRequest } from "../../contracts/graph/prepare/GraphPrepareRequest";
+import type { GraphClient } from "../../contracts/graph/GraphClient";
+import type { GraphPrepareResult } from "../../contracts/graph/prepare/GraphPrepareResult";
 import type { PositionedGraph } from "../../contracts/positioned";
 import type { GraphRenderer } from "../../render/renderer.types";
 import { ACTIONS, type GraphWorkbenchAction } from "./graphWorkbench.actions";
@@ -7,8 +9,7 @@ import { GRAPH_WORKBENCH_ERRORS } from "./graphWorkbench.errors";
 import type { GraphInput, GraphSession, GraphWorkbenchState, LoadGraphOptions } from "./graphWorkbench.types";
 import type { SnapshotAppliedObserver } from "./internalSnapshotObserver";
 import { GraphViewportCoordinator } from "./viewport/viewportCoordinator";
-import { GRAPH_VIEWER_SMALL_TREE_NODE_THRESHOLD } from "./viewport/viewportQuery";
-import { DEFAULT_VIEWPORT } from "./viewportGraph";
+import { GRAPH_VIEWER_SMALL_TREE_NODE_THRESHOLD } from "./viewport/viewportRequest";
 
 export interface LoadGraphDependencies {
   readonly getState: () => GraphWorkbenchState;
@@ -70,7 +71,7 @@ export async function loadGraph(
 
   assertCurrentLoad(isCurrentLoad);
 
-  const session = createGraphSession(preparedGraph, ancillary, options);
+  const session = createGraphSession(preparedGraph, options);
 
   dispatch({
     type: ACTIONS.graphPrepared,
@@ -92,9 +93,10 @@ export async function loadGraph(
 
     getPaused: () => getState().lodRefreshPaused,
 
-    onGraphSynced: (graph, response) => {
+    onGraphApplied: (graph, response) => {
+      if (!isCurrentLoad()) return;
       dispatch({
-        type: ACTIONS.viewportSynced,
+        type: ACTIONS.viewportApplied,
         graph,
         response,
       });
@@ -115,8 +117,6 @@ export async function loadGraph(
       return {
         visualMapping: state.graphSession?.visualMapping,
         filterState: state.activeFilters,
-        ancillarySchema: state.graphSession?.ancillarySchema,
-        ancillaryByNodeId: state.graphSession?.ancillaryByNodeId,
         displayOptions: state.graphSession?.displayOptions,
       };
     },
@@ -153,7 +153,7 @@ function assertCurrentLoad(isCurrentLoad: () => boolean): void {
 }
 
 function requireViewportRenderer(renderer: GraphRenderer): void {
-  if (!renderer.getViewportSyncState || !renderer.applyGraphSnapshot) {
+  if (!renderer.getViewportState || !renderer.applyGraphSnapshot) {
     throw new Error(GRAPH_WORKBENCH_ERRORS.viewportRequired);
   }
 }
@@ -166,17 +166,10 @@ function resetRenderer(renderer: GraphRenderer): void {
   renderer.focusNode?.(null);
 }
 
-function createGraphSession(
-  preparedGraph: GraphPrepareResult,
-  ancillary: ReturnType<typeof resolveAncillaryInput>,
-  options: LoadGraphOptions,
-): GraphSession {
+function createGraphSession(preparedGraph: GraphPrepareResult, options: LoadGraphOptions): GraphSession {
   return {
     datasetId: preparedGraph.datasetId,
     layoutVersion: preparedGraph.layoutVersion,
-
-    ancillarySchema: ancillary.ancillarySchema,
-    ancillaryByNodeId: ancillary.ancillaryByNodeId,
 
     visualMapping: options.visualMapping,
     displayOptions: options.displayOptions,
@@ -188,8 +181,6 @@ function createGraphSession(
       maxNodes: options.lod?.maxNodes,
       representationSpacingPx: options.lod?.representationSpacingPx,
       smallTreeThreshold: options.lod?.smallTreeThreshold ?? GRAPH_VIEWER_SMALL_TREE_NODE_THRESHOLD,
-      lodHint: options.lod?.lodHint,
-      viewport: options.lod?.viewport ?? DEFAULT_VIEWPORT,
     },
   };
 }

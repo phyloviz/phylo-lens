@@ -26,7 +26,7 @@ export interface RenderViewportBounds {
   ymax: number;
 }
 
-export interface RenderViewportSyncState {
+export interface RenderViewportRequestState {
   /** Unpadded camera bounds for choosing detail; bounds may include a motion halo. */
   selectionBounds?: RenderViewportBounds;
   /** Conservative CSS-pixel footprint including glyph clearance, if available. */
@@ -125,7 +125,7 @@ export interface GraphRenderer {
 
   updateDisplayOptions?: (options: GraphDisplayOptions) => void;
 
-  getViewportSyncState?: () => RenderViewportSyncState | null;
+  getViewportState?: () => RenderViewportRequestState | null;
 
   applyGraphSnapshot?: (graph: PositionedGraph, options?: { preservePositions?: boolean }) => void;
 

@@ -1,9 +1,13 @@
+import type { GraphSearchResult } from "../../contracts/graph/search/GraphSearchResult";
 import type { AncillaryValue } from "../../contracts/ancillary";
 import type { DragSelection, PngExportOptions } from "../../render/renderer.types";
 import type { ExpansionResult, ExpansionState } from "../../contracts/expansion";
-import type { AncillaryData, AncillaryField, AncillaryTableInput } from "../../contracts/ancillary";
-import type { GraphAncillaryResult, SfdpOptions, GraphClient } from "../../contracts/graph";
-import type { SearchDatasetResponse, SourceFormat, Viewport } from "../../contracts/models";
+import type { AncillaryTableInput } from "../../contracts/ancillary";
+import type { GraphAncillaryResult } from "../../contracts/graph/ancillary/GraphAncillaryResult";
+import type { SfdpOptions } from "../../contracts/graph/SfdpOptions";
+import type { GraphClient } from "../../contracts/graph/GraphClient";
+import type { SourceFormat } from "../../contracts/models";
+
 import type { PositionedGraph } from "../../contracts/positioned";
 import type { AncillaryFilterState } from "../../ancillary/ancillaryTypes";
 import type { VisualMappingOptions } from "../../render/mapping/visualMapping";
@@ -28,7 +32,6 @@ export interface RegionSelectionResult {
   nodeCount: number;
   truncated: boolean;
   aggregatedMetadata: Record<string, AncillaryValue>;
-  metadataSchema: AncillaryField[];
 }
 
 export type RegionSelectedHandler = (bounds: RenderViewportBounds) => void;
@@ -48,8 +51,6 @@ export interface LoadGraphOptions extends AncillaryInputOptions {
     readonly maxNodes?: number;
     readonly representationSpacingPx?: number;
     readonly smallTreeThreshold?: number;
-    readonly lodHint?: number;
-    readonly viewport?: Viewport;
   };
 }
 
@@ -94,7 +95,7 @@ export interface GraphWorkbench {
 
   isLodRefreshPaused: () => boolean;
 
-  searchNodes: (query: { query: string; limit?: number }) => Promise<SearchDatasetResponse>;
+  searchNodes: (query: { query: string; limit?: number }) => Promise<GraphSearchResult>;
 
   cancelPendingFocus: () => void;
   focusNode: (
@@ -127,8 +128,6 @@ export interface GraphWorkbench {
 export interface GraphSession {
   readonly datasetId: string;
   readonly layoutVersion: string;
-  readonly ancillarySchema: readonly AncillaryField[];
-  readonly ancillaryByNodeId: Readonly<Record<string, AncillaryData>>;
   readonly visualMapping?: VisualMappingOptions;
   readonly displayOptions?: GraphDisplayOptions;
   readonly layoutWarnings?: readonly string[];
@@ -138,8 +137,6 @@ export interface GraphSession {
     readonly maxNodes?: number;
     readonly representationSpacingPx?: number;
     readonly smallTreeThreshold?: number;
-    readonly lodHint?: number;
-    readonly viewport: Viewport;
   };
 }
 

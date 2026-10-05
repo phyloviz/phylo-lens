@@ -64,12 +64,11 @@ export function reduceGraphWorkbenchState(
         graphSession: action.session,
       };
 
-    case ACTIONS.viewportSynced: {
+    case ACTIONS.viewportApplied: {
       const preparedSession =
         action.response && state.graphSession
           ? {
               ...state.graphSession,
-              ancillarySchema: action.response.ancillarySchema ?? [],
               layoutVersion: action.response.layoutVersion,
             }
           : state.graphSession;

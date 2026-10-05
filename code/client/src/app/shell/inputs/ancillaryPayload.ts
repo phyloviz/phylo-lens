@@ -1,5 +1,5 @@
 import { resolveAncillaryInput } from "../../../ancillary/ancillaryInput";
-import type { AncillaryField } from "../../../contracts/models";
+import type { AncillaryField } from "../../../contracts/ancillary";
 import type { VisualMappingOptions } from "../../../render/mapping/visualMapping";
 
 export const ERR_INVALID_ANCILLARY_JSON = "Ancillary JSON must include ancillary_schema and/or ancillary_by_node_id.";

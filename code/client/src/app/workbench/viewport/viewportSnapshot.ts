@@ -1,7 +1,8 @@
 import type { AncillaryObservation } from "../../../contracts/ancillary";
-import { type AncillaryInputOptions } from "../../../ancillary/ancillaryInput";
 import { decodeApiMetadata } from "../../../ancillary/apiMetadata";
-import type { GraphViewportEdge, GraphViewportNode, GraphViewportResult } from "../../../contracts/graph";
+import type { GraphViewportEdge } from "../../../contracts/graph/viewport/GraphViewportEdge";
+import type { GraphViewportNode } from "../../../contracts/graph/viewport/GraphViewportNode";
+import type { GraphViewportResult } from "../../../contracts/graph/viewport/GraphViewportResult";
 import type { PositionedEdge, PositionedGraph, PositionedNode } from "../../../contracts/positioned";
 import { hasActiveFilters, matchesFilterState } from "../../../ancillary/filterEngine";
 import type { AncillaryFilterState } from "../../../ancillary/ancillaryTypes";
@@ -38,7 +39,7 @@ export const GRAPH_VIEWER_EDGE_COLOR = "#94a3b8";
 export const GRAPH_VIEWER_BASE_EDGE_SIZE = 1;
 export const GRAPH_VIEWER_TRIANGLE_NODE_TYPE = "triangle";
 
-export interface ViewportSyncSettings extends AncillaryInputOptions {
+export interface ViewportRenderSettings {
   visualMapping?: VisualMappingOptions;
   filterState?: AncillaryFilterState;
   displayOptions?: GraphDisplayOptions;
@@ -58,7 +59,7 @@ interface ResolvedViewportVisuals {
 
 export function graphSnapshotFromViewportResponse(
   response: GraphViewportResult,
-  settings?: ViewportSyncSettings,
+  settings?: ViewportRenderSettings,
 ): PositionedGraph {
   const nodes = filteredViewportNodes(response, settings);
   const visuals = resolveViewportVisuals(nodes, settings);
@@ -209,7 +210,7 @@ function buildGraphViewportEdgeAttributes(
   };
 }
 
-function filteredViewportNodes(response: GraphViewportResult, settings?: ViewportSyncSettings): GraphViewportNode[] {
+function filteredViewportNodes(response: GraphViewportResult, settings?: ViewportRenderSettings): GraphViewportNode[] {
   const filterState = settings?.filterState;
   if (!filterState || !hasActiveFilters(filterState)) {
     return response.nodes;
@@ -222,7 +223,7 @@ function filteredViewportNodes(response: GraphViewportResult, settings?: Viewpor
 
 function resolveViewportVisuals(
   nodes: GraphViewportNode[],
-  settings?: ViewportSyncSettings,
+  settings?: ViewportRenderSettings,
 ): ResolvedViewportVisuals | null {
   const mapping = settings?.visualMapping;
   if (!mapping) {

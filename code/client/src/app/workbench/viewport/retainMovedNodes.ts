@@ -1,4 +1,4 @@
-import type { GraphViewportResult } from "../../../contracts/graph";
+import type { GraphViewportResult } from "../../../contracts/graph/viewport/GraphViewportResult";
 
 /** A node dragged into view must not disappear just because a budgeted server
  * query omits its original position. Merge raw records before visual filters,

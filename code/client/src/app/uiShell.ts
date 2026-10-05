@@ -3,6 +3,7 @@ import type { GraphWorkbench } from "./workbench/graphWorkbench";
 import type { LoadGraphOptions } from "./workbench/graphWorkbench.types";
 import type { PositionedGraph } from "../contracts/positioned";
 import { SOURCE_FORMAT_NEWICK, SOURCE_FORMAT_TYPING_DATA, type SourceFormat } from "../contracts/models";
+
 import { buildRenderedStatus } from "./shell/status/renderedStatus";
 import { parseAncillaryPayload } from "./shell/inputs/ancillaryPayload";
 import {
@@ -178,6 +179,7 @@ export default function (options: UiShellOptions): UiShell {
   const expansion = expansionControls(workbench, options.elements.expansion);
   let applyingAncillary = false;
   let loadingGraph = false;
+  let loadSequence = 0;
   let lastRenderedGraph: PositionedGraph | null = null;
   const bindings = eventBindings();
   const joinColumnPicker = ancillaryJoinColumnPicker({
@@ -394,28 +396,37 @@ export default function (options: UiShellOptions): UiShell {
 
   async function applyCurrentAncillaryData(): Promise<void> {
     if (!lastRenderedGraph || applyingAncillary || loadingGraph) return;
+    const sequence = loadSequence;
     applyingAncillary = true;
     updateApplyAncillaryButton();
     setStatus("Applying ancillary data...");
     try {
       const data = await getAncillaryDataInput();
+      if (sequence !== loadSequence) return;
       if (!data) throw new Error("Choose an ancillary table first.");
       const result = await workbench.applyAncillaryData(data);
+      if (sequence !== loadSequence) return;
       setStatus(
         `Applied ancillary data to ${result.matchedNodeCount} nodes.${result.warnings.length ? " " + result.warnings.join(" ") : ""}`,
       );
     } catch (error) {
+      if (sequence !== loadSequence) return;
       setFailureStatus(error instanceof Error ? error.message : "unknown error");
     } finally {
-      applyingAncillary = false;
-      updateApplyAncillaryButton();
+      if (sequence === loadSequence) {
+        applyingAncillary = false;
+        updateApplyAncillaryButton();
+      }
     }
   }
 
-  // Normalize and render using current user input values.
+  // Prepare and render the current input.
   async function renderCurrentInput(): Promise<void> {
+    const sequence = ++loadSequence;
+    applyingAncillary = false;
     const sourceFormat = getSourceFormat();
     const content = (await getSourceContent(sourceFormat)).trim();
+    if (sequence !== loadSequence) return;
     const datasetName = datasetNameInput?.value.trim();
     const ancillaryRaw = ancillaryInput?.value.trim() ?? "";
 
@@ -426,6 +437,7 @@ export default function (options: UiShellOptions): UiShell {
     }
 
     search.reset();
+    region.reset();
     resetDragControls();
     loadingGraph = true;
     expansion.setReady(false);
@@ -436,6 +448,7 @@ export default function (options: UiShellOptions): UiShell {
       wheels.resetSelectedNode();
       const ancillaryPayload = parseAncillaryPayload(ancillaryRaw);
       const ancillaryData = await getAncillaryDataInput();
+      if (sequence !== loadSequence) return;
       const mapping = ancillaryPayload.visualMapping ?? {};
       pieFieldControls.setSelection(
         mapping.pie?.enabled !== false && mapping.pie?.fields?.length
@@ -460,6 +473,7 @@ export default function (options: UiShellOptions): UiShell {
         },
       );
     } catch (error) {
+      if (sequence !== loadSequence) return;
       const message = error instanceof Error ? error.message : "unknown error";
       setFailureStatus(message);
       lastRenderedGraph = null;
@@ -469,15 +483,19 @@ export default function (options: UiShellOptions): UiShell {
       palette.renderControls();
       wheels.renderOverview();
     } finally {
-      loadingGraph = false;
-      updateApplyAncillaryButton();
+      if (sequence === loadSequence) {
+        loadingGraph = false;
+        updateApplyAncillaryButton();
+      }
     }
   }
 
   // Remove shell event listeners and dispose rendering resources.
   function unmount(): void {
+    loadSequence += 1;
     joinColumnPicker.dispose();
     search.reset();
+    region.reset();
     bindings.clear();
     expansion.dispose();
     workbench.setGraphRenderedHandler(null);

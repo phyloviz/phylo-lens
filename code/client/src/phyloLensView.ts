@@ -2,9 +2,10 @@ import type { DragSelection, PngExportOptions } from "./render/renderer.types";
 import type { ExpansionState, ExpansionResult } from "./contracts/expansion";
 import type { AncillaryTableInput } from "./contracts/ancillary";
 import type { AncillaryInputOptions } from "./ancillary/ancillaryInput";
-import { createGraphClient } from "./api/graphClient";
-import type { SfdpOptions } from "./contracts/graph";
-import { SOURCE_FORMAT_NEWICK, type SourceFormat, type Viewport } from "./contracts/models";
+import { createGraphClient } from "./services/graph/graphService";
+import type { SfdpOptions } from "./contracts/graph/SfdpOptions";
+import { SOURCE_FORMAT_NEWICK, type SourceFormat } from "./contracts/models";
+
 import rendererFactory from "./render/rendererFactory";
 import { RENDERER_KIND_SIGMA } from "./render/renderer.types";
 import type { VisualMappingOptions } from "./render/mapping/visualMapping";
@@ -33,8 +34,6 @@ export interface PhyloLensLoadOptions extends AncillaryInputOptions {
     maxNodes?: number;
     representationSpacingPx?: number;
     smallTreeThreshold?: number;
-    lodHint?: number;
-    viewport?: Viewport;
   };
 }
 

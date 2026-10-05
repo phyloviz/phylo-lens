@@ -1,7 +1,9 @@
 import { retainMovedNodes } from "./retainMovedNodes";
 import type { ExpansionState, ExpansionResult } from "../../../contracts/expansion";
 import { composeExpandedViewport } from "./expandedViewport";
-import type { GraphClient, GraphViewportRequest, GraphViewportResult } from "../../../contracts/graph";
+import type { GraphClient } from "../../../contracts/graph/GraphClient";
+import type { GraphViewportRequest } from "../../../contracts/graph/viewport/GraphViewportRequest";
+import type { GraphViewportResult } from "../../../contracts/graph/viewport/GraphViewportResult";
 import type { PositionedGraph } from "../../../contracts/positioned";
 import type { GraphRenderer } from "../../../render/renderer.types";
 import {
@@ -10,21 +12,21 @@ import {
   type SnapshotAppliedObserver,
 } from "../internalSnapshotObserver";
 import {
-  buildGraphViewportQuery,
+  buildGraphViewportRequest,
   hasViewportPixelSize,
   DEFAULT_LOD_REPRESENTATION_SPACING_PX,
   DEFAULT_GRAPH_VIEWER_DEBOUNCE_MS,
   GRAPH_VIEWER_LOD_CHANGE_DEBOUNCE_MS,
   GRAPH_VIEWER_SMALL_TREE_NODE_THRESHOLD,
   displayZoomForCameraRatio,
-} from "./viewportQuery";
+} from "./viewportRequest";
 import {
   graphSnapshotFromViewportResponse,
   graphSnapshotWithDisplayOptions,
-  type ViewportSyncSettings,
+  type ViewportRenderSettings,
 } from "./viewportSnapshot";
 
-export interface ViewportSyncControllerOptions {
+export interface GraphViewportCoordinatorOptions {
   datasetId: string;
   layoutVersion?: string | null;
   client: Pick<GraphClient, "readViewport">;
@@ -36,21 +38,20 @@ export interface ViewportSyncControllerOptions {
   smallTreeThreshold?: number;
   nodeCount?: number | null;
   getPaused?: () => boolean;
-  onViewportLoaded?: (response: GraphViewportResult) => void;
   onError?: (error: unknown) => void;
-  getRenderSettings?: () => ViewportSyncSettings;
-  onGraphSynced?: (graph: PositionedGraph, response?: GraphViewportResult) => void;
+  getRenderSettings?: () => ViewportRenderSettings;
+  onGraphApplied?: (graph: PositionedGraph, response?: GraphViewportResult) => void;
   snapshotObserver?: SnapshotAppliedObserver;
   nextSnapshotSequence?: () => number;
 }
 
-export interface ViewportSyncRefreshOptions {
+export interface ViewportRefreshOptions {
   lodLevel?: number | "finest";
   fitToResponse?: boolean;
 }
 
-export const VIEWPORT_SYNC_INITIAL_FIT_DURATION_MS = 300;
-export const ERR_VIEWPORT_SYNC_UNMOUNTED = "Viewport sync was unmounted before the initial viewport loaded.";
+export const VIEWPORT_INITIAL_FIT_DURATION_MS = 300;
+export const ERR_VIEWPORT_COORDINATOR_UNMOUNTED = "Viewport sync was unmounted before the initial viewport loaded.";
 
 export class GraphViewportCoordinator {
   private readonly datasetId: string;
@@ -64,10 +65,9 @@ export class GraphViewportCoordinator {
   private readonly smallTreeThreshold: number;
   private readonly preparedNodeCount: number | null;
   private readonly getPaused?: () => boolean;
-  private readonly onViewportLoaded?: (response: GraphViewportResult) => void;
   private readonly onError?: (error: unknown) => void;
-  private readonly getRenderSettings?: () => ViewportSyncSettings;
-  private readonly onGraphSynced?: (graph: PositionedGraph, response?: GraphViewportResult) => void;
+  private readonly getRenderSettings?: () => ViewportRenderSettings;
+  private readonly onGraphApplied?: (graph: PositionedGraph, response?: GraphViewportResult) => void;
   private readonly snapshotObserver?: SnapshotAppliedObserver;
   private readonly nextSnapshotSequence?: () => number;
   private debounceTimer: ReturnType<typeof window.setTimeout> | null = null;
@@ -75,11 +75,11 @@ export class GraphViewportCoordinator {
   private requestSequence = 0;
   private manipulating = false;
   private refreshAfterManipulation = false;
-  private loadingViewport = false;
+  private pendingViewportReads = 0;
   private readonly manipulationChanged = (active: boolean) => {
     this.manipulating = active;
     if (active) {
-      this.refreshAfterManipulation ||= this.debounceTimer !== null || this.loadingViewport;
+      this.refreshAfterManipulation ||= this.debounceTimer !== null || this.pendingViewportReads > 0;
       this.requestSequence += 1;
       if (this.debounceTimer !== null) window.clearTimeout(this.debounceTimer);
       this.debounceTimer = null;
@@ -93,7 +93,7 @@ export class GraphViewportCoordinator {
   private replacingLayout = false;
   private refreshAfterReplacement = false;
   private loadedInitialViewport = false;
-  private lastViewportQuery: GraphViewportRequest | null = null;
+  private lastViewportRequest: GraphViewportRequest | null = null;
   private lastRequestedLodLevel: number | null | undefined;
   private nextForcedLodLevel: number | undefined;
   private fitNextResponse = false;
@@ -114,7 +114,7 @@ export class GraphViewportCoordinator {
   private expansionLodLevel: number | undefined;
   private readonly viewportChanged = () => this.scheduleViewportRefreshForCamera();
 
-  constructor(options: ViewportSyncControllerOptions) {
+  constructor(options: GraphViewportCoordinatorOptions) {
     this.datasetId = options.datasetId;
     this.layoutVersion = options.layoutVersion;
     this.client = options.client;
@@ -128,10 +128,9 @@ export class GraphViewportCoordinator {
     this.smallTreeThreshold = options.smallTreeThreshold ?? GRAPH_VIEWER_SMALL_TREE_NODE_THRESHOLD;
     this.preparedNodeCount = options.nodeCount ?? null;
     this.getPaused = options.getPaused;
-    this.onViewportLoaded = options.onViewportLoaded;
     this.onError = options.onError;
     this.getRenderSettings = options.getRenderSettings;
-    this.onGraphSynced = options.onGraphSynced;
+    this.onGraphApplied = options.onGraphApplied;
     this.snapshotObserver = options.snapshotObserver;
     this.nextSnapshotSequence = options.nextSnapshotSequence;
     this.initialViewportLoaded = new Promise<PositionedGraph>((resolve, reject) => {
@@ -139,6 +138,8 @@ export class GraphViewportCoordinator {
       this.rejectInitialViewport = reject;
     });
   }
+
+  // Lifecycle
 
   mount(): void {
     if (this.mounted) {
@@ -167,7 +168,7 @@ export class GraphViewportCoordinator {
     }
     this.requestSequence += 1;
     if (this.initialViewportAwaited) {
-      this.rejectInitialViewportOnce(new Error(ERR_VIEWPORT_SYNC_UNMOUNTED));
+      this.rejectInitialViewportOnce(new Error(ERR_VIEWPORT_COORDINATOR_UNMOUNTED));
     }
   }
 
@@ -176,7 +177,9 @@ export class GraphViewportCoordinator {
     return this.initialViewportLoaded;
   }
 
-  refreshNow(options: ViewportSyncRefreshOptions = {}): void {
+  // Viewport and layout replacement
+
+  refreshNow(options: ViewportRefreshOptions = {}): void {
     if (options.lodLevel === "finest") {
       this.nextForcedLodLevel = Math.max(this.lodTierCount - 1, 0);
     } else if (typeof options.lodLevel === "number" && Number.isFinite(options.lodLevel)) {
@@ -187,7 +190,7 @@ export class GraphViewportCoordinator {
   }
 
   async replaceLayoutVersion(version: string): Promise<void> {
-    if (!this.mounted || !this.loadedInitialViewport || !this.lastViewportQuery || this.replacingLayout) {
+    if (!this.mounted || !this.loadedInitialViewport || !this.lastViewportRequest || this.replacingLayout) {
       throw new Error(
         "Cannot replace ancillary data before the view is ready or while another replacement is pending.",
       );
@@ -205,30 +208,29 @@ export class GraphViewportCoordinator {
       this.cancelFit();
       this.cancelFit = null;
     }
-    const query = { ...this.lastViewportQuery, layoutVersion: version };
+    const request = { ...this.lastViewportRequest, layoutVersion: version };
     try {
       const expanded = [...this.expandedPatches.keys()];
       const [response, ...patches] = await Promise.all([
-        this.client.readViewport(query),
+        this.client.readViewport(request),
         ...expanded.map((clusterId) => this.readCluster(clusterId, undefined, version)),
       ]);
-      if (!this.mounted || sequence !== this.requestSequence) {
+      if (!this.isCurrentRequest(sequence)) {
         throw new Error("Ancillary update was superseded by a newer view.");
       }
       if ([response, ...patches].some((item) => item.layoutVersion !== version || item.datasetId !== this.datasetId)) {
         throw new Error("Ancillary viewport returned a different layout.");
       }
       this.layoutVersion = version;
-      this.lastRequestedLodLevel = query.lodLevel;
+      this.lastRequestedLodLevel = request.lodLevel;
       this.totalNodeCount = response.totalNodeCount;
-      this.lastViewportQuery = query;
+      this.lastViewportRequest = request;
       this.baseResponse = response;
       this.expandedPatches.clear();
       patches.forEach((patch, index) => this.expandedPatches.set(expanded[index], patch));
       const graph = this.composeGraph();
       this.applyGraph(graph, "viewport_sync", null, true);
-      this.onGraphSynced?.(graph, response);
-      this.onViewportLoaded?.(response);
+      this.onGraphApplied?.(graph, response);
     } finally {
       this.replacingLayout = false;
       if (this.refreshAfterReplacement) {
@@ -238,14 +240,16 @@ export class GraphViewportCoordinator {
     }
   }
 
-  updateDisplayOptions(displayOptions: ViewportSyncSettings["displayOptions"]): void {
+  updateDisplayOptions(displayOptions: ViewportRenderSettings["displayOptions"]): void {
     if (!this.currentGraph) {
       return;
     }
     this.currentGraph = graphSnapshotWithDisplayOptions(this.currentGraph, displayOptions);
     this.applyGraph(this.currentGraph, "viewport_sync");
-    this.onGraphSynced?.(this.currentGraph);
+    this.onGraphApplied?.(this.currentGraph);
   }
+
+  // Expansion
 
   getExpansionState(): ExpansionState {
     return {
@@ -273,11 +277,57 @@ export class GraphViewportCoordinator {
     this.beginExpansion();
   }
 
-  expandCluster(
+  async expandCluster(
     clusterId: string,
     options: { fitToResponse?: boolean; focusNodeId?: string | null } = {},
   ): Promise<ExpansionResult> {
-    return this.loadCluster(clusterId, options);
+    this.requireExpansionReady();
+    if (!clusterId) throw new Error("A cluster ID is required.");
+    if (!options.focusNodeId && this.expandedPatches.has(clusterId)) return this.expansionResult();
+    if (
+      !options.focusNodeId &&
+      this.maxNodes !== undefined &&
+      (this.currentGraph?.nodes.length ?? 0) >= this.maxNodes
+    ) {
+      this.expansionPartial = true;
+      return this.expansionResult();
+    }
+    const sequence = this.beginExpansion();
+    const response = await this.readExpansion(this.readCluster(clusterId, options.focusNodeId), sequence);
+    if (!response) return this.expansionResult("superseded");
+    if (response.totalNodeCount === 0) throw new Error("The requested cluster has no available members.");
+    const settings = this.getRenderSettings?.();
+    const candidate = composeExpandedViewport(
+      graphSnapshotFromViewportResponse(this.baseResponse!, settings),
+      [...this.expandedPatches.values(), response].map((patch) => graphSnapshotFromViewportResponse(patch, settings)),
+      this.maxNodes,
+    );
+    const missingMembers = response.totalNodeCount > response.nodes.filter((node) => !node.isRepresentative).length;
+    if (!options.focusNodeId && (response.truncated || missingMembers || candidate.partial)) {
+      // Keep the summary intact rather than showing a full-group proxy alongside
+      // an incomplete subset of its members.
+      this.expansionPartial = true;
+      return this.expansionResult();
+    }
+    if (options.focusNodeId) {
+      if (!response.nodes.some((node) => node.id === options.focusNodeId && !node.isRepresentative)) {
+        throw new Error("The requested profile is unavailable in this cluster.");
+      }
+      this.priorityNodeId = options.focusNodeId;
+    }
+    this.expandedPatches.set(clusterId, response);
+    this.expansionLodLevel = this.baseResponse?.lodLevel ?? 0;
+    const graph = this.composeGraph();
+    this.applyGraph(graph, "cluster_expand", clusterId);
+    if (options.fitToResponse) {
+      this.suppressCameraRefreshUntil = Date.now() + VIEWPORT_INITIAL_FIT_DURATION_MS + this.debounceMs;
+      this.cancelFit =
+        this.renderer.fitGraphSnapshot?.(graphSnapshotFromViewportResponse(response, this.getRenderSettings?.()), {
+          resetFirst: false,
+        }) ?? null;
+    }
+    this.onGraphApplied?.(graph, response);
+    return this.expansionResult();
   }
 
   expandAll(): Promise<ExpansionResult> {
@@ -291,23 +341,23 @@ export class GraphViewportCoordinator {
   private async loadGlobalExpansion(expand: boolean): Promise<ExpansionResult> {
     this.requireExpansionReady();
     const sequence = this.beginExpansion();
-    const query: GraphViewportRequest = {
+    const request: GraphViewportRequest = {
       datasetId: this.datasetId,
       layoutVersion: this.layoutVersion,
       lodLevel: expand ? this.lodTierCount - 1 : 0,
       ...(this.maxNodes === undefined ? {} : { maxNodes: this.maxNodes }),
     };
-    const response = await this.readExpansion(this.client.readViewport(query), sequence);
+    const response = await this.readExpansion(this.client.readViewport(request), sequence);
     if (!response) return this.expansionResult("superseded");
     this.baseResponse = response;
-    this.lastViewportQuery = query;
-    this.lastRequestedLodLevel = query.lodLevel;
+    this.lastViewportRequest = request;
+    this.lastRequestedLodLevel = request.lodLevel;
     this.expandedPatches.clear();
     this.allExpanded = expand;
-    this.expansionLodLevel = query.lodLevel ?? 0;
+    this.expansionLodLevel = request.lodLevel ?? 0;
     const graph = this.composeGraph();
     this.applyGraph(graph, "viewport_sync");
-    this.onGraphSynced?.(graph, response);
+    this.onGraphApplied?.(graph, response);
     return this.expansionResult();
   }
 
@@ -317,7 +367,7 @@ export class GraphViewportCoordinator {
     this.expandedPatches.delete(clusterId);
     const graph = this.composeGraph();
     this.applyGraph(graph, "cluster_collapse", clusterId);
-    this.onGraphSynced?.(graph);
+    this.onGraphApplied?.(graph);
     return this.getExpansionState();
   }
 
@@ -333,11 +383,15 @@ export class GraphViewportCoordinator {
   ): Promise<GraphViewportResult | null> {
     try {
       const response = await request;
-      return this.mounted && sequence === this.requestSequence ? response : null;
+      return this.isCurrentRequest(sequence) ? response : null;
     } catch (error) {
-      if (!this.mounted || sequence !== this.requestSequence) return null;
+      if (!this.isCurrentRequest(sequence)) return null;
       throw error;
     }
+  }
+
+  private isCurrentRequest(sequence: number): boolean {
+    return this.mounted && sequence === this.requestSequence;
   }
 
   private beginExpansion(): number {
@@ -372,6 +426,8 @@ export class GraphViewportCoordinator {
     return composed.graph;
   }
 
+  // Camera and viewport requests
+
   private scheduleViewportRefreshForCamera(): void {
     if (this.getPaused?.()) {
       return;
@@ -397,7 +453,7 @@ export class GraphViewportCoordinator {
   }
 
   private viewportLodEnabled(): boolean {
-    return hasViewportPixelSize(this.renderer.getViewportSyncState?.() ?? null);
+    return hasViewportPixelSize(this.renderer.getViewportState?.() ?? null);
   }
 
   private isSmallTreeLoaded(): boolean {
@@ -443,7 +499,7 @@ export class GraphViewportCoordinator {
       this.refreshAfterManipulation = true;
       return;
     }
-    this.loadingViewport = true;
+    this.pendingViewportReads += 1;
     const sequence = ++this.requestSequence;
     const pinned = this.keepExpanded && this.expansionLodLevel !== undefined;
     const finestTier =
@@ -455,10 +511,10 @@ export class GraphViewportCoordinator {
     const fitResponse = this.fitNextResponse;
     this.nextForcedLodLevel = undefined;
     this.fitNextResponse = false;
-    const query = buildGraphViewportQuery({
+    const request = buildGraphViewportRequest({
       datasetId: this.datasetId,
       layoutVersion: this.layoutVersion,
-      viewState: this.renderer.getViewportSyncState?.() ?? null,
+      viewState: this.renderer.getViewportState?.() ?? null,
       maxNodes: this.maxNodes,
       forceGlobal: !this.loadedInitialViewport && !finestTier,
       forceFinestTier: finestTier,
@@ -469,11 +525,11 @@ export class GraphViewportCoordinator {
       previousEffectiveLodLevel: this.baseResponse?.lodLevel,
       representationSpacingPx: this.representationSpacingPx,
     });
-    this.lastRequestedLodLevel = query.lodLevel;
+    this.lastRequestedLodLevel = request.lodLevel;
 
     try {
-      let response = await this.client.readViewport(query);
-      if (!this.mounted || sequence !== this.requestSequence) {
+      let response = await this.client.readViewport(request);
+      if (!this.isCurrentRequest(sequence)) {
         return;
       }
       if (!fitResponse) {
@@ -485,7 +541,7 @@ export class GraphViewportCoordinator {
         );
       }
       this.layoutVersion = response.layoutVersion;
-      this.lastViewportQuery = query;
+      this.lastViewportRequest = request;
       this.totalNodeCount = response.totalNodeCount;
       const wasInitialViewport = !this.loadedInitialViewport;
       if (!this.keepExpanded) {
@@ -496,22 +552,21 @@ export class GraphViewportCoordinator {
       const graph = this.composeGraph();
       this.applyGraph(graph, wasInitialViewport ? "initial_load" : "viewport_sync");
       if (fitResponse) {
-        this.suppressCameraRefreshUntil = Date.now() + VIEWPORT_SYNC_INITIAL_FIT_DURATION_MS + this.debounceMs;
+        this.suppressCameraRefreshUntil = Date.now() + VIEWPORT_INITIAL_FIT_DURATION_MS + this.debounceMs;
         this.cancelFit?.();
         this.cancelFit = this.renderer.fitGraphSnapshot?.(graph, { resetFirst: false }) ?? null;
       }
-      if (!fitResponse && !this.loadedInitialViewport && (query.lodLevel === 0 || finestTier)) {
+      if (!fitResponse && !this.loadedInitialViewport && (request.lodLevel === 0 || finestTier)) {
         this.cancelFit?.();
         this.cancelFit = this.renderer.fitGraphSnapshot?.(graph) ?? null;
       }
       this.loadedInitialViewport = true;
-      this.onGraphSynced?.(graph, response);
-      this.onViewportLoaded?.(response);
+      this.onGraphApplied?.(graph, response);
       if (wasInitialViewport) {
         this.resolveInitialViewportOnce(graph);
       }
     } catch (error) {
-      if (!this.mounted || sequence !== this.requestSequence) {
+      if (!this.isCurrentRequest(sequence)) {
         return;
       }
       if (!this.loadedInitialViewport && this.initialViewportAwaited) {
@@ -519,7 +574,7 @@ export class GraphViewportCoordinator {
       }
       this.onError?.(error);
     } finally {
-      this.loadingViewport = false;
+      this.pendingViewportReads -= 1;
     }
   }
 
@@ -539,66 +594,14 @@ export class GraphViewportCoordinator {
     this.rejectInitialViewport(error);
   }
 
-  private async loadCluster(
-    clusterId: string,
-    options: { fitToResponse?: boolean; focusNodeId?: string | null },
-  ): Promise<ExpansionResult> {
-    this.requireExpansionReady();
-    if (!clusterId) throw new Error("A cluster ID is required.");
-    if (!options.focusNodeId && this.expandedPatches.has(clusterId)) return this.expansionResult();
-    if (
-      !options.focusNodeId &&
-      this.maxNodes !== undefined &&
-      (this.currentGraph?.nodes.length ?? 0) >= this.maxNodes
-    ) {
-      this.expansionPartial = true;
-      return this.expansionResult();
-    }
-    const sequence = this.beginExpansion();
-    const response = await this.readExpansion(this.readCluster(clusterId, options.focusNodeId), sequence);
-    if (!response) return this.expansionResult("superseded");
-    if (response.totalNodeCount === 0) throw new Error("The requested cluster has no available members.");
-    const settings = this.getRenderSettings?.();
-    const candidate = composeExpandedViewport(
-      graphSnapshotFromViewportResponse(this.baseResponse!, settings),
-      [...this.expandedPatches.values(), response].map((patch) => graphSnapshotFromViewportResponse(patch, settings)),
-      this.maxNodes,
-    );
-    const missingMembers = response.totalNodeCount > response.nodes.filter((node) => !node.isRepresentative).length;
-    if (!options.focusNodeId && (response.truncated || missingMembers || candidate.partial)) {
-      // Keep the summary intact rather than showing a full-group proxy alongside
-      // an incomplete subset of its members.
-      this.expansionPartial = true;
-      return this.expansionResult();
-    }
-    if (options.focusNodeId) {
-      if (!response.nodes.some((node) => node.id === options.focusNodeId && !node.isRepresentative)) {
-        throw new Error("The requested profile is unavailable in this cluster.");
-      }
-      this.priorityNodeId = options.focusNodeId;
-    }
-    this.expandedPatches.set(clusterId, response);
-    this.expansionLodLevel = this.baseResponse?.lodLevel ?? 0;
-    const graph = this.composeGraph();
-    this.applyGraph(graph, "cluster_expand", clusterId);
-    if (options.fitToResponse) {
-      this.suppressCameraRefreshUntil = Date.now() + VIEWPORT_SYNC_INITIAL_FIT_DURATION_MS + this.debounceMs;
-      this.cancelFit =
-        this.renderer.fitGraphSnapshot?.(graphSnapshotFromViewportResponse(response, this.getRenderSettings?.()), {
-          resetFirst: false,
-        }) ?? null;
-    }
-    this.onGraphSynced?.(graph, response);
-    this.onViewportLoaded?.(response);
-    return this.expansionResult();
-  }
+  // Cluster requests and rendering
 
   private readCluster(
     clusterId: string,
     focusNodeId?: string | null,
     version = this.layoutVersion,
   ): Promise<GraphViewportResult> {
-    const viewState = this.renderer.getViewportSyncState?.() ?? null;
+    const viewState = this.renderer.getViewportState?.() ?? null;
     return this.client.readViewport({
       datasetId: this.datasetId,
       layoutVersion: version ?? null,
@@ -635,10 +638,10 @@ export class GraphViewportCoordinator {
 
   private currentLodLevel(): number | null {
     return (
-      buildGraphViewportQuery({
+      buildGraphViewportRequest({
         datasetId: this.datasetId,
         layoutVersion: this.layoutVersion,
-        viewState: this.renderer.getViewportSyncState?.() ?? null,
+        viewState: this.renderer.getViewportState?.() ?? null,
         maxNodes: this.maxNodes,
         forceGlobal: !this.loadedInitialViewport,
         lodTierCount: this.lodTierCount,

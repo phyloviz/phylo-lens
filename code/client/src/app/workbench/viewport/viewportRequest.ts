@@ -1,5 +1,5 @@
-import type { GraphViewportRequest } from "../../../contracts/graph";
-import type { RenderViewportBounds, RenderViewportSyncState } from "../../../render/renderer.types";
+import type { GraphViewportRequest } from "../../../contracts/graph/viewport/GraphViewportRequest";
+import type { RenderViewportBounds, RenderViewportRequestState } from "../../../render/renderer.types";
 
 export const DEFAULT_GRAPH_VIEWER_DEBOUNCE_MS = 120;
 export const GRAPH_VIEWER_LOD_CHANGE_DEBOUNCE_MS = 60;
@@ -12,7 +12,7 @@ export const GRAPH_VIEWER_DENSE_LOD_RATIO_STEP = 2 / 3;
 export const GRAPH_VIEWER_DENSE_LOD_MIN_TIER_COUNT = 8;
 export const GRAPH_VIEWER_LOD_RATIO_HYSTERESIS = 0.05;
 
-export function buildGraphViewportQuery({
+export function buildGraphViewportRequest({
   datasetId,
   layoutVersion,
   viewState,
@@ -28,7 +28,7 @@ export function buildGraphViewportQuery({
 }: {
   datasetId: string;
   layoutVersion?: string | null;
-  viewState: RenderViewportSyncState | null;
+  viewState: RenderViewportRequestState | null;
   maxNodes?: number;
   forceGlobal?: boolean;
   forceFinestTier?: boolean;
@@ -55,7 +55,7 @@ export function buildGraphViewportQuery({
       ? expandViewportBounds(viewState.bounds, GRAPH_VIEWER_VIEWPORT_PADDING_RATIO)
       : null;
 
-  const query: GraphViewportRequest = {
+  const request: GraphViewportRequest = {
     datasetId: datasetId,
     layoutVersion: layoutVersion ?? null,
     zoom: displayZoomForCameraRatio(ratio),
@@ -72,21 +72,21 @@ export function buildGraphViewportQuery({
       Math.floor((viewState.pixelSize.width * viewState.pixelSize.height) / effectiveSpacing ** 2),
     );
     if (!Number.isSafeInteger(target)) throw new Error("LoD representation target must be a finite safe integer.");
-    query.lodTargetRepresentations = target;
-    query.lodSelectionBounds = viewState.selectionBounds ?? viewState.bounds;
+    request.lodTargetRepresentations = target;
+    request.lodSelectionBounds = viewState.selectionBounds ?? viewState.bounds;
     if (previousEffectiveLodLevel !== undefined && previousEffectiveLodLevel !== null)
-      query.previousLodLevel = previousEffectiveLodLevel;
+      request.previousLodLevel = previousEffectiveLodLevel;
   }
   if (bounds) {
-    query.xmin = bounds.xmin;
-    query.xmax = bounds.xmax;
-    query.ymin = bounds.ymin;
-    query.ymax = bounds.ymax;
+    request.xmin = bounds.xmin;
+    request.xmax = bounds.xmax;
+    request.ymin = bounds.ymin;
+    request.ymax = bounds.ymax;
   }
-  return query;
+  return request;
 }
 
-export function hasViewportPixelSize(state: RenderViewportSyncState | null): boolean {
+export function hasViewportPixelSize(state: RenderViewportRequestState | null): boolean {
   return Boolean(
     state?.pixelSize &&
     Number.isFinite(state.pixelSize.width) &&

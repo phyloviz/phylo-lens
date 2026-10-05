@@ -1,18 +1,18 @@
-import type { SearchDatasetResponse } from "../../contracts/models";
+import type { GraphSearchResult } from "../../contracts/graph/search/GraphSearchResult";
+
 import type { PositionedGraph } from "../../contracts/positioned";
 import type { GraphRenderer, RenderViewportBounds } from "../../render/renderer.types";
 import { getGraphSession } from "./graphWorkbench.state";
 import type { GraphWorkbenchState, RegionSelectionResult } from "./graphWorkbench.types";
+import { GRAPH_WORKBENCH_ERRORS } from "./graphWorkbench.errors";
 import { createEmptyGraph } from "./viewportGraph";
 import type { GraphViewportCoordinator } from "./viewport/viewportCoordinator";
-import type { GraphClient } from "../../contracts/graph";
-import { type GraphWorkbenchAction } from "./graphWorkbench.actions";
+import type { GraphClient } from "../../contracts/graph/GraphClient";
 
 const DEFAULT_SEARCH_RESULT_LIMIT = 50;
 
 interface WorkbenchNavigationOptions {
   getState: () => GraphWorkbenchState;
-  dispatch: (action: GraphWorkbenchAction) => void;
   renderer: GraphRenderer;
   graphClient: GraphClient;
   getViewportCoordinator: () => GraphViewportCoordinator | null;
@@ -27,6 +27,8 @@ export default function createGraphNavigation({
   getLoadGeneration,
 }: WorkbenchNavigationOptions) {
   let focusSequence = 0;
+  let regionSequence = 0;
+  let searchSequence = 0;
   const cancelPendingFocus = () => {
     focusSequence += 1;
     getViewportCoordinator()?.cancelPendingFocus();
@@ -34,6 +36,9 @@ export default function createGraphNavigation({
 
   return {
     cancelPendingFocus,
+    cancelPendingRegionSelection: () => {
+      regionSequence += 1;
+    },
     selectRegion: selectRegion,
     searchNodes: searchNodes,
     focusNode: focusNode,
@@ -41,6 +46,9 @@ export default function createGraphNavigation({
 
   async function selectRegion(bounds: RenderViewportBounds): Promise<RegionSelectionResult> {
     const session = getGraphSession(getState());
+    const generation = getLoadGeneration();
+    const sequence = ++regionSequence;
+    const coordinator = getViewportCoordinator();
 
     // The server cannot select a rectangle in a deformed layout. Select the loaded
     // display explicitly; its ancillary wheel is built from these same node IDs.
@@ -53,19 +61,26 @@ export default function createGraphNavigation({
         nodeCount: nodeIds.length,
         truncated: false,
         aggregatedMetadata: {},
-        metadataSchema: [],
         scope: "display",
       };
     }
     const response = await graphClient.readRegion({
       datasetId: session.datasetId,
-      layoutVersion: session.layoutVersion ?? null,
+      layoutVersion: session.layoutVersion,
       xmin: bounds.xmin,
       xmax: bounds.xmax,
       ymin: bounds.ymin,
       ymax: bounds.ymax,
     });
 
+    if (
+      sequence !== regionSequence ||
+      generation !== getLoadGeneration() ||
+      coordinator !== getViewportCoordinator() ||
+      session.layoutVersion !== getState().graphSession?.layoutVersion
+    ) {
+      throw new Error(GRAPH_WORKBENCH_ERRORS.loadSuperseded);
+    }
     const nodeIds = response.nodes.map((node) => node.id);
     renderer.setHighlightedNodes?.(new Set(nodeIds));
 
@@ -74,35 +89,32 @@ export default function createGraphNavigation({
       nodeCount: response.totalNodeCount,
       truncated: response.truncated,
       aggregatedMetadata: response.aggregatedMetadata,
-      metadataSchema: response.ancillarySchema ?? [],
     };
   }
 
-  async function searchNodes(query: { query: string; limit?: number }): Promise<SearchDatasetResponse> {
+  async function searchNodes(query: { query: string; limit?: number }): Promise<GraphSearchResult> {
     const session = getGraphSession(getState());
     cancelPendingFocus();
+    const generation = getLoadGeneration();
+    const sequence = ++searchSequence;
+    const coordinator = getViewportCoordinator();
 
     const response = await graphClient.searchGraph({
       datasetId: session.datasetId,
-      layoutVersion: session.layoutVersion ?? null,
+      layoutVersion: session.layoutVersion,
       query: query.query,
       limit: query.limit,
     });
 
-    return {
-      datasetId: response.datasetId,
-      query: response.query,
-      matches: response.matches.map((match) => ({
-        nodeId: match.nodeId,
-        score: match.score,
-        matchedText: match.matchedText,
-        metadata: {},
-        clusterId: match.clusterId ?? null,
-        x: match.x ?? null,
-        y: match.y ?? null,
-      })),
-      totalCount: response.totalCount,
-    };
+    if (
+      sequence !== searchSequence ||
+      generation !== getLoadGeneration() ||
+      coordinator !== getViewportCoordinator() ||
+      session.layoutVersion !== getState().graphSession?.layoutVersion
+    ) {
+      throw new Error(GRAPH_WORKBENCH_ERRORS.loadSuperseded);
+    }
+    return response;
   }
 
   async function focusNode(
@@ -132,7 +144,7 @@ export default function createGraphNavigation({
       if (!location?.clusterId) {
         const response = await graphClient.searchGraph({
           datasetId: session.datasetId,
-          layoutVersion: session.layoutVersion ?? null,
+          layoutVersion: session.layoutVersion,
           query: nodeId,
           limit: DEFAULT_SEARCH_RESULT_LIMIT,
         });

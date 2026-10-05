@@ -15,6 +15,7 @@ export interface RegionSelectionOptions {
 
 export default function (options: RegionSelectionOptions) {
   let enabled = false;
+  let generation = 0;
 
   return {
     mount: mount,
@@ -41,6 +42,7 @@ export default function (options: RegionSelectionOptions) {
   }
 
   function reset(): void {
+    generation += 1;
     options.workbench.clearRegionSelection();
     resetPanel();
   }
@@ -50,8 +52,10 @@ export default function (options: RegionSelectionOptions) {
       return;
     }
 
+    const request = ++generation;
     try {
       const result = await options.workbench.selectRegion(bounds);
+      if (request !== generation) return;
       renderRegionPanel(options.panel, {
         nodeCount: result.nodeCount,
         truncated: result.truncated,
@@ -62,6 +66,7 @@ export default function (options: RegionSelectionOptions) {
         `Region selected: ${result.nodeCount} ${result.scope === "display" ? "loaded display nodes" : result.nodeCount === 1 ? "node" : "nodes"}`,
       );
     } catch (error) {
+      if (request !== generation) return;
       const message = error instanceof Error ? error.message : "unknown error";
       options.setFailureStatus(message);
     }

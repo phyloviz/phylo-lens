@@ -1,5 +1,5 @@
 import type { PositionedGraph } from "../../contracts/positioned";
-import type { GraphRenderer, RenderViewportSyncState } from "../../render/renderer.types";
+import type { GraphRenderer, RenderViewportRequestState } from "../../render/renderer.types";
 
 // Internal diagnostics channel for evaluation tooling. This is deliberately not
 // exported from the package entry point and is not a supported library API.
@@ -29,7 +29,7 @@ export interface SnapshotAppliedBoundary {
 export interface SnapshotAppliedDiagnostics {
   visibleAggregateTriangleCount: number;
   snapshotFingerprint: string;
-  viewport: RenderViewportSyncState | null;
+  viewport: RenderViewportRequestState | null;
   aggregateTargets: readonly SnapshotAggregateTarget[];
 }
 
@@ -109,7 +109,7 @@ export function notifySnapshotApplied({
       diagnostics &&
       Object.freeze({
         ...diagnostics,
-        viewport: immutableViewport(renderer.getViewportSyncState?.() ?? null),
+        viewport: immutableViewport(renderer.getViewportState?.() ?? null),
       })
     );
   };
@@ -144,7 +144,7 @@ function aggregateTargetDescriptors(
   }));
 }
 
-function immutableViewport(viewport: RenderViewportSyncState | null): RenderViewportSyncState | null {
+function immutableViewport(viewport: RenderViewportRequestState | null): RenderViewportRequestState | null {
   if (!viewport) return null;
   return Object.freeze({
     bounds: Object.freeze({ ...viewport.bounds }),
