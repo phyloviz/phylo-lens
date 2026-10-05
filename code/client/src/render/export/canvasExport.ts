@@ -1,13 +1,13 @@
 export const ERR_NO_RENDER_CANVAS = 'No rendered canvas is available to export.';
 export const ERR_PNG_ENCODING_FAILED = 'The rendered view could not be encoded as PNG.';
 
-type LegendItem = { label: string; color: string; count: number };
+type LegendItem = { readonly label: string; readonly color: string; readonly count: number };
 
 /** Composite all renderer layers in paint order; publication options add a white background and legend. */
 export async function exportCanvasLayersAsPng(
     canvases: Iterable<HTMLCanvasElement>,
     documentRef: Document = document,
-    options?: { width: number; height: number; scale?: number; legend?: LegendItem[] }
+    options?: { width: number; height: number; scale?: number; legend?: readonly LegendItem[] }
 ): Promise<Blob> {
     const layers = Array.from(canvases).filter(canvas => canvas.width > 0 && canvas.height > 0);
     const source = layers[0];

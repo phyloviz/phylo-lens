@@ -1,10 +1,10 @@
-import type { DatasetId, LayoutVersion } from "../graphIdentifiers";
-export interface GraphRegionRequest {
-  datasetId: DatasetId;
-  layoutVersion?: LayoutVersion | null;
-  xmin: number;
-  xmax: number;
-  ymin: number;
-  ymax: number;
-  maxNodes?: number | null;
-}
+import type { DatasetId, LayoutVersion } from '../graphIdentifiers';
+export type GraphRegionRequest = {
+    readonly datasetId: DatasetId;
+    readonly layoutVersion?: LayoutVersion | null;
+    readonly xmin: number;
+    readonly xmax: number;
+    readonly ymin: number;
+    readonly ymax: number;
+    readonly maxNodes?: number | null;
+};

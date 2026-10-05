@@ -12,7 +12,7 @@ export default function (select: HTMLSelectElement | undefined) {
 
     // Seed explicit payload fields before metadata arrives; each new dataset starts
     // with its own mapping instead of inheriting the previous dataset's selection.
-    function setSelection(fields: string[]): void {
+    function setSelection(fields: readonly string[]): void {
         if (!select) return;
         select.replaceChildren(
             ...fields.map(field => {

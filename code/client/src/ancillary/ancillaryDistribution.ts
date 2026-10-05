@@ -16,45 +16,45 @@ import {
 /** Count for one value, or one observed combination of selected column values. */
 export type CategoryCount = {
     /** Stable key shared with the graph's category colors. */
-    key: string;
+    readonly key: string;
     /** Category identity used for the user's color and grouping choices. */
-    category: string;
-    label: string;
+    readonly category: string;
+    readonly label: string;
     /** Number of observations contributing to this category, including group weights. */
-    count: number;
+    readonly count: number;
 };
 
 /** The category count with the percentage and color needed by the chart and legend. */
 export type CategoryFrequency = CategoryCount & {
-    percentage: number;
-    color: string;
+    readonly percentage: number;
+    readonly color: string;
 };
 
 export type AncillaryDistribution = {
     /** Sum of category counts; a node can represent more than one observation. */
-    observationCount: number;
+    readonly observationCount: number;
     /** Number of included graph nodes, rather than the number of isolates they represent. */
-    nodeCount: number;
-    categories: CategoryFrequency[];
+    readonly nodeCount: number;
+    readonly categories: readonly CategoryFrequency[];
 };
 
 export type AncillaryDistributionOptions = {
     /** Restrict counts to these nodes while keeping the whole view's colors and grouping. */
-    includeNodeIds?: ReadonlySet<string>;
+    readonly includeNodeIds?: ReadonlySet<string>;
     /** Selected column names. Omit to use the graph's current pie categories. */
-    fields?: string[];
-    palette?: string[];
-    categoryColors?: Record<string, string>;
-    categoryGrouping?: PieCategoryGrouping;
+    readonly fields?: readonly string[];
+    readonly palette?: readonly string[];
+    readonly categoryColors?: Readonly<Record<string, string>>;
+    readonly categoryGrouping?: PieCategoryGrouping;
     /** False lists every category for the palette editor, without grouping into Other. */
-    groupCategories?: boolean;
+    readonly groupCategories?: boolean;
 };
 
 type NodeCategories = {
-    id: string;
-    attributes?: Record<string, unknown>;
-    distribution?: PieCategory[];
-    grouping?: PieCategoryGrouping;
+    readonly id: string;
+    readonly attributes?: Readonly<Record<string, unknown>>;
+    readonly distribution?: readonly PieCategory[];
+    readonly grouping?: PieCategoryGrouping;
 };
 
 /** Count ancillary values and compute percentages, without changing the graph or the DOM. */
@@ -65,7 +65,7 @@ export function calculateAncillaryDistribution(
     const grouping = options.categoryGrouping
         ? pieGroupingForFields(options.fields ?? [], options.categoryGrouping)
         : undefined;
-    const nodes: NodeCategories[] = graph.nodes.map(node => ({
+    const nodes: readonly NodeCategories[] = graph.nodes.map(node => ({
         id: node.id,
         attributes: node.attributes,
         distribution: options.fields ? distributionForFields(node.attributes, options.fields) : undefined,
@@ -93,7 +93,7 @@ export function calculateAncillaryDistribution(
 }
 
 function countCategories(
-    nodes: NodeCategories[],
+    nodes: readonly NodeCategories[],
     displayed: ReadonlySet<string>,
     options: AncillaryDistributionOptions
 ) {
@@ -115,11 +115,11 @@ function countCategories(
     return { counts, nodeCount };
 }
 
-function storedCategories(node: NodeCategories): PieCategory[] {
+function storedCategories(node: NodeCategories): readonly PieCategory[] {
     return node.distribution ?? distributionFromAttributes(node.attributes);
 }
 
-function categoriesToCount(node: NodeCategories, fieldsSelected: boolean): PieCategory[] {
+function categoriesToCount(node: NodeCategories, fieldsSelected: boolean): readonly PieCategory[] {
     const categories = storedCategories(node);
     if (categories.length || fieldsSelected) return categories;
 

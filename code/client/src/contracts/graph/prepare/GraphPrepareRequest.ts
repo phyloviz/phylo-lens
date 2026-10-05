@@ -1,20 +1,20 @@
-import type { SourceFormat } from "../../models";
-import type { AncillaryField, AncillaryData, AncillaryDataInput } from "../../ancillary";
-import type { SfdpOptions } from "../SfdpOptions";
+import type { SourceFormat } from '../../models';
+import type { AncillaryField, AncillaryData, AncillaryDataInput } from '../../ancillary';
+import type { SfdpOptions } from '../SfdpOptions';
 
-export interface GraphPrepareRequest {
-  format: SourceFormat;
-  datasetName?: string;
-  content: string;
+export type GraphPrepareRequest = {
+    readonly format: SourceFormat;
+    readonly datasetName?: string;
+    readonly content: string;
 
-  options?: {
-    allowSelfLoops?: boolean;
-  };
+    readonly options?: {
+        readonly allowSelfLoops?: boolean;
+    };
 
-  ancillarySchema?: readonly AncillaryField[];
-  ancillaryByNodeId?: Record<string, AncillaryData>;
+    readonly ancillarySchema?: readonly AncillaryField[];
+    readonly ancillaryByNodeId?: Readonly<Record<string, AncillaryData>>;
 
-  ancillaryData?: AncillaryDataInput;
+    readonly ancillaryData?: AncillaryDataInput;
 
-  sfdpOptions?: SfdpOptions;
-}
+    readonly sfdpOptions?: SfdpOptions;
+};

@@ -60,6 +60,16 @@ export async function loadGraph(
     try {
         resetRenderer(renderer);
 
+        // Retain the settings from this invocation, even if the caller edits them while preparing.
+        const sessionOptions = {
+            visualMapping: options.visualMapping && copyVisualMapping(options.visualMapping),
+            displayOptions: options.displayOptions && Object.freeze({ ...options.displayOptions }),
+            lod: Object.freeze({
+                maxNodes: options.lod?.maxNodes,
+                representationSpacingPx: options.lod?.representationSpacingPx,
+                smallTreeThreshold: options.lod?.smallTreeThreshold ?? GRAPH_VIEWER_SMALL_TREE_NODE_THRESHOLD,
+            }),
+        };
         const ancillary = resolveAncillaryInput(options);
 
         const request: GraphPrepareRequest = {
@@ -78,7 +88,7 @@ export async function loadGraph(
 
         assertCurrentLoad(isCurrentLoad);
 
-        const session = createGraphSession(preparedGraph, options);
+        const session = createGraphSession(preparedGraph, sessionOptions);
 
         dispatch({
             kind: 'graphPrepared',
@@ -123,11 +133,12 @@ export async function loadGraph(
 
             getRenderSettings: () => {
                 const state = getState();
+                const currentSession = getGraphSession(state);
 
                 return {
-                    visualMapping: getGraphSession(state).visualMapping,
+                    visualMapping: currentSession.visualMapping,
                     filterState: state.activeFilters,
-                    displayOptions: session.displayOptions,
+                    displayOptions: currentSession.displayOptions,
                 };
             },
         });
@@ -177,21 +188,15 @@ function resetRenderer(renderer: GraphRenderer): void {
     renderer.focusNode?.(null);
 }
 
-function createGraphSession(preparedGraph: GraphPrepareResult, options: LoadGraphOptions): GraphSession {
-    return {
+function createGraphSession(
+    preparedGraph: GraphPrepareResult,
+    options: Pick<GraphSession, 'visualMapping' | 'displayOptions' | 'lod'>
+): GraphSession {
+    return Object.freeze({
+        ...options,
         datasetId: preparedGraph.datasetId,
         layoutVersion: preparedGraph.layoutVersion,
-
-        visualMapping: options.visualMapping && copyVisualMapping(options.visualMapping),
-        displayOptions: options.displayOptions && { ...options.displayOptions },
-
-        layoutWarnings: [...preparedGraph.warnings],
+        layoutWarnings: Object.freeze([...preparedGraph.warnings]),
         lodTierCount: preparedGraph.lodTierCount,
-
-        lod: {
-            maxNodes: options.lod?.maxNodes,
-            representationSpacingPx: options.lod?.representationSpacingPx,
-            smallTreeThreshold: options.lod?.smallTreeThreshold ?? GRAPH_VIEWER_SMALL_TREE_NODE_THRESHOLD,
-        },
-    };
+    });
 }

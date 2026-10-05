@@ -41,8 +41,8 @@ export interface PhyloLensLoadOptions extends AncillaryInputOptions {
 }
 
 export interface PhyloLensAncillaryResult {
-    matchedNodeCount: number;
-    warnings: string[];
+    readonly matchedNodeCount: number;
+    readonly warnings: readonly string[];
 }
 
 export interface PhyloLensView {

@@ -1,8 +1,8 @@
-export interface GraphPrepareErrorDetails {
-  algorithm: string;
-  stage: string;
-  exitStatus?: number | null;
-  timeoutSeconds?: number | null;
-  stderr?: string | null;
-  detail?: string | null;
-}
+export type GraphPrepareErrorDetails = {
+    readonly algorithm: string;
+    readonly stage: string;
+    readonly exitStatus?: number | null;
+    readonly timeoutSeconds?: number | null;
+    readonly stderr?: string | null;
+    readonly detail?: string | null;
+};

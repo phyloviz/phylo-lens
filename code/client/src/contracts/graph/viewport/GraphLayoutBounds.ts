@@ -1,6 +1,6 @@
-export interface GraphLayoutBounds {
-  minX: number;
-  maxX: number;
-  minY: number;
-  maxY: number;
-}
+export type GraphLayoutBounds = {
+    readonly minX: number;
+    readonly maxX: number;
+    readonly minY: number;
+    readonly maxY: number;
+};

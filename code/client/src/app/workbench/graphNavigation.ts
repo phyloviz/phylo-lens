@@ -126,7 +126,7 @@ export default function createGraphNavigation({
 
     async function focusNode(
         nodeId: NodeId,
-        coordinates?: { x: number | null; y: number | null; clusterId?: ClusterId | null }
+        coordinates?: { readonly x: number | null; readonly y: number | null; readonly clusterId?: ClusterId | null }
     ): Promise<PositionedGraph> {
         const session = getGraphSession(getState());
         const generation = getLoadGeneration();
@@ -148,7 +148,7 @@ export default function createGraphNavigation({
         );
 
         if (!visible || !renderer.centerOnNode?.(nodeId)) {
-            let location = coordinates;
+            let location = coordinates && { ...coordinates };
 
             if (!location?.clusterId) {
                 const response = await graphClient.searchGraph({

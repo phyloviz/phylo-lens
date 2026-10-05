@@ -33,4 +33,6 @@ export function reduceExpansionControls(
                 ? { kind: 'ready', selected: state.selected, failure: action.failure }
                 : state;
     }
+    const unhandledAction: never = action;
+    throw new Error(`Unhandled action: ${JSON.stringify(unhandledAction)}`);
 }

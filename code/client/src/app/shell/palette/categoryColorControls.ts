@@ -36,9 +36,9 @@ export default function (container: HTMLElement | undefined) {
         categoryGrouping = {},
     }: {
         graph: PositionedGraph | null;
-        selectedFields: string[];
+        selectedFields: readonly string[];
         categoryColorOverrides: Record<string, string>;
-        palette?: string[];
+        palette?: readonly string[];
         categoryGrouping?: PieCategoryGrouping;
     }): void {
         if (!container) {

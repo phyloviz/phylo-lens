@@ -12,7 +12,7 @@ import { categoryCountsForField, pieCategoricalAttributeKey } from './pieCategor
 export function pieDistribution(
     observations: readonly AncillaryObservation[],
     fields: readonly string[]
-): PieCategory[] {
+): readonly PieCategory[] {
     const selected = normalizedPieFields(fields);
     if (!selected.length) return [];
     const counts = new Map<string, PieCategory>();
@@ -49,20 +49,22 @@ export function pieDistribution(
     return [...counts.values()].sort((a, b) => b.value - a.value || a.key.localeCompare(b.key));
 }
 
-export function observationsFromAttributes(attributes?: Record<string, unknown>): AncillaryObservation[] {
-    const distribution = attributes?.ancillaryDistribution as AncillaryObservation[] | undefined;
+export function observationsFromAttributes(
+    attributes?: Readonly<Record<string, unknown>>
+): readonly AncillaryObservation[] {
+    const distribution = attributes?.ancillaryDistribution as readonly AncillaryObservation[] | undefined;
     if (distribution) return distribution;
     return readNodeIsolates(attributes).map(isolate => ({ values: isolate.ancillaryData, count: 1 }));
 }
 
-export function distributionFromAttributes(attributes?: Record<string, unknown>): PieCategory[] {
-    return (attributes?.[PIE_DISTRIBUTION_ATTRIBUTE] as PieCategory[] | undefined) ?? [];
+export function distributionFromAttributes(attributes?: Readonly<Record<string, unknown>>): readonly PieCategory[] {
+    return (attributes?.[PIE_DISTRIBUTION_ATTRIBUTE] as readonly PieCategory[] | undefined) ?? [];
 }
 
 export function distributionForFields(
-    attributes: Record<string, unknown> | undefined,
+    attributes: Readonly<Record<string, unknown>> | undefined,
     fields: readonly string[]
-): PieCategory[] {
+): readonly PieCategory[] {
     const observations = observationsFromAttributes(attributes);
     if (observations.length) return pieDistribution(observations, fields);
     const annotations = readNodeAnnotations(attributes);

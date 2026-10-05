@@ -204,9 +204,19 @@ export class SigmaRenderer implements GraphRenderer {
   };
 
   constructor(options: SigmaRendererOptions = {}) {
-    this.rendererOptions = options;
-    this.piechartOptions = options.piechart ?? {};
-    this.forceMotion = createSigmaForceMotion(options.forceMotion, {
+    const { forceMotion, ...renderOptions } = options;
+    this.rendererOptions = {
+      ...renderOptions,
+      label: options.label && { ...options.label },
+      edge: options.edge && { ...options.edge },
+      display: options.display && { ...options.display },
+      piechart: options.piechart && {
+        ...options.piechart,
+        palette: options.piechart.palette && [...options.piechart.palette],
+      },
+    };
+    this.piechartOptions = this.rendererOptions.piechart ?? {};
+    this.forceMotion = createSigmaForceMotion(forceMotion, {
       onTick: () => this.updateClusterTriangleRotations(),
       onError: (message) => this.feedbackHandler?.(message),
       reference: (id) => this.positions.reference(id),
@@ -460,7 +470,7 @@ export class SigmaRenderer implements GraphRenderer {
     }
 
     if (this.dragPins.size || this.selectingRegion) {
-      this.pendingSnapshot = { graph, options };
+      this.pendingSnapshot = { graph, options: options && { ...options } };
       return;
     }
     const wasTransitioning = this.transitioning;
@@ -513,7 +523,7 @@ export class SigmaRenderer implements GraphRenderer {
       if (!this.graph?.hasNode(edge.source) || !this.graph.hasNode(edge.target)) {
         return;
       }
-      this.graph.addEdgeWithKey(edge.id, edge.source, edge.target, edge.attributes ?? {});
+      this.graph.addEdgeWithKey(edge.id, edge.source, edge.target, { ...edge.attributes });
     });
     this.updateClusterTriangleRotations();
     this.syncPieProgramsFromGraph();
@@ -652,7 +662,7 @@ export class SigmaRenderer implements GraphRenderer {
   // Dim every node/edge outside `nodeIds` so the selected region stands out.
   // An empty set or null clears the highlight and repaints at full opacity.
   setHighlightedNodes(nodeIds: ReadonlySet<string> | null): void {
-    this.highlightedNodeIds = nodeIds && nodeIds.size > 0 ? nodeIds : null;
+    this.highlightedNodeIds = nodeIds && nodeIds.size > 0 ? new Set(nodeIds) : null;
     this.applyHighlighting();
     this.sigma?.scheduleRender?.();
   }
@@ -1015,7 +1025,7 @@ export class SigmaRenderer implements GraphRenderer {
     this.sigma?.scheduleRender?.();
     this.nodeClickHandler({
       nodeId,
-      attributes: this.graph.getNodeAttributes(nodeId) as Record<string, unknown>,
+      attributes: Object.freeze({ ...this.graph.getNodeAttributes(nodeId) }),
     });
   }
 
@@ -1036,7 +1046,7 @@ export class SigmaRenderer implements GraphRenderer {
 
     this.nodeDoubleClickHandler({
       nodeId,
-      attributes: this.graph.getNodeAttributes(nodeId) as Record<string, unknown>,
+      attributes: Object.freeze({ ...this.graph.getNodeAttributes(nodeId) }),
     });
   }
 

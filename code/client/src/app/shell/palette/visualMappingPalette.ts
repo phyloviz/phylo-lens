@@ -144,16 +144,13 @@ export default function (options: VisualMappingPaletteOptions) {
             options.getSizeScaleValue(),
             { ...state.colors }
         );
-        if (mapping.pie) {
+        const pie = mapping.pie && { ...mapping.pie };
+        if (pie) {
             const grouping = currentGrouping();
-            mapping.pie = { ...mapping.pie };
-            if (Object.keys(grouping).length) mapping.pie.categoryGrouping = grouping;
-            else delete mapping.pie.categoryGrouping;
+            if (Object.keys(grouping).length) pie.categoryGrouping = grouping;
+            else delete pie.categoryGrouping;
         }
         const enabled = options.getPiesEnabled?.();
-        if (enabled !== undefined) {
-            mapping.pie = { ...mapping.pie, enabled };
-        }
-        return mapping;
+        return enabled !== undefined ? { ...mapping, pie: { ...pie, enabled } } : pie ? { ...mapping, pie } : mapping;
     }
 }

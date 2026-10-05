@@ -65,8 +65,15 @@ export function hasActiveFilters(filterState: AncillaryFilterState): boolean {
 }
 
 export function copyFilterState(filters: AncillaryFilterState): AncillaryFilterState {
-    return {
-        categorical: filters.categorical.map(filter => ({ ...filter, acceptedValues: [...filter.acceptedValues] })),
-        numeric: filters.numeric.map(filter => ({ ...filter })),
-    };
+    return Object.freeze({
+        categorical: Object.freeze(
+            filters.categorical.map(filter =>
+                Object.freeze({
+                    ...filter,
+                    acceptedValues: Object.freeze([...filter.acceptedValues]),
+                })
+            )
+        ),
+        numeric: Object.freeze(filters.numeric.map(filter => Object.freeze({ ...filter }))),
+    });
 }

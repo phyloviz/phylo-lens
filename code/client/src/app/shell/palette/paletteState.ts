@@ -50,4 +50,6 @@ export function reducePalette(state: PaletteState, action: PaletteAction): Palet
         case 'mappingApplied':
             return { ...state, mapping: copyVisualMapping(action.mapping) };
     }
+    const unhandledAction: never = action;
+    throw new Error(`Unhandled action: ${JSON.stringify(unhandledAction)}`);
 }

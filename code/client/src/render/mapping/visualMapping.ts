@@ -23,35 +23,36 @@ export const SIZE_SCALE_LOG = 'log';
 
 export type SizeScale = typeof SIZE_SCALE_LINEAR | typeof SIZE_SCALE_LOG;
 
-export interface SizeMappingOptions {
-    field?: string;
-    scale?: SizeScale;
-}
+export type SizeMappingOptions = {
+    readonly field?: string;
+    readonly scale?: SizeScale;
+};
 
-export interface VisualMappingOptions {
-    colorField?: string;
-    size?: SizeMappingOptions;
-    palette?: string[];
-    pie?: PieMappingOptions;
-}
+export type VisualMappingOptions = {
+    readonly colorField?: string;
+    readonly size?: SizeMappingOptions;
+    readonly palette?: readonly string[];
+    readonly pie?: PieMappingOptions;
+};
 
-/** Own the editable arrays and records instead of retaining a caller's references. */
+/** Copy and freeze the small configuration we retain; caller-owned values stay untouched. */
 export function copyVisualMapping(mapping: VisualMappingOptions): VisualMappingOptions {
     const copy = { ...mapping };
-    if (mapping.size) copy.size = { ...mapping.size };
-    if (mapping.palette) copy.palette = [...mapping.palette];
+    if (mapping.size) copy.size = Object.freeze({ ...mapping.size });
+    if (mapping.palette) copy.palette = Object.freeze([...mapping.palette]);
     if (mapping.pie) {
-        copy.pie = { ...mapping.pie };
-        if (mapping.pie.fields) copy.pie.fields = [...mapping.pie.fields];
-        if (mapping.pie.palette) copy.pie.palette = [...mapping.pie.palette];
-        if (mapping.pie.categoryColors) copy.pie.categoryColors = { ...mapping.pie.categoryColors };
-        if (mapping.pie.categoryGrouping) copy.pie.categoryGrouping = { ...mapping.pie.categoryGrouping };
+        const pie = { ...mapping.pie };
+        if (pie.fields) pie.fields = Object.freeze([...pie.fields]);
+        if (pie.palette) pie.palette = Object.freeze([...pie.palette]);
+        if (pie.categoryColors) pie.categoryColors = Object.freeze({ ...pie.categoryColors });
+        if (pie.categoryGrouping) pie.categoryGrouping = Object.freeze({ ...pie.categoryGrouping });
+        copy.pie = Object.freeze(pie);
     }
-    return copy;
+    return Object.freeze(copy);
 }
 
 /** Pies, solid fills and legends use one palette, including pie-specific overrides. */
-export function resolveMappingPalette(mapping: VisualMappingOptions): string[] {
+export function resolveMappingPalette(mapping: VisualMappingOptions): readonly string[] {
     return mapping.pie?.palette?.length
         ? mapping.pie.palette
         : mapping.palette?.length

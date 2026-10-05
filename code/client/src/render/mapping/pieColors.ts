@@ -14,13 +14,13 @@ import {
     type PieCategory,
 } from './pieMapping.types';
 
-interface PiePresentationNode {
-    attributes?: Record<string, unknown>;
-    distribution?: readonly PieCategory[];
-    grouping?: PieCategoryGrouping;
-}
+type PiePresentationNode = {
+    readonly attributes?: Readonly<Record<string, unknown>>;
+    readonly distribution?: readonly PieCategory[];
+    readonly grouping?: PieCategoryGrouping;
+};
 
-export function detectPieSliceKeys(nodes: PiePresentationNode[], maxSliceKeys = MAX_PIE_SLICE_KEYS): string[] {
+export function detectPieSliceKeys(nodes: readonly PiePresentationNode[], maxSliceKeys = MAX_PIE_SLICE_KEYS): string[] {
     const totalsByKey = new Map<string, number>();
     const addSlice = (key: string, value: unknown) => {
         if (key !== PIE_OTHER_SLICE_KEY && typeof value === 'number' && Number.isFinite(value) && value > 0)
@@ -66,7 +66,7 @@ export function selectPieSliceKeys(
     return displayed.sort((a, b) => a.localeCompare(b));
 }
 
-export function buildPiePalette(count: number, requestedPalette?: string[]): string[] {
+export function buildPiePalette(count: number, requestedPalette?: readonly string[]): string[] {
     if (count <= 0) {
         return [];
     }
@@ -88,14 +88,14 @@ export function buildPiePalette(count: number, requestedPalette?: string[]): str
 }
 
 export function resolvePieSliceColors(
-    nodes: PiePresentationNode[],
+    nodes: readonly PiePresentationNode[],
     sliceKeys: readonly string[] = detectPieSliceKeys(nodes),
-    requestedPalette?: string[],
+    requestedPalette?: readonly string[],
     // Live per-category overrides from the shell controls, keyed by plain value
     // label (e.g. "Peru"). They are re-keyed to slice keys per field below and
     // take precedence over overrides baked onto the graph, so a colour edit is
     // reflected immediately by every consumer (wheel included).
-    requestedCategoryColors?: Record<string, string>
+    requestedCategoryColors?: Readonly<Record<string, string>>
 ): Record<string, string> {
     const palette = requestedPalette?.length
         ? requestedPalette
@@ -130,7 +130,7 @@ export function resolvePieSliceColors(
 
 export function resolvePieCategoryColor(
     slice: Pick<PieCategory, 'category' | 'missing'>,
-    palette: string[],
+    palette: readonly string[],
     override?: string
 ): string {
     return override && /^#[0-9a-fA-F]{6}$/.test(override)
@@ -141,7 +141,7 @@ export function resolvePieCategoryColor(
 }
 
 export function collectPieCategoryColors(
-    nodes: Array<{ attributes?: Record<string, unknown> }>
+    nodes: ReadonlyArray<{ readonly attributes?: Readonly<Record<string, unknown>> }>
 ): Record<string, string> {
     const colors: Record<string, string> = {};
 
@@ -162,7 +162,7 @@ export function collectPieCategoryColors(
 }
 
 export function resolvePiePaletteFromNodes(
-    nodes: Array<{ attributes?: Record<string, unknown> }>
+    nodes: ReadonlyArray<{ readonly attributes?: Readonly<Record<string, unknown>> }>
 ): string[] | undefined {
     for (const node of nodes) {
         const value = node.attributes?.[PIE_PALETTE_ATTRIBUTE];

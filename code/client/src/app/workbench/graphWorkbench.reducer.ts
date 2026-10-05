@@ -21,7 +21,9 @@ export function reduceGraphWorkbenchState(
                 lodRefreshPaused: state.lodRefreshPaused,
             };
         case 'lodRefreshPaused':
-            return hasGraphSession(state) ? { ...state, lodRefreshPaused: action.paused } : state;
+            return hasGraphSession(state) && state.lodRefreshPaused !== action.paused
+                ? { ...state, lodRefreshPaused: action.paused }
+                : state;
         case 'filtersUpdated':
             return hasGraphSession(state) ? { ...state, activeFilters: copyFilterState(action.filters) } : state;
         case 'visualMappingUpdated':
@@ -34,7 +36,7 @@ export function reduceGraphWorkbenchState(
                       ...state,
                       session: {
                           ...state.session,
-                          displayOptions: { ...state.session.displayOptions, ...action.displayOptions },
+                          displayOptions: Object.freeze({ ...state.session.displayOptions, ...action.displayOptions }),
                       },
                   }
                 : state;
@@ -59,4 +61,6 @@ export function reduceGraphWorkbenchState(
             };
         }
     }
+    const unhandledAction: never = action;
+    throw new Error(`Unhandled action: ${JSON.stringify(unhandledAction)}`);
 }

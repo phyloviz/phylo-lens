@@ -50,8 +50,8 @@ interface ResolvedViewportVisuals {
     colorField: string | undefined;
     sizeField: string;
     scale: SizeScale;
-    palette: string[];
-    categoryColors?: Record<string, string>;
+    palette: readonly string[];
+    categoryColors?: Readonly<Record<string, string>>;
     grouping: PieCategoryGrouping;
     numericStats?: { min: number; max: number };
     customSize: boolean;
@@ -209,7 +209,10 @@ function buildGraphViewportEdgeAttributes(edge: GraphViewportEdge, displayOption
     };
 }
 
-function filteredViewportNodes(response: GraphViewportResult, settings?: ViewportRenderSettings): GraphViewportNode[] {
+function filteredViewportNodes(
+    response: GraphViewportResult,
+    settings?: ViewportRenderSettings
+): readonly GraphViewportNode[] {
     const filterState = settings?.filterState;
     if (!filterState || !hasActiveFilters(filterState)) {
         return response.nodes;
@@ -221,7 +224,7 @@ function filteredViewportNodes(response: GraphViewportResult, settings?: Viewpor
 }
 
 function resolveViewportVisuals(
-    nodes: GraphViewportNode[],
+    nodes: readonly GraphViewportNode[],
     settings?: ViewportRenderSettings
 ): ResolvedViewportVisuals | null {
     const mapping = settings?.visualMapping;
@@ -255,12 +258,12 @@ function nodeValue(node: GraphViewportNode, field: string) {
     return Object.hasOwn(ancillaryData, field) ? ancillaryData[field] : ancillarySummary.values[field];
 }
 
-function viewportHasProfileCount(nodes: GraphViewportNode[]): boolean {
+function viewportHasProfileCount(nodes: readonly GraphViewportNode[]): boolean {
     return nodes.some(node => node.annotations.profileSummary.isolateCount !== undefined);
 }
 
 function computeSizeFieldStats(
-    nodes: GraphViewportNode[],
+    nodes: readonly GraphViewportNode[],
     sizeField: string
 ): { min: number; max: number } | undefined {
     let min = Number.POSITIVE_INFINITY;
@@ -289,13 +292,13 @@ function nodeSizeForMemberCount(memberCount: number): number {
     return Math.min(GRAPH_VIEWER_REPRESENTATIVE_MAX_SIZE, GRAPH_VIEWER_REPRESENTATIVE_BASE_SIZE + boost);
 }
 
-function nodeObservations(node: GraphViewportNode): AncillaryObservation[] {
+function nodeObservations(node: GraphViewportNode): readonly AncillaryObservation[] {
     if (node.ancillaryDistribution?.length) return node.ancillaryDistribution;
     if (node.isolates?.length) return node.isolates.map(isolate => ({ values: isolate.ancillaryData, count: 1 }));
     return [{ values: ancillaryValues(node.annotations), count: 1 }];
 }
 
-function pieNodeAttributes(visuals: ResolvedViewportVisuals | null, distribution: PieCategory[]) {
+function pieNodeAttributes(visuals: ResolvedViewportVisuals | null, distribution: readonly PieCategory[]) {
     const pie = visuals?.pie;
     if (!visuals || !pie?.fields?.length) return {};
     const colors = Object.fromEntries(

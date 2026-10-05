@@ -26,7 +26,7 @@ export function toGraphRegionResult(dto: GraphRegionResponseDto): GraphRegionRes
         totalNodeCount: dto.total_node_count,
         nodes: dto.nodes.map(toGraphViewportNode),
         edges: dto.edges.map(toGraphViewportEdge),
-        ancillarySchema: dto.metadata_schema,
-        aggregatedAncillaryData: dto.aggregated_metadata,
+        ancillarySchema: dto.metadata_schema?.map(field => ({ ...field })),
+        aggregatedAncillaryData: { ...dto.aggregated_metadata },
     };
 }

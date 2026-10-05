@@ -52,7 +52,7 @@ export default function (options: SearchControllerOptions) {
         }
     }
 
-    function renderMatches(matches: SearchResultItem[]): void {
+    function renderMatches(matches: readonly SearchResultItem[]): void {
         renderSearchResults(options.results, matches, match => {
             void focusSearchResult(match);
         });

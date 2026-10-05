@@ -290,20 +290,17 @@ export class GraphViewportCoordinator {
         clusterId: ClusterId,
         options: { fitToResponse?: boolean; focusNodeId?: NodeId | null } = {}
     ): Promise<ExpansionResult> {
+        const { fitToResponse, focusNodeId } = options;
         this.requireExpansionReady();
         if (!clusterId) throw new Error('A cluster ID is required.');
-        if (!options.focusNodeId && this.expandedPatches.has(clusterId)) return this.expansionResult();
-        if (
-            !options.focusNodeId &&
-            this.maxNodes !== undefined &&
-            (this.currentGraph?.nodes.length ?? 0) >= this.maxNodes
-        ) {
+        if (!focusNodeId && this.expandedPatches.has(clusterId)) return this.expansionResult();
+        if (!focusNodeId && this.maxNodes !== undefined && (this.currentGraph?.nodes.length ?? 0) >= this.maxNodes) {
             this.expansionPartial = true;
             return this.expansionResult();
         }
         const sequence = this.beginExpansion();
-        if (options.focusNodeId) this.pendingFocusSequence = sequence;
-        const response = await this.readExpansion(this.readCluster(clusterId, options.focusNodeId), sequence);
+        if (focusNodeId) this.pendingFocusSequence = sequence;
+        const response = await this.readExpansion(this.readCluster(clusterId, focusNodeId), sequence);
         if (!response) return this.expansionResult('superseded');
         if (response.totalNodeCount === 0) throw new Error('The requested cluster has no available members.');
         const settings = this.getRenderSettings?.();
@@ -315,23 +312,23 @@ export class GraphViewportCoordinator {
             this.maxNodes
         );
         const missingMembers = response.totalNodeCount > response.nodes.filter(node => !node.isRepresentative).length;
-        if (!options.focusNodeId && (response.truncated || missingMembers || candidate.partial)) {
+        if (!focusNodeId && (response.truncated || missingMembers || candidate.partial)) {
             // Keep the summary intact rather than showing a full-group proxy alongside
             // an incomplete subset of its members.
             this.expansionPartial = true;
             return this.expansionResult();
         }
-        if (options.focusNodeId) {
-            if (!response.nodes.some(node => node.id === options.focusNodeId && !node.isRepresentative)) {
+        if (focusNodeId) {
+            if (!response.nodes.some(node => node.id === focusNodeId && !node.isRepresentative)) {
                 throw new Error('The requested profile is unavailable in this cluster.');
             }
-            this.priorityNodeId = options.focusNodeId;
+            this.priorityNodeId = focusNodeId;
         }
         this.expandedPatches.set(clusterId, response);
         this.expansionLodLevel = this.baseResponse?.lodLevel ?? 0;
         const graph = this.composeGraph();
         this.applyGraph(graph, 'cluster_expand', clusterId);
-        if (options.fitToResponse) {
+        if (fitToResponse) {
             this.suppressCameraRefreshUntil = Date.now() + VIEWPORT_INITIAL_FIT_DURATION_MS + this.debounceMs;
             this.cancelFit =
                 this.renderer.fitGraphSnapshot?.(

@@ -28,11 +28,11 @@ import type { AncillaryInputOptions } from '../../ancillary/ancillaryInput';
 // selection. Node ids feed the canvas highlight; aggregated ancillary data feeds the
 // region stats panel.
 export interface RegionSelectionResult {
-    scope?: 'display';
-    nodeIds: NodeId[];
-    nodeCount: number;
-    truncated: boolean;
-    aggregatedAncillaryData: AncillaryData;
+    readonly scope?: 'display';
+    readonly nodeIds: readonly NodeId[];
+    readonly nodeCount: number;
+    readonly truncated: boolean;
+    readonly aggregatedAncillaryData: AncillaryData;
 }
 
 export type RegionSelectedHandler = (bounds: RenderViewportBounds) => void;
@@ -101,7 +101,7 @@ export interface GraphWorkbench {
     cancelPendingFocus: () => void;
     focusNode: (
         nodeId: NodeId,
-        coordinates?: { x: number | null; y: number | null; clusterId?: ClusterId | null }
+        coordinates?: { readonly x: number | null; readonly y: number | null; readonly clusterId?: ClusterId | null }
     ) => Promise<PositionedGraph>;
 
     setErrorHandler: (handler: ((error: Error) => void) | null) => void;

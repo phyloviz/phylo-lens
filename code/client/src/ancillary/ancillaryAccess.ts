@@ -5,7 +5,7 @@ import type { AncillaryData, NodeAnnotations } from '../contracts/ancillary';
 import { decodeApiMetadata } from './apiMetadata';
 
 /** Read typed node annotations or decode flat API metadata supplied to a renderer. */
-export function readNodeAnnotations(attributes: Record<string, unknown> | undefined): NodeAnnotations {
+export function readNodeAnnotations(attributes: Readonly<Record<string, unknown>> | undefined): NodeAnnotations {
     const annotations = attributes?.annotations;
     if (
         annotations &&
@@ -22,7 +22,7 @@ export function readNodeAnnotations(attributes: Record<string, unknown> | undefi
     );
 }
 
-export function readNodeAncillaryValues(attributes: Record<string, unknown> | undefined): AncillaryData {
+export function readNodeAncillaryValues(attributes: Readonly<Record<string, unknown>> | undefined): AncillaryData {
     return ancillaryValues(readNodeAnnotations(attributes));
 }
 
@@ -31,7 +31,7 @@ export function ancillaryValues(annotations: NodeAnnotations): AncillaryData {
     return { ...annotations.ancillarySummary.values, ...annotations.ancillaryData };
 }
 
-export function readNodeIsolates(attributes: Record<string, unknown> | undefined): readonly Isolate[] {
+export function readNodeIsolates(attributes: Readonly<Record<string, unknown>> | undefined): readonly Isolate[] {
     const records = attributes?.isolates;
     if (!Array.isArray(records)) return [];
     return records.filter(

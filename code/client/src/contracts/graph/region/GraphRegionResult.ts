@@ -4,14 +4,14 @@ import type { GraphViewportNode } from '../viewport/GraphViewportNode';
 import type { GraphViewportEdge } from '../viewport/GraphViewportEdge';
 import type { AncillaryField, AncillaryData } from '../../ancillary';
 
-export interface GraphRegionResult {
-    datasetId: DatasetId;
-    layoutVersion: LayoutVersion;
-    layoutStatus: GraphLayoutStatus;
-    truncated: boolean;
-    totalNodeCount: number;
-    nodes: GraphViewportNode[];
-    edges: GraphViewportEdge[];
-    ancillarySchema?: AncillaryField[];
-    aggregatedAncillaryData: AncillaryData;
-}
+export type GraphRegionResult = {
+    readonly datasetId: DatasetId;
+    readonly layoutVersion: LayoutVersion;
+    readonly layoutStatus: GraphLayoutStatus;
+    readonly truncated: boolean;
+    readonly totalNodeCount: number;
+    readonly nodes: readonly GraphViewportNode[];
+    readonly edges: readonly GraphViewportEdge[];
+    readonly ancillarySchema?: readonly AncillaryField[];
+    readonly aggregatedAncillaryData: AncillaryData;
+};

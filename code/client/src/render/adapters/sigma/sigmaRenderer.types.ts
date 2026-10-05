@@ -1,29 +1,29 @@
-import type { GraphDisplayOptions } from "../../renderer.types";
-import type { SigmaForceMotionOptions } from "./motion/sigmaForceMotion";
+import type { GraphDisplayOptions } from '../../renderer.types';
+import type { SigmaForceMotionOptions } from './motion/sigmaForceMotion';
 
-export interface SigmaPiechartOptions {
-  enabled?: boolean;
-  palette?: string[];
-}
+export type SigmaPiechartOptions = {
+    readonly enabled?: boolean;
+    readonly palette?: readonly string[];
+};
 
-export interface SigmaRendererOptions {
-  piechart?: SigmaPiechartOptions;
-  forceMotion?: SigmaForceMotionOptions;
-  display?: GraphDisplayOptions;
-  label?: {
-    enabled?: boolean;
-    color?: string;
-    size?: number;
-    density?: number;
-    gridCellSize?: number;
-    renderedSizeThreshold?: number;
-  };
-  edge?: {
-    size?: number;
-    color?: string;
-    labelColor?: string;
-    labelSize?: number;
-  };
-}
+export type SigmaRendererOptions = {
+    readonly piechart?: SigmaPiechartOptions;
+    readonly forceMotion?: SigmaForceMotionOptions;
+    readonly display?: GraphDisplayOptions;
+    readonly label?: {
+        readonly enabled?: boolean;
+        readonly color?: string;
+        readonly size?: number;
+        readonly density?: number;
+        readonly gridCellSize?: number;
+        readonly renderedSizeThreshold?: number;
+    };
+    readonly edge?: {
+        readonly size?: number;
+        readonly color?: string;
+        readonly labelColor?: string;
+        readonly labelSize?: number;
+    };
+};
 
 export type SigmaNodeProgramClasses = Record<string, unknown>;

@@ -1,16 +1,16 @@
-import type { ClusterId, NodeId } from "../graphIdentifiers";
-import { GraphLayoutStatus } from "../graphTypes";
-import type { NodeAnnotations, Isolate, AncillaryObservation } from "../../ancillary";
+import type { ClusterId, NodeId } from '../graphIdentifiers';
+import { GraphLayoutStatus } from '../graphTypes';
+import type { NodeAnnotations, Isolate, AncillaryObservation } from '../../ancillary';
 
-export interface GraphViewportNode {
-  id: NodeId;
-  clusterId: ClusterId;
-  x: number;
-  y: number;
-  layoutStatus: GraphLayoutStatus;
-  memberCount: number;
-  isRepresentative: boolean;
-  annotations: NodeAnnotations;
-  isolates?: Isolate[];
-  ancillaryDistribution?: AncillaryObservation[];
-}
+export type GraphViewportNode = {
+    readonly id: NodeId;
+    readonly clusterId: ClusterId;
+    readonly x: number;
+    readonly y: number;
+    readonly layoutStatus: GraphLayoutStatus;
+    readonly memberCount: number;
+    readonly isRepresentative: boolean;
+    readonly annotations: NodeAnnotations;
+    readonly isolates?: readonly Isolate[];
+    readonly ancillaryDistribution?: readonly AncillaryObservation[];
+};

@@ -1,8 +1,8 @@
-import type { DatasetId } from "../graphIdentifiers";
-import { GraphPrepareJobStatus } from "../graphTypes";
+import type { DatasetId } from '../graphIdentifiers';
+import { GraphPrepareJobStatus } from '../graphTypes';
 
-export interface GraphPrepareJob {
-  jobId: string;
-  status: GraphPrepareJobStatus;
-  datasetId: DatasetId;
-}
+export type GraphPrepareJob = {
+    readonly jobId: string;
+    readonly status: GraphPrepareJobStatus;
+    readonly datasetId: DatasetId;
+};
