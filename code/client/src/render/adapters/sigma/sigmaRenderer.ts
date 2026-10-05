@@ -311,6 +311,7 @@ export class SigmaRenderer implements GraphRenderer {
     this.dragController.reset();
     this.sourceSnapshot = graph;
     this.maxGlyphSize = 0;
+    this.glyphFootprintDirty = true;
     this.positions.clear();
     this.forceMotion.stop();
     this.lastRenderedGraph = graph;

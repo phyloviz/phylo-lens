@@ -15,7 +15,13 @@ export interface ExpansionControlsElements {
     feedback?: HTMLElement;
 }
 
-export function expansionControls(workbench: GraphWorkbench, elements: ExpansionControlsElements = {}) {
+export function expansionControls(
+    workbench: Pick<
+        GraphWorkbench,
+        'getExpansionState' | 'setKeepExpanded' | 'expandAll' | 'collapseAll' | 'expandCluster' | 'collapseCluster'
+    >,
+    elements: ExpansionControlsElements = {}
+) {
     const bindings = eventBindings();
     let state: ExpansionControlState = { kind: 'unavailable' };
     let revision = 0;

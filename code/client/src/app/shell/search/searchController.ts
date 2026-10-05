@@ -5,7 +5,7 @@ import { renderSearchResults, type SearchResultItem } from './searchResultsView'
 const SEARCH_LIMIT = 25;
 
 export interface SearchControllerOptions {
-    workbench: GraphWorkbench;
+    workbench: Pick<GraphWorkbench, 'searchNodes' | 'focusNode' | 'cancelPendingFocus'>;
     input?: HTMLInputElement;
     results?: HTMLElement;
     setStatus: (status: string) => void;

@@ -73,7 +73,7 @@ export class GraphViewportCoordinator {
     private readonly onGraphApplied?: (graph: PositionedGraph, response?: GraphViewportResult) => void;
     private readonly snapshotObserver?: SnapshotAppliedObserver;
     private readonly nextSnapshotSequence?: () => number;
-    private debounceTimer: ReturnType<typeof window.setTimeout> | null = null;
+    private debounceTimer: number | null = null;
     private cancelFit: (() => void) | null = null;
     private requestSequence = 0;
     private pendingFocusSequence: number | null = null;
