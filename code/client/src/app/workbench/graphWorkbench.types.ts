@@ -103,6 +103,8 @@ export interface GraphWorkbench {
     coordinates?: { x: number | null; y: number | null; clusterId?: string | null },
   ) => Promise<PositionedGraph>;
 
+  setErrorHandler: (handler: ((error: unknown) => void) | null) => void;
+
   setGraphRenderedHandler: (handler: GraphRenderedHandler | null) => void;
 
   setNodeClickedHandler: (handler: GraphNodeClickedHandler | null) => void;

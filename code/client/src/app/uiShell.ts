@@ -267,6 +267,7 @@ export default function (options: UiShellOptions): UiShell {
       if (dragStatus) dragStatus.textContent = message;
     });
     expansion.mount();
+    workbench.setErrorHandler((error) => setFailureStatus(error instanceof Error ? error.message : "unknown error"));
     workbench.setGraphRenderedHandler((graph) => {
       handleGraphRendered(graph);
     });
@@ -424,27 +425,27 @@ export default function (options: UiShellOptions): UiShell {
   async function renderCurrentInput(): Promise<void> {
     const sequence = ++loadSequence;
     applyingAncillary = false;
-    const sourceFormat = getSourceFormat();
-    const content = (await getSourceContent(sourceFormat)).trim();
-    if (sequence !== loadSequence) return;
-    const datasetName = datasetNameInput?.value.trim();
-    const ancillaryRaw = ancillaryInput?.value.trim() ?? "";
-
-    if (!content) {
-      const label = sourceFormat === SOURCE_FORMAT_TYPING_DATA ? "empty typing data input" : "empty Newick input";
-      setFailureStatus(label);
-      return;
-    }
-
-    search.reset();
-    region.reset();
-    resetDragControls();
-    loadingGraph = true;
-    expansion.setReady(false);
-    updateApplyAncillaryButton();
-    setStatus(`${STATUS_RENDERING_PREFIX}...`);
-
     try {
+      const sourceFormat = getSourceFormat();
+      const content = (await getSourceContent(sourceFormat)).trim();
+      if (sequence !== loadSequence) return;
+      const datasetName = datasetNameInput?.value.trim();
+      const ancillaryRaw = ancillaryInput?.value.trim() ?? "";
+
+      if (!content) {
+        const label = sourceFormat === SOURCE_FORMAT_TYPING_DATA ? "empty typing data input" : "empty Newick input";
+        setFailureStatus(label);
+        return;
+      }
+
+      search.reset();
+      region.reset();
+      resetDragControls();
+      loadingGraph = true;
+      expansion.setReady(false);
+      updateApplyAncillaryButton();
+      setStatus(`${STATUS_RENDERING_PREFIX}...`);
+
       wheels.resetSelectedNode();
       const ancillaryPayload = parseAncillaryPayload(ancillaryRaw);
       const ancillaryData = await getAncillaryDataInput();
@@ -498,6 +499,7 @@ export default function (options: UiShellOptions): UiShell {
     region.reset();
     bindings.clear();
     expansion.dispose();
+    workbench.setErrorHandler(null);
     workbench.setGraphRenderedHandler(null);
     workbench.setInteractionFeedbackHandler?.(null);
     workbench.setNodeClickedHandler(null);

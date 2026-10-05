@@ -23,5 +23,10 @@ export function isOptionalGraphMetadataSchema(value: unknown): value is Ancillar
 }
 
 function isGraphMetadataField(value: unknown): value is AncillaryField {
-  return isRecord(value) && isString(value.key) && isString(value.type);
+  return (
+    isRecord(value) &&
+    isString(value.key) &&
+    isString(value.type) &&
+    ["string", "number", "boolean", "null"].includes(value.type)
+  );
 }

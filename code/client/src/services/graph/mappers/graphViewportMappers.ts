@@ -1,3 +1,4 @@
+import { decodeApiMetadata } from "../../../ancillary/apiMetadata";
 import type { GraphViewportRequest } from "../../../contracts/graph/viewport/GraphViewportRequest";
 import type { GraphViewportRequestDto } from "../models/viewport/GraphViewportRequestDto";
 import type { GraphIsolateDto } from "../models/viewport/GraphIsolateDto";
@@ -43,7 +44,7 @@ export function toGraphViewportNode(dto: GraphViewportNodeDto): GraphViewportNod
     layoutStatus: dto.layout_status,
     memberCount: dto.member_count,
     isRepresentative: dto.is_representative,
-    metadata: dto.metadata,
+    annotations: decodeApiMetadata(dto.metadata ?? {}),
     isolates: dto.isolates?.map(toGraphIsolate),
     ancillaryDistribution: dto.ancillary_distribution,
   };

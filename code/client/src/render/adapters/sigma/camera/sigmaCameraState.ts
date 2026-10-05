@@ -1,8 +1,9 @@
+import type { GraphLayoutBounds } from "../../../../contracts/graph/viewport/GraphLayoutBounds";
 import type Graph from "graphology";
 import type Sigma from "sigma";
-import { defaultCameraState, type GraphBounds, type SigmaCameraState, SIGMA_DEFAULT_CAMERA_ZOOM } from "./sigmaCamera";
+import { defaultCameraState, type SigmaCameraState, SIGMA_DEFAULT_CAMERA_ZOOM } from "./sigmaCamera";
 
-export function applyStableCameraBounds(sigma: Sigma | null, coordinateBounds: GraphBounds | null): void {
+export function applyStableCameraBounds(sigma: Sigma | null, coordinateBounds: GraphLayoutBounds | null): void {
   if (!sigma) {
     return;
   }

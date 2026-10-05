@@ -1,5 +1,5 @@
 import { GraphLayoutStatus } from "../graphTypes";
-import type { AncillaryData, Isolate, AncillaryObservation } from "../../ancillary";
+import type { NodeAnnotations, Isolate, AncillaryObservation } from "../../ancillary";
 
 export interface GraphViewportNode {
   id: string;
@@ -9,7 +9,7 @@ export interface GraphViewportNode {
   layoutStatus: GraphLayoutStatus;
   memberCount: number;
   isRepresentative: boolean;
-  metadata?: AncillaryData | null;
+  annotations: NodeAnnotations;
   isolates?: Isolate[];
   ancillaryDistribution?: AncillaryObservation[];
 }

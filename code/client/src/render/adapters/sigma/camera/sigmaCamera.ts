@@ -1,4 +1,4 @@
-import type { PositionedGraphBounds } from "../../../../contracts/positioned";
+import type { GraphLayoutBounds } from "../../../../contracts/graph/viewport/GraphLayoutBounds";
 import type { RenderViewportState } from "../../../renderer.types";
 
 export const SIGMA_DEFAULT_CAMERA_ZOOM = 1;
@@ -9,13 +9,6 @@ export const SIGMA_ZOOMING_RATIO = 1.15;
 export const SIGMA_DEFAULT_CAMERA_X = 0.5;
 export const SIGMA_DEFAULT_CAMERA_Y = 0.5;
 export const SIGMA_EDGE_LABEL_MAX_CAMERA_RATIO = 0.5;
-
-export interface GraphBounds {
-  minX: number;
-  maxX: number;
-  minY: number;
-  maxY: number;
-}
 
 export interface SigmaCameraState {
   x?: number;
@@ -52,13 +45,16 @@ export function sigmaRatioToLodZoom(ratio: number): number {
 }
 
 export function sigmaCameraToViewportState(
-  bounds: GraphBounds,
+  bounds: GraphLayoutBounds,
   camera: SigmaCameraState,
 ): RenderViewportState["viewport"] {
   return sigmaNormalizedCameraToViewportState(bounds, normalizeSigmaCameraState(camera));
 }
 
-export function sigmaCameraToSemanticViewState(bounds: GraphBounds, camera: SigmaCameraState): SigmaSemanticViewState {
+export function sigmaCameraToSemanticViewState(
+  bounds: GraphLayoutBounds,
+  camera: SigmaCameraState,
+): SigmaSemanticViewState {
   const normalizedCamera = normalizeSigmaCameraState(camera);
 
   return {
@@ -85,7 +81,7 @@ export function normalizeSigmaCameraState(camera: SigmaCameraState): {
 }
 
 export function graphCoordinatesToCameraCenter(
-  bounds: GraphBounds,
+  bounds: GraphLayoutBounds,
   point: { x: number; y: number },
 ): { x: number; y: number } {
   const spanX = Math.max(bounds.maxX - bounds.minX, 1);
@@ -97,7 +93,7 @@ export function graphCoordinatesToCameraCenter(
   };
 }
 
-export function normalizeGraphBounds(bounds: PositionedGraphBounds | undefined): GraphBounds | null {
+export function normalizeGraphBounds(bounds: GraphLayoutBounds | undefined): GraphLayoutBounds | null {
   if (!bounds) {
     return null;
   }
@@ -114,7 +110,7 @@ export function normalizeGraphBounds(bounds: PositionedGraphBounds | undefined):
   return bounds;
 }
 
-export function deriveGraphBounds(nodes: readonly { x: number; y: number }[]): GraphBounds | null {
+export function deriveGraphBounds(nodes: readonly { x: number; y: number }[]): GraphLayoutBounds | null {
   if (nodes.length === 0) {
     return null;
   }
@@ -142,7 +138,7 @@ function clampUnit(value: number): number {
 }
 
 function sigmaNormalizedCameraToViewportState(
-  bounds: GraphBounds,
+  bounds: GraphLayoutBounds,
   camera: { x: number; y: number; ratio: number },
 ): RenderViewportState["viewport"] {
   const spanX = Math.max(bounds.maxX - bounds.minX, 1);

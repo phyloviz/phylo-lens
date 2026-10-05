@@ -41,6 +41,7 @@ export function createGraphWorkbench(
   };
 
   let viewportCoordinator: GraphViewportCoordinator | null = null;
+  let errorHandler: ((error: unknown) => void) | null = null;
   let graphRenderedHandler: GraphRenderedHandler | null = null;
   let nodeClickedHandler: GraphNodeClickedHandler | null = null;
 
@@ -141,6 +142,7 @@ export function createGraphWorkbench(
           nextSnapshotSequence: () => ++snapshotSequence,
 
           onGraphRendered: (graph) => graphRenderedHandler?.(graph),
+          onError: (error) => errorHandler?.(error),
         },
         input,
         loadOptions,
@@ -172,6 +174,10 @@ export function createGraphWorkbench(
 
     focusNode: navigation.focusNode,
     cancelPendingFocus: navigation.cancelPendingFocus,
+
+    setErrorHandler: (handler) => {
+      errorHandler = handler;
+    },
 
     setGraphRenderedHandler: (handler) => {
       graphRenderedHandler = handler;

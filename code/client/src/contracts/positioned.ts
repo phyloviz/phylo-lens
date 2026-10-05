@@ -1,3 +1,4 @@
+import type { GraphLayoutBounds } from "./graph/viewport/GraphLayoutBounds";
 export const LAYOUT_FORCE = "force";
 export const LAYOUT_RADIAL = "radial";
 export const LAYOUT_DENDROGRAM = "dendrogram";
@@ -21,13 +22,6 @@ export interface PositionedEdge {
   attributes?: Record<string, unknown>;
 }
 
-export interface PositionedGraphBounds {
-  minX: number;
-  maxX: number;
-  minY: number;
-  maxY: number;
-}
-
 export interface PositionedGraph {
   nodes: PositionedNode[];
   edges: PositionedEdge[];
@@ -38,7 +32,7 @@ export interface PositionedGraph {
     sliceNodeCount?: number;
     sliceEdgeCount?: number;
     zoom?: number;
-    globalBounds?: PositionedGraphBounds;
+    globalBounds?: GraphLayoutBounds;
     layoutStatus?: string;
     layoutWarnings?: readonly string[];
   };

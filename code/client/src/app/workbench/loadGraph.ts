@@ -25,6 +25,7 @@ export interface LoadGraphDependencies {
   readonly snapshotObserver?: SnapshotAppliedObserver;
   readonly nextSnapshotSequence: () => number;
 
+  readonly onError?: (error: unknown) => void;
   readonly onGraphRendered?: (graph: PositionedGraph) => void;
 }
 
@@ -43,6 +44,7 @@ export async function loadGraph(
     snapshotObserver,
     nextSnapshotSequence,
     onGraphRendered,
+    onError,
   } = dependencies;
 
   replaceViewportCoordinator(null);
@@ -92,6 +94,9 @@ export async function loadGraph(
     nodeCount: preparedGraph.nodeCount,
 
     getPaused: () => getState().lodRefreshPaused,
+    onError: (error) => {
+      if (isCurrentLoad()) onError?.(error);
+    },
 
     onGraphApplied: (graph, response) => {
       if (!isCurrentLoad()) return;

@@ -1,5 +1,6 @@
+import { isClusterRepresentative } from "../../../render/mapping/clusterNodes";
 import type { AncillaryObservation } from "../../../contracts/ancillary";
-import { decodeApiMetadata } from "../../../ancillary/apiMetadata";
+import { ancillaryValues } from "../../../ancillary/ancillaryAccess";
 import type { GraphViewportEdge } from "../../../contracts/graph/viewport/GraphViewportEdge";
 import type { GraphViewportNode } from "../../../contracts/graph/viewport/GraphViewportNode";
 import type { GraphViewportResult } from "../../../contracts/graph/viewport/GraphViewportResult";
@@ -102,10 +103,7 @@ export function graphSnapshotWithDisplayOptions(
     ...graph,
     nodes: graph.nodes.map((node) => {
       const attributes = { ...(node.attributes ?? {}) };
-      const isRepresentative =
-        attributes.isClusterProxy === true ||
-        attributes.type === GRAPH_VIEWER_TRIANGLE_NODE_TYPE ||
-        (typeof attributes.memberCount === "number" && attributes.memberCount > 1);
+      const isRepresentative = isClusterRepresentative(attributes);
       attributes.label = isRepresentative || !showNodeLabel ? "" : node.id;
       return { ...node, attributes };
     }),
@@ -152,7 +150,6 @@ function buildGraphViewportNodeAttributes(
   displayOptions?: GraphDisplayOptions,
 ): Record<string, unknown> {
   const isRepresentative = node.memberCount > 1;
-  const metadata = node.metadata ?? undefined;
   const observations = nodeObservations(node);
   const fields = visuals?.pie?.fields?.length ? visuals.pie.fields : visuals?.colorField ? [visuals.colorField] : [];
   const distribution = pieDistribution(observations, fields);
@@ -167,7 +164,7 @@ function buildGraphViewportNodeAttributes(
     (!visuals?.customSize || (visuals.sizeField === DEFAULT_PROFILE_COUNT_FIELD && visuals.scale === SIZE_SCALE_LINEAR))
       ? DEFAULT_GRAPH_VIEWER_NODE_SIZE * Math.sqrt(node.isolates.length)
       : visuals && visuals.numericStats
-        ? deriveSize(metadata?.[visuals.sizeField], visuals.numericStats, visuals.scale)
+        ? deriveSize(nodeValue(node, visuals.sizeField), visuals.numericStats, visuals.scale)
         : nodeSizeForMemberCount(node.memberCount);
   const showNodeLabel = displayOptions?.nodeLabels !== false;
   return {
@@ -182,7 +179,7 @@ function buildGraphViewportNodeAttributes(
     type: isRepresentative ? GRAPH_VIEWER_TRIANGLE_NODE_TYPE : undefined,
     borderColor: undefined,
     layoutStatus: node.layoutStatus,
-    annotations: decodeApiMetadata(metadata),
+    annotations: node.annotations,
     isolates: node.isolates ?? [],
     ancillaryDistribution: observations,
     ...pieNodeAttributes(visuals, distribution),
@@ -250,8 +247,14 @@ function resolveViewportVisuals(
   };
 }
 
+function nodeValue(node: GraphViewportNode, field: string) {
+  const { ancillaryData, ancillarySummary, profileSummary } = node.annotations;
+  if (field === DEFAULT_PROFILE_COUNT_FIELD) return profileSummary.isolateCount;
+  return Object.hasOwn(ancillaryData, field) ? ancillaryData[field] : ancillarySummary.values[field];
+}
+
 function viewportHasProfileCount(nodes: GraphViewportNode[]): boolean {
-  return nodes.some((node) => typeof node.metadata?.[DEFAULT_PROFILE_COUNT_FIELD] === "number");
+  return nodes.some((node) => node.annotations.profileSummary.isolateCount !== undefined);
 }
 
 function computeSizeFieldStats(
@@ -261,7 +264,7 @@ function computeSizeFieldStats(
   let min = Number.POSITIVE_INFINITY;
   let max = Number.NEGATIVE_INFINITY;
   nodes.forEach((node) => {
-    const value = numericMetadataValue(node.metadata?.[sizeField]);
+    const value = numericMetadataValue(nodeValue(node, sizeField));
     if (value === null) {
       return;
     }
@@ -287,8 +290,7 @@ function nodeSizeForMemberCount(memberCount: number): number {
 function nodeObservations(node: GraphViewportNode): AncillaryObservation[] {
   if (node.ancillaryDistribution?.length) return node.ancillaryDistribution;
   if (node.isolates?.length) return node.isolates.map((isolate) => ({ values: isolate.ancillaryData, count: 1 }));
-  const annotations = decodeApiMetadata(node.metadata ?? {});
-  return [{ values: { ...annotations.ancillarySummary.values, ...annotations.ancillaryData }, count: 1 }];
+  return [{ values: ancillaryValues(node.annotations), count: 1 }];
 }
 
 function pieNodeAttributes(

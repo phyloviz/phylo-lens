@@ -1,12 +1,12 @@
 import { isRecord } from "../validation/guards";
 
-export const HEADER_CONTENT_TYPE = "Content-Type";
+const HEADER_CONTENT_TYPE = "Content-Type";
 
-export const CONTENT_TYPE_JSON = "application/json";
+const CONTENT_TYPE_JSON = "application/json";
 
-export const ERR_HTTP_PREFIX = "HTTP error";
+const ERR_HTTP_PREFIX = "HTTP error";
 
-export const KEY_DETAIL = "detail";
+const KEY_DETAIL = "detail";
 
 export interface HttpClientOptions {
   baseUrl: string;

@@ -19,6 +19,7 @@ export const ERR_PHYLO_LENS_VIEW_DISPOSED = "PhyloLens view has been disposed.";
 export interface PhyloLensViewOptions {
   container: HTMLElement;
   apiUrl: string;
+  onError?: (error: unknown) => void;
   onNodeSelected?: (selection: { nodeId: string | null; clusterId: string | null; expandable: boolean }) => void;
   onInteractionFeedback?: (message: string) => void;
   onExpansionChanged?: (state: ExpansionState) => void;
@@ -68,6 +69,7 @@ export interface PhyloLensView {
 export function createPhyloLensView(options: PhyloLensViewOptions): PhyloLensView {
   const workbench = createWorkbench(options);
   let disposed = false;
+  workbench.setErrorHandler(options.onError ?? null);
   workbench.setInteractionFeedbackHandler(options.onInteractionFeedback ?? null);
   workbench.setNodeClickedHandler((state) =>
     options.onNodeSelected?.({

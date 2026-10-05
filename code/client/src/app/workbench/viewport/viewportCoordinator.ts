@@ -73,6 +73,7 @@ export class GraphViewportCoordinator {
   private debounceTimer: ReturnType<typeof window.setTimeout> | null = null;
   private cancelFit: (() => void) | null = null;
   private requestSequence = 0;
+  private pendingFocusSequence: number | null = null;
   private manipulating = false;
   private refreshAfterManipulation = false;
   private pendingViewportReads = 0;
@@ -273,8 +274,8 @@ export class GraphViewportCoordinator {
   }
 
   cancelPendingFocus(): void {
-    if (!this.mounted || !this.loadedInitialViewport) return;
-    this.beginExpansion();
+    if (this.pendingFocusSequence === this.requestSequence) this.requestSequence += 1;
+    this.pendingFocusSequence = null;
   }
 
   async expandCluster(
@@ -293,6 +294,7 @@ export class GraphViewportCoordinator {
       return this.expansionResult();
     }
     const sequence = this.beginExpansion();
+    if (options.focusNodeId) this.pendingFocusSequence = sequence;
     const response = await this.readExpansion(this.readCluster(clusterId, options.focusNodeId), sequence);
     if (!response) return this.expansionResult("superseded");
     if (response.totalNodeCount === 0) throw new Error("The requested cluster has no available members.");
@@ -387,6 +389,8 @@ export class GraphViewportCoordinator {
     } catch (error) {
       if (!this.isCurrentRequest(sequence)) return null;
       throw error;
+    } finally {
+      if (this.pendingFocusSequence === sequence) this.pendingFocusSequence = null;
     }
   }
 

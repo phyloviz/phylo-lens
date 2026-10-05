@@ -1,3 +1,4 @@
+import { isClusterRepresentative } from "../../../mapping/clusterNodes";
 import type Graph from "graphology";
 import type Sigma from "sigma";
 
@@ -5,7 +6,6 @@ import {
   PHYLOVIZ_NODE_SELECTED_BORDER_COLOR,
   PHYLOVIZ_NODE_SELECTED_COLOR,
   SIGMA_NODE_TYPE_BORDER,
-  SIGMA_NODE_TYPE_TRIANGLE,
   SIGMA_REGION_DIMMED_EDGE_COLOR,
   SIGMA_REGION_DIMMED_NODE_COLOR,
 } from "../sigmaRendering.constants";
@@ -38,7 +38,7 @@ export default function applySigmaHighlighting({
 
   sigma.setSetting("nodeReducer", (nodeId, data) => {
     const outsideHighlight = highlightedNodeIds !== null && !highlightedNodeIds.has(nodeId);
-    const representative = isRepresentativeNode(data);
+    const representative = isClusterRepresentative(data);
     const selected = nodeId === selectedNodeId;
     const nextData = outsideHighlight ? { ...data, color: SIGMA_REGION_DIMMED_NODE_COLOR, label: "" } : data;
 
@@ -76,13 +76,5 @@ export default function applySigmaHighlighting({
           return withinRegion ? data : { ...data, color: SIGMA_REGION_DIMMED_EDGE_COLOR };
         }
       : null,
-  );
-}
-
-function isRepresentativeNode(data: Record<string, unknown>): boolean {
-  return (
-    data.type === SIGMA_NODE_TYPE_TRIANGLE ||
-    data.isClusterProxy === true ||
-    (typeof data.memberCount === "number" && data.memberCount > 1)
   );
 }

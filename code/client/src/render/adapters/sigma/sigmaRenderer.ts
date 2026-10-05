@@ -1,3 +1,5 @@
+import { isClusterRepresentative } from "../../mapping/clusterNodes";
+import type { GraphLayoutBounds } from "../../../contracts/graph/viewport/GraphLayoutBounds";
 import { DisplayPositions, type Point } from "./motion/displayPositions";
 import type { DragSelection } from "../../renderer.types";
 import { exportSigmaPublication } from "./sigmaPublicationExport";
@@ -22,7 +24,6 @@ import { detectPieSliceKeys, PIE_ATTRIBUTE_PREFIX } from "../../mapping/pieMappi
 import {
   defaultCameraState,
   deriveGraphBounds,
-  type GraphBounds,
   normalizeGraphBounds,
   type SigmaSemanticViewState,
   sigmaCameraToSemanticViewState,
@@ -167,8 +168,8 @@ export class SigmaRenderer implements GraphRenderer {
   private containerElement: HTMLElement | null = null;
   private pieSliceKeys: string[] = [];
   private pieProgramSignature = "";
-  private graphBounds: GraphBounds | null = null;
-  private coordinateBounds: GraphBounds | null = null;
+  private graphBounds: GraphLayoutBounds | null = null;
+  private coordinateBounds: GraphLayoutBounds | null = null;
   private piechartOptions: SigmaPiechartOptions;
   private rendererOptions: SigmaRendererOptions;
   private readonly dragController: ReturnType<typeof sigmaDragController>;
@@ -299,7 +300,6 @@ export class SigmaRenderer implements GraphRenderer {
     this.forceMotion.stop();
     this.lastRenderedGraph = graph;
     this.graph.clear();
-    this.glyphFootprintDirty = true;
     this.graphBounds = deriveGraphBounds(graph.nodes);
     this.coordinateBounds = normalizeGraphBounds(graph.viewMeta.globalBounds) ?? this.graphBounds;
     this.ensureSigmaPiePrograms(graph);
@@ -494,7 +494,6 @@ export class SigmaRenderer implements GraphRenderer {
     this.glyphFootprintDirty = true;
     this.selectedClusterStyle = null;
     this.graph.clear();
-    this.glyphFootprintDirty = true;
     this.graphBounds = deriveGraphBounds(graph.nodes);
     this.coordinateBounds = normalizeGraphBounds(graph.viewMeta.globalBounds) ?? this.graphBounds;
     if (!graphBoundsEqual(previousCoordinateBounds, this.coordinateBounds)) {
@@ -626,7 +625,7 @@ export class SigmaRenderer implements GraphRenderer {
     const rect = this.containerElement.getBoundingClientRect();
     const targets: RenderInteractiveAggregateTarget[] = [];
     this.graph.forEachNode((nodeId, attributes) => {
-      if (!isInteractiveAggregate(attributes)) return;
+      if (!isClusterRepresentative(attributes)) return;
 
       const point = this.sigma?.graphToViewport({ x: Number(attributes.x), y: Number(attributes.y) });
       if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) return;
@@ -1096,13 +1095,6 @@ export class SigmaRenderer implements GraphRenderer {
 
 // Project the live graphology graph into the node-attribute views the pie
 // helpers consume, matching the shape produced by the legacy positioned graph.
-function isInteractiveAggregate(attributes: Record<string, unknown>): boolean {
-  return (
-    attributes.type === "triangle" ||
-    attributes.isClusterProxy === true ||
-    (typeof attributes.memberCount === "number" && attributes.memberCount > 1)
-  );
-}
 
 function graphNodeViews(graph: Graph): PieNodeView[] {
   return graph.mapNodes((_nodeId, attributes) => ({
@@ -1110,7 +1102,7 @@ function graphNodeViews(graph: Graph): PieNodeView[] {
   }));
 }
 
-function graphBoundsEqual(left: GraphBounds | null, right: GraphBounds | null): boolean {
+function graphBoundsEqual(left: GraphLayoutBounds | null, right: GraphLayoutBounds | null): boolean {
   if (left === right) {
     return true;
   }
