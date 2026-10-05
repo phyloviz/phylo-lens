@@ -9,7 +9,7 @@ const KEY_VISUAL_MAPPING = "visual_mapping";
 export interface AncillaryPayload {
   ancillarySchema?: readonly AncillaryField[];
   ancillaryByNodeId?: Readonly<Record<string, Record<string, string | number | boolean | null>>>;
-  visual_mapping?: VisualMappingOptions;
+  visualMapping?: VisualMappingOptions;
 }
 
 export function parseAncillaryPayload(rawInput: string): AncillaryPayload {
@@ -41,7 +41,7 @@ export function parseAncillaryPayload(rawInput: string): AncillaryPayload {
       ancillaryByNodeId: record.ancillary_by_node_id as
         Record<string, Record<string, string | number | boolean | null>> | undefined,
     }),
-    visual_mapping:
+    visualMapping:
       visualMapping && typeof visualMapping === "object" ? (visualMapping as VisualMappingOptions) : undefined,
   };
 }

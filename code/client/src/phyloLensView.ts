@@ -3,7 +3,7 @@ import type { ExpansionState, ExpansionResult } from "./contracts/expansion";
 import type { AncillaryTableInput } from "./contracts/ancillary";
 import type { AncillaryInputOptions } from "./ancillary/ancillaryInput";
 import { createGraphClient } from "./api/graphClient";
-import type { SfdpOptions } from "./api/graphContracts";
+import type { SfdpOptions } from "./contracts/graph";
 import { SOURCE_FORMAT_NEWICK, type SourceFormat, type Viewport } from "./contracts/models";
 import rendererFactory from "./render/rendererFactory";
 import { RENDERER_KIND_SIGMA } from "./render/renderer.types";
@@ -73,8 +73,8 @@ export function createPhyloLensView(options: PhyloLensViewOptions): PhyloLensVie
   workbench.setNodeClickedHandler((state) =>
     options.onNodeSelected?.({
       nodeId: state.nodeId,
-      clusterId: typeof state.attributes?.cluster_id === "string" ? state.attributes.cluster_id : null,
-      expandable: state.attributes?.is_cluster_proxy === true,
+      clusterId: typeof state.attributes?.clusterId === "string" ? state.attributes.clusterId : null,
+      expandable: state.attributes?.isClusterProxy === true,
     }),
   );
   workbench.setGraphRenderedHandler(() => options.onExpansionChanged?.(workbench.getExpansionState()));
@@ -123,7 +123,7 @@ export function createPhyloLensView(options: PhyloLensViewOptions): PhyloLensVie
       if (disposed) throw new Error(ERR_PHYLO_LENS_VIEW_DISPOSED);
       try {
         const result = await workbench.applyAncillaryData(data);
-        return { matchedNodeCount: result.matched_node_count, warnings: result.warnings };
+        return { matchedNodeCount: result.matchedNodeCount, warnings: result.warnings };
       } catch (error) {
         if (disposed) throw new Error(ERR_PHYLO_LENS_VIEW_DISPOSED);
         throw error;

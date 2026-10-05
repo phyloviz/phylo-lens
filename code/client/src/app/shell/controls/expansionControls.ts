@@ -19,14 +19,14 @@ export function expansionControls(workbench: GraphWorkbench, elements: Expansion
   let busy = false;
   let failure: string | null = null;
   const available = Object.values(elements).some(Boolean);
-  const clusterId = () => String(selected?.attributes?.cluster_id ?? selected?.nodeId ?? "");
+  const clusterId = () => String(selected?.attributes?.clusterId ?? selected?.nodeId ?? "");
 
   function update() {
     if (!available) return;
     const state = ready ? workbench.getExpansionState() : null;
     const expanded = state?.expandedClusterIds.includes(clusterId()) ?? false;
     if (elements.expandSelected)
-      elements.expandSelected.disabled = !ready || busy || expanded || selected?.attributes?.is_cluster_proxy !== true;
+      elements.expandSelected.disabled = !ready || busy || expanded || selected?.attributes?.isClusterProxy !== true;
     if (elements.collapseSelected) elements.collapseSelected.disabled = !ready || busy || !expanded;
     for (const button of [elements.expandAll, elements.collapseAll]) if (button) button.disabled = !ready || busy;
     if (elements.keepExpanded) {

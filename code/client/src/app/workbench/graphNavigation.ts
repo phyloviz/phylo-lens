@@ -5,7 +5,7 @@ import { getGraphSession } from "./graphWorkbench.state";
 import type { GraphWorkbenchState, RegionSelectionResult } from "./graphWorkbench.types";
 import { createEmptyGraph } from "./viewportGraph";
 import type { GraphViewportCoordinator } from "./viewport/viewportCoordinator";
-import type { GraphClient } from "../../api/graphContracts";
+import type { GraphClient } from "../../contracts/graph";
 import { type GraphWorkbenchAction } from "./graphWorkbench.actions";
 
 const DEFAULT_SEARCH_RESULT_LIMIT = 50;
@@ -58,8 +58,8 @@ export default function createGraphNavigation({
       };
     }
     const response = await graphClient.readRegion({
-      dataset_id: session.datasetId,
-      layout_version: session.layoutVersion ?? null,
+      datasetId: session.datasetId,
+      layoutVersion: session.layoutVersion ?? null,
       xmin: bounds.xmin,
       xmax: bounds.xmax,
       ymin: bounds.ymin,
@@ -71,10 +71,10 @@ export default function createGraphNavigation({
 
     return {
       nodeIds,
-      nodeCount: response.total_node_count,
+      nodeCount: response.totalNodeCount,
       truncated: response.truncated,
-      aggregatedMetadata: response.aggregated_metadata,
-      metadataSchema: response.metadata_schema ?? [],
+      aggregatedMetadata: response.aggregatedMetadata,
+      metadataSchema: response.ancillarySchema ?? [],
     };
   }
 
@@ -83,25 +83,25 @@ export default function createGraphNavigation({
     cancelPendingFocus();
 
     const response = await graphClient.searchGraph({
-      dataset_id: session.datasetId,
-      layout_version: session.layoutVersion ?? null,
+      datasetId: session.datasetId,
+      layoutVersion: session.layoutVersion ?? null,
       query: query.query,
       limit: query.limit,
     });
 
     return {
-      dataset_id: response.dataset_id,
+      datasetId: response.datasetId,
       query: response.query,
       matches: response.matches.map((match) => ({
-        node_id: match.node_id,
+        nodeId: match.nodeId,
         score: match.score,
-        matched_text: match.matched_text,
+        matchedText: match.matchedText,
         metadata: {},
-        cluster_id: match.cluster_id ?? null,
+        clusterId: match.clusterId ?? null,
         x: match.x ?? null,
         y: match.y ?? null,
       })),
-      total_count: response.total_count,
+      totalCount: response.totalCount,
     };
   }
 
@@ -123,7 +123,7 @@ export default function createGraphNavigation({
 
     // A repeated selection must recenter too: the user may have panned away.
     const visible = getState().graphSnapshot?.nodes.some(
-      (node) => node.id === nodeId && node.attributes?.is_cluster_proxy !== true,
+      (node) => node.id === nodeId && node.attributes?.isClusterProxy !== true,
     );
 
     if (!visible || !renderer.centerOnNode?.(nodeId)) {
@@ -131,15 +131,15 @@ export default function createGraphNavigation({
 
       if (!location?.clusterId) {
         const response = await graphClient.searchGraph({
-          dataset_id: session.datasetId,
-          layout_version: session.layoutVersion ?? null,
+          datasetId: session.datasetId,
+          layoutVersion: session.layoutVersion ?? null,
           query: nodeId,
           limit: DEFAULT_SEARCH_RESULT_LIMIT,
         });
         if (!isCurrent()) return currentSnapshot();
-        const match = response.matches.find((item) => item.node_id === nodeId);
+        const match = response.matches.find((item) => item.nodeId === nodeId);
         if (!match) throw new Error(`Profile ${nodeId} was not found.`);
-        location = { x: match.x ?? null, y: match.y ?? null, clusterId: match.cluster_id };
+        location = { x: match.x ?? null, y: match.y ?? null, clusterId: match.clusterId };
       }
 
       if (!location.clusterId || !coordinator) {

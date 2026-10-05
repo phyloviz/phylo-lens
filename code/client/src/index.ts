@@ -12,7 +12,7 @@ export {
 } from "./services/serviceErrors";
 export { SUPPORTED_PHYLO_LENS_API_VERSION } from "./api/graphClient";
 export { type SourceFormat, type Viewport } from "./contracts/models";
-export type { SfdpOptions } from "./api/graphContracts";
+export type { SfdpOptions } from "./contracts/graph";
 export type { VisualMappingOptions } from "./render/mapping/visualMapping";
 
 export type {

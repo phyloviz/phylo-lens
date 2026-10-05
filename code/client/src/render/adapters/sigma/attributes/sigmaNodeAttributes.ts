@@ -33,7 +33,7 @@ export function addPositionedNode(
         : toPositiveNumber(node.attributes?.[key]);
   });
   const hasPieData = Object.values(pieAttributes).some((value) => value > 0);
-  const isClusterProxy = node.attributes?.is_cluster_proxy === true;
+  const isClusterProxy = node.attributes?.isClusterProxy === true;
   const nodeType = isClusterProxy
     ? SIGMA_NODE_TYPE_TRIANGLE
     : !unionNode && hasPieData && pieSliceKeys.length > 0
@@ -89,7 +89,7 @@ export function applyPieChartNodeTypes(graph: Graph, sliceKeys: readonly string[
     // A cluster proxy is an interaction affordance; it must stay a triangle so
     // its tip continues to identify the edge that expands the cluster. Pies
     // remain available for ordinary nodes only.
-    if (!unionNode && attributes.is_cluster_proxy !== true && hasPieData) {
+    if (!unionNode && attributes.isClusterProxy !== true && hasPieData) {
       graph.setNodeAttribute(nodeId, "type", SIGMA_NODE_TYPE_PIECHART);
     }
   });
@@ -114,7 +114,7 @@ export function derivePositionedNodeColor(node: PositionedNode): string {
     return UNION_NODE_COLOR;
   }
 
-  if (node.attributes?.is_cluster_proxy === true) {
+  if (node.attributes?.isClusterProxy === true) {
     return PHYLOVIZ_CLUSTER_COLOR;
   }
 

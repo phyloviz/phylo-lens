@@ -1,4 +1,4 @@
-import type { GraphAncillaryResponse, GraphClient } from "../../api/graphContracts";
+import type { GraphAncillaryResult, GraphClient } from "../../contracts/graph";
 import type { AncillaryTableInput } from "../../contracts/ancillary";
 import { GRAPH_WORKBENCH_ERRORS } from "./graphWorkbench.errors";
 import { getGraphSession } from "./graphWorkbench.state";
@@ -18,7 +18,7 @@ export interface UpdateGraphAncillaryDataDependencies {
 export async function updateGraphAncillaryData(
   dependencies: UpdateGraphAncillaryDataDependencies,
   data: AncillaryTableInput,
-): Promise<GraphAncillaryResponse> {
+): Promise<GraphAncillaryResult> {
   const { getState, graphClient, requireViewportCoordinator, getLoadGeneration, getViewportCoordinator } = dependencies;
 
   const coordinator = requireViewportCoordinator();
@@ -26,14 +26,14 @@ export async function updateGraphAncillaryData(
   const generation = getLoadGeneration();
 
   const result = await graphClient.applyAncillaryData({
-    dataset_id: session.datasetId,
-    layout_version: session.layoutVersion,
-    ancillary_data: data,
+    datasetId: session.datasetId,
+    layoutVersion: session.layoutVersion,
+    ancillaryData: data,
   });
 
   assertCurrentGraph(generation, coordinator, getLoadGeneration, getViewportCoordinator);
 
-  await coordinator.replaceLayoutVersion(result.layout_version);
+  await coordinator.replaceLayoutVersion(result.layoutVersion);
 
   assertCurrentGraph(generation, coordinator, getLoadGeneration, getViewportCoordinator);
 

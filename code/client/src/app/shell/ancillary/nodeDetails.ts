@@ -3,7 +3,7 @@ import type { PositionedNode } from "../../../contracts/positioned";
 
 // A LoD representative combines profiles; it is not a single biological profile.
 export function renderNodeDetails(container: HTMLElement, node: PositionedNode): void {
-  const members = node.attributes?.member_count;
+  const members = node.attributes?.memberCount;
   const isCluster = typeof members === "number" && members > 1;
   const records = node.attributes?.isolates;
   const ids = Array.isArray(records)

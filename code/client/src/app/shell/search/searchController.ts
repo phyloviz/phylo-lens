@@ -43,7 +43,7 @@ export default function (options: SearchControllerOptions) {
       });
       if (request !== generation) return;
       renderMatches(response.matches);
-      options.setStatus(`Search found ${response.total_count} matches`);
+      options.setStatus(`Search found ${response.totalCount} matches`);
     } catch (error) {
       if (request !== generation) return;
       const message = error instanceof Error ? error.message : "unknown error";
@@ -61,7 +61,7 @@ export default function (options: SearchControllerOptions) {
     const request = generation;
     const focus = ++focusGeneration;
     const isCurrent = () => request === generation && focus === focusGeneration;
-    const nodeId = match.node_id;
+    const nodeId = match.nodeId;
     try {
       // Pass the match's global coordinates so the workbench can fetch a region
       // around the hit when it lies outside the current LoD slice; only then is
@@ -69,7 +69,7 @@ export default function (options: SearchControllerOptions) {
       await options.workbench.focusNode(nodeId, {
         x: match.x ?? null,
         y: match.y ?? null,
-        clusterId: match.cluster_id ?? null,
+        clusterId: match.clusterId ?? null,
       });
       if (!isCurrent()) return;
       options.onNodeFocused(nodeId);

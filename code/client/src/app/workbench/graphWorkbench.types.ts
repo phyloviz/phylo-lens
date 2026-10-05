@@ -1,13 +1,8 @@
+import type { AncillaryValue } from "../../contracts/ancillary";
 import type { DragSelection, PngExportOptions } from "../../render/renderer.types";
 import type { ExpansionResult, ExpansionState } from "../../contracts/expansion";
 import type { AncillaryData, AncillaryField, AncillaryTableInput } from "../../contracts/ancillary";
-import type {
-  GraphAncillaryResponse,
-  GraphAncillaryField,
-  GraphAncillaryValue,
-  SfdpOptions,
-  GraphClient,
-} from "../../api/graphContracts";
+import type { GraphAncillaryResult, SfdpOptions, GraphClient } from "../../contracts/graph";
 import type { SearchDatasetResponse, SourceFormat, Viewport } from "../../contracts/models";
 import type { PositionedGraph } from "../../contracts/positioned";
 import type { AncillaryFilterState } from "../../ancillary/ancillaryTypes";
@@ -32,8 +27,8 @@ export interface RegionSelectionResult {
   nodeIds: string[];
   nodeCount: number;
   truncated: boolean;
-  aggregatedMetadata: Record<string, GraphAncillaryValue>;
-  metadataSchema: GraphAncillaryField[];
+  aggregatedMetadata: Record<string, AncillaryValue>;
+  metadataSchema: AncillaryField[];
 }
 
 export type RegionSelectedHandler = (bounds: RenderViewportBounds) => void;
@@ -78,7 +73,7 @@ export interface GraphWorkbench {
 
   loadGraph: (input: GraphInput, options?: LoadGraphOptions) => Promise<PositionedGraph>;
 
-  applyAncillaryData: (data: AncillaryTableInput) => Promise<GraphAncillaryResponse>;
+  applyAncillaryData: (data: AncillaryTableInput) => Promise<GraphAncillaryResult>;
 
   setMotionEnabled: (enabled: boolean) => void;
   isMotionEnabled: () => boolean;

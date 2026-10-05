@@ -219,7 +219,7 @@ export class SigmaRenderer implements GraphRenderer {
         // Use the same zoom/resize transform as the GPU, including glyph sizes.
         const shapeScale =
           this.graph?.getNodeAttribute(id, "type") === SIGMA_NODE_TYPE_TRIANGLE ||
-          this.graph?.getNodeAttribute(id, "is_cluster_proxy") === true
+          this.graph?.getNodeAttribute(id, "isClusterProxy") === true
             ? 1.35
             : 1;
         return (sigma.scaleSize(size) * shapeScale + 1) * graphUnitsPerPixel;
@@ -507,7 +507,7 @@ export class SigmaRenderer implements GraphRenderer {
         x: node.x,
         y: node.y,
         size: node.size,
-        color: node.attributes?.is_cluster_proxy === true ? derivePositionedNodeColor(node) : node.color,
+        color: node.attributes?.isClusterProxy === true ? derivePositionedNodeColor(node) : node.color,
       });
     });
     graph.edges.forEach((edge) => {
@@ -578,7 +578,7 @@ export class SigmaRenderer implements GraphRenderer {
     const nextIds = new Set(next.nodes.map((n) => n.id));
     const nextClusters = new Map<string, string[]>();
     for (const node of next.nodes) {
-      const cluster = node.attributes?.cluster_id;
+      const cluster = node.attributes?.clusterId;
       if (typeof cluster === "string") {
         const ids = nextClusters.get(cluster) ?? [];
         ids.push(node.id);
@@ -588,7 +588,7 @@ export class SigmaRenderer implements GraphRenderer {
     let best: { ids: string[]; screen: Point } | null = null,
       distance = Infinity;
     this.graph.forEachNode((id, a) => {
-      const ids = nextIds.has(id) ? [id] : (nextClusters.get(a.cluster_id) ?? []);
+      const ids = nextIds.has(id) ? [id] : (nextClusters.get(a.clusterId) ?? []);
       if (!ids.length) return; // Never guess parentage between unrelated tiers.
       const screen = this.sigma!.graphToViewport({ x: a.x, y: a.y });
       const d = Math.hypot(screen.x - focus.x, screen.y - focus.y);
@@ -632,8 +632,8 @@ export class SigmaRenderer implements GraphRenderer {
       if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) return;
 
       targets.push({
-        clusterId: typeof attributes.cluster_id === "string" ? attributes.cluster_id : nodeId,
-        representedNodeCount: attributes.member_count as number,
+        clusterId: typeof attributes.clusterId === "string" ? attributes.clusterId : nodeId,
+        representedNodeCount: attributes.memberCount as number,
         clientX: rect.left + point.x,
         clientY: rect.top + point.y,
       });
@@ -919,7 +919,7 @@ export class SigmaRenderer implements GraphRenderer {
         const baseSize = this.selectedClusterStyle?.id === id ? this.selectedClusterStyle.size : attributes.size;
         const size = typeof baseSize === "number" ? baseSize : 5;
         const shapeScale =
-          attributes.type === SIGMA_NODE_TYPE_TRIANGLE || attributes.is_cluster_proxy === true ? 1.35 : 1;
+          attributes.type === SIGMA_NODE_TYPE_TRIANGLE || attributes.isClusterProxy === true ? 1.35 : 1;
         this.maxGlyphSize = Math.max(this.maxGlyphSize, size * shapeScale);
       });
       this.glyphFootprintDirty = false;
@@ -1069,7 +1069,7 @@ export class SigmaRenderer implements GraphRenderer {
     if (!this.selectedNodeId || this.selectedClusterStyle || !this.graph.hasNode(this.selectedNodeId)) return;
 
     const attributes = this.graph.getNodeAttributes(this.selectedNodeId) as Record<string, unknown>;
-    if (attributes.type !== SIGMA_NODE_TYPE_TRIANGLE && attributes.is_cluster_proxy !== true) return;
+    if (attributes.type !== SIGMA_NODE_TYPE_TRIANGLE && attributes.isClusterProxy !== true) return;
 
     const size = typeof attributes.size === "number" ? attributes.size : 5;
     this.glyphFootprintDirty = true;
@@ -1099,8 +1099,8 @@ export class SigmaRenderer implements GraphRenderer {
 function isInteractiveAggregate(attributes: Record<string, unknown>): boolean {
   return (
     attributes.type === "triangle" ||
-    attributes.is_cluster_proxy === true ||
-    (typeof attributes.member_count === "number" && attributes.member_count > 1)
+    attributes.isClusterProxy === true ||
+    (typeof attributes.memberCount === "number" && attributes.memberCount > 1)
   );
 }
 
@@ -1129,14 +1129,14 @@ function applyClusterTriangleRotations(graph: Graph, edges: PositionedGraph["edg
     const source = graph.getNodeAttributes(edge.source);
     const target = graph.getNodeAttributes(edge.target);
 
-    if (source.is_cluster_proxy === true) {
+    if (source.isClusterProxy === true) {
       graph.setNodeAttribute(
         edge.source,
         "triangleRotation",
         Math.atan2(Number(target.y) - Number(source.y), Number(target.x) - Number(source.x)),
       );
     }
-    if (target.is_cluster_proxy === true) {
+    if (target.isClusterProxy === true) {
       graph.setNodeAttribute(
         edge.target,
         "triangleRotation",

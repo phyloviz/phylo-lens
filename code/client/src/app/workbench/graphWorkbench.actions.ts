@@ -1,5 +1,5 @@
 import type { AncillaryFilterState } from "../../ancillary/ancillaryTypes";
-import type { GraphViewportResponse } from "../../api/graphContracts";
+import type { GraphViewportResult } from "../../contracts/graph";
 import type { PositionedGraph } from "../../contracts/positioned";
 import type { GraphDisplayOptions } from "../../render/renderer.types";
 import type { VisualMappingOptions } from "../../render/mapping/visualMapping";
@@ -43,7 +43,7 @@ export type GraphWorkbenchAction =
   | {
       readonly type: typeof ACTIONS.viewportSynced;
       readonly graph: PositionedGraph;
-      readonly response?: GraphViewportResponse;
+      readonly response?: GraphViewportResult;
     }
   | {
       readonly type: typeof ACTIONS.graphCleared;

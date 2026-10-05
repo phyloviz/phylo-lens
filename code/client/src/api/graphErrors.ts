@@ -15,7 +15,7 @@ export const GRAPH_API_ERRORS = {
 
   invalidSearchResponse: "Invalid graph search response contract.",
 
-  invalidGraphPrepareRequest: "Invalid graph normalize request contract.",
+  invalidPrepareRequest: "Invalid graph prepare request contract.",
 
   invalidAncillaryResponse: "Invalid graph ancillary response contract.",
 } as const;

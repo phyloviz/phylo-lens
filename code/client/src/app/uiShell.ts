@@ -1,5 +1,6 @@
 import { expansionControls, type ExpansionControlsElements } from "./shell/controls/expansionControls";
 import type { GraphWorkbench } from "./workbench/graphWorkbench";
+import type { LoadGraphOptions } from "./workbench/graphWorkbench.types";
 import type { PositionedGraph } from "../contracts/positioned";
 import { SOURCE_FORMAT_NEWICK, SOURCE_FORMAT_TYPING_DATA, type SourceFormat } from "../contracts/models";
 import { buildRenderedStatus } from "./shell/status/renderedStatus";
@@ -401,7 +402,7 @@ export default function (options: UiShellOptions): UiShell {
       if (!data) throw new Error("Choose an ancillary table first.");
       const result = await workbench.applyAncillaryData(data);
       setStatus(
-        `Applied ancillary data to ${result.matched_node_count} nodes.${result.warnings.length ? " " + result.warnings.join(" ") : ""}`,
+        `Applied ancillary data to ${result.matchedNodeCount} nodes.${result.warnings.length ? " " + result.warnings.join(" ") : ""}`,
       );
     } catch (error) {
       setFailureStatus(error instanceof Error ? error.message : "unknown error");
@@ -435,7 +436,7 @@ export default function (options: UiShellOptions): UiShell {
       wheels.resetSelectedNode();
       const ancillaryPayload = parseAncillaryPayload(ancillaryRaw);
       const ancillaryData = await getAncillaryDataInput();
-      const mapping = ancillaryPayload.visual_mapping ?? {};
+      const mapping = ancillaryPayload.visualMapping ?? {};
       pieFieldControls.setSelection(
         mapping.pie?.enabled !== false && mapping.pie?.fields?.length
           ? mapping.pie.fields
@@ -445,17 +446,19 @@ export default function (options: UiShellOptions): UiShell {
       );
       palette.reset();
       palette.setBaseVisualMapping(mapping);
-      await workbench.renderNewick(content, datasetName || undefined, {
-        sourceFormat,
-        ancillarySchema: ancillaryPayload.ancillarySchema,
-        ancillaryByNodeId: ancillaryPayload.ancillaryByNodeId,
-        ancillaryData,
-        visualMapping: palette.getCurrentVisualMapping(),
-        displayOptions: buildCurrentDisplayOptions(),
-        lod: {
-          maxNodes: getSelectedMaxNodes(),
+      await workbench.loadGraph(
+        { content, datasetName: datasetName || undefined, format: sourceFormat },
+        {
+          ancillarySchema: ancillaryPayload.ancillarySchema,
+          ancillaryByNodeId: ancillaryPayload.ancillaryByNodeId,
+          ancillaryData,
+          visualMapping: palette.getCurrentVisualMapping(),
+          displayOptions: buildCurrentDisplayOptions(),
+          lod: {
+            maxNodes: getSelectedMaxNodes(),
+          },
         },
-      });
+      );
     } catch (error) {
       const message = error instanceof Error ? error.message : "unknown error";
       setFailureStatus(message);
@@ -617,7 +620,7 @@ export default function (options: UiShellOptions): UiShell {
     return newickInput.value;
   }
 
-  async function getAncillaryDataInput(): Promise<RenderNewickOptions["ancillaryData"] | undefined> {
+  async function getAncillaryDataInput(): Promise<LoadGraphOptions["ancillaryData"] | undefined> {
     await joinColumnPicker.whenReady();
     const file = ancillaryFileInput?.files?.[0];
     if (!file) {
@@ -631,7 +634,7 @@ export default function (options: UiShellOptions): UiShell {
 
     return {
       content: (await readTextFile(file)).replace(/^\uFEFF/, ""),
-      join_column: joinColumn,
+      joinColumn: joinColumn,
       format: resolveAncillaryFormat(ancillaryFormatSelect?.value, file.name),
     };
   }

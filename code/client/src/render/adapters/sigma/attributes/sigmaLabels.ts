@@ -13,7 +13,7 @@ export function deriveNodeLabel(nodeId: string, attributes: Record<string, unkno
     return explicitLabel.trim();
   }
 
-  if (attributes?.is_cluster_proxy === true) {
+  if (attributes?.isClusterProxy === true) {
     return "";
   }
 

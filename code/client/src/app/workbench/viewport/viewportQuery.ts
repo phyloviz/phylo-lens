@@ -1,4 +1,4 @@
-import type { GraphViewportQuery } from "../../../api/graphContracts";
+import type { GraphViewportRequest } from "../../../contracts/graph";
 import type { RenderViewportBounds, RenderViewportSyncState } from "../../../render/renderer.types";
 
 export const DEFAULT_GRAPH_VIEWER_DEBOUNCE_MS = 120;
@@ -38,7 +38,7 @@ export function buildGraphViewportQuery({
   currentLodLevel?: number | null;
   previousEffectiveLodLevel?: number | null;
   representationSpacingPx?: number;
-}): GraphViewportQuery {
+}): GraphViewportRequest {
   const ratio = viewState?.cameraRatio ?? 1;
   const lodLevel = forceFinestTier
     ? Math.max(lodTierCount - 1, 0)
@@ -55,12 +55,12 @@ export function buildGraphViewportQuery({
       ? expandViewportBounds(viewState.bounds, GRAPH_VIEWER_VIEWPORT_PADDING_RATIO)
       : null;
 
-  const query: GraphViewportQuery = {
-    dataset_id: datasetId,
-    layout_version: layoutVersion ?? null,
+  const query: GraphViewportRequest = {
+    datasetId: datasetId,
+    layoutVersion: layoutVersion ?? null,
     zoom: displayZoomForCameraRatio(ratio),
-    lod_level: lodLevel,
-    ...(maxNodes === undefined ? {} : { max_nodes: maxNodes }),
+    lodLevel: lodLevel,
+    ...(maxNodes === undefined ? {} : { maxNodes: maxNodes }),
   };
   if (adaptive && viewState?.pixelSize) {
     if (!Number.isFinite(representationSpacingPx) || representationSpacingPx <= 0)
@@ -72,10 +72,10 @@ export function buildGraphViewportQuery({
       Math.floor((viewState.pixelSize.width * viewState.pixelSize.height) / effectiveSpacing ** 2),
     );
     if (!Number.isSafeInteger(target)) throw new Error("LoD representation target must be a finite safe integer.");
-    query.lod_target_representations = target;
-    query.lod_selection_bounds = viewState.selectionBounds ?? viewState.bounds;
+    query.lodTargetRepresentations = target;
+    query.lodSelectionBounds = viewState.selectionBounds ?? viewState.bounds;
     if (previousEffectiveLodLevel !== undefined && previousEffectiveLodLevel !== null)
-      query.previous_lod_level = previousEffectiveLodLevel;
+      query.previousLodLevel = previousEffectiveLodLevel;
   }
   if (bounds) {
     query.xmin = bounds.xmin;

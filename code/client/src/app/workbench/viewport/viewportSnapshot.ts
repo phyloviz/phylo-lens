@@ -1,7 +1,7 @@
 import type { AncillaryObservation } from "../../../contracts/ancillary";
 import { type AncillaryInputOptions } from "../../../ancillary/ancillaryInput";
 import { decodeApiMetadata } from "../../../ancillary/apiMetadata";
-import type { GraphViewportEdge, GraphViewportNode, GraphViewportResponse } from "../../../api/graphContracts";
+import type { GraphViewportEdge, GraphViewportNode, GraphViewportResult } from "../../../contracts/graph";
 import type { PositionedEdge, PositionedGraph, PositionedNode } from "../../../contracts/positioned";
 import { hasActiveFilters, matchesFilterState } from "../../../ancillary/filterEngine";
 import type { AncillaryFilterState } from "../../../ancillary/ancillaryTypes";
@@ -57,7 +57,7 @@ interface ResolvedViewportVisuals {
 }
 
 export function graphSnapshotFromViewportResponse(
-  response: GraphViewportResponse,
+  response: GraphViewportResult,
   settings?: ViewportSyncSettings,
 ): PositionedGraph {
   const nodes = filteredViewportNodes(response, settings);
@@ -72,17 +72,17 @@ export function graphSnapshotFromViewportResponse(
       .map((edge) => positionedEdgeFromViewportEdge(edge, displayOptions)),
     viewMeta: {
       layout: "server",
-      lodLevel: response.lod_level ?? 0,
+      lodLevel: response.lodLevel ?? 0,
       sliceNodeCount: nodes.length,
       sliceEdgeCount: response.edges.length,
       zoom: response.zoom,
-      layoutStatus: response.layout_status,
-      globalBounds: response.global_bounds
+      layoutStatus: response.layoutStatus,
+      globalBounds: response.globalBounds
         ? {
-            minX: response.global_bounds.min_x,
-            maxX: response.global_bounds.max_x,
-            minY: response.global_bounds.min_y,
-            maxY: response.global_bounds.max_y,
+            minX: response.globalBounds.minX,
+            maxX: response.globalBounds.maxX,
+            minY: response.globalBounds.minY,
+            maxY: response.globalBounds.maxY,
           }
         : undefined,
     },
@@ -102,9 +102,9 @@ export function graphSnapshotWithDisplayOptions(
     nodes: graph.nodes.map((node) => {
       const attributes = { ...(node.attributes ?? {}) };
       const isRepresentative =
-        attributes.is_cluster_proxy === true ||
+        attributes.isClusterProxy === true ||
         attributes.type === GRAPH_VIEWER_TRIANGLE_NODE_TYPE ||
-        (typeof attributes.member_count === "number" && attributes.member_count > 1);
+        (typeof attributes.memberCount === "number" && attributes.memberCount > 1);
       attributes.label = isRepresentative || !showNodeLabel ? "" : node.id;
       return { ...node, attributes };
     }),
@@ -150,7 +150,7 @@ function buildGraphViewportNodeAttributes(
   visuals: ResolvedViewportVisuals | null,
   displayOptions?: GraphDisplayOptions,
 ): Record<string, unknown> {
-  const isRepresentative = node.member_count > 1;
+  const isRepresentative = node.memberCount > 1;
   const metadata = node.metadata ?? undefined;
   const observations = nodeObservations(node);
   const fields = visuals?.pie?.fields?.length ? visuals.pie.fields : visuals?.colorField ? [visuals.colorField] : [];
@@ -167,7 +167,7 @@ function buildGraphViewportNodeAttributes(
       ? DEFAULT_GRAPH_VIEWER_NODE_SIZE * Math.sqrt(node.isolates.length)
       : visuals && visuals.numericStats
         ? deriveSize(metadata?.[visuals.sizeField], visuals.numericStats, visuals.scale)
-        : nodeSizeForMemberCount(node.member_count);
+        : nodeSizeForMemberCount(node.memberCount);
   const showNodeLabel = displayOptions?.nodeLabels !== false;
   return {
     x: node.x,
@@ -175,14 +175,14 @@ function buildGraphViewportNodeAttributes(
     size,
     label: isRepresentative || !showNodeLabel ? "" : node.id,
     color,
-    cluster_id: node.cluster_id,
-    member_count: node.member_count,
-    is_cluster_proxy: isRepresentative || undefined,
+    clusterId: node.clusterId,
+    memberCount: node.memberCount,
+    isClusterProxy: isRepresentative || undefined,
     type: isRepresentative ? GRAPH_VIEWER_TRIANGLE_NODE_TYPE : undefined,
     borderColor: undefined,
-    layout_status: node.layout_status,
+    layoutStatus: node.layoutStatus,
     annotations: decodeApiMetadata(metadata),
-    isolates: (node.isolates ?? []).map(({ id, metadata }) => ({ id, ancillaryData: metadata })),
+    isolates: node.isolates ?? [],
     ancillaryDistribution: observations,
     ...pieNodeAttributes(visuals, distribution),
   };
@@ -192,7 +192,7 @@ function buildGraphViewportEdgeAttributes(
   edge: GraphViewportEdge,
   displayOptions?: GraphDisplayOptions,
 ): Record<string, unknown> {
-  const isMeta = edge.is_meta === true;
+  const isMeta = edge.isMeta === true;
   const hasDistance = typeof edge.distance === "number" && Number.isFinite(edge.distance);
   const showEdgeLabel = displayOptions?.edgeDistanceLabels === true;
   return {
@@ -209,14 +209,14 @@ function buildGraphViewportEdgeAttributes(
   };
 }
 
-function filteredViewportNodes(response: GraphViewportResponse, settings?: ViewportSyncSettings): GraphViewportNode[] {
+function filteredViewportNodes(response: GraphViewportResult, settings?: ViewportSyncSettings): GraphViewportNode[] {
   const filterState = settings?.filterState;
   if (!filterState || !hasActiveFilters(filterState)) {
     return response.nodes;
   }
   return response.nodes.flatMap((node) => {
     const observations = nodeObservations(node).filter((row) => matchesFilterState(row.values, filterState));
-    return observations.length ? [{ ...node, ancillary_distribution: observations }] : [];
+    return observations.length ? [{ ...node, ancillaryDistribution: observations }] : [];
   });
 }
 
@@ -284,8 +284,8 @@ function nodeSizeForMemberCount(memberCount: number): number {
 }
 
 function nodeObservations(node: GraphViewportNode): AncillaryObservation[] {
-  if (node.ancillary_distribution?.length) return node.ancillary_distribution;
-  if (node.isolates?.length) return node.isolates.map((isolate) => ({ values: isolate.metadata, count: 1 }));
+  if (node.ancillaryDistribution?.length) return node.ancillaryDistribution;
+  if (node.isolates?.length) return node.isolates.map((isolate) => ({ values: isolate.ancillaryData, count: 1 }));
   const annotations = decodeApiMetadata(node.metadata ?? {});
   return [{ values: { ...annotations.ancillarySummary.values, ...annotations.ancillaryData }, count: 1 }];
 }

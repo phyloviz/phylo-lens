@@ -82,7 +82,7 @@ export default function applySigmaHighlighting({
 function isRepresentativeNode(data: Record<string, unknown>): boolean {
   return (
     data.type === SIGMA_NODE_TYPE_TRIANGLE ||
-    data.is_cluster_proxy === true ||
-    (typeof data.member_count === "number" && data.member_count > 1)
+    data.isClusterProxy === true ||
+    (typeof data.memberCount === "number" && data.memberCount > 1)
   );
 }

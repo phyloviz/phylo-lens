@@ -1,5 +1,5 @@
 import { resolveAncillaryInput } from "../../ancillary/ancillaryInput";
-import type { NormalizeRequest, GraphClient, GraphPrepareResponse } from "../../api/graphContracts";
+import type { GraphPrepareRequest, GraphClient, GraphPrepareResult } from "../../contracts/graph";
 import type { PositionedGraph } from "../../contracts/positioned";
 import type { GraphRenderer } from "../../render/renderer.types";
 import { ACTIONS, type GraphWorkbenchAction } from "./graphWorkbench.actions";
@@ -54,14 +54,14 @@ export async function loadGraph(
 
   const ancillary = resolveAncillaryInput(options);
 
-  const request: NormalizeRequest = {
+  const request: GraphPrepareRequest = {
     format: input.format,
-    dataset_name: input.datasetName,
+    datasetName: input.datasetName,
     content: input.content,
-    metadata_schema: ancillary.ancillarySchema,
-    metadata_by_node_id: ancillary.ancillaryByNodeId,
-    ancillary_data: options.ancillaryData,
-    sfdp_options: options.sfdpOptions,
+    ancillarySchema: ancillary.ancillarySchema,
+    ancillaryByNodeId: ancillary.ancillaryByNodeId,
+    ancillaryData: options.ancillaryData,
+    sfdpOptions: options.sfdpOptions,
   };
 
   requireViewportRenderer(renderer);
@@ -87,8 +87,8 @@ export async function loadGraph(
     representationSpacingPx: session.lod.representationSpacingPx,
     smallTreeThreshold: session.lod.smallTreeThreshold,
 
-    lodTierCount: preparedGraph.lod_tier_count,
-    nodeCount: preparedGraph.node_count,
+    lodTierCount: preparedGraph.lodTierCount,
+    nodeCount: preparedGraph.nodeCount,
 
     getPaused: () => getState().lodRefreshPaused,
 
@@ -167,13 +167,13 @@ function resetRenderer(renderer: GraphRenderer): void {
 }
 
 function createGraphSession(
-  preparedGraph: GraphPrepareResponse,
+  preparedGraph: GraphPrepareResult,
   ancillary: ReturnType<typeof resolveAncillaryInput>,
   options: LoadGraphOptions,
 ): GraphSession {
   return {
-    datasetId: preparedGraph.dataset_id,
-    layoutVersion: preparedGraph.layout_version,
+    datasetId: preparedGraph.datasetId,
+    layoutVersion: preparedGraph.layoutVersion,
 
     ancillarySchema: ancillary.ancillarySchema,
     ancillaryByNodeId: ancillary.ancillaryByNodeId,
@@ -182,7 +182,7 @@ function createGraphSession(
     displayOptions: options.displayOptions,
 
     layoutWarnings: preparedGraph.warnings,
-    lodTierCount: preparedGraph.lod_tier_count,
+    lodTierCount: preparedGraph.lodTierCount,
 
     lod: {
       maxNodes: options.lod?.maxNodes,

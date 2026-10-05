@@ -24,7 +24,7 @@ export interface Isolate {
 }
 export interface AncillaryTableInput {
   content: string;
-  join_column: string;
+  joinColumn: string;
   format: "auto" | "csv" | "tsv";
 }
 
@@ -36,6 +36,6 @@ export interface AncillaryObservation {
 
 export interface AncillaryDataInput {
   content: string;
-  join_column: string;
+  joinColumn: string;
   format?: "auto" | "csv" | "tsv";
 }

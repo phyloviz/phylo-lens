@@ -21,7 +21,7 @@ export function composeExpandedViewport(
   }
   for (const patch of patches) {
     for (const node of patch.nodes) {
-      if (node.attributes?.is_cluster_proxy !== true || !nodes.has(node.id)) nodes.set(node.id, node);
+      if (node.attributes?.isClusterProxy !== true || !nodes.has(node.id)) nodes.set(node.id, node);
     }
     for (const edge of patch.edges) edges.set(edge.id, edge);
   }
@@ -29,14 +29,14 @@ export function composeExpandedViewport(
   const detailedClusters = new Set(
     patches.flatMap((patch) =>
       patch.nodes
-        .filter((node) => node.attributes?.is_cluster_proxy !== true)
-        .map((node) => node.attributes?.cluster_id)
+        .filter((node) => node.attributes?.isClusterProxy !== true)
+        .map((node) => node.attributes?.clusterId)
         .filter((id): id is string => typeof id === "string"),
     ),
   );
   for (const [id, node] of nodes) {
-    const clusterId = node.attributes?.cluster_id;
-    if (node.attributes?.is_cluster_proxy === true && typeof clusterId === "string" && detailedClusters.has(clusterId))
+    const clusterId = node.attributes?.clusterId;
+    if (node.attributes?.isClusterProxy === true && typeof clusterId === "string" && detailedClusters.has(clusterId))
       nodes.delete(id);
   }
   const partial = maxNodes !== undefined && nodes.size > maxNodes;

@@ -69,8 +69,8 @@ export function reduceGraphWorkbenchState(
         action.response && state.graphSession
           ? {
               ...state.graphSession,
-              ancillarySchema: action.response.metadata_schema ?? [],
-              layoutVersion: action.response.layout_version,
+              ancillarySchema: action.response.ancillarySchema ?? [],
+              layoutVersion: action.response.layoutVersion,
             }
           : state.graphSession;
 

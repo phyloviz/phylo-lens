@@ -103,7 +103,7 @@ export class DisplayPositions {
     }
 
     const nodes = graph.nodes.map((node) => {
-      const cluster = typeof node.attributes?.cluster_id === "string" ? node.attributes.cluster_id : undefined;
+      const cluster = typeof node.attributes?.clusterId === "string" ? node.attributes.clusterId : undefined;
       const proxyId = cluster ? this.proxies.get(cluster) : undefined;
       const parent = proxyId ? this.entries.get(proxyId) : undefined;
       const existing = this.entries.get(node.id);
@@ -118,7 +118,7 @@ export class DisplayPositions {
         display = { x: node.x + residual.x - inherited.x + shift.x, y: node.y + residual.y - inherited.y + shift.y };
         inherited = shift;
         origins.set(node.id, parent.display);
-      } else if (!previous.has(node.id) && node.attributes?.is_cluster_proxy === true && cluster) {
+      } else if (!previous.has(node.id) && node.attributes?.isClusterProxy === true && cluster) {
         const children = previousClusters.get(cluster) ?? [];
 
         if (children.length) {
@@ -151,8 +151,8 @@ export class DisplayPositions {
     });
 
     for (const node of graph.nodes)
-      if (node.attributes?.is_cluster_proxy === true && typeof node.attributes.cluster_id === "string")
-        this.proxies.set(node.attributes.cluster_id, node.id);
+      if (node.attributes?.isClusterProxy === true && typeof node.attributes.clusterId === "string")
+        this.proxies.set(node.attributes.clusterId, node.id);
 
     this.visible = new Set(graph.nodes.map((n) => n.id));
     // Forget old tiers and bound off-screen history; visible nodes are never evicted.

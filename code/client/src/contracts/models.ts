@@ -15,11 +15,11 @@ export interface CanonicalNode {
   id: string;
   x?: number | null;
   y?: number | null;
-  cluster_id?: string | null;
-  is_cluster_proxy?: boolean | null;
-  is_cluster_skeleton?: boolean | null;
-  subtree_size?: number | null;
-  leaf_count?: number | null;
+  clusterId?: string | null;
+  isClusterProxy?: boolean | null;
+  isClusterSkeleton?: boolean | null;
+  subtreeSize?: number | null;
+  leafCount?: number | null;
 }
 
 export interface CanonicalEdge {
@@ -31,18 +31,18 @@ export interface CanonicalEdge {
 
 export interface DatasetSource {
   format: SourceFormat;
-  generated_at: string;
+  generatedAt: string;
   provenance?: string;
 }
 
 export interface CanonicalDataset {
-  dataset_id: string;
+  datasetId: string;
   nodes: CanonicalNode[];
   edges: CanonicalEdge[];
   ancillarySchema: AncillaryField[];
   annotationsByNodeId: Record<string, NodeAnnotations>;
   isolatesByNodeId?: Record<string, Isolate[]>;
-  ancillary_rows_by_node_id?: Record<string, AncillaryData[]>;
+  ancillaryRowsByNodeId?: Record<string, AncillaryData[]>;
   source: DatasetSource;
 }
 
@@ -54,11 +54,11 @@ export interface Viewport {
 }
 
 export interface SearchDatasetMatch {
-  node_id: string;
+  nodeId: string;
   score: number;
-  matched_text: string;
+  matchedText: string;
   metadata: Record<string, string | number | boolean | null>;
-  cluster_id?: string | null;
+  clusterId?: string | null;
   // Global layout coordinates of the matched node (null when unavailable),
   // used to center/highlight a hit outside the current LoD slice.
   x?: number | null;
@@ -66,8 +66,8 @@ export interface SearchDatasetMatch {
 }
 
 export interface SearchDatasetResponse {
-  dataset_id: string;
+  datasetId: string;
   query: string;
   matches: SearchDatasetMatch[];
-  total_count: number;
+  totalCount: number;
 }

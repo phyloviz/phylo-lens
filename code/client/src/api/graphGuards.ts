@@ -9,28 +9,25 @@ import {
   isRecord,
   isString,
 } from "../validation/guards";
+import type { AncillaryData, AncillaryField, AncillaryValue } from "../contracts/ancillary";
+import type { GraphLayoutStatus, GraphPrepareJobStatus, SfdpOptions } from "../contracts/graph";
 import type {
-  GraphAncillaryResponse,
-  GraphIsolate,
-  GraphLayoutStatus,
-  GraphAncillaryData,
-  GraphAncillaryField,
-  GraphAncillaryValue,
-  GraphPrepareJob,
-  GraphPrepareJobStatus,
-  GraphPrepareResponse,
-  GraphPrepareStatus,
-  GraphRegionResponse,
-  GraphSearchMatch,
-  GraphSearchResponse,
-  GraphViewportEdge,
-  GraphViewportNode,
-  GraphViewportResponse,
-  GraphPrepareRequest,
-  SfdpOptions,
-} from "./graphContracts";
+  GraphAncillaryResponseDto,
+  GraphIsolateDto,
+  GraphPrepareJobDto,
+  GraphPrepareResponseDto,
+  GraphPrepareStatusDto,
+  GraphRegionResponseDto,
+  GraphSearchMatchDto,
+  GraphSearchResponseDto,
+  GraphViewportEdgeDto,
+  GraphViewportNodeDto,
+  GraphViewportResponseDto,
+  GraphPrepareRequestDto,
+  ServiceInformationDto,
+} from "./dto/graph.dto";
 
-export function isGraphPrepareRequest(value: unknown): value is GraphPrepareRequest {
+export function isGraphPrepareRequestDto(value: unknown): value is GraphPrepareRequestDto {
   return (
     isRecord(value) &&
     isSourceFormat(value.format) &&
@@ -44,7 +41,7 @@ export function isGraphPrepareRequest(value: unknown): value is GraphPrepareRequ
   );
 }
 
-export function isGraphPrepareResponse(value: unknown): value is GraphPrepareResponse {
+export function isGraphPrepareResponseDto(value: unknown): value is GraphPrepareResponseDto {
   return (
     isRecord(value) &&
     isString(value.dataset_id) &&
@@ -58,24 +55,24 @@ export function isGraphPrepareResponse(value: unknown): value is GraphPrepareRes
   );
 }
 
-export function isGraphPrepareJob(value: unknown): value is GraphPrepareJob {
+export function isGraphPrepareJobDto(value: unknown): value is GraphPrepareJobDto {
   return (
     isRecord(value) && isString(value.job_id) && isGraphPrepareJobStatus(value.status) && isString(value.dataset_id)
   );
 }
 
-export function isGraphPrepareStatus(value: unknown): value is GraphPrepareStatus {
+export function isGraphPrepareStatusDto(value: unknown): value is GraphPrepareStatusDto {
   return (
     isRecord(value) &&
     isString(value.job_id) &&
     isGraphPrepareJobStatus(value.status) &&
-    (value.result == null || isGraphPrepareResponse(value.result)) &&
+    (value.result == null || isGraphPrepareResponseDto(value.result)) &&
     isOptionalString(value.error) &&
-    (value.error_details == null || isGraphPrepareErrorDetails(value.error_details))
+    (value.error_details == null || isGraphPrepareErrorDetailsDto(value.error_details))
   );
 }
 
-function isGraphPrepareErrorDetails(value: unknown): boolean {
+function isGraphPrepareErrorDetailsDto(value: unknown): boolean {
   return (
     isRecord(value) &&
     isString(value.algorithm) &&
@@ -87,7 +84,7 @@ function isGraphPrepareErrorDetails(value: unknown): boolean {
   );
 }
 
-export function isGraphViewportResponse(value: unknown): value is GraphViewportResponse {
+export function isGraphViewportResponseDto(value: unknown): value is GraphViewportResponseDto {
   return (
     isRecord(value) &&
     isString(value.dataset_id) &&
@@ -97,14 +94,14 @@ export function isGraphViewportResponse(value: unknown): value is GraphViewportR
     isGraphLayoutStatus(value.layout_status) &&
     isBoolean(value.truncated) &&
     isFiniteNumber(value.total_node_count) &&
-    isArrayOf(value.nodes, isGraphViewportNode) &&
-    isArrayOf(value.edges, isGraphViewportEdge) &&
-    (value.global_bounds == null || isGraphLayoutBounds(value.global_bounds)) &&
+    isArrayOf(value.nodes, isGraphViewportNodeDto) &&
+    isArrayOf(value.edges, isGraphViewportEdgeDto) &&
+    (value.global_bounds == null || isGraphLayoutBoundsDto(value.global_bounds)) &&
     isOptionalGraphMetadataSchema(value.metadata_schema)
   );
 }
 
-export function isGraphRegionResponse(value: unknown): value is GraphRegionResponse {
+export function isGraphRegionResponseDto(value: unknown): value is GraphRegionResponseDto {
   return (
     isRecord(value) &&
     isString(value.dataset_id) &&
@@ -112,20 +109,20 @@ export function isGraphRegionResponse(value: unknown): value is GraphRegionRespo
     isGraphLayoutStatus(value.layout_status) &&
     isBoolean(value.truncated) &&
     isFiniteNumber(value.total_node_count) &&
-    isArrayOf(value.nodes, isGraphViewportNode) &&
-    isArrayOf(value.edges, isGraphViewportEdge) &&
+    isArrayOf(value.nodes, isGraphViewportNodeDto) &&
+    isArrayOf(value.edges, isGraphViewportEdgeDto) &&
     isOptionalGraphMetadataSchema(value.metadata_schema) &&
     isGraphMetadata(value.aggregated_metadata)
   );
 }
 
-export function isGraphSearchResponse(value: unknown): value is GraphSearchResponse {
+export function isGraphSearchResponseDto(value: unknown): value is GraphSearchResponseDto {
   return (
     isRecord(value) &&
     isString(value.dataset_id) &&
     isString(value.query) &&
     isFiniteNumber(value.total_count) &&
-    isArrayOf(value.matches, isGraphSearchMatch)
+    isArrayOf(value.matches, isGraphSearchMatchDto)
   );
 }
 
@@ -141,7 +138,7 @@ function isGraphLayoutStatus(value: unknown): value is GraphLayoutStatus {
   return value === "pending" || value === "refining" || value === "ready" || value === "degraded" || value === "failed";
 }
 
-function isGraphViewportNode(value: unknown): value is GraphViewportNode {
+function isGraphViewportNodeDto(value: unknown): value is GraphViewportNodeDto {
   return (
     isRecord(value) &&
     isString(value.id) &&
@@ -165,13 +162,13 @@ function isGraphViewportNode(value: unknown): value is GraphViewportNode {
     (value.isolates === undefined ||
       isArrayOf(
         value.isolates,
-        (isolate): isolate is GraphIsolate =>
+        (isolate): isolate is GraphIsolateDto =>
           isRecord(isolate) && isString(isolate.id) && isGraphMetadata(isolate.metadata),
       ))
   );
 }
 
-function isGraphViewportEdge(value: unknown): value is GraphViewportEdge {
+function isGraphViewportEdgeDto(value: unknown): value is GraphViewportEdgeDto {
   return (
     isRecord(value) &&
     isString(value.id) &&
@@ -182,7 +179,7 @@ function isGraphViewportEdge(value: unknown): value is GraphViewportEdge {
   );
 }
 
-function isGraphLayoutBounds(value: unknown): boolean {
+function isGraphLayoutBoundsDto(value: unknown): boolean {
   return (
     isRecord(value) &&
     isFiniteNumber(value.min_x) &&
@@ -192,7 +189,7 @@ function isGraphLayoutBounds(value: unknown): boolean {
   );
 }
 
-function isGraphSearchMatch(value: unknown): value is GraphSearchMatch {
+function isGraphSearchMatchDto(value: unknown): value is GraphSearchMatchDto {
   return (
     isRecord(value) &&
     isString(value.node_id) &&
@@ -204,7 +201,7 @@ function isGraphSearchMatch(value: unknown): value is GraphSearchMatch {
   );
 }
 
-function isGraphMetadata(value: unknown): value is GraphAncillaryData {
+function isGraphMetadata(value: unknown): value is AncillaryData {
   return isRecord(value) && Object.values(value).every(isGraphMetadataValue);
 }
 
@@ -212,7 +209,7 @@ function isOptionalMetadataByNodeId(value: unknown): boolean {
   return value === undefined || (isRecord(value) && Object.values(value).every(isGraphMetadata));
 }
 
-function isGraphMetadataValue(value: unknown): value is GraphAncillaryValue {
+function isGraphMetadataValue(value: unknown): value is AncillaryValue {
   return value === null || isString(value) || isBoolean(value) || isFiniteNumber(value);
 }
 
@@ -280,15 +277,15 @@ function isOptionalAncillaryDataRequest(value: unknown): boolean {
   );
 }
 
-function isOptionalGraphMetadataSchema(value: unknown): value is GraphAncillaryField[] | undefined {
+function isOptionalGraphMetadataSchema(value: unknown): value is AncillaryField[] | undefined {
   return value === undefined || isArrayOf(value, isGraphMetadataField);
 }
 
-function isGraphMetadataField(value: unknown): value is GraphAncillaryField {
+function isGraphMetadataField(value: unknown): value is AncillaryField {
   return isRecord(value) && isString(value.key) && isString(value.type);
 }
 
-export function isGraphAncillaryResponse(value: unknown): value is GraphAncillaryResponse {
+export function isGraphAncillaryResponseDto(value: unknown): value is GraphAncillaryResponseDto {
   return (
     isRecord(value) &&
     isString(value.dataset_id) &&
@@ -299,5 +296,14 @@ export function isGraphAncillaryResponse(value: unknown): value is GraphAncillar
     Number.isInteger(value.matched_node_count) &&
     value.matched_node_count > 0 &&
     isArrayOf(value.warnings, isString)
+  );
+}
+
+export function isServiceInformationDto(value: unknown): value is ServiceInformationDto {
+  return (
+    isRecord(value) &&
+    value.status === "ok" &&
+    typeof value.service_version === "string" &&
+    typeof value.api_version === "string"
   );
 }
