@@ -1,27 +1,38 @@
-import { EMPTY_ANCILLARY_FILTER_STATE } from "../../ancillary/filterEngine";
-import { GRAPH_WORKBENCH_ERRORS } from "./graphWorkbench.errors";
-import type { GraphWorkbenchState, GraphSession } from "./graphWorkbench.types";
+import { EMPTY_ANCILLARY_FILTER_STATE } from '../../ancillary/filterEngine';
+import type { AncillaryFilterState } from '../../ancillary/ancillaryTypes';
+import type { PositionedGraph } from '../../contracts/positioned';
+import { GRAPH_WORKBENCH_ERRORS } from './graphWorkbench.errors';
+import type { GraphSession } from './graphWorkbench.types';
+
+type WorkbenchControls = {
+    readonly activeFilters: AncillaryFilterState;
+    readonly lodRefreshPaused: boolean;
+};
+
+export type GraphWorkbenchState = WorkbenchControls &
+    (
+        | { readonly kind: 'idle' }
+        | { readonly kind: 'preparing' }
+        | { readonly kind: 'loadingViewport'; readonly session: GraphSession }
+        | { readonly kind: 'ready'; readonly session: GraphSession; readonly graph: PositionedGraph }
+        | { readonly kind: 'failed'; readonly error: Error }
+    );
 
 export function createInitialWorkbenchState(): GraphWorkbenchState {
-  return {
-    graphSession: null,
-    graphSnapshot: null,
-    activeFilters: EMPTY_ANCILLARY_FILTER_STATE,
-    lodRefreshPaused: false,
-  };
+    return { kind: 'idle', activeFilters: EMPTY_ANCILLARY_FILTER_STATE, lodRefreshPaused: false };
 }
 
-export function hasGraphSession(state: GraphWorkbenchState): boolean {
-  return state.graphSession !== null;
+export function hasGraphSession(
+    state: GraphWorkbenchState
+): state is Extract<GraphWorkbenchState, { session: GraphSession }> {
+    return state.kind === 'loadingViewport' || state.kind === 'ready';
 }
 
-export function getGraphSession(
-  state: GraphWorkbenchState,
-  errorMessage = GRAPH_WORKBENCH_ERRORS.noGraphRendered,
-): GraphSession {
-  if (!state.graphSession) {
-    throw new Error(errorMessage);
-  }
+export function getGraphSession(state: GraphWorkbenchState): GraphSession {
+    if (!hasGraphSession(state)) throw new Error(GRAPH_WORKBENCH_ERRORS.noGraphRendered);
+    return state.session;
+}
 
-  return state.graphSession;
+export function getGraphSnapshot(state: GraphWorkbenchState): PositionedGraph | null {
+    return state.kind === 'ready' ? state.graph : null;
 }

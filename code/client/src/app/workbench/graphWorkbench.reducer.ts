@@ -1,96 +1,62 @@
-import { EMPTY_ANCILLARY_FILTER_STATE } from "../../ancillary/filterEngine";
-import { ACTIONS, type GraphWorkbenchAction } from "./graphWorkbench.actions";
-import type { GraphWorkbenchState } from "./graphWorkbench.types";
-import { createEmptyGraph } from "./viewportGraph";
+import { copyFilterState } from '../../ancillary/filterEngine';
+import { copyVisualMapping } from '../../render/mapping/visualMapping';
+import { createInitialWorkbenchState, hasGraphSession, type GraphWorkbenchState } from './graphWorkbench.state';
+import type { GraphWorkbenchAction } from './graphWorkbench.actions';
 
 export function reduceGraphWorkbenchState(
-  state: GraphWorkbenchState,
-  action: GraphWorkbenchAction,
+    state: GraphWorkbenchState,
+    action: GraphWorkbenchAction
 ): GraphWorkbenchState {
-  switch (action.type) {
-    case ACTIONS.reset:
-      return {
-        ...state,
-        graphSession: null,
-        graphSnapshot: null,
-        activeFilters: EMPTY_ANCILLARY_FILTER_STATE,
-        lodRefreshPaused: false,
-      };
-
-    case ACTIONS.lodRefreshPaused:
-      return {
-        ...state,
-        lodRefreshPaused: action.paused,
-      };
-
-    case ACTIONS.filtersUpdated:
-      return {
-        ...state,
-        activeFilters: action.filters,
-      };
-
-    case ACTIONS.visualMappingUpdated:
-      if (!state.graphSession) {
-        return state;
-      }
-
-      return {
-        ...state,
-        graphSession: {
-          ...state.graphSession,
-          visualMapping: action.visualMapping,
-        },
-      };
-
-    case ACTIONS.displayOptionsUpdated:
-      if (!state.graphSession) {
-        return state;
-      }
-
-      return {
-        ...state,
-        graphSession: {
-          ...state.graphSession,
-          displayOptions: {
-            ...state.graphSession.displayOptions,
-            ...action.displayOptions,
-          },
-        },
-      };
-
-    case ACTIONS.graphPrepared:
-      return {
-        ...state,
-        graphSession: action.session,
-      };
-
-    case ACTIONS.viewportApplied: {
-      const preparedSession =
-        action.response && state.graphSession
-          ? {
-              ...state.graphSession,
-              layoutVersion: action.response.layoutVersion,
-            }
-          : state.graphSession;
-
-      return {
-        ...state,
-        graphSession: preparedSession,
-        graphSnapshot: {
-          ...action.graph,
-          viewMeta: {
-            ...action.graph.viewMeta,
-            lodTierCount: preparedSession?.lodTierCount,
-            layoutWarnings: preparedSession?.layoutWarnings,
-          },
-        },
-      };
+    switch (action.kind) {
+        case 'loadStarted':
+            return { ...createInitialWorkbenchState(), kind: 'preparing' };
+        case 'graphPrepared':
+            return state.kind === 'preparing' ? { ...state, kind: 'loadingViewport', session: action.session } : state;
+        case 'loadFailed':
+            if (state.kind === 'idle' || state.kind === 'failed') return state;
+            return {
+                kind: 'failed',
+                error: action.error,
+                activeFilters: state.activeFilters,
+                lodRefreshPaused: state.lodRefreshPaused,
+            };
+        case 'lodRefreshPaused':
+            return hasGraphSession(state) ? { ...state, lodRefreshPaused: action.paused } : state;
+        case 'filtersUpdated':
+            return hasGraphSession(state) ? { ...state, activeFilters: copyFilterState(action.filters) } : state;
+        case 'visualMappingUpdated':
+            return hasGraphSession(state)
+                ? { ...state, session: { ...state.session, visualMapping: copyVisualMapping(action.visualMapping) } }
+                : state;
+        case 'displayOptionsUpdated':
+            return hasGraphSession(state)
+                ? {
+                      ...state,
+                      session: {
+                          ...state.session,
+                          displayOptions: { ...state.session.displayOptions, ...action.displayOptions },
+                      },
+                  }
+                : state;
+        case 'viewportApplied': {
+            if (!hasGraphSession(state)) return state;
+            const session =
+                action.layoutVersion === undefined
+                    ? state.session
+                    : { ...state.session, layoutVersion: action.layoutVersion };
+            return {
+                ...state,
+                kind: 'ready',
+                session,
+                graph: {
+                    ...action.graph,
+                    viewMeta: {
+                        ...action.graph.viewMeta,
+                        lodTierCount: session.lodTierCount,
+                        layoutWarnings: session.layoutWarnings,
+                    },
+                },
+            };
+        }
     }
-
-    case ACTIONS.graphCleared:
-      return {
-        ...state,
-        graphSnapshot: createEmptyGraph(),
-      };
-  }
 }

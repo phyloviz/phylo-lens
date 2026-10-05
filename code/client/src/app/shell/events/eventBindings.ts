@@ -1,25 +1,29 @@
 export default function () {
-  const removers: Array<() => void> = [];
+    const removers: Array<() => void> = [];
 
-  return {
-    on: on,
-    clear: clear,
-  };
+    return {
+        on: on,
+        clear: clear,
+    };
 
-  function on(target: EventTarget | null | undefined, type: string, listener: EventListener): void {
-    if (!target) {
-      return;
+    function on<K extends keyof HTMLElementEventMap>(
+        target: HTMLElement | null | undefined,
+        type: K,
+        listener: (event: HTMLElementEventMap[K]) => void
+    ): void {
+        if (!target) {
+            return;
+        }
+
+        target.addEventListener(type, listener);
+        removers.push(() => {
+            target.removeEventListener(type, listener);
+        });
     }
 
-    target.addEventListener(type, listener);
-    removers.push(() => {
-      target.removeEventListener(type, listener);
-    });
-  }
-
-  function clear(): void {
-    removers.splice(0).forEach((remove) => {
-      remove();
-    });
-  }
+    function clear(): void {
+        removers.splice(0).forEach(remove => {
+            remove();
+        });
+    }
 }
