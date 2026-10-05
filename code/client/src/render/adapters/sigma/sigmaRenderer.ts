@@ -5,6 +5,7 @@ import type { DragSelection } from "../../renderer.types";
 import { exportSigmaPublication } from "./sigmaPublicationExport";
 import Graph from "graphology";
 import Sigma from "sigma";
+import type { SigmaNodeEventPayload } from "sigma/types";
 
 import type { PositionedGraph } from "../../../contracts/positioned";
 import { RENDERER_KIND_SIGMA } from "../../renderer.types";
@@ -34,7 +35,12 @@ import applySigmaHighlighting from "./interaction/sigmaHighlighting";
 import createSigmaForceMotion from "./motion/sigmaForceMotion";
 import { areStringArraysEqual } from "./attributes/sigmaAttributeUtils";
 import { addPositionedEdges } from "./attributes/sigmaEdgeAttributes";
-import { addPositionedNode, applyPieChartNodeTypes, derivePositionedNodeColor } from "./attributes/sigmaNodeAttributes";
+import {
+  addPositionedNode,
+  applyClusterTriangleRotations,
+  applyPieChartNodeTypes,
+  derivePositionedNodeColor,
+} from "./attributes/sigmaNodeAttributes";
 import { buildPieProgramSignature, piechartProgramClasses, type PieNodeView } from "./programs/sigmaPiePrograms";
 import { buildSigmaSettings } from "./sigmaRenderer.settings";
 import type { SigmaPiechartOptions, SigmaRendererOptions } from "./sigmaRenderer.types";
@@ -59,6 +65,8 @@ export {
 export type { SigmaPiechartOptions, SigmaRendererOptions };
 
 export const ERR_SIGMA_NOT_READY = "Sigma renderer is not mounted.";
+
+type NodeClickPayload = SigmaNodeEventPayload | { readonly node?: string; readonly event?: { readonly node?: string } };
 
 // Sigma renderer adapter keeps Sigma-specific behavior isolated from core contracts.
 export class SigmaRenderer implements GraphRenderer {
@@ -110,7 +118,7 @@ export class SigmaRenderer implements GraphRenderer {
   }
   getVisibleDisplacedNodeIds(): readonly string[] {
     const bounds = this.currentViewportBounds();
-    return this.getDisplayedNodesInBounds(bounds).filter((id) => {
+    return this.getDisplayedNodesInBounds(bounds).filter(id => {
       const home = this.positions.reference(id),
         display = this.positions.get(id);
       return home && display && Math.hypot(home.x - display.x, home.y - display.y) > 1e-9;
@@ -168,9 +176,7 @@ export class SigmaRenderer implements GraphRenderer {
   private containerElement: HTMLElement | null = null;
   private pieSliceKeys: string[] = [];
   private pieProgramSignature = "";
-  private graphBounds: GraphLayoutBounds | null = null;
   private coordinateBounds: GraphLayoutBounds | null = null;
-  private piechartOptions: SigmaPiechartOptions;
   private rendererOptions: SigmaRendererOptions;
   private readonly dragController: ReturnType<typeof sigmaDragController>;
   private readonly boxSelectController: ReturnType<typeof sigmaBoxSelectController>;
@@ -193,10 +199,10 @@ export class SigmaRenderer implements GraphRenderer {
   private readonly boundCameraUpdated = () => {
     this.handleCameraUpdated();
   };
-  private readonly boundNodeClicked = (payload: { node?: string; event?: { node?: string } }) => {
+  private readonly boundNodeClicked = (payload: NodeClickPayload) => {
     this.emitNodeClick(payload);
   };
-  private readonly boundNodeDoubleClicked = (payload: { node?: string; event?: { node?: string } }) => {
+  private readonly boundNodeDoubleClicked = (payload: NodeClickPayload) => {
     this.emitNodeDoubleClick(payload);
   };
   private readonly boundStageClicked = () => {
@@ -215,12 +221,11 @@ export class SigmaRenderer implements GraphRenderer {
         palette: options.piechart.palette && [...options.piechart.palette],
       },
     };
-    this.piechartOptions = this.rendererOptions.piechart ?? {};
     this.forceMotion = createSigmaForceMotion(forceMotion, {
       onTick: () => this.updateClusterTriangleRotations(),
-      onError: (message) => this.feedbackHandler?.(message),
-      reference: (id) => this.positions.reference(id),
-      anchor: (id) => this.positions.anchor(id),
+      onError: message => this.feedbackHandler?.(message),
+      reference: id => this.positions.reference(id),
+      anchor: id => this.positions.anchor(id),
       collisionRadius: (id, size) => {
         const sigma = this.sigma;
         if (!sigma?.scaleSize) return undefined;
@@ -241,17 +246,17 @@ export class SigmaRenderer implements GraphRenderer {
       getGraph: () => this.graph,
       getSelection: () => this.dragSelection,
       isRegionSelectionEnabled: () => this.regionSelectModeEnabled,
-      onStart: (ids) => {
+      onStart: ids => {
         this.cancelCameraFit();
         this.captureDisplayPositions();
         this.cancelTransition();
-        ids.forEach((id) => this.dragPins.set(id, this.positions.get(id)!));
+        ids.forEach(id => this.dragPins.set(id, this.positions.get(id)!));
         this.sendDragPins();
         this.manipulationHandler?.(true);
       },
       translate: (members, delta) => this.positions.translate(members, delta),
-      onUnavailable: (message) => this.feedbackHandler?.(message),
-      onMoved: (positions) => {
+      onUnavailable: message => this.feedbackHandler?.(message),
+      onMoved: positions => {
         positions.forEach((point, id) => this.dragPins.set(id, this.positions.arrange(id, point)));
         this.sendDragPins();
       },
@@ -262,8 +267,8 @@ export class SigmaRenderer implements GraphRenderer {
         this.finishManipulation();
       },
       getSigma: () => this.sigma,
-      suppressViewChangesFor: (durationMs) => this.suppressViewChangesFor(durationMs),
-      suppressNodeClicksFor: (durationMs) => this.suppressNodeClicksFor(durationMs),
+      suppressViewChangesFor: durationMs => this.suppressViewChangesFor(durationMs),
+      suppressNodeClicksFor: durationMs => this.suppressNodeClicksFor(durationMs),
     });
     this.boxSelectController = sigmaBoxSelectController({
       getSigma: () => this.sigma,
@@ -282,8 +287,8 @@ export class SigmaRenderer implements GraphRenderer {
         this.forceMotion.suspend(false);
         this.finishManipulation();
       },
-      onRegionSelected: (bounds) => this.regionSelectedHandler?.(bounds),
-      suppressNodeClicksFor: (durationMs) => this.suppressNodeClicksFor(durationMs),
+      onRegionSelected: bounds => this.regionSelectedHandler?.(bounds),
+      suppressNodeClicksFor: durationMs => this.suppressNodeClicksFor(durationMs),
     });
   }
 
@@ -310,12 +315,11 @@ export class SigmaRenderer implements GraphRenderer {
     this.forceMotion.stop();
     this.lastRenderedGraph = graph;
     this.graph.clear();
-    this.graphBounds = deriveGraphBounds(graph.nodes);
-    this.coordinateBounds = normalizeGraphBounds(graph.viewMeta.globalBounds) ?? this.graphBounds;
-    this.ensureSigmaPiePrograms(graph);
+    this.coordinateBounds = normalizeGraphBounds(graph.viewMeta.globalBounds) ?? deriveGraphBounds(graph.nodes);
+    this.updatePiePrograms(graph.nodes);
     applyStableCameraBounds(this.sigma, this.coordinateBounds);
 
-    graph.nodes.forEach((positionedNode) => {
+    graph.nodes.forEach(positionedNode => {
       addPositionedNode(this.graph as Graph, positionedNode, this.pieSliceKeys, this.rendererOptions);
     });
     addPositionedEdges(this.graph, graph, this.rendererOptions);
@@ -354,9 +358,7 @@ export class SigmaRenderer implements GraphRenderer {
       return false;
     }
 
-    this.selectedNodeId = nodeId;
-    this.applyHighlighting();
-    this.sigma?.scheduleRender?.();
+    this.focusNode(nodeId);
     return true;
   }
 
@@ -422,7 +424,6 @@ export class SigmaRenderer implements GraphRenderer {
     this.containerElement = null;
     this.pieSliceKeys = [];
     this.pieProgramSignature = "";
-    this.graphBounds = null;
     this.coordinateBounds = null;
     this.lastRenderedGraph = null;
     this.sourceSnapshot = null;
@@ -487,12 +488,12 @@ export class SigmaRenderer implements GraphRenderer {
     const planned = this.positions.ingest(graph);
     graph = { ...graph, nodes: planned.nodes };
     const lodChanged = previousLod !== undefined && previousLod !== graph.viewMeta.lodLevel;
-    const targets = new Map(graph.nodes.map((node) => [node.id, { x: node.x, y: node.y }]));
+    const targets = new Map(graph.nodes.map(node => [node.id, { x: node.x, y: node.y }]));
     this.transitionAnchor = lodChanged ? this.chooseTransitionAnchor(graph) : null;
     if (wasTransitioning || lodChanged || planned.origins.size) {
       graph = {
         ...graph,
-        nodes: graph.nodes.map((node) => ({
+        nodes: graph.nodes.map(node => ({
           ...node,
           ...this.positions.constrain(node.id, planned.origins.get(node.id) ?? previousPositions.get(node.id) ?? node),
         })),
@@ -504,13 +505,12 @@ export class SigmaRenderer implements GraphRenderer {
     this.glyphFootprintDirty = true;
     this.selectedClusterStyle = null;
     this.graph.clear();
-    this.graphBounds = deriveGraphBounds(graph.nodes);
-    this.coordinateBounds = normalizeGraphBounds(graph.viewMeta.globalBounds) ?? this.graphBounds;
+    this.coordinateBounds = normalizeGraphBounds(graph.viewMeta.globalBounds) ?? deriveGraphBounds(graph.nodes);
     if (!graphBoundsEqual(previousCoordinateBounds, this.coordinateBounds)) {
       applyStableCameraBounds(this.sigma, this.coordinateBounds);
     }
 
-    graph.nodes.forEach((node) => {
+    graph.nodes.forEach(node => {
       this.graph?.addNode(node.id, {
         ...(node.attributes ?? {}),
         x: node.x,
@@ -519,7 +519,7 @@ export class SigmaRenderer implements GraphRenderer {
         color: node.attributes?.isClusterProxy === true ? derivePositionedNodeColor(node) : node.color,
       });
     });
-    graph.edges.forEach((edge) => {
+    graph.edges.forEach(edge => {
       if (!this.graph?.hasNode(edge.source) || !this.graph.hasNode(edge.target)) {
         return;
       }
@@ -584,7 +584,7 @@ export class SigmaRenderer implements GraphRenderer {
     if (!this.graph || !this.sigma) return null;
     const dimensions = this.sigma.getDimensions();
     const focus = this.zoomPointer ?? { x: dimensions.width / 2, y: dimensions.height / 2 };
-    const nextIds = new Set(next.nodes.map((n) => n.id));
+    const nextIds = new Set(next.nodes.map(n => n.id));
     const nextClusters = new Map<string, string[]>();
     for (const node of next.nodes) {
       const cluster = node.attributes?.clusterId;
@@ -680,74 +680,20 @@ export class SigmaRenderer implements GraphRenderer {
     });
   }
 
-  // Register piechart programs for the live LoD graph and flip pie nodes to the
-  // piechart type once the program exists. Invoked while applying each viewport
-  // graph snapshot, before Sigma refreshes.
-  // Mirrors the legacy ensureSigmaPiePrograms flow but reads slice keys from
-  // the graphology graph (sync writes attributes directly rather than via
-  // addPositionedNode).
+  // Avoid materializing node views when pies are disabled or absent.
   private syncPieProgramsFromGraph(): void {
-    if (!this.graph || !this.sigma || !this.containerElement) {
+    if (!this.graph || !this.sigma || !this.containerElement) return;
+    const hasPies =
+      this.rendererOptions.piechart?.enabled !== false &&
+      this.graph.findNode((_id, attributes) =>
+        Object.keys(attributes).some(key => key.startsWith(PIE_ATTRIBUTE_PREFIX)),
+      ) !== undefined;
+    if (!hasPies) {
+      if (this.pieSliceKeys.length) this.rebuildSigma([]);
       return;
     }
-
-    // Bail before materializing node views when pies are off (the default),
-    // so a disabled-pie session does no O(N) work per viewport sync. The one
-    // remaining cost is a single teardown when leaving an enabled state.
-    if (this.piechartOptions.enabled === false) {
-      if (this.pieSliceKeys.length > 0) {
-        this.rebuildSigma([], []);
-      }
-      return;
-    }
-
-    // Pie mapping is opt-in via `pie__*` node attributes rather than an explicit
-    // flag (the renderer is constructed with no piechart options), so `enabled`
-    // is normally `undefined` and the guard above never fires. Probe the live
-    // graph cheaply first: `findNode` short-circuits on the first pie-bearing
-    // node, so a plain role-color slice with N nodes costs O(1)-O(k) instead of
-    // the full O(N) graphNodeViews + detect + signature scan on every sync. When
-    // no pie attributes are present and no pie program is registered, there is
-    // nothing to do; if a program is registered but pies have since vanished,
-    // tear it down once.
-    if (!this.graphHasPieAttributes()) {
-      if (this.pieSliceKeys.length > 0) {
-        this.rebuildSigma([], []);
-      }
-      return;
-    }
-
-    const nodeViews = graphNodeViews(this.graph);
-    const detectedSliceKeys = detectPieSliceKeys(nodeViews);
-    const nextSignature = buildPieProgramSignature(detectedSliceKeys, nodeViews);
-    if (!areStringArraysEqual(this.pieSliceKeys, detectedSliceKeys) || this.pieProgramSignature !== nextSignature) {
-      try {
-        this.rebuildSigma(detectedSliceKeys, nodeViews, nextSignature);
-      } catch (error) {
-        console.warn("Failed to build Sigma piechart program; falling back to default nodes.", {
-          sliceCount: detectedSliceKeys.length,
-          sliceKeys: detectedSliceKeys,
-          error,
-        });
-        this.rebuildSigma([], [], "");
-      }
-    }
-
+    this.updatePiePrograms(graphNodeViews(this.graph));
     applyPieChartNodeTypes(this.graph, this.pieSliceKeys);
-  }
-
-  // Cheap probe: does any live node carry a `pie__*` attribute? `findNode`
-  // returns on the first match, so a slice with no pie mapping active pays only
-  // for the scan up to the first node rather than materializing every node view.
-  private graphHasPieAttributes(): boolean {
-    if (!this.graph) {
-      return false;
-    }
-    return (
-      this.graph.findNode((_nodeId, attributes) =>
-        Object.keys(attributes).some((key) => key.startsWith(PIE_ATTRIBUTE_PREFIX)),
-      ) !== undefined
-    );
   }
 
   private suppressViewChangesFor(durationMs: number): void {
@@ -758,31 +704,23 @@ export class SigmaRenderer implements GraphRenderer {
     this.suppressNodeClicksUntil = Date.now() + durationMs;
   }
 
-  private ensureSigmaPiePrograms(graph: PositionedGraph): void {
-    if (!this.graph || !this.containerElement) {
-      throw new Error(ERR_SIGMA_NOT_READY);
-    }
-
-    if (this.piechartOptions.enabled === false) {
-      if (this.pieSliceKeys.length > 0) {
-        this.rebuildSigma([]);
-      }
+  private updatePiePrograms(nodes: readonly PieNodeView[]): void {
+    if (this.rendererOptions.piechart?.enabled === false) {
+      if (this.pieSliceKeys.length) this.rebuildSigma([]);
       return;
     }
-
-    const detectedSliceKeys = detectPieSliceKeys(graph.nodes);
-    const nextSignature = buildPieProgramSignature(detectedSliceKeys, graph.nodes);
-    if (!areStringArraysEqual(this.pieSliceKeys, detectedSliceKeys) || this.pieProgramSignature !== nextSignature) {
-      try {
-        this.rebuildSigma(detectedSliceKeys, graph.nodes, nextSignature);
-      } catch (error) {
-        console.warn("Failed to build Sigma piechart program; falling back to default nodes.", {
-          sliceCount: detectedSliceKeys.length,
-          sliceKeys: detectedSliceKeys,
-          error,
-        });
-        this.rebuildSigma([], [], "");
-      }
+    const sliceKeys = detectPieSliceKeys(nodes);
+    const signature = buildPieProgramSignature(sliceKeys, nodes);
+    if (areStringArraysEqual(this.pieSliceKeys, sliceKeys) && this.pieProgramSignature === signature) return;
+    try {
+      this.rebuildSigma(sliceKeys, nodes, signature);
+    } catch (error) {
+      console.warn("Failed to build Sigma piechart program; falling back to default nodes.", {
+        sliceCount: sliceKeys.length,
+        sliceKeys,
+        error,
+      });
+      this.rebuildSigma([], [], "");
     }
   }
 
@@ -796,7 +734,7 @@ export class SigmaRenderer implements GraphRenderer {
     const previousSigma = this.sigma;
     const sigmaSettings = buildSigmaSettings(
       this.rendererOptions,
-      piechartProgramClasses(sliceKeys, nodes, this.piechartOptions),
+      piechartProgramClasses(sliceKeys, nodes, this.rendererOptions.piechart ?? {}),
     );
 
     this.unbindSigmaHandlers();
@@ -818,9 +756,16 @@ export class SigmaRenderer implements GraphRenderer {
     }
     this.sigma?.off("resize", this.boundCameraUpdated);
     this.sigma?.on("resize", this.boundCameraUpdated);
-    this.bindCameraHandler();
-    this.bindNodeClickHandler();
-    this.bindStageClickHandler();
+    const sigma = this.sigma;
+    const camera = sigma?.getCamera();
+    camera?.off?.("updated", this.boundCameraUpdated);
+    camera?.on?.("updated", this.boundCameraUpdated);
+    sigma?.off?.("clickNode", this.boundNodeClicked);
+    sigma?.on?.("clickNode", this.boundNodeClicked);
+    sigma?.off?.("doubleClickNode", this.boundNodeDoubleClicked);
+    sigma?.on?.("doubleClickNode", this.boundNodeDoubleClicked);
+    sigma?.off?.("clickStage", this.boundStageClicked);
+    sigma?.on?.("clickStage", this.boundStageClicked);
     this.dragController.bind();
     this.boxSelectController.bind();
     this.applyHighlighting();
@@ -834,65 +779,11 @@ export class SigmaRenderer implements GraphRenderer {
     }
     this.boxSelectController.unbind();
     this.dragController.unbind();
-    this.unbindStageClickHandler();
-    this.unbindNodeClickHandler();
+    this.sigma?.off?.("clickStage", this.boundStageClicked);
+    this.sigma?.off?.("clickNode", this.boundNodeClicked);
+    this.sigma?.off?.("doubleClickNode", this.boundNodeDoubleClicked);
     this.sigma?.off("resize", this.boundCameraUpdated);
-    this.unbindCameraHandler();
-  }
-
-  private bindCameraHandler(): void {
-    const camera = this.sigma?.getCamera() as
-      | {
-          on?: (event: string, handler: () => void) => void;
-          off?: (event: string, handler: () => void) => void;
-        }
-      | undefined;
-    camera?.off?.("updated", this.boundCameraUpdated);
-    camera?.on?.("updated", this.boundCameraUpdated);
-  }
-
-  private bindNodeClickHandler(): void {
-    const sigma = this.sigma as {
-      on?: (event: string, handler: (payload: { node?: string; event?: { node?: string } }) => void) => void;
-      off?: (event: string, handler: (payload: { node?: string; event?: { node?: string } }) => void) => void;
-    } | null;
-    sigma?.off?.("clickNode", this.boundNodeClicked);
-    sigma?.on?.("clickNode", this.boundNodeClicked);
-    sigma?.off?.("doubleClickNode", this.boundNodeDoubleClicked);
-    sigma?.on?.("doubleClickNode", this.boundNodeDoubleClicked);
-  }
-
-  private bindStageClickHandler(): void {
-    const sigma = this.sigma as {
-      on?: (event: string, handler: () => void) => void;
-      off?: (event: string, handler: () => void) => void;
-    } | null;
-    sigma?.off?.("clickStage", this.boundStageClicked);
-    sigma?.on?.("clickStage", this.boundStageClicked);
-  }
-
-  private unbindCameraHandler(): void {
-    const camera = this.sigma?.getCamera() as
-      | {
-          off?: (event: string, handler: () => void) => void;
-        }
-      | undefined;
-    camera?.off?.("updated", this.boundCameraUpdated);
-  }
-
-  private unbindNodeClickHandler(): void {
-    const sigma = this.sigma as {
-      off?: (event: string, handler: (payload: { node?: string; event?: { node?: string } }) => void) => void;
-    } | null;
-    sigma?.off?.("clickNode", this.boundNodeClicked);
-    sigma?.off?.("doubleClickNode", this.boundNodeDoubleClicked);
-  }
-
-  private unbindStageClickHandler(): void {
-    const sigma = this.sigma as {
-      off?: (event: string, handler: () => void) => void;
-    } | null;
-    sigma?.off?.("clickStage", this.boundStageClicked);
+    this.sigma?.getCamera()?.off?.("updated", this.boundCameraUpdated);
   }
 
   private handleCameraUpdated(): void {
@@ -907,12 +798,7 @@ export class SigmaRenderer implements GraphRenderer {
       return null;
     }
 
-    const camera = this.sigma.getCamera() as {
-      x?: number;
-      y?: number;
-      ratio?: number;
-      getState?: () => { x?: number; y?: number; ratio?: number };
-    };
+    const camera = this.sigma.getCamera();
     return sigmaCameraToSemanticViewState(this.coordinateBounds, camera.getState?.() ?? camera);
   }
 
@@ -950,8 +836,8 @@ export class SigmaRenderer implements GraphRenderer {
       sigma.viewportToGraph({ x: 0, y: height }),
       sigma.viewportToGraph({ x: width, y: height }),
     ];
-    const xs = corners.map((point) => point.x);
-    const ys = corners.map((point) => point.y);
+    const xs = corners.map(point => point.x);
+    const ys = corners.map(point => point.y);
     return {
       xmin: Math.min(...xs),
       xmax: Math.max(...xs),
@@ -1001,7 +887,7 @@ export class SigmaRenderer implements GraphRenderer {
     }
   }
 
-  private emitNodeClick(payload: { node?: string; event?: { node?: string } }): void {
+  private emitNodeClick(payload: NodeClickPayload): void {
     if (Date.now() < this.suppressNodeClicksUntil) {
       return;
     }
@@ -1010,36 +896,24 @@ export class SigmaRenderer implements GraphRenderer {
       return;
     }
 
-    const nodeId =
-      typeof payload.node === "string"
-        ? payload.node
-        : typeof payload.event?.node === "string"
-          ? payload.event.node
-          : undefined;
+    const nodeId = clickedNodeId(payload);
     if (!nodeId || !this.graph.hasNode(nodeId)) {
       return;
     }
 
-    this.selectedNodeId = nodeId;
-    this.applyHighlighting();
-    this.sigma?.scheduleRender?.();
+    this.focusNode(nodeId);
     this.nodeClickHandler({
       nodeId,
       attributes: Object.freeze({ ...this.graph.getNodeAttributes(nodeId) }),
     });
   }
 
-  private emitNodeDoubleClick(payload: { node?: string; event?: { node?: string } }): void {
+  private emitNodeDoubleClick(payload: NodeClickPayload): void {
     if (Date.now() < this.suppressNodeClicksUntil || !this.nodeDoubleClickHandler || !this.graph) {
       return;
     }
 
-    const nodeId =
-      typeof payload.node === "string"
-        ? payload.node
-        : typeof payload.event?.node === "string"
-          ? payload.event.node
-          : undefined;
+    const nodeId = clickedNodeId(payload);
     if (!nodeId || !this.graph.hasNode(nodeId)) {
       return;
     }
@@ -1055,9 +929,7 @@ export class SigmaRenderer implements GraphRenderer {
       return;
     }
 
-    this.selectedNodeId = null;
-    this.applyHighlighting();
-    this.sigma?.scheduleRender?.();
+    this.focusNode(null);
     this.nodeClickHandler?.({ nodeId: null });
   }
 
@@ -1103,8 +975,13 @@ export class SigmaRenderer implements GraphRenderer {
   }
 }
 
-// Project the live graphology graph into the node-attribute views the pie
-// helpers consume, matching the shape produced by the legacy positioned graph.
+function clickedNodeId(payload: NodeClickPayload): string | undefined {
+  if (typeof payload.node === "string") return payload.node;
+  const event = payload.event;
+  return event && typeof event === "object" && "node" in event && typeof event.node === "string"
+    ? event.node
+    : undefined;
+}
 
 function graphNodeViews(graph: Graph): PieNodeView[] {
   return graph.mapNodes((_nodeId, attributes) => ({
@@ -1120,30 +997,4 @@ function graphBoundsEqual(left: GraphLayoutBounds | null, right: GraphLayoutBoun
     return false;
   }
   return left.minX === right.minX && left.maxX === right.maxX && left.minY === right.minY && left.maxY === right.maxY;
-}
-
-function applyClusterTriangleRotations(graph: Graph, edges: PositionedGraph["edges"]): void {
-  edges.forEach((edge) => {
-    if (!graph.hasNode(edge.source) || !graph.hasNode(edge.target)) {
-      return;
-    }
-
-    const source = graph.getNodeAttributes(edge.source);
-    const target = graph.getNodeAttributes(edge.target);
-
-    if (source.isClusterProxy === true) {
-      graph.setNodeAttribute(
-        edge.source,
-        "triangleRotation",
-        Math.atan2(Number(target.y) - Number(source.y), Number(target.x) - Number(source.x)),
-      );
-    }
-    if (target.isClusterProxy === true) {
-      graph.setNodeAttribute(
-        edge.target,
-        "triangleRotation",
-        Math.atan2(Number(source.y) - Number(target.y), Number(source.x) - Number(target.x)),
-      );
-    }
-  });
 }

@@ -1,4 +1,3 @@
-import type { AncillaryData } from '../../contracts/ancillary';
 export type { AncillaryData } from '../../contracts/ancillary';
 export const PIE_ATTRIBUTE_PREFIX = 'pie__';
 export const PIE_GROUPING_ATTRIBUTE = '__pie_grouping';
@@ -40,8 +39,6 @@ export type PieMappingOptions = {
      */
     readonly categoryGrouping?: PieCategoryGrouping;
 };
-
-export type AncillaryRow = AncillaryData;
 
 export type CategoryCountEntry = {
     readonly fieldKey: string;
