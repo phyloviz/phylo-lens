@@ -88,4 +88,23 @@ describe('search request ownership', () => {
         expect(h.onNodeFocused).toHaveBeenCalledTimes(1);
         expect(h.onNodeFocused).toHaveBeenCalledWith('B');
     });
+
+    it('reports a focus failure started by a click without reporting success', async () => {
+        const h = harness();
+        const pendingFocus = deferred<PositionedGraph>();
+        h.workbench.searchNodes.mockResolvedValue(response('A'));
+        h.workbench.focusNode.mockReturnValue(pendingFocus.promise);
+        h.input.value = 'A';
+        await h.controller.searchCurrentDataset();
+        h.setStatus.mockClear();
+
+        h.results.querySelector('button')!.click();
+        expect(h.onNodeFocused).not.toHaveBeenCalled();
+        pendingFocus.reject(new Error('Could not focus A'));
+        await Promise.resolve();
+
+        expect(h.setFailureStatus).toHaveBeenCalledWith('Could not focus A');
+        expect(h.onNodeFocused).not.toHaveBeenCalled();
+        expect(h.setStatus).not.toHaveBeenCalled();
+    });
 });

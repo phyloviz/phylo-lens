@@ -1,14 +1,13 @@
 import type { ClusterId, NodeId } from '../../../contracts/graph/graphIdentifiers';
-export interface SearchResultItem {
+
+export type SearchResultItem = {
     readonly nodeId: NodeId;
     readonly matchedText: string;
     readonly score: number;
     readonly clusterId?: ClusterId | null;
-    // Global layout coordinates of the matched node (omitted when unavailable),
-    // forwarded to the focus handler so it can fetch a region around the hit.
     readonly x?: number | null;
     readonly y?: number | null;
-}
+};
 
 export function renderSearchResults(
     container: HTMLElement | undefined,

@@ -1,138 +1,136 @@
-import { calculateAncillaryDistribution } from '../../../ancillary/ancillaryDistribution';
+import { calculateAncillaryDistribution, type AncillaryDistribution } from '../../../ancillary/ancillaryDistribution';
 import { renderAncillaryWheel } from '../../../components/ancillary-wheel/AncillaryWheel';
 import type { PositionedGraph } from '../../../contracts/positioned';
 import { resolveMappingPalette, type VisualMappingOptions } from '../../../render/mapping/visualMapping';
 import { renderNodeDetails } from './nodeDetails';
 import { ANCILLARY_MODE_SELECTED, getAncillaryMode } from './nodeSelector';
 
-export interface AncillaryWheelsOptions {
-    overviewContainer?: HTMLElement;
-    selectedNodeContainer?: HTMLElement;
-    modeSelect?: HTMLSelectElement;
-    nodeSelect?: HTMLSelectElement;
-    getGraph: () => PositionedGraph | null;
-    getVisualMapping: () => VisualMappingOptions;
-    getCategoryColorOverrides: () => Record<string, string>;
-    getSelectedFields: () => string[];
-    selectPieFieldMessage: string;
-    selectedNodeEmptyMessage: string;
-}
+type AncillaryWheelsOptions = {
+  readonly overviewContainer?: HTMLElement;
+  readonly selectedNodeContainer?: HTMLElement;
+  readonly modeSelect?: HTMLSelectElement;
+  readonly nodeSelect?: HTMLSelectElement;
+  readonly getGraph: () => PositionedGraph | null;
+  readonly getVisualMapping: () => VisualMappingOptions;
+  readonly getCategoryColorOverrides: () => Readonly<Record<string, string>>;
+  readonly getSelectedFields: () => readonly string[];
+  readonly selectPieFieldMessage: string;
+  readonly selectedNodeEmptyMessage: string;
+};
 
-export default function (options: AncillaryWheelsOptions) {
-    let selectedNodeId: string | null = null;
+export default function createAncillaryWheels(options: AncillaryWheelsOptions) {
+  let selectedNodeId: string | null = null;
 
-    return {
-        refreshSelectedNode: () => (selectedNodeId ? renderSelectedNode(selectedNodeId) : resetSelectedNode()),
-        renderOverview: renderOverview,
-        renderSelectedNode: renderSelectedNode,
-        resetSelectedNode: resetSelectedNode,
-        getDistribution: getDistribution,
-    };
+  return {
+    refreshSelectedNode: () => (selectedNodeId ? renderSelectedNode(selectedNodeId) : resetSelectedNode()),
+    renderOverview,
+    renderSelectedNode,
+    resetSelectedNode,
+    getDistribution,
+  };
 
-    function renderOverview(): void {
-        if (!options.overviewContainer) {
-            return;
-        }
-
-        if (!options.getGraph()) {
-            renderAncillaryWheel(options.overviewContainer, null);
-            return;
-        }
-
-        if (getAncillaryMode(options.modeSelect) === ANCILLARY_MODE_SELECTED) {
-            renderSelectedOverview();
-            return;
-        }
-
-        renderDistribution(options.overviewContainer, undefined, 'Current view');
+  function renderOverview(): void {
+    if (!options.overviewContainer) {
+      return;
     }
 
-    function renderSelectedNode(nodeId: string): void {
-        const graph = options.getGraph();
-        if (!graph || !options.selectedNodeContainer) {
-            return;
-        }
-
-        const keepIdsOpen = selectedNodeId === nodeId && options.selectedNodeContainer.querySelector('details')?.open;
-        selectedNodeId = nodeId;
-        const node = graph.nodes.find(candidate => candidate.id === nodeId);
-        if (!node) {
-            renderAncillaryWheel(options.selectedNodeContainer, null, `Node '${nodeId}' is outside the current view.`);
-            return;
-        }
-
-        options.selectedNodeContainer.replaceChildren();
-        renderNodeDetails(options.selectedNodeContainer, node);
-        const details = options.selectedNodeContainer.querySelector('details');
-        if (details) details.open = Boolean(keepIdsOpen);
-        const distribution = document.createElement('div');
-        options.selectedNodeContainer.append(distribution);
-        renderDistribution(distribution, new Set([nodeId]), `Node '${nodeId}'`);
+    const graph = options.getGraph();
+    if (!graph) {
+      renderAncillaryWheel(options.overviewContainer, null);
+      return;
     }
 
-    function resetSelectedNode(): void {
-        selectedNodeId = null;
-        if (!options.selectedNodeContainer) {
-            return;
-        }
-
-        renderAncillaryWheel(options.selectedNodeContainer, null, options.selectedNodeEmptyMessage);
+    if (getAncillaryMode(options.modeSelect) === ANCILLARY_MODE_SELECTED) {
+      renderSelectedOverview(graph);
+      return;
     }
 
-    function getDistribution(includeNodeIds?: Set<string>) {
-        const graph = options.getGraph();
-        if (!graph) {
-            return null;
-        }
+    renderDistribution(options.overviewContainer, graph, undefined, 'Current view');
+  }
 
-        const selectedFields = options.getSelectedFields();
-        const palette = resolveMappingPalette(options.getVisualMapping());
-        const categoryColors = options.getCategoryColorOverrides();
-
-        if (selectedFields.length)
-            return calculateAncillaryDistribution(graph, {
-                fields: selectedFields,
-                includeNodeIds,
-                palette,
-                categoryColors,
-                categoryGrouping: options.getVisualMapping().pie?.categoryGrouping,
-            });
-
-        return null;
+  function renderSelectedNode(nodeId: string): void {
+    const graph = options.getGraph();
+    if (!graph || !options.selectedNodeContainer) {
+      return;
     }
 
-    function renderSelectedOverview(): void {
-        if (!options.overviewContainer) {
-            return;
-        }
-
-        const selectedId = options.nodeSelect?.value;
-        if (!selectedId) {
-            renderAncillaryWheel(options.overviewContainer, null, 'Choose a node to view its ancillary distribution.');
-            return;
-        }
-
-        renderDistribution(options.overviewContainer, new Set([selectedId]), `Node '${selectedId}'`);
+    const keepIdsOpen = selectedNodeId === nodeId && options.selectedNodeContainer.querySelector('details')?.open;
+    selectedNodeId = nodeId;
+    const node = graph.nodes.find(candidate => candidate.id === nodeId);
+    if (!node) {
+      renderAncillaryWheel(options.selectedNodeContainer, null, `Node '${nodeId}' is outside the current view.`);
+      return;
     }
 
-    function renderDistribution(container: HTMLElement, ids: Set<string> | undefined, subject: string): void {
-        const fields = options.getSelectedFields();
-        const heading = document.createElement('p');
-        heading.className = 'ancillary-color-context';
-        heading.textContent =
-            fields.length === 0
-                ? 'Ancillary coloring: none'
-                : `${subject} · ${fields.length > 1 ? 'Observed combinations' : 'Color field'}: ${fields.join(' × ')} · one contribution per observation, including missing values`;
-        const chart = document.createElement('div');
-        renderAncillaryWheel(chart, getDistribution(ids), emptyMessage(subject));
-        container.replaceChildren(heading, chart);
+    options.selectedNodeContainer.replaceChildren();
+    renderNodeDetails(options.selectedNodeContainer, node);
+    const details = options.selectedNodeContainer.querySelector('details');
+    if (details) details.open = Boolean(keepIdsOpen);
+    const distribution = document.createElement('div');
+    options.selectedNodeContainer.append(distribution);
+    renderDistribution(distribution, graph, new Set([nodeId]), `Node '${nodeId}'`);
+  }
+
+  function resetSelectedNode(): void {
+    selectedNodeId = null;
+    if (!options.selectedNodeContainer) {
+      return;
     }
 
-    function emptyMessage(subject?: string): string {
-        if (options.getSelectedFields().length === 0) {
-            return options.selectPieFieldMessage;
-        }
+    renderAncillaryWheel(options.selectedNodeContainer, null, options.selectedNodeEmptyMessage);
+  }
 
-        return subject ? `${subject} has no ancillary pie data.` : 'No ancillary pie data detected.';
+  function getDistribution(includeNodeIds?: ReadonlySet<string>): AncillaryDistribution | null {
+    const graph = options.getGraph();
+    return graph ? distributionForSelection(graph, options.getSelectedFields(), includeNodeIds) : null;
+  }
+
+  function distributionForSelection(
+    graph: PositionedGraph,
+    fields: readonly string[],
+    includeNodeIds?: ReadonlySet<string>
+  ): AncillaryDistribution | null {
+    if (fields.length === 0) return null;
+    const mapping = options.getVisualMapping();
+    return calculateAncillaryDistribution(graph, {
+      fields,
+      includeNodeIds,
+      palette: resolveMappingPalette(mapping),
+      categoryColors: options.getCategoryColorOverrides(),
+      categoryGrouping: mapping.pie?.categoryGrouping,
+    });
+  }
+
+  function renderSelectedOverview(graph: PositionedGraph): void {
+    if (!options.overviewContainer) {
+      return;
     }
+
+    const selectedId = options.nodeSelect?.value;
+    if (!selectedId) {
+      renderAncillaryWheel(options.overviewContainer, null, 'Choose a node to view its ancillary distribution.');
+      return;
+    }
+
+    renderDistribution(options.overviewContainer, graph, new Set([selectedId]), `Node '${selectedId}'`);
+  }
+
+  function renderDistribution(
+    container: HTMLElement,
+    graph: PositionedGraph,
+    ids: ReadonlySet<string> | undefined,
+    subject: string
+  ): void {
+    const fields = options.getSelectedFields();
+    const heading = document.createElement('p');
+    heading.className = 'ancillary-color-context';
+    heading.textContent =
+      fields.length === 0
+        ? 'Ancillary coloring: none'
+        : `${subject} · ${fields.length > 1 ? 'Observed combinations' : 'Color field'}: ${fields.join(' × ')} · one contribution per observation, including missing values`;
+    const chart = document.createElement('div');
+    const emptyMessage = fields.length ? `${subject} has no ancillary pie data.` : options.selectPieFieldMessage;
+    renderAncillaryWheel(chart, distributionForSelection(graph, fields, ids), emptyMessage);
+    container.replaceChildren(heading, chart);
+  }
 }

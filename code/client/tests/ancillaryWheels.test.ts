@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import ancillaryWheels from '../src/app/shell/ancillary/ancillaryWheels';
 import type { PositionedGraph } from '../src/contracts/positioned';
 
@@ -54,12 +54,34 @@ function fixture() {
 }
 
 describe('ancillary node inspection', () => {
+    it('uses the same field selection for the chart and its heading', () => {
+        const overview = document.createElement('div');
+        const wheels = ancillaryWheels({
+            overviewContainer: overview,
+            getGraph: () => ({
+                nodes: [{ id: 'a', x: 0, y: 0, attributes: { metadata: { country: 'Portugal' } } }],
+                edges: [],
+                viewMeta: { layout: 'server', lodLevel: 0 },
+            }),
+            getSelectedFields: vi.fn<() => readonly string[]>().mockReturnValueOnce(['country']).mockReturnValue([]),
+            getVisualMapping: () => ({}),
+            getCategoryColorOverrides: () => ({}),
+            selectPieFieldMessage: 'Choose a field',
+            selectedNodeEmptyMessage: 'Choose a node',
+        });
+        wheels.renderOverview();
+        expect(overview.textContent).toContain('Color field: country');
+        expect(overview.querySelector('.wheel-chart')).not.toBeNull();
+        expect(overview.textContent).toContain('Portugal');
+    });
+
     it('shows original IDs and counts without metadata coloring, treating IDs as text', () => {
         const { wheels, selected } = fixture();
         wheels.renderSelectedNode('profile');
         expect(selected.textContent).toContain('Profile: profile');
         expect(selected.textContent).toContain('2 isolates');
         const details = selected.querySelector('details')!;
+        expect(details.querySelectorAll('li')).toHaveLength(0);
         details.open = true;
         details.dispatchEvent(new Event('toggle'));
         expect([...selected.querySelectorAll('li')].map(item => item.textContent)).toEqual([
@@ -68,6 +90,12 @@ describe('ancillary node inspection', () => {
         ]);
         expect(selected.querySelector('b')).toBeNull();
         expect(selected.textContent).toContain('Ancillary coloring: none');
+
+        details.open = false;
+        details.dispatchEvent(new Event('toggle'));
+        details.open = true;
+        details.dispatchEvent(new Event('toggle'));
+        expect(details.querySelectorAll('li')).toHaveLength(2);
     });
 
     it('keeps the selected profile and displays the active field and per-isolate distribution', () => {
