@@ -27,10 +27,10 @@ remain direct ancillary values.
 
 - API v1 response keys and SQL tables/columns retain the `metadata` spelling.
 - The client decodes flat node metadata into annotations before presentation.
-- Python canonical models accept legacy flat input, but store observations and
-  summaries separately. Their native `model_dump()` uses the new model.
-- Canonical `metadata_by_node_id` remains a compatibility snapshot, not a mutable
-  backing store. New code should modify `annotations_by_node_id`.
+- Python domain values use `annotations_by_node_id`, `ancillary_schema` and
+  `summary_schema` directly; old internal constructors and accessors are removed.
+- The durable-job repository decodes historical flat dataset payloads at the
+  persistence boundary. Domain values themselves have no legacy input aliases.
 - `view.load` prefers `ancillarySchema` / `ancillaryByNodeId`. Deprecated camelCase
   metadata aliases remain supported, and conflicting aliases are rejected.
 - `ancillaryData` in load options is the existing tabular upload configuration;

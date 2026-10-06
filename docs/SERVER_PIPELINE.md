@@ -37,8 +37,8 @@ listed in the [API reference](./API_REFERENCE.md).
 
 The local job registry limits the number of active preparation jobs. It reserves
 a place before parsing the input, including before any PhyloLib calculation.
-The reservation is released if parsing fails. Otherwise, it is held until the
-background job finishes.
+The reservation is released if parsing fails. Otherwise, it covers submission; the submitted future then occupies an active
+job slot until the background job finishes.
 
 The registry can reuse an active or successfully completed job with the same
 `(dataset_id, layout_version)`. Failed jobs are not reused. Completed jobs keep
@@ -54,8 +54,8 @@ survive an API restart.
 
 ## 3. Input parsing and normalization
 
-`normalize_dataset` converts either input format into the same internal dataset
-structure, `CanonicalDataset`.
+`ingest_dataset` converts either input format into the same internal dataset
+structure, `Dataset`.
 
 ### Newick input
 
@@ -174,7 +174,7 @@ See [LoD and clustering](./LOD_AND_CLUSTERING.md) for more detail.
 
 ## 7. Storing an unfinished version
 
-The worker clears any previous data for the same layout version, then stores the
+The preparation service clears any previous data for the same layout version, then stores the
 dataset and clusters with status `refining`.
 
 A version marked `refining` is not selected as the latest readable version.
@@ -250,7 +250,7 @@ global positions.
 
 ## 11. Storage
 
-The worker stores:
+The preparation service asks the repository to store:
 
 1. the dataset, metadata, and isolate records;
 2. clusters and their member nodes;
@@ -264,7 +264,7 @@ writes are split into batches and grouped into database transactions.
 
 ## 12. Making the layout available
 
-After all preparation data has been stored, the worker marks the version `ready`.
+After all preparation data has been stored, the preparation service publishes the version as `ready`.
 Requests that omit `layout_version` can then select it as the latest ready
 version.
 
@@ -284,6 +284,8 @@ Possible causes include:
 
 PostgreSQL workers check that they still own the job between storage steps and
 before publication. A worker that loses ownership stops before the next step.
+These checkpoints are separate from artifact-write transactions; they do not
+provide an atomic stale-worker publication fence.
 
 ## 14. Viewport, region, and search requests
 

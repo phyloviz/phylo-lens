@@ -6,36 +6,37 @@ into layout and rendering code.
 
 ```text
 raw Newick / typing profiles / metadata
-  → CanonicalDataset
+  → Dataset
   → PreparedLayoutArtifacts
   → persisted layout version
   → viewport, region, and search responses
 ```
 
-## Canonical domain model
+## Domain model
 
-The canonical model is defined in `domain/models.py` and is the only graph shape
+The immutable domain model is defined in `domain/models.py` and is the only graph shape
 accepted by the preparation pipeline.
 
-### `CanonicalDataset`
+### `Dataset`
 
 | Field | Type | Meaning |
 | --- | --- | --- |
 | `dataset_id` | `str` | Caller-supplied dataset name and namespace |
-| `nodes` | `list[CanonicalNode]` | Canonical graph nodes |
-| `edges` | `list[CanonicalEdge]` | Canonical graph edges |
+| `nodes` | `tuple[GraphNode, ...]` | Graph nodes |
+| `edges` | `tuple[GraphEdge, ...]` | Graph edges |
 | `technical_roots` | `tuple[str, ...]` | One orientation root per tree component; no founder meaning |
-| `metadata_schema` | `list[MetadataField]` | Public scalar metadata fields |
-| `metadata_by_node_id` | `dict[str, dict]` | Aggregated metadata for each node |
-| `ancillary_rows_by_node_id` | `dict[str, list[dict]]` | Original ancillary rows joined to each node |
-| `isolates_by_node_id` | `dict[str, list[IsolateRecord]]` | Original typing IDs and per-isolate metadata for each biological profile; empty for Newick |
+| `ancillary_schema` | `tuple[AncillaryField, ...]` | Public scalar ancillary fields |
+| `summary_schema` | `tuple[AncillaryField, ...]` | Computed biological summary fields |
+| `annotations_by_node_id` | Read-only mapping to `NodeAnnotations` | Direct observations and typed summaries |
+| `ancillary_rows_by_node_id` | Read-only mapping to tuples of ancillary values | Original ancillary rows joined to each node |
+| `isolates_by_node_id` | Read-only mapping to `tuple[Isolate, ...]` | Original typing IDs and per-isolate metadata for each biological profile; empty for Newick |
 | `source` | `DatasetSource` | Source format, generation timestamp, rooting strategy, and optional provenance |
 
-### `CanonicalNode`
+### `GraphNode`
 
 | Field | Type | Meaning |
 | --- | --- | --- |
-| `id` | non-empty `str` | Stable canonical identifier |
+| `id` | non-empty `str` | Stable graph identifier |
 | `x`, `y` | `float | None` | Optional source-provided coordinates |
 | `cluster_id` | `str | None` | Optional topology hint |
 | `is_cluster_proxy` | `bool | None` | Optional source hint |
@@ -46,7 +47,7 @@ accepted by the preparation pipeline.
 Newick and typing-data normalization currently produce topology and identifiers;
 coordinates are normally assigned later by the layout pipeline.
 
-### `CanonicalEdge`
+### `GraphEdge`
 
 | Field | Type | Meaning |
 | --- | --- | --- |
@@ -61,27 +62,26 @@ distances must be finite and non-negative; omitted Newick branch lengths remain
 
 ### Metadata types
 
-`MetadataField.type` is one of:
+`AncillaryField.type` is one of:
 
 ```text
 string | number | boolean | null
 ```
 
-Published metadata schemas exclude internal aggregation fields. Ancillary-row
-aggregation uses renderer-only fields for profile counts and category counts.
-Those fields may be attached to viewport node and representative metadata, but
-they are omitted from the schema, search matching, and region summary output.
+Published ancillary schemas exclude internal summary fields. The v1 flat
+projection carries represented-isolate and category counts in viewport metadata
+and region aggregates; search matching ignores those internal keys.
 
 ## Prepared layout model
 
-Preparation converts a canonical dataset into immutable artifacts identified by
+Preparation converts a dataset into immutable artifacts identified by
 `(dataset_id, layout_version)`.
 
 ### `PreparedLayoutArtifacts`
 
 | Field | Type | Meaning |
 | --- | --- | --- |
-| `dataset` | `CanonicalDataset` | Normalized graph and metadata |
+| `dataset` | `Dataset` | Normalized graph and metadata |
 | `layout_version` | `str` | Deterministic preparation fingerprint |
 | `clusters` | `tuple[PreparedCluster, ...]` | Rooted-prefix singletons and pendant subtrees at selected hop depths |
 
@@ -89,7 +89,7 @@ Selected depths approximate geometric growth in visible representation count,
 independently of hop-based membership. There is no fixed maximum tier count;
 maximum hop depth is always full detail and redundant count-identical preceding
 cuts are omitted. Trees/MSTs may be biologically unrooted: technical orientation
-does not assert biological ancestry. Branch distances remain canonical data.
+does not assert biological ancestry. Supplied branch distances remain part of the dataset.
 Viewport reads are unbounded unless an explicit caller supplies `max_nodes`;
 spatial bounds and LoD control normal query complexity. During interaction,
 semantic zoom supplies a preferred tier and viewport representation counts
@@ -101,7 +101,7 @@ select its effective resolution, including earlier refinement in sparse regions.
 | --- | --- | --- |
 | `cluster_id` | `str` | Deterministic identifier derived from LoD level and attachment/representative node |
 | `lod_level` | `int` | Index of the exposed depth cut |
-| `member_node_ids` | `tuple[str, ...]` | Canonical member nodes |
+| `member_node_ids` | `tuple[str, ...]` | Graph member nodes |
 | `representative_node_id` | `str` | Member used as the visible representative |
 
 For a collapsed subtree, the representative is its member incident to the
@@ -119,8 +119,8 @@ cluster:
 - `member_count`;
 - `status`.
 
-`NodeLayoutPosition` stores the finest-detail coordinates of one canonical node.
-`PreparedEdge` stores one quotient edge for one LoD level.
+`NodeLayoutPosition` stores the finest-detail coordinates of one graph node.
+`QuotientEdge` stores one quotient edge for one LoD level.
 
 ### Layout status
 
@@ -132,6 +132,10 @@ Current preparation publishes `ready` only. `degraded` is retained for layouts
 created by earlier service versions and is not produced as a Graphviz fallback.
 `pending` and `refining` describe in-flight work. `failed` is a terminal job
 state and is not published as a readable layout version.
+
+Domain graph values live in `domain/models.py`, prepared values in
+`domain/preparation.py`, and query/view values in `domain/views.py` and
+`domain/search.py`. HTTP response DTOs remain in `http/graph/schemas.py`.
 
 ## Read models
 
@@ -145,8 +149,8 @@ Repository readers return server-internal result objects before HTTP mapping.
 | `cluster_id` | Cluster represented by the node; finest-detail nodes retain their cluster association |
 | `x`, `y` | Global prepared-layout coordinates |
 | `layout_status` | Status of the published layout |
-| `member_count` | Number of canonical nodes represented; `1` at finest detail |
-| `is_representative` | Whether the node represents a multi-node cluster |
+| `member_count` | Number of graph nodes represented; `1` at finest detail |
+| `is_representative` | Whether the node is a cluster representative, including coarse-tier singletons |
 | `metadata` | Node or cluster metadata visible to the caller |
 
 ### `ViewportEdge`
@@ -176,8 +180,8 @@ Region reads return finest-detail nodes within a rectangular selection and add
 
 ### Search results
 
-`SearchMatch` contains the canonical node identifier, score, matched text,
-cluster association, metadata, and global position when available. Search does
+`SearchMatch` contains the graph node identifier, score, matched text,
+cluster association and global position when available. Search does
 not return generated union identifiers as user-facing matches.
 
 ## Layout identity
@@ -239,29 +243,33 @@ erDiagram
 | `datasets` | Publication status and timestamps for each layout version |
 | `prepared_clusters` | Cluster membership summary, representative, position, radius, and bounds per hop-depth cut |
 | `cluster_members` | Cluster-to-node membership |
-| `graph_edges` | Original canonical graph edges |
+| `graph_edges` | Original graph edges |
 | `prepared_edges` | Quotient edges per LoD level |
 | `node_positions` | Finest-detail global node coordinates |
 | `node_metadata` | Public node metadata encoded as JSON |
 | `cluster_metadata` | Aggregated public cluster metadata encoded as JSON |
-| `metadata_schema` | Field key and canonical scalar type |
+| `metadata_schema` | Field key and ancillary scalar type |
 
 PostgreSQL additionally stores durable prepare jobs and lease state in
 `prepare_jobs`.
 
 ## Publication semantics
 
-A worker publishes a layout transactionally at the application level:
+The preparation service stages and publishes a layout in ordered repository
+operations, each owning its transaction:
 
-1. clear any incomplete artifact set for the same identity;
+1. clear existing artifacts for the same identity;
 2. create the dataset row with status `refining`;
-3. persist canonical artifacts;
+3. persist topology, membership and annotations;
 4. persist node and cluster layouts;
 5. persist prepared quotient edges;
 6. change the dataset status to `ready` or `degraded`.
 
 Reads that omit `layout_version` resolve only the latest published version. A
-partially written `refining` version cannot replace an earlier readable layout.
+partially written `refining` version cannot replace an earlier readable layout
+when resolving the latest version. Explicit supplied-version reads retain their
+existing behavior. Ancillary revision copying/publication is one transaction;
+preparation as a whole is not.
 
 ## Query indexes
 
@@ -279,7 +287,7 @@ The concrete SQLite and PostgreSQL schemas are maintained under
 
 ## Contract boundaries
 
-The canonical and prepared models are internal Python contracts. Browser
+The domain and prepared models are internal Python contracts. Browser
 applications should depend only on:
 
 - the package-root TypeScript API;
@@ -303,5 +311,5 @@ have no isolate records until re-prepared from their typing input.
 Finest-detail viewport and region nodes expose `isolates`, each containing `id`
 and `metadata`. LoD representatives covering multiple profiles omit the individual
 records (an empty list) while carrying summed profile/category counts. Their
-`member_count` continues to count canonical graph nodes, not isolates.
+`member_count` continues to count graph nodes, not isolates.
 Original-ID search returns the containing profile's ID and global coordinates.

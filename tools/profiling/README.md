@@ -14,7 +14,7 @@ workbench.
 It measures:
 
 - synthetic dataset generation;
-- distance-tier and LoD artifact construction;
+- rooted-subtree LoD artifact construction;
 - global layout materialization;
 - prepared-edge construction;
 - SQLite persistence and indexes;
@@ -168,3 +168,8 @@ should add:
 
 Do not cite development-profile results as final evidence unless they were
 produced under the documented evaluation protocol.
+
+The workbench uses the current domain, pipeline and repository modules directly.
+Tier inspection and query-plan probes use `lod_level`. Stage labels and timed
+operation boundaries remain stable for comparison. `--layout-maxiter` is retained
+as a profiling-result annotation; it is not forwarded to the current SFDP API.
