@@ -101,9 +101,9 @@ export class GraphViewportCoordinator {
 
   // Initial viewport completion
   private loadedInitialViewport = false;
-  private initialViewportSettled = false;
   private initialViewportAwaited = false;
   private readonly initialViewportLoaded: Promise<PositionedGraph>;
+  // Native Promise callbacks already ignore attempts to settle a completed load again.
   private resolveInitialViewport: (graph: PositionedGraph) => void = () => undefined;
   private rejectInitialViewport: (error: Error) => void = () => undefined;
 
@@ -185,7 +185,7 @@ export class GraphViewportCoordinator {
     }
     this.requestSequence += 1;
     if (this.initialViewportAwaited) {
-      this.rejectInitialViewportOnce(new Error(ERR_VIEWPORT_COORDINATOR_UNMOUNTED));
+      this.rejectInitialViewport(new Error(ERR_VIEWPORT_COORDINATOR_UNMOUNTED));
     }
   }
 
@@ -574,7 +574,7 @@ export class GraphViewportCoordinator {
       this.loadedInitialViewport = true;
       this.onGraphApplied?.(graph, response);
       if (wasInitialViewport) {
-        this.resolveInitialViewportOnce(graph);
+        this.resolveInitialViewport(graph);
       }
     } catch (error) {
       if (!this.isCurrentRequest(sequence)) {
@@ -582,28 +582,12 @@ export class GraphViewportCoordinator {
       }
       const failure = toError(error);
       if (!this.loadedInitialViewport && this.initialViewportAwaited) {
-        this.rejectInitialViewportOnce(failure);
+        this.rejectInitialViewport(failure);
       }
       this.onError?.(failure);
     } finally {
       this.pendingViewportReads -= 1;
     }
-  }
-
-  private resolveInitialViewportOnce(graph: PositionedGraph): void {
-    if (this.initialViewportSettled) {
-      return;
-    }
-    this.initialViewportSettled = true;
-    this.resolveInitialViewport(graph);
-  }
-
-  private rejectInitialViewportOnce(error: Error): void {
-    if (this.initialViewportSettled) {
-      return;
-    }
-    this.initialViewportSettled = true;
-    this.rejectInitialViewport(error);
   }
 
   // Cluster requests and rendering

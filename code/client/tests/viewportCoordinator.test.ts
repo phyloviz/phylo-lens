@@ -121,6 +121,45 @@ describe('GraphViewportCoordinator', () => {
     vi.restoreAllMocks();
   });
 
+  it('keeps a fulfilled initial load fulfilled after unmount', async () => {
+    const renderer = createRenderer();
+    const controller = new GraphViewportCoordinator({
+      datasetId: toDatasetId('tree'),
+      renderer,
+      client: { readViewport: vi.fn().mockResolvedValue(viewportResponse()) },
+    });
+    const initial = controller.waitForInitialViewport();
+    controller.mount();
+    await vi.runOnlyPendingTimersAsync();
+    const graph = await initial;
+    controller.unmount();
+    await expect(controller.waitForInitialViewport()).resolves.toBe(graph);
+  });
+
+  it('can recover the view after an initial failure without changing the rejected initial promise', async () => {
+    const renderer = createRenderer();
+    const failure = new Error('Initial viewport failed');
+    const readViewport = vi
+      .fn<() => Promise<GraphViewportResult>>()
+      .mockRejectedValueOnce(failure)
+      .mockResolvedValueOnce(viewportResponse());
+    const controller = new GraphViewportCoordinator({
+      datasetId: toDatasetId('tree'),
+      renderer,
+      client: { readViewport },
+    });
+    const initial = controller.waitForInitialViewport();
+    const rejected = expect(initial).rejects.toBe(failure);
+    controller.mount();
+    await vi.runOnlyPendingTimersAsync();
+    await rejected;
+    controller.refreshNow();
+    await vi.runOnlyPendingTimersAsync();
+    expect(renderer.applyGraphSnapshot).toHaveBeenCalledTimes(1);
+    await expect(controller.waitForInitialViewport()).rejects.toBe(failure);
+    controller.unmount();
+  });
+
   it('reassesses a complete overview for early refinement and viewport changes', async () => {
     viewportState = {
       ...viewportState,
