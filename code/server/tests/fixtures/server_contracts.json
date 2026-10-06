@@ -1,0 +1,2556 @@
+{
+  "cases": [
+    {
+      "after": {
+        "dataset_id": "contract-forest",
+        "edges": [
+          {
+            "distance": 9.0,
+            "id": "e_root_f_1",
+            "source": "root",
+            "target": "f"
+          },
+          {
+            "distance": 8.0,
+            "id": "e_root_w_1",
+            "source": "root",
+            "target": "w"
+          },
+          {
+            "distance": 7.0,
+            "id": "e_w_e_1",
+            "source": "w",
+            "target": "e"
+          },
+          {
+            "distance": 6.0,
+            "id": "e_w_z_1",
+            "source": "w",
+            "target": "z"
+          },
+          {
+            "distance": 0.0,
+            "id": "e_x_a_1",
+            "source": "x",
+            "target": "a"
+          },
+          {
+            "distance": 1.0,
+            "id": "e_x_b_1",
+            "source": "x",
+            "target": "b"
+          },
+          {
+            "distance": 3.0,
+            "id": "e_y_c_1",
+            "source": "y",
+            "target": "c"
+          },
+          {
+            "distance": 2.0,
+            "id": "e_y_x_1",
+            "source": "y",
+            "target": "x"
+          },
+          {
+            "distance": 5.0,
+            "id": "e_z_d_1",
+            "source": "z",
+            "target": "d"
+          },
+          {
+            "distance": 4.0,
+            "id": "e_z_y_1",
+            "source": "z",
+            "target": "y"
+          }
+        ],
+        "global_bounds": {
+          "max_x": 11.0,
+          "max_y": 2.0,
+          "min_x": 0.0,
+          "min_y": 0.0
+        },
+        "layout_status": "ready",
+        "layout_version": "fe9c16378873cc7e73e6cc3ead2a13e126d858953dbac41359d7d17fcef39f2d",
+        "metadata_schema": [
+          {
+            "key": "country",
+            "type": "string"
+          },
+          {
+            "key": "year",
+            "type": "number"
+          }
+        ],
+        "nodes": [
+          {
+            "ancillary_distribution": [],
+            "cluster_id": "lod_2_a",
+            "id": "a",
+            "is_representative": false,
+            "isolates": [],
+            "layout_status": "ready",
+            "member_count": 1,
+            "metadata": {
+              "__category_count__country__value__Spain": 1.0,
+              "__category_count__year__value__2024": 1.0,
+              "country": "Spain",
+              "profile_count": 1.0,
+              "year": 2024.0
+            },
+            "x": 0.0,
+            "y": 0.0
+          },
+          {
+            "ancillary_distribution": [],
+            "cluster_id": "lod_2_b",
+            "id": "b",
+            "is_representative": false,
+            "isolates": [],
+            "layout_status": "ready",
+            "member_count": 1,
+            "metadata": {
+              "__category_count__country__value__Portugal": 1.0,
+              "__category_count__year__value__2023": 1.0,
+              "country": "Portugal",
+              "profile_count": 1.0,
+              "year": 2023.0
+            },
+            "x": 1.0,
+            "y": 1.0
+          },
+          {
+            "ancillary_distribution": [],
+            "cluster_id": "lod_2_c",
+            "id": "c",
+            "is_representative": false,
+            "isolates": [],
+            "layout_status": "ready",
+            "member_count": 1,
+            "x": 2.0,
+            "y": 2.0
+          },
+          {
+            "ancillary_distribution": [],
+            "cluster_id": "lod_2_d",
+            "id": "d",
+            "is_representative": false,
+            "isolates": [],
+            "layout_status": "ready",
+            "member_count": 1,
+            "x": 3.0,
+            "y": 0.0
+          },
+          {
+            "ancillary_distribution": [],
+            "cluster_id": "lod_2_e",
+            "id": "e",
+            "is_representative": false,
+            "isolates": [],
+            "layout_status": "ready",
+            "member_count": 1,
+            "x": 4.0,
+            "y": 1.0
+          },
+          {
+            "ancillary_distribution": [],
+            "cluster_id": "lod_2_f",
+            "id": "f",
+            "is_representative": false,
+            "isolates": [],
+            "layout_status": "ready",
+            "member_count": 1,
+            "x": 5.0,
+            "y": 2.0
+          },
+          {
+            "ancillary_distribution": [],
+            "cluster_id": "lod_2_g",
+            "id": "g",
+            "is_representative": false,
+            "isolates": [],
+            "layout_status": "ready",
+            "member_count": 1,
+            "x": 6.0,
+            "y": 0.0
+          },
+          {
+            "ancillary_distribution": [],
+            "cluster_id": "lod_2_root",
+            "id": "root",
+            "is_representative": false,
+            "isolates": [],
+            "layout_status": "ready",
+            "member_count": 1,
+            "x": 7.0,
+            "y": 1.0
+          },
+          {
+            "ancillary_distribution": [],
+            "cluster_id": "lod_2_w",
+            "id": "w",
+            "is_representative": false,
+            "isolates": [],
+            "layout_status": "ready",
+            "member_count": 1,
+            "x": 8.0,
+            "y": 2.0
+          },
+          {
+            "ancillary_distribution": [],
+            "cluster_id": "lod_2_x",
+            "id": "x",
+            "is_representative": false,
+            "isolates": [],
+            "layout_status": "ready",
+            "member_count": 1,
+            "x": 9.0,
+            "y": 0.0
+          },
+          {
+            "ancillary_distribution": [],
+            "cluster_id": "lod_2_y",
+            "id": "y",
+            "is_representative": false,
+            "isolates": [],
+            "layout_status": "ready",
+            "member_count": 1,
+            "x": 10.0,
+            "y": 1.0
+          },
+          {
+            "ancillary_distribution": [],
+            "cluster_id": "lod_2_z",
+            "id": "z",
+            "is_representative": false,
+            "isolates": [],
+            "layout_status": "ready",
+            "member_count": 1,
+            "x": 11.0,
+            "y": 2.0
+          }
+        ],
+        "total_node_count": 12,
+        "truncated": false,
+        "zoom": 1.0
+      },
+      "job": {
+        "dataset_id": "contract-forest",
+        "job_id": "<job>",
+        "status": "pending"
+      },
+      "queries": [
+        {
+          "path": "search",
+          "payload": {
+            "limit": 2,
+            "query": "a"
+          },
+          "response": {
+            "dataset_id": "contract-forest",
+            "layout_version": "6dc96f6be607027a",
+            "matches": [
+              {
+                "cluster_id": "lod_2_a",
+                "matched_text": "a",
+                "node_id": "a",
+                "score": 100,
+                "x": 0.0,
+                "y": 0.0
+              },
+              {
+                "cluster_id": "lod_2_b",
+                "matched_text": "b Spain",
+                "node_id": "b",
+                "score": 20,
+                "x": 1.0,
+                "y": 1.0
+              }
+            ],
+            "query": "a",
+            "total_count": 2
+          }
+        },
+        {
+          "path": "search",
+          "payload": {
+            "limit": 2,
+            "query": "Iso B"
+          },
+          "response": {
+            "dataset_id": "contract-forest",
+            "layout_version": "6dc96f6be607027a",
+            "matches": [],
+            "query": "Iso B",
+            "total_count": 0
+          }
+        },
+        {
+          "path": "search",
+          "payload": {
+            "limit": 2,
+            "query": "Portugal"
+          },
+          "response": {
+            "dataset_id": "contract-forest",
+            "layout_version": "6dc96f6be607027a",
+            "matches": [
+              {
+                "cluster_id": "lod_2_a",
+                "matched_text": "a Portugal",
+                "node_id": "a",
+                "score": 20,
+                "x": 0.0,
+                "y": 0.0
+              }
+            ],
+            "query": "Portugal",
+            "total_count": 1
+          }
+        },
+        {
+          "path": "search",
+          "payload": {
+            "limit": 2,
+            "query": " "
+          },
+          "response": {
+            "dataset_id": "contract-forest",
+            "layout_version": "6dc96f6be607027a",
+            "matches": [],
+            "query": "",
+            "total_count": 0
+          }
+        },
+        {
+          "path": "search",
+          "payload": {
+            "limit": 2,
+            "query": "%"
+          },
+          "response": {
+            "dataset_id": "contract-forest",
+            "layout_version": "6dc96f6be607027a",
+            "matches": [],
+            "query": "%",
+            "total_count": 0
+          }
+        },
+        {
+          "path": "search",
+          "payload": {
+            "limit": 2,
+            "query": "union_"
+          },
+          "response": {
+            "dataset_id": "contract-forest",
+            "layout_version": "6dc96f6be607027a",
+            "matches": [],
+            "query": "union_",
+            "total_count": 0
+          }
+        },
+        {
+          "path": "region",
+          "payload": {
+            "xmax": 3,
+            "xmin": 0,
+            "ymax": 2,
+            "ymin": 0
+          },
+          "response": {
+            "aggregated_metadata": {
+              "__category_count__country__value__Portugal": 1.0,
+              "__category_count__country__value__Spain": 1.0,
+              "__category_count__year__value__2020": 1.0,
+              "__category_count__year__value__2022": 1.0,
+              "country": "Portugal",
+              "profile_count": 2.0,
+              "year": 2021.0
+            },
+            "dataset_id": "contract-forest",
+            "edges": [],
+            "layout_status": "ready",
+            "layout_version": "6dc96f6be607027a",
+            "metadata_schema": [
+              {
+                "key": "country",
+                "type": "string"
+              },
+              {
+                "key": "year",
+                "type": "number"
+              }
+            ],
+            "nodes": [
+              {
+                "ancillary_distribution": [],
+                "cluster_id": "lod_2_a",
+                "id": "a",
+                "is_representative": false,
+                "isolates": [],
+                "layout_status": "ready",
+                "member_count": 1,
+                "metadata": {
+                  "__category_count__country__value__Portugal": 1.0,
+                  "__category_count__year__value__2020": 1.0,
+                  "country": "Portugal",
+                  "profile_count": 1.0,
+                  "year": 2020.0
+                },
+                "x": 0.0,
+                "y": 0.0
+              },
+              {
+                "ancillary_distribution": [],
+                "cluster_id": "lod_2_b",
+                "id": "b",
+                "is_representative": false,
+                "isolates": [],
+                "layout_status": "ready",
+                "member_count": 1,
+                "metadata": {
+                  "__category_count__country__value__Spain": 1.0,
+                  "__category_count__year__value__2022": 1.0,
+                  "country": "Spain",
+                  "profile_count": 1.0,
+                  "year": 2022.0
+                },
+                "x": 1.0,
+                "y": 1.0
+              },
+              {
+                "ancillary_distribution": [],
+                "cluster_id": "lod_2_c",
+                "id": "c",
+                "is_representative": false,
+                "isolates": [],
+                "layout_status": "ready",
+                "member_count": 1,
+                "x": 2.0,
+                "y": 2.0
+              },
+              {
+                "ancillary_distribution": [],
+                "cluster_id": "lod_2_d",
+                "id": "d",
+                "is_representative": false,
+                "isolates": [],
+                "layout_status": "ready",
+                "member_count": 1,
+                "x": 3.0,
+                "y": 0.0
+              }
+            ],
+            "total_node_count": 4,
+            "truncated": false
+          }
+        },
+        {
+          "path": "region",
+          "payload": {
+            "max_nodes": 2,
+            "xmax": 20,
+            "xmin": 0,
+            "ymax": 2,
+            "ymin": 0
+          },
+          "response": {
+            "aggregated_metadata": {
+              "__category_count__country__value__Portugal": 1.0,
+              "__category_count__country__value__Spain": 1.0,
+              "__category_count__year__value__2020": 1.0,
+              "__category_count__year__value__2022": 1.0,
+              "country": "Portugal",
+              "profile_count": 2.0,
+              "year": 2021.0
+            },
+            "dataset_id": "contract-forest",
+            "edges": [],
+            "layout_status": "ready",
+            "layout_version": "6dc96f6be607027a",
+            "metadata_schema": [
+              {
+                "key": "country",
+                "type": "string"
+              },
+              {
+                "key": "year",
+                "type": "number"
+              }
+            ],
+            "nodes": [
+              {
+                "ancillary_distribution": [],
+                "cluster_id": "lod_2_a",
+                "id": "a",
+                "is_representative": false,
+                "isolates": [],
+                "layout_status": "ready",
+                "member_count": 1,
+                "metadata": {
+                  "__category_count__country__value__Portugal": 1.0,
+                  "__category_count__year__value__2020": 1.0,
+                  "country": "Portugal",
+                  "profile_count": 1.0,
+                  "year": 2020.0
+                },
+                "x": 0.0,
+                "y": 0.0
+              },
+              {
+                "ancillary_distribution": [],
+                "cluster_id": "lod_2_b",
+                "id": "b",
+                "is_representative": false,
+                "isolates": [],
+                "layout_status": "ready",
+                "member_count": 1,
+                "metadata": {
+                  "__category_count__country__value__Spain": 1.0,
+                  "__category_count__year__value__2022": 1.0,
+                  "country": "Spain",
+                  "profile_count": 1.0,
+                  "year": 2022.0
+                },
+                "x": 1.0,
+                "y": 1.0
+              }
+            ],
+            "total_node_count": 12,
+            "truncated": true
+          }
+        },
+        {
+          "path": "region",
+          "payload": {
+            "xmax": 50,
+            "xmin": 40,
+            "ymax": 50,
+            "ymin": 40
+          },
+          "response": {
+            "aggregated_metadata": {},
+            "dataset_id": "contract-forest",
+            "edges": [],
+            "layout_status": "pending",
+            "layout_version": "6dc96f6be607027a",
+            "metadata_schema": [
+              {
+                "key": "country",
+                "type": "string"
+              },
+              {
+                "key": "year",
+                "type": "number"
+              }
+            ],
+            "nodes": [],
+            "total_node_count": 0,
+            "truncated": false
+          }
+        },
+        {
+          "path": "viewport",
+          "payload": {
+            "lod_level": null
+          },
+          "response": {
+            "dataset_id": "contract-forest",
+            "edges": [
+              {
+                "distance": 9.0,
+                "id": "e_root_f_1",
+                "source": "root",
+                "target": "f"
+              },
+              {
+                "distance": 8.0,
+                "id": "e_root_w_1",
+                "source": "root",
+                "target": "w"
+              },
+              {
+                "distance": 7.0,
+                "id": "e_w_e_1",
+                "source": "w",
+                "target": "e"
+              },
+              {
+                "distance": 6.0,
+                "id": "e_w_z_1",
+                "source": "w",
+                "target": "z"
+              },
+              {
+                "distance": 0.0,
+                "id": "e_x_a_1",
+                "source": "x",
+                "target": "a"
+              },
+              {
+                "distance": 1.0,
+                "id": "e_x_b_1",
+                "source": "x",
+                "target": "b"
+              },
+              {
+                "distance": 3.0,
+                "id": "e_y_c_1",
+                "source": "y",
+                "target": "c"
+              },
+              {
+                "distance": 2.0,
+                "id": "e_y_x_1",
+                "source": "y",
+                "target": "x"
+              },
+              {
+                "distance": 5.0,
+                "id": "e_z_d_1",
+                "source": "z",
+                "target": "d"
+              },
+              {
+                "distance": 4.0,
+                "id": "e_z_y_1",
+                "source": "z",
+                "target": "y"
+              }
+            ],
+            "global_bounds": {
+              "max_x": 11.0,
+              "max_y": 2.0,
+              "min_x": 0.0,
+              "min_y": 0.0
+            },
+            "layout_status": "ready",
+            "layout_version": "6dc96f6be607027a",
+            "metadata_schema": [
+              {
+                "key": "country",
+                "type": "string"
+              },
+              {
+                "key": "year",
+                "type": "number"
+              }
+            ],
+            "nodes": [
+              {
+                "ancillary_distribution": [],
+                "cluster_id": "lod_2_a",
+                "id": "a",
+                "is_representative": false,
+                "isolates": [],
+                "layout_status": "ready",
+                "member_count": 1,
+                "metadata": {
+                  "__category_count__country__value__Portugal": 1.0,
+                  "__category_count__year__value__2020": 1.0,
+                  "country": "Portugal",
+                  "profile_count": 1.0,
+                  "year": 2020.0
+                },
+                "x": 0.0,
+                "y": 0.0
+              },
+              {
+                "ancillary_distribution": [],
+                "cluster_id": "lod_2_b",
+                "id": "b",
+                "is_representative": false,
+                "isolates": [],
+                "layout_status": "ready",
+                "member_count": 1,
+                "metadata": {
+                  "__category_count__country__value__Spain": 1.0,
+                  "__category_count__year__value__2022": 1.0,
+                  "country": "Spain",
+                  "profile_count": 1.0,
+                  "year": 2022.0
+                },
+                "x": 1.0,
+                "y": 1.0
+              },
+              {
+                "ancillary_distribution": [],
+                "cluster_id": "lod_2_c",
+                "id": "c",
+                "is_representative": false,
+                "isolates": [],
+                "layout_status": "ready",
+                "member_count": 1,
+                "x": 2.0,
+                "y": 2.0
+              },
+              {
+                "ancillary_distribution": [],
+                "cluster_id": "lod_2_d",
+                "id": "d",
+                "is_representative": false,
+                "isolates": [],
+                "layout_status": "ready",
+                "member_count": 1,
+                "x": 3.0,
+                "y": 0.0
+              },
+              {
+                "ancillary_distribution": [],
+                "cluster_id": "lod_2_e",
+                "id": "e",
+                "is_representative": false,
+                "isolates": [],
+                "layout_status": "ready",
+                "member_count": 1,
+                "x": 4.0,
+                "y": 1.0
+              },
+              {
+                "ancillary_distribution": [],
+                "cluster_id": "lod_2_f",
+                "id": "f",
+                "is_representative": false,
+                "isolates": [],
+                "layout_status": "ready",
+                "member_count": 1,
+                "x": 5.0,
+                "y": 2.0
+              },
+              {
+                "ancillary_distribution": [],
+                "cluster_id": "lod_2_g",
+                "id": "g",
+                "is_representative": false,
+                "isolates": [],
+                "layout_status": "ready",
+                "member_count": 1,
+                "x": 6.0,
+                "y": 0.0
+              },
+              {
+                "ancillary_distribution": [],
+                "cluster_id": "lod_2_root",
+                "id": "root",
+                "is_representative": false,
+                "isolates": [],
+                "layout_status": "ready",
+                "member_count": 1,
+                "x": 7.0,
+                "y": 1.0
+              },
+              {
+                "ancillary_distribution": [],
+                "cluster_id": "lod_2_w",
+                "id": "w",
+                "is_representative": false,
+                "isolates": [],
+                "layout_status": "ready",
+                "member_count": 1,
+                "x": 8.0,
+                "y": 2.0
+              },
+              {
+                "ancillary_distribution": [],
+                "cluster_id": "lod_2_x",
+                "id": "x",
+                "is_representative": false,
+                "isolates": [],
+                "layout_status": "ready",
+                "member_count": 1,
+                "x": 9.0,
+                "y": 0.0
+              },
+              {
+                "ancillary_distribution": [],
+                "cluster_id": "lod_2_y",
+                "id": "y",
+                "is_representative": false,
+                "isolates": [],
+                "layout_status": "ready",
+                "member_count": 1,
+                "x": 10.0,
+                "y": 1.0
+              },
+              {
+                "ancillary_distribution": [],
+                "cluster_id": "lod_2_z",
+                "id": "z",
+                "is_representative": false,
+                "isolates": [],
+                "layout_status": "ready",
+                "member_count": 1,
+                "x": 11.0,
+                "y": 2.0
+              }
+            ],
+            "total_node_count": 12,
+            "truncated": false,
+            "zoom": 1.0
+          }
+        },
+        {
+          "path": "viewport",
+          "payload": {
+            "lod_level": 0
+          },
+          "response": {
+            "dataset_id": "contract-forest",
+            "edges": [
+              {
+                "distance": 9.0,
+                "id": "quotient_edge:0:f:root",
+                "source": "f",
+                "target": "root"
+              },
+              {
+                "distance": 8.0,
+                "id": "quotient_edge:0:root:w",
+                "source": "root",
+                "target": "w"
+              }
+            ],
+            "global_bounds": {
+              "max_x": 11.0,
+              "max_y": 2.0,
+              "min_x": 0.0,
+              "min_y": 0.0
+            },
+            "layout_status": "ready",
+            "layout_version": "6dc96f6be607027a",
+            "lod_level": 0,
+            "metadata_schema": [
+              {
+                "key": "country",
+                "type": "string"
+              },
+              {
+                "key": "year",
+                "type": "number"
+              }
+            ],
+            "nodes": [
+              {
+                "ancillary_distribution": [
+                  {
+                    "count": 1,
+                    "values": {
+                      "country": "Portugal",
+                      "year": 2020.0
+                    }
+                  },
+                  {
+                    "count": 1,
+                    "values": {
+                      "country": "Spain",
+                      "year": 2022.0
+                    }
+                  },
+                  {
+                    "count": 7,
+                    "values": {}
+                  }
+                ],
+                "cluster_id": "lod_0_w",
+                "id": "w",
+                "is_representative": true,
+                "isolates": [],
+                "layout_status": "ready",
+                "member_count": 9,
+                "metadata": {
+                  "__category_count__country__value__Portugal": 1.0,
+                  "__category_count__country__value__Spain": 1.0,
+                  "__category_count__year__value__2020": 1.0,
+                  "__category_count__year__value__2022": 1.0,
+                  "country": "Portugal",
+                  "profile_count": 2.0,
+                  "year": 2021.0
+                },
+                "x": 8.0,
+                "y": 2.0
+              },
+              {
+                "ancillary_distribution": [
+                  {
+                    "count": 1,
+                    "values": {}
+                  }
+                ],
+                "cluster_id": "lod_0_f",
+                "id": "f",
+                "is_representative": true,
+                "isolates": [],
+                "layout_status": "ready",
+                "member_count": 1,
+                "metadata": {},
+                "x": 5.0,
+                "y": 2.0
+              },
+              {
+                "ancillary_distribution": [
+                  {
+                    "count": 1,
+                    "values": {}
+                  }
+                ],
+                "cluster_id": "lod_0_g",
+                "id": "g",
+                "is_representative": true,
+                "isolates": [],
+                "layout_status": "ready",
+                "member_count": 1,
+                "metadata": {},
+                "x": 6.0,
+                "y": 0.0
+              },
+              {
+                "ancillary_distribution": [
+                  {
+                    "count": 1,
+                    "values": {}
+                  }
+                ],
+                "cluster_id": "lod_0_root",
+                "id": "root",
+                "is_representative": true,
+                "isolates": [],
+                "layout_status": "ready",
+                "member_count": 1,
+                "metadata": {},
+                "x": 7.0,
+                "y": 1.0
+              }
+            ],
+            "total_node_count": 4,
+            "truncated": false,
+            "zoom": 1.0
+          }
+        },
+        {
+          "path": "viewport",
+          "payload": {
+            "lod_level": 1
+          },
+          "response": {
+            "dataset_id": "contract-forest",
+            "edges": [
+              {
+                "distance": 5.0,
+                "id": "quotient_edge:1:d:z",
+                "source": "d",
+                "target": "z"
+              },
+              {
+                "distance": 7.0,
+                "id": "quotient_edge:1:e:w",
+                "source": "e",
+                "target": "w"
+              },
+              {
+                "distance": 9.0,
+                "id": "quotient_edge:1:f:root",
+                "source": "f",
+                "target": "root"
+              },
+              {
+                "distance": 8.0,
+                "id": "quotient_edge:1:root:w",
+                "source": "root",
+                "target": "w"
+              },
+              {
+                "distance": 6.0,
+                "id": "quotient_edge:1:w:z",
+                "source": "w",
+                "target": "z"
+              },
+              {
+                "distance": 4.0,
+                "id": "quotient_edge:1:y:z",
+                "source": "y",
+                "target": "z"
+              }
+            ],
+            "global_bounds": {
+              "max_x": 11.0,
+              "max_y": 2.0,
+              "min_x": 0.0,
+              "min_y": 0.0
+            },
+            "layout_status": "ready",
+            "layout_version": "6dc96f6be607027a",
+            "lod_level": 1,
+            "metadata_schema": [
+              {
+                "key": "country",
+                "type": "string"
+              },
+              {
+                "key": "year",
+                "type": "number"
+              }
+            ],
+            "nodes": [
+              {
+                "ancillary_distribution": [
+                  {
+                    "count": 1,
+                    "values": {
+                      "country": "Portugal",
+                      "year": 2020.0
+                    }
+                  },
+                  {
+                    "count": 1,
+                    "values": {
+                      "country": "Spain",
+                      "year": 2022.0
+                    }
+                  },
+                  {
+                    "count": 3,
+                    "values": {}
+                  }
+                ],
+                "cluster_id": "lod_1_y",
+                "id": "y",
+                "is_representative": true,
+                "isolates": [],
+                "layout_status": "ready",
+                "member_count": 5,
+                "metadata": {
+                  "__category_count__country__value__Portugal": 1.0,
+                  "__category_count__country__value__Spain": 1.0,
+                  "__category_count__year__value__2020": 1.0,
+                  "__category_count__year__value__2022": 1.0,
+                  "country": "Portugal",
+                  "profile_count": 2.0,
+                  "year": 2021.0
+                },
+                "x": 10.0,
+                "y": 1.0
+              },
+              {
+                "ancillary_distribution": [
+                  {
+                    "count": 1,
+                    "values": {}
+                  }
+                ],
+                "cluster_id": "lod_1_d",
+                "id": "d",
+                "is_representative": true,
+                "isolates": [],
+                "layout_status": "ready",
+                "member_count": 1,
+                "metadata": {},
+                "x": 3.0,
+                "y": 0.0
+              },
+              {
+                "ancillary_distribution": [
+                  {
+                    "count": 1,
+                    "values": {}
+                  }
+                ],
+                "cluster_id": "lod_1_e",
+                "id": "e",
+                "is_representative": true,
+                "isolates": [],
+                "layout_status": "ready",
+                "member_count": 1,
+                "metadata": {},
+                "x": 4.0,
+                "y": 1.0
+              },
+              {
+                "ancillary_distribution": [
+                  {
+                    "count": 1,
+                    "values": {}
+                  }
+                ],
+                "cluster_id": "lod_1_f",
+                "id": "f",
+                "is_representative": true,
+                "isolates": [],
+                "layout_status": "ready",
+                "member_count": 1,
+                "metadata": {},
+                "x": 5.0,
+                "y": 2.0
+              },
+              {
+                "ancillary_distribution": [
+                  {
+                    "count": 1,
+                    "values": {}
+                  }
+                ],
+                "cluster_id": "lod_1_g",
+                "id": "g",
+                "is_representative": true,
+                "isolates": [],
+                "layout_status": "ready",
+                "member_count": 1,
+                "metadata": {},
+                "x": 6.0,
+                "y": 0.0
+              },
+              {
+                "ancillary_distribution": [
+                  {
+                    "count": 1,
+                    "values": {}
+                  }
+                ],
+                "cluster_id": "lod_1_root",
+                "id": "root",
+                "is_representative": true,
+                "isolates": [],
+                "layout_status": "ready",
+                "member_count": 1,
+                "metadata": {},
+                "x": 7.0,
+                "y": 1.0
+              },
+              {
+                "ancillary_distribution": [
+                  {
+                    "count": 1,
+                    "values": {}
+                  }
+                ],
+                "cluster_id": "lod_1_w",
+                "id": "w",
+                "is_representative": true,
+                "isolates": [],
+                "layout_status": "ready",
+                "member_count": 1,
+                "metadata": {},
+                "x": 8.0,
+                "y": 2.0
+              },
+              {
+                "ancillary_distribution": [
+                  {
+                    "count": 1,
+                    "values": {}
+                  }
+                ],
+                "cluster_id": "lod_1_z",
+                "id": "z",
+                "is_representative": true,
+                "isolates": [],
+                "layout_status": "ready",
+                "member_count": 1,
+                "metadata": {},
+                "x": 11.0,
+                "y": 2.0
+              }
+            ],
+            "total_node_count": 8,
+            "truncated": false,
+            "zoom": 1.0
+          }
+        },
+        {
+          "path": "viewport",
+          "payload": {
+            "lod_level": 100
+          },
+          "response": {
+            "dataset_id": "contract-forest",
+            "edges": [
+              {
+                "distance": 9.0,
+                "id": "e_root_f_1",
+                "source": "root",
+                "target": "f"
+              },
+              {
+                "distance": 8.0,
+                "id": "e_root_w_1",
+                "source": "root",
+                "target": "w"
+              },
+              {
+                "distance": 7.0,
+                "id": "e_w_e_1",
+                "source": "w",
+                "target": "e"
+              },
+              {
+                "distance": 6.0,
+                "id": "e_w_z_1",
+                "source": "w",
+                "target": "z"
+              },
+              {
+                "distance": 0.0,
+                "id": "e_x_a_1",
+                "source": "x",
+                "target": "a"
+              },
+              {
+                "distance": 1.0,
+                "id": "e_x_b_1",
+                "source": "x",
+                "target": "b"
+              },
+              {
+                "distance": 3.0,
+                "id": "e_y_c_1",
+                "source": "y",
+                "target": "c"
+              },
+              {
+                "distance": 2.0,
+                "id": "e_y_x_1",
+                "source": "y",
+                "target": "x"
+              },
+              {
+                "distance": 5.0,
+                "id": "e_z_d_1",
+                "source": "z",
+                "target": "d"
+              },
+              {
+                "distance": 4.0,
+                "id": "e_z_y_1",
+                "source": "z",
+                "target": "y"
+              }
+            ],
+            "global_bounds": {
+              "max_x": 11.0,
+              "max_y": 2.0,
+              "min_x": 0.0,
+              "min_y": 0.0
+            },
+            "layout_status": "ready",
+            "layout_version": "6dc96f6be607027a",
+            "lod_level": 100,
+            "metadata_schema": [
+              {
+                "key": "country",
+                "type": "string"
+              },
+              {
+                "key": "year",
+                "type": "number"
+              }
+            ],
+            "nodes": [
+              {
+                "ancillary_distribution": [],
+                "cluster_id": "lod_2_a",
+                "id": "a",
+                "is_representative": false,
+                "isolates": [],
+                "layout_status": "ready",
+                "member_count": 1,
+                "metadata": {
+                  "__category_count__country__value__Portugal": 1.0,
+                  "__category_count__year__value__2020": 1.0,
+                  "country": "Portugal",
+                  "profile_count": 1.0,
+                  "year": 2020.0
+                },
+                "x": 0.0,
+                "y": 0.0
+              },
+              {
+                "ancillary_distribution": [],
+                "cluster_id": "lod_2_b",
+                "id": "b",
+                "is_representative": false,
+                "isolates": [],
+                "layout_status": "ready",
+                "member_count": 1,
+                "metadata": {
+                  "__category_count__country__value__Spain": 1.0,
+                  "__category_count__year__value__2022": 1.0,
+                  "country": "Spain",
+                  "profile_count": 1.0,
+                  "year": 2022.0
+                },
+                "x": 1.0,
+                "y": 1.0
+              },
+              {
+                "ancillary_distribution": [],
+                "cluster_id": "lod_2_c",
+                "id": "c",
+                "is_representative": false,
+                "isolates": [],
+                "layout_status": "ready",
+                "member_count": 1,
+                "x": 2.0,
+                "y": 2.0
+              },
+              {
+                "ancillary_distribution": [],
+                "cluster_id": "lod_2_d",
+                "id": "d",
+                "is_representative": false,
+                "isolates": [],
+                "layout_status": "ready",
+                "member_count": 1,
+                "x": 3.0,
+                "y": 0.0
+              },
+              {
+                "ancillary_distribution": [],
+                "cluster_id": "lod_2_e",
+                "id": "e",
+                "is_representative": false,
+                "isolates": [],
+                "layout_status": "ready",
+                "member_count": 1,
+                "x": 4.0,
+                "y": 1.0
+              },
+              {
+                "ancillary_distribution": [],
+                "cluster_id": "lod_2_f",
+                "id": "f",
+                "is_representative": false,
+                "isolates": [],
+                "layout_status": "ready",
+                "member_count": 1,
+                "x": 5.0,
+                "y": 2.0
+              },
+              {
+                "ancillary_distribution": [],
+                "cluster_id": "lod_2_g",
+                "id": "g",
+                "is_representative": false,
+                "isolates": [],
+                "layout_status": "ready",
+                "member_count": 1,
+                "x": 6.0,
+                "y": 0.0
+              },
+              {
+                "ancillary_distribution": [],
+                "cluster_id": "lod_2_root",
+                "id": "root",
+                "is_representative": false,
+                "isolates": [],
+                "layout_status": "ready",
+                "member_count": 1,
+                "x": 7.0,
+                "y": 1.0
+              },
+              {
+                "ancillary_distribution": [],
+                "cluster_id": "lod_2_w",
+                "id": "w",
+                "is_representative": false,
+                "isolates": [],
+                "layout_status": "ready",
+                "member_count": 1,
+                "x": 8.0,
+                "y": 2.0
+              },
+              {
+                "ancillary_distribution": [],
+                "cluster_id": "lod_2_x",
+                "id": "x",
+                "is_representative": false,
+                "isolates": [],
+                "layout_status": "ready",
+                "member_count": 1,
+                "x": 9.0,
+                "y": 0.0
+              },
+              {
+                "ancillary_distribution": [],
+                "cluster_id": "lod_2_y",
+                "id": "y",
+                "is_representative": false,
+                "isolates": [],
+                "layout_status": "ready",
+                "member_count": 1,
+                "x": 10.0,
+                "y": 1.0
+              },
+              {
+                "ancillary_distribution": [],
+                "cluster_id": "lod_2_z",
+                "id": "z",
+                "is_representative": false,
+                "isolates": [],
+                "layout_status": "ready",
+                "member_count": 1,
+                "x": 11.0,
+                "y": 2.0
+              }
+            ],
+            "total_node_count": 12,
+            "truncated": false,
+            "zoom": 1.0
+          }
+        },
+        {
+          "path": "viewport",
+          "payload": {
+            "max_nodes": 1,
+            "xmax": 0,
+            "xmin": 0,
+            "ymax": 0,
+            "ymin": 0
+          },
+          "response": {
+            "dataset_id": "contract-forest",
+            "edges": [
+              {
+                "distance": 0.0,
+                "id": "e_x_a_1",
+                "source": "x",
+                "target": "a"
+              }
+            ],
+            "global_bounds": {
+              "max_x": 11.0,
+              "max_y": 2.0,
+              "min_x": 0.0,
+              "min_y": 0.0
+            },
+            "layout_status": "ready",
+            "layout_version": "6dc96f6be607027a",
+            "metadata_schema": [
+              {
+                "key": "country",
+                "type": "string"
+              },
+              {
+                "key": "year",
+                "type": "number"
+              }
+            ],
+            "nodes": [
+              {
+                "ancillary_distribution": [],
+                "cluster_id": "lod_2_a",
+                "id": "a",
+                "is_representative": false,
+                "isolates": [],
+                "layout_status": "ready",
+                "member_count": 1,
+                "metadata": {
+                  "__category_count__country__value__Portugal": 1.0,
+                  "__category_count__year__value__2020": 1.0,
+                  "country": "Portugal",
+                  "profile_count": 1.0,
+                  "year": 2020.0
+                },
+                "x": 0.0,
+                "y": 0.0
+              },
+              {
+                "ancillary_distribution": [],
+                "cluster_id": "lod_2_x",
+                "id": "x",
+                "is_representative": false,
+                "isolates": [],
+                "layout_status": "ready",
+                "member_count": 1,
+                "x": 9.0,
+                "y": 0.0
+              }
+            ],
+            "total_node_count": 2,
+            "truncated": false,
+            "zoom": 1.0
+          }
+        },
+        {
+          "path": "viewport",
+          "payload": {
+            "lod_level": 1,
+            "lod_target_representations": 2,
+            "previous_lod_level": 0
+          },
+          "response": {
+            "dataset_id": "contract-forest",
+            "edges": [
+              {
+                "distance": 9.0,
+                "id": "quotient_edge:0:f:root",
+                "source": "f",
+                "target": "root"
+              },
+              {
+                "distance": 8.0,
+                "id": "quotient_edge:0:root:w",
+                "source": "root",
+                "target": "w"
+              }
+            ],
+            "global_bounds": {
+              "max_x": 11.0,
+              "max_y": 2.0,
+              "min_x": 0.0,
+              "min_y": 0.0
+            },
+            "layout_status": "ready",
+            "layout_version": "6dc96f6be607027a",
+            "lod_level": 0,
+            "metadata_schema": [
+              {
+                "key": "country",
+                "type": "string"
+              },
+              {
+                "key": "year",
+                "type": "number"
+              }
+            ],
+            "nodes": [
+              {
+                "ancillary_distribution": [
+                  {
+                    "count": 1,
+                    "values": {
+                      "country": "Portugal",
+                      "year": 2020.0
+                    }
+                  },
+                  {
+                    "count": 1,
+                    "values": {
+                      "country": "Spain",
+                      "year": 2022.0
+                    }
+                  },
+                  {
+                    "count": 7,
+                    "values": {}
+                  }
+                ],
+                "cluster_id": "lod_0_w",
+                "id": "w",
+                "is_representative": true,
+                "isolates": [],
+                "layout_status": "ready",
+                "member_count": 9,
+                "metadata": {
+                  "__category_count__country__value__Portugal": 1.0,
+                  "__category_count__country__value__Spain": 1.0,
+                  "__category_count__year__value__2020": 1.0,
+                  "__category_count__year__value__2022": 1.0,
+                  "country": "Portugal",
+                  "profile_count": 2.0,
+                  "year": 2021.0
+                },
+                "x": 8.0,
+                "y": 2.0
+              },
+              {
+                "ancillary_distribution": [
+                  {
+                    "count": 1,
+                    "values": {}
+                  }
+                ],
+                "cluster_id": "lod_0_f",
+                "id": "f",
+                "is_representative": true,
+                "isolates": [],
+                "layout_status": "ready",
+                "member_count": 1,
+                "metadata": {},
+                "x": 5.0,
+                "y": 2.0
+              },
+              {
+                "ancillary_distribution": [
+                  {
+                    "count": 1,
+                    "values": {}
+                  }
+                ],
+                "cluster_id": "lod_0_g",
+                "id": "g",
+                "is_representative": true,
+                "isolates": [],
+                "layout_status": "ready",
+                "member_count": 1,
+                "metadata": {},
+                "x": 6.0,
+                "y": 0.0
+              },
+              {
+                "ancillary_distribution": [
+                  {
+                    "count": 1,
+                    "values": {}
+                  }
+                ],
+                "cluster_id": "lod_0_root",
+                "id": "root",
+                "is_representative": true,
+                "isolates": [],
+                "layout_status": "ready",
+                "member_count": 1,
+                "metadata": {},
+                "x": 7.0,
+                "y": 1.0
+              }
+            ],
+            "total_node_count": 4,
+            "truncated": false,
+            "zoom": 1.0
+          }
+        },
+        {
+          "path": "viewport",
+          "payload": {
+            "cluster_id": "lod_0_w",
+            "focus_node_id": "w",
+            "max_nodes": 2
+          },
+          "response": {
+            "dataset_id": "contract-forest",
+            "edges": [
+              {
+                "distance": 8.0,
+                "id": "meta_edge:w:root",
+                "is_meta": true,
+                "source": "w",
+                "target": "root"
+              }
+            ],
+            "global_bounds": {
+              "max_x": 11.0,
+              "max_y": 2.0,
+              "min_x": 0.0,
+              "min_y": 0.0
+            },
+            "layout_status": "ready",
+            "layout_version": "6dc96f6be607027a",
+            "metadata_schema": [
+              {
+                "key": "country",
+                "type": "string"
+              },
+              {
+                "key": "year",
+                "type": "number"
+              }
+            ],
+            "nodes": [
+              {
+                "ancillary_distribution": [],
+                "cluster_id": "lod_0_w",
+                "id": "w",
+                "is_representative": false,
+                "isolates": [],
+                "layout_status": "ready",
+                "member_count": 1,
+                "x": 8.0,
+                "y": 2.0
+              },
+              {
+                "ancillary_distribution": [],
+                "cluster_id": "lod_0_w",
+                "id": "a",
+                "is_representative": false,
+                "isolates": [],
+                "layout_status": "ready",
+                "member_count": 1,
+                "metadata": {
+                  "__category_count__country__value__Portugal": 1.0,
+                  "__category_count__year__value__2020": 1.0,
+                  "country": "Portugal",
+                  "profile_count": 1.0,
+                  "year": 2020.0
+                },
+                "x": 0.0,
+                "y": 0.0
+              },
+              {
+                "ancillary_distribution": [
+                  {
+                    "count": 1,
+                    "values": {}
+                  }
+                ],
+                "cluster_id": "lod_0_root",
+                "id": "root",
+                "is_representative": true,
+                "isolates": [],
+                "layout_status": "ready",
+                "member_count": 1,
+                "metadata": {},
+                "x": 7.0,
+                "y": 1.0
+              }
+            ],
+            "total_node_count": 9,
+            "truncated": true,
+            "zoom": 1.0
+          }
+        }
+      ],
+      "replacement": {
+        "dataset_id": "contract-forest",
+        "layout_version": "fe9c16378873cc7e73e6cc3ead2a13e126d858953dbac41359d7d17fcef39f2d",
+        "matched_node_count": 2,
+        "warnings": [
+          "Ancillary data did not include rows for 10 joinable nodes."
+        ]
+      },
+      "request": {
+        "ancillary_data": {
+          "content": "id,country,year\nA,Portugal,2020\nB,Spain,2022\n",
+          "join_column": "id"
+        },
+        "content": "(((((A:0,B:1)X:2,C:3)Y:4,D:5)Z:6,E:7)W:8,F:9)Root; G;",
+        "dataset_name": "contract-forest",
+        "format": "newick"
+      },
+      "status": {
+        "job_id": "<job>",
+        "result": {
+          "cluster_count": 24,
+          "dataset_id": "contract-forest",
+          "edge_count": 10,
+          "layout_status": "ready",
+          "layout_version": "6dc96f6be607027a",
+          "lod_tier_count": 3,
+          "node_count": 12,
+          "warnings": [
+            "Newick input contains 2 disconnected components; kept as a forest.",
+            "Ancillary data did not include rows for 10 joinable nodes."
+          ]
+        },
+        "status": "ready"
+      },
+      "upload": {
+        "content": "id,country,year\nA,Spain,2024\nB,Portugal,2023\n",
+        "join_column": "id"
+      }
+    },
+    {
+      "after": {
+        "dataset_id": "contract-profiles",
+        "edges": [],
+        "global_bounds": {
+          "max_x": 0.0,
+          "max_y": 0.0,
+          "min_x": 0.0,
+          "min_y": 0.0
+        },
+        "layout_status": "ready",
+        "layout_version": "ada02e29c4f3f9dd1f399deaf4d4beb042e7c38f04db8c6af91ede2e3a6fe746",
+        "metadata_schema": [
+          {
+            "key": "country",
+            "type": "string"
+          },
+          {
+            "key": "year",
+            "type": "string"
+          }
+        ],
+        "nodes": [
+          {
+            "ancillary_distribution": [],
+            "cluster_id": "lod_0_iso_a",
+            "id": "iso_a",
+            "is_representative": false,
+            "isolates": [
+              {
+                "id": "Iso A",
+                "metadata": {
+                  "country": "Spain",
+                  "year": 2024.0
+                }
+              },
+              {
+                "id": "Iso B",
+                "metadata": {
+                  "country": "Portugal",
+                  "year": 2023.0
+                }
+              }
+            ],
+            "layout_status": "ready",
+            "member_count": 1,
+            "metadata": {
+              "__category_count__country__value__Portugal": 1.0,
+              "__category_count__country__value__Spain": 1.0,
+              "__category_count__year__value__2023.0": 1.0,
+              "__category_count__year__value__2024.0": 1.0,
+              "country": "Spain;Portugal",
+              "profile_count": 2.0,
+              "year": "2024.0;2023.0"
+            },
+            "x": 0.0,
+            "y": 0.0
+          }
+        ],
+        "total_node_count": 1,
+        "truncated": false,
+        "zoom": 1.0
+      },
+      "job": {
+        "dataset_id": "contract-profiles",
+        "job_id": "<job>",
+        "status": "pending"
+      },
+      "queries": [
+        {
+          "path": "search",
+          "payload": {
+            "limit": 2,
+            "query": "a"
+          },
+          "response": {
+            "dataset_id": "contract-profiles",
+            "layout_version": "8583da59c42b4e27",
+            "matches": [
+              {
+                "cluster_id": "lod_0_iso_a",
+                "matched_text": "iso_a",
+                "node_id": "iso_a",
+                "score": 40,
+                "x": 0.0,
+                "y": 0.0
+              }
+            ],
+            "query": "a",
+            "total_count": 1
+          }
+        },
+        {
+          "path": "search",
+          "payload": {
+            "limit": 2,
+            "query": "Iso B"
+          },
+          "response": {
+            "dataset_id": "contract-profiles",
+            "layout_version": "8583da59c42b4e27",
+            "matches": [
+              {
+                "cluster_id": "lod_0_iso_a",
+                "matched_text": "Iso B",
+                "node_id": "iso_a",
+                "score": 100,
+                "x": 0.0,
+                "y": 0.0
+              }
+            ],
+            "query": "Iso B",
+            "total_count": 1
+          }
+        },
+        {
+          "path": "search",
+          "payload": {
+            "limit": 2,
+            "query": "Portugal"
+          },
+          "response": {
+            "dataset_id": "contract-profiles",
+            "layout_version": "8583da59c42b4e27",
+            "matches": [
+              {
+                "cluster_id": "lod_0_iso_a",
+                "matched_text": "iso_a Portugal;Spain",
+                "node_id": "iso_a",
+                "score": 20,
+                "x": 0.0,
+                "y": 0.0
+              }
+            ],
+            "query": "Portugal",
+            "total_count": 1
+          }
+        },
+        {
+          "path": "search",
+          "payload": {
+            "limit": 2,
+            "query": " "
+          },
+          "response": {
+            "dataset_id": "contract-profiles",
+            "layout_version": "8583da59c42b4e27",
+            "matches": [],
+            "query": "",
+            "total_count": 0
+          }
+        },
+        {
+          "path": "search",
+          "payload": {
+            "limit": 2,
+            "query": "%"
+          },
+          "response": {
+            "dataset_id": "contract-profiles",
+            "layout_version": "8583da59c42b4e27",
+            "matches": [],
+            "query": "%",
+            "total_count": 0
+          }
+        },
+        {
+          "path": "search",
+          "payload": {
+            "limit": 2,
+            "query": "union_"
+          },
+          "response": {
+            "dataset_id": "contract-profiles",
+            "layout_version": "8583da59c42b4e27",
+            "matches": [],
+            "query": "union_",
+            "total_count": 0
+          }
+        },
+        {
+          "path": "region",
+          "payload": {
+            "xmax": 3,
+            "xmin": 0,
+            "ymax": 2,
+            "ymin": 0
+          },
+          "response": {
+            "aggregated_metadata": {
+              "__category_count__country__value__Portugal": 1.0,
+              "__category_count__country__value__Spain": 1.0,
+              "__category_count__year__value__2020.0": 1.0,
+              "__category_count__year__value__2022.0": 1.0,
+              "country": "Portugal;Spain",
+              "profile_count": 2.0,
+              "year": "2020.0;2022.0"
+            },
+            "dataset_id": "contract-profiles",
+            "edges": [],
+            "layout_status": "ready",
+            "layout_version": "8583da59c42b4e27",
+            "metadata_schema": [
+              {
+                "key": "country",
+                "type": "string"
+              },
+              {
+                "key": "year",
+                "type": "string"
+              }
+            ],
+            "nodes": [
+              {
+                "ancillary_distribution": [],
+                "cluster_id": "lod_0_iso_a",
+                "id": "iso_a",
+                "is_representative": false,
+                "isolates": [
+                  {
+                    "id": "Iso A",
+                    "metadata": {
+                      "country": "Portugal",
+                      "year": 2020.0
+                    }
+                  },
+                  {
+                    "id": "Iso B",
+                    "metadata": {
+                      "country": "Spain",
+                      "year": 2022.0
+                    }
+                  }
+                ],
+                "layout_status": "ready",
+                "member_count": 1,
+                "metadata": {
+                  "__category_count__country__value__Portugal": 1.0,
+                  "__category_count__country__value__Spain": 1.0,
+                  "__category_count__year__value__2020.0": 1.0,
+                  "__category_count__year__value__2022.0": 1.0,
+                  "country": "Portugal;Spain",
+                  "profile_count": 2.0,
+                  "year": "2020.0;2022.0"
+                },
+                "x": 0.0,
+                "y": 0.0
+              }
+            ],
+            "total_node_count": 1,
+            "truncated": false
+          }
+        },
+        {
+          "path": "region",
+          "payload": {
+            "max_nodes": 2,
+            "xmax": 20,
+            "xmin": 0,
+            "ymax": 2,
+            "ymin": 0
+          },
+          "response": {
+            "aggregated_metadata": {
+              "__category_count__country__value__Portugal": 1.0,
+              "__category_count__country__value__Spain": 1.0,
+              "__category_count__year__value__2020.0": 1.0,
+              "__category_count__year__value__2022.0": 1.0,
+              "country": "Portugal;Spain",
+              "profile_count": 2.0,
+              "year": "2020.0;2022.0"
+            },
+            "dataset_id": "contract-profiles",
+            "edges": [],
+            "layout_status": "ready",
+            "layout_version": "8583da59c42b4e27",
+            "metadata_schema": [
+              {
+                "key": "country",
+                "type": "string"
+              },
+              {
+                "key": "year",
+                "type": "string"
+              }
+            ],
+            "nodes": [
+              {
+                "ancillary_distribution": [],
+                "cluster_id": "lod_0_iso_a",
+                "id": "iso_a",
+                "is_representative": false,
+                "isolates": [
+                  {
+                    "id": "Iso A",
+                    "metadata": {
+                      "country": "Portugal",
+                      "year": 2020.0
+                    }
+                  },
+                  {
+                    "id": "Iso B",
+                    "metadata": {
+                      "country": "Spain",
+                      "year": 2022.0
+                    }
+                  }
+                ],
+                "layout_status": "ready",
+                "member_count": 1,
+                "metadata": {
+                  "__category_count__country__value__Portugal": 1.0,
+                  "__category_count__country__value__Spain": 1.0,
+                  "__category_count__year__value__2020.0": 1.0,
+                  "__category_count__year__value__2022.0": 1.0,
+                  "country": "Portugal;Spain",
+                  "profile_count": 2.0,
+                  "year": "2020.0;2022.0"
+                },
+                "x": 0.0,
+                "y": 0.0
+              }
+            ],
+            "total_node_count": 1,
+            "truncated": false
+          }
+        },
+        {
+          "path": "region",
+          "payload": {
+            "xmax": 50,
+            "xmin": 40,
+            "ymax": 50,
+            "ymin": 40
+          },
+          "response": {
+            "aggregated_metadata": {},
+            "dataset_id": "contract-profiles",
+            "edges": [],
+            "layout_status": "pending",
+            "layout_version": "8583da59c42b4e27",
+            "metadata_schema": [
+              {
+                "key": "country",
+                "type": "string"
+              },
+              {
+                "key": "year",
+                "type": "string"
+              }
+            ],
+            "nodes": [],
+            "total_node_count": 0,
+            "truncated": false
+          }
+        },
+        {
+          "path": "viewport",
+          "payload": {
+            "lod_level": null
+          },
+          "response": {
+            "dataset_id": "contract-profiles",
+            "edges": [],
+            "global_bounds": {
+              "max_x": 0.0,
+              "max_y": 0.0,
+              "min_x": 0.0,
+              "min_y": 0.0
+            },
+            "layout_status": "ready",
+            "layout_version": "8583da59c42b4e27",
+            "metadata_schema": [
+              {
+                "key": "country",
+                "type": "string"
+              },
+              {
+                "key": "year",
+                "type": "string"
+              }
+            ],
+            "nodes": [
+              {
+                "ancillary_distribution": [],
+                "cluster_id": "lod_0_iso_a",
+                "id": "iso_a",
+                "is_representative": false,
+                "isolates": [
+                  {
+                    "id": "Iso A",
+                    "metadata": {
+                      "country": "Portugal",
+                      "year": 2020.0
+                    }
+                  },
+                  {
+                    "id": "Iso B",
+                    "metadata": {
+                      "country": "Spain",
+                      "year": 2022.0
+                    }
+                  }
+                ],
+                "layout_status": "ready",
+                "member_count": 1,
+                "metadata": {
+                  "__category_count__country__value__Portugal": 1.0,
+                  "__category_count__country__value__Spain": 1.0,
+                  "__category_count__year__value__2020.0": 1.0,
+                  "__category_count__year__value__2022.0": 1.0,
+                  "country": "Portugal;Spain",
+                  "profile_count": 2.0,
+                  "year": "2020.0;2022.0"
+                },
+                "x": 0.0,
+                "y": 0.0
+              }
+            ],
+            "total_node_count": 1,
+            "truncated": false,
+            "zoom": 1.0
+          }
+        },
+        {
+          "path": "viewport",
+          "payload": {
+            "lod_level": 0
+          },
+          "response": {
+            "dataset_id": "contract-profiles",
+            "edges": [],
+            "global_bounds": {
+              "max_x": 0.0,
+              "max_y": 0.0,
+              "min_x": 0.0,
+              "min_y": 0.0
+            },
+            "layout_status": "ready",
+            "layout_version": "8583da59c42b4e27",
+            "lod_level": 0,
+            "metadata_schema": [
+              {
+                "key": "country",
+                "type": "string"
+              },
+              {
+                "key": "year",
+                "type": "string"
+              }
+            ],
+            "nodes": [
+              {
+                "ancillary_distribution": [],
+                "cluster_id": "lod_0_iso_a",
+                "id": "iso_a",
+                "is_representative": false,
+                "isolates": [
+                  {
+                    "id": "Iso A",
+                    "metadata": {
+                      "country": "Portugal",
+                      "year": 2020.0
+                    }
+                  },
+                  {
+                    "id": "Iso B",
+                    "metadata": {
+                      "country": "Spain",
+                      "year": 2022.0
+                    }
+                  }
+                ],
+                "layout_status": "ready",
+                "member_count": 1,
+                "metadata": {
+                  "__category_count__country__value__Portugal": 1.0,
+                  "__category_count__country__value__Spain": 1.0,
+                  "__category_count__year__value__2020.0": 1.0,
+                  "__category_count__year__value__2022.0": 1.0,
+                  "country": "Portugal;Spain",
+                  "profile_count": 2.0,
+                  "year": "2020.0;2022.0"
+                },
+                "x": 0.0,
+                "y": 0.0
+              }
+            ],
+            "total_node_count": 1,
+            "truncated": false,
+            "zoom": 1.0
+          }
+        },
+        {
+          "path": "viewport",
+          "payload": {
+            "lod_level": 1
+          },
+          "response": {
+            "dataset_id": "contract-profiles",
+            "edges": [],
+            "global_bounds": {
+              "max_x": 0.0,
+              "max_y": 0.0,
+              "min_x": 0.0,
+              "min_y": 0.0
+            },
+            "layout_status": "ready",
+            "layout_version": "8583da59c42b4e27",
+            "lod_level": 1,
+            "metadata_schema": [
+              {
+                "key": "country",
+                "type": "string"
+              },
+              {
+                "key": "year",
+                "type": "string"
+              }
+            ],
+            "nodes": [
+              {
+                "ancillary_distribution": [],
+                "cluster_id": "lod_0_iso_a",
+                "id": "iso_a",
+                "is_representative": false,
+                "isolates": [
+                  {
+                    "id": "Iso A",
+                    "metadata": {
+                      "country": "Portugal",
+                      "year": 2020.0
+                    }
+                  },
+                  {
+                    "id": "Iso B",
+                    "metadata": {
+                      "country": "Spain",
+                      "year": 2022.0
+                    }
+                  }
+                ],
+                "layout_status": "ready",
+                "member_count": 1,
+                "metadata": {
+                  "__category_count__country__value__Portugal": 1.0,
+                  "__category_count__country__value__Spain": 1.0,
+                  "__category_count__year__value__2020.0": 1.0,
+                  "__category_count__year__value__2022.0": 1.0,
+                  "country": "Portugal;Spain",
+                  "profile_count": 2.0,
+                  "year": "2020.0;2022.0"
+                },
+                "x": 0.0,
+                "y": 0.0
+              }
+            ],
+            "total_node_count": 1,
+            "truncated": false,
+            "zoom": 1.0
+          }
+        },
+        {
+          "path": "viewport",
+          "payload": {
+            "lod_level": 100
+          },
+          "response": {
+            "dataset_id": "contract-profiles",
+            "edges": [],
+            "global_bounds": {
+              "max_x": 0.0,
+              "max_y": 0.0,
+              "min_x": 0.0,
+              "min_y": 0.0
+            },
+            "layout_status": "ready",
+            "layout_version": "8583da59c42b4e27",
+            "lod_level": 100,
+            "metadata_schema": [
+              {
+                "key": "country",
+                "type": "string"
+              },
+              {
+                "key": "year",
+                "type": "string"
+              }
+            ],
+            "nodes": [
+              {
+                "ancillary_distribution": [],
+                "cluster_id": "lod_0_iso_a",
+                "id": "iso_a",
+                "is_representative": false,
+                "isolates": [
+                  {
+                    "id": "Iso A",
+                    "metadata": {
+                      "country": "Portugal",
+                      "year": 2020.0
+                    }
+                  },
+                  {
+                    "id": "Iso B",
+                    "metadata": {
+                      "country": "Spain",
+                      "year": 2022.0
+                    }
+                  }
+                ],
+                "layout_status": "ready",
+                "member_count": 1,
+                "metadata": {
+                  "__category_count__country__value__Portugal": 1.0,
+                  "__category_count__country__value__Spain": 1.0,
+                  "__category_count__year__value__2020.0": 1.0,
+                  "__category_count__year__value__2022.0": 1.0,
+                  "country": "Portugal;Spain",
+                  "profile_count": 2.0,
+                  "year": "2020.0;2022.0"
+                },
+                "x": 0.0,
+                "y": 0.0
+              }
+            ],
+            "total_node_count": 1,
+            "truncated": false,
+            "zoom": 1.0
+          }
+        },
+        {
+          "path": "viewport",
+          "payload": {
+            "max_nodes": 1,
+            "xmax": 0,
+            "xmin": 0,
+            "ymax": 0,
+            "ymin": 0
+          },
+          "response": {
+            "dataset_id": "contract-profiles",
+            "edges": [],
+            "global_bounds": {
+              "max_x": 0.0,
+              "max_y": 0.0,
+              "min_x": 0.0,
+              "min_y": 0.0
+            },
+            "layout_status": "ready",
+            "layout_version": "8583da59c42b4e27",
+            "metadata_schema": [
+              {
+                "key": "country",
+                "type": "string"
+              },
+              {
+                "key": "year",
+                "type": "string"
+              }
+            ],
+            "nodes": [
+              {
+                "ancillary_distribution": [],
+                "cluster_id": "lod_0_iso_a",
+                "id": "iso_a",
+                "is_representative": false,
+                "isolates": [
+                  {
+                    "id": "Iso A",
+                    "metadata": {
+                      "country": "Portugal",
+                      "year": 2020.0
+                    }
+                  },
+                  {
+                    "id": "Iso B",
+                    "metadata": {
+                      "country": "Spain",
+                      "year": 2022.0
+                    }
+                  }
+                ],
+                "layout_status": "ready",
+                "member_count": 1,
+                "metadata": {
+                  "__category_count__country__value__Portugal": 1.0,
+                  "__category_count__country__value__Spain": 1.0,
+                  "__category_count__year__value__2020.0": 1.0,
+                  "__category_count__year__value__2022.0": 1.0,
+                  "country": "Portugal;Spain",
+                  "profile_count": 2.0,
+                  "year": "2020.0;2022.0"
+                },
+                "x": 0.0,
+                "y": 0.0
+              }
+            ],
+            "total_node_count": 1,
+            "truncated": false,
+            "zoom": 1.0
+          }
+        },
+        {
+          "path": "viewport",
+          "payload": {
+            "lod_level": 1,
+            "lod_target_representations": 2,
+            "previous_lod_level": 0
+          },
+          "response": {
+            "dataset_id": "contract-profiles",
+            "edges": [],
+            "global_bounds": {
+              "max_x": 0.0,
+              "max_y": 0.0,
+              "min_x": 0.0,
+              "min_y": 0.0
+            },
+            "layout_status": "ready",
+            "layout_version": "8583da59c42b4e27",
+            "lod_level": 0,
+            "metadata_schema": [
+              {
+                "key": "country",
+                "type": "string"
+              },
+              {
+                "key": "year",
+                "type": "string"
+              }
+            ],
+            "nodes": [
+              {
+                "ancillary_distribution": [],
+                "cluster_id": "lod_0_iso_a",
+                "id": "iso_a",
+                "is_representative": false,
+                "isolates": [
+                  {
+                    "id": "Iso A",
+                    "metadata": {
+                      "country": "Portugal",
+                      "year": 2020.0
+                    }
+                  },
+                  {
+                    "id": "Iso B",
+                    "metadata": {
+                      "country": "Spain",
+                      "year": 2022.0
+                    }
+                  }
+                ],
+                "layout_status": "ready",
+                "member_count": 1,
+                "metadata": {
+                  "__category_count__country__value__Portugal": 1.0,
+                  "__category_count__country__value__Spain": 1.0,
+                  "__category_count__year__value__2020.0": 1.0,
+                  "__category_count__year__value__2022.0": 1.0,
+                  "country": "Portugal;Spain",
+                  "profile_count": 2.0,
+                  "year": "2020.0;2022.0"
+                },
+                "x": 0.0,
+                "y": 0.0
+              }
+            ],
+            "total_node_count": 1,
+            "truncated": false,
+            "zoom": 1.0
+          }
+        }
+      ],
+      "replacement": {
+        "dataset_id": "contract-profiles",
+        "layout_version": "ada02e29c4f3f9dd1f399deaf4d4beb042e7c38f04db8c6af91ede2e3a6fe746",
+        "matched_node_count": 1,
+        "warnings": []
+      },
+      "request": {
+        "ancillary_data": {
+          "content": "id,country,year\nIso A,Portugal,2020\nIso B,Spain,2022\n",
+          "join_column": "id"
+        },
+        "content": "id\tL1\tL2\nIso A\t1\t2\nIso B\t1\t2\n",
+        "dataset_name": "contract-profiles",
+        "format": "typing_data"
+      },
+      "status": {
+        "job_id": "<job>",
+        "result": {
+          "cluster_count": 1,
+          "dataset_id": "contract-profiles",
+          "edge_count": 0,
+          "layout_status": "ready",
+          "layout_version": "8583da59c42b4e27",
+          "lod_tier_count": 1,
+          "node_count": 1,
+          "warnings": []
+        },
+        "status": "ready"
+      },
+      "upload": {
+        "content": "id,country,year\nIso A,Spain,2024\nIso B,Portugal,2023\n",
+        "join_column": "id"
+      }
+    }
+  ],
+  "provenance": {
+    "commit": "a2b00a33eff12c0112266d2c0d76e482a0aa0ebc",
+    "description": "Captured from the original server before refactoring; deterministic positions isolate retrieval and serialization behavior from Graphviz randomness."
+  }
+}
