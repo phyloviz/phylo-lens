@@ -1,7 +1,6 @@
 import { initialPaletteState, reducePalette, type PaletteAction } from './paletteState';
 import { toError } from '../../errors';
 import { normalizedPieFields } from '../../../render/mapping/pieMapping';
-import type { GraphWorkbench } from '../../workbench/graphWorkbench';
 import type { PositionedGraph } from '../../../contracts/positioned';
 import {
   resolveMappingPalette,
@@ -14,7 +13,7 @@ import { parseCategoryColorPalette, serializeCategoryColorPalette } from './cate
 import categoryColorControls from './categoryColorControls';
 
 export type VisualMappingPaletteOptions = {
-  workbench: GraphWorkbench;
+  readonly updateVisualMapping: (mapping: VisualMappingOptions) => void;
   container?: HTMLElement;
   loadInput?: HTMLInputElement;
   saveFilename: string;
@@ -94,7 +93,7 @@ export default function (options: VisualMappingPaletteOptions) {
     dispatch({ kind: 'mappingApplied', mapping: buildCurrentVisualMapping() });
     if (options.getGraph()) {
       try {
-        options.workbench.updateVisualMapping(copyVisualMapping(state.mapping));
+        options.updateVisualMapping(copyVisualMapping(state.mapping));
       } catch (error) {
         options.setFailureStatus(toError(error).message);
       }

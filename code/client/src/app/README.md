@@ -19,9 +19,21 @@ listeners. The shell passes node selections and graph-load information to them.
 An export can finish during a new graph load without replacing its status.
 After unmount, a pending export result is ignored.
 
+`shell/inputs/graphLoading.ts` owns file reading, graph loading, ancillary-table
+updates and their request sequence. `shell/ancillary/ancillaryControls.ts` owns
+field selection, category colors and ancillary charts. Both remove their own
+listeners and invalidate pending work when unmounted. The shell wires these
+features together and keeps the current graph for its views.
+
 Viewport expansion calculates the combined graph and partial-expansion status
 without changing stored state. The coordinator applies the result and keeps
 request counters, timers and cancellation local to its lifecycle.
+
+The initial-viewport promise already records whether it has settled. The
+coordinator keeps separate flags for successful rendering and whether a caller
+is waiting. A failed first request can be retried without changing the promise's
+original result. Queued refresh flags remember camera changes during dragging
+or ancillary replacement; they cannot be calculated from the current graph.
 
 ## State and ownership
 
