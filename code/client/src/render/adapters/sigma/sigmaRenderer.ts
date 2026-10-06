@@ -37,10 +37,9 @@ import createSigmaTransitions from './motion/sigmaTransitions';
 import { areStringArraysEqual } from './attributes/sigmaAttributeUtils';
 import { addPositionedEdges } from './attributes/sigmaEdgeAttributes';
 import {
-  addPositionedNode,
+  addPositionedNodes,
   applyClusterTriangleRotations,
   applyPieChartNodeTypes,
-  derivePositionedNodeColor,
 } from './attributes/sigmaNodeAttributes';
 import { buildPieProgramSignature, piechartProgramClasses, type PieNodeView } from './programs/sigmaPiePrograms';
 import { buildSigmaSettings } from './sigmaRenderer.settings';
@@ -326,24 +325,28 @@ export default function createSigmaRenderer(options: SigmaRendererOptions = {}) 
     dragController.reset();
     sourceSnapshot = graph;
     maxGlyphSize = 0;
-    glyphFootprintDirty = true;
     displayPositions.clear();
     forceMotionController.stop();
-    lastRenderedGraph = graph;
-    sigmaGraph.clear();
-    coordinateBounds = normalizeGraphBounds(graph.viewMeta.globalBounds) ?? deriveGraphBounds(graph.nodes);
+    beginGraphUpdate(sigmaGraph, graph);
     updatePiePrograms(graph.nodes);
     applyStableCameraBounds(sigmaInstance, coordinateBounds);
 
-    graph.nodes.forEach(positionedNode => {
-      addPositionedNode(sigmaGraph as Graph, positionedNode, pieSliceKeys, rendererOptions);
-    });
+    addPositionedNodes(sigmaGraph, graph.nodes, rendererOptions, pieSliceKeys);
     addPositionedEdges(sigmaGraph, graph, rendererOptions);
     updateClusterTriangleRotations();
     sigmaInstance.refresh();
     displayPositions.ingest(graph);
     forceMotionController.start(sigmaGraph);
     updateEdgeLabelVisibility(readSemanticViewState());
+  }
+
+  function beginGraphUpdate(graph: Graph, snapshot: PositionedGraph): boolean {
+    const previousBounds = coordinateBounds;
+    lastRenderedGraph = snapshot;
+    glyphFootprintDirty = true;
+    graph.clear();
+    coordinateBounds = normalizeGraphBounds(snapshot.viewMeta.globalBounds) ?? deriveGraphBounds(snapshot.nodes);
+    return !graphBoundsEqual(previousBounds, coordinateBounds);
   }
 
   function setViewChangeHandler(handler: ((state: RenderViewportState) => void) | null): void {
@@ -494,19 +497,17 @@ export default function createSigmaRenderer(options: SigmaRendererOptions = {}) 
     transitions.cancel();
     forceMotionController.stop();
     const previousLod = sourceSnapshot?.viewMeta.lodLevel;
-    const previousPositions = new Map<string, Point>();
-    sigmaGraph.forEachNode((id, a) => {
-      const point = { x: a.x, y: a.y };
-      previousPositions.set(id, point);
-      if (options?.preservePositions) displayPositions.set(id, point);
-    });
+    if (options?.preservePositions) captureDisplayPositions();
     sourceSnapshot = graph;
     const planned = displayPositions.ingest(graph);
     graph = { ...graph, nodes: planned.nodes };
     const lodChanged = previousLod !== undefined && previousLod !== graph.viewMeta.lodLevel;
-    const targets = new Map(graph.nodes.map(node => [node.id, { x: node.x, y: node.y }]));
+    const needsTransition = wasTransitioning || lodChanged || planned.origins.size > 0;
+    const targets = needsTransition ? new Map(graph.nodes.map(node => [node.id, { x: node.x, y: node.y }])) : null;
     if (lodChanged) transitions.captureAnchor(graph);
-    if (wasTransitioning || lodChanged || planned.origins.size) {
+    if (needsTransition) {
+      const previousPositions = new Map<string, Point>();
+      sigmaGraph.forEachNode((id, attributes) => previousPositions.set(id, { x: attributes.x, y: attributes.y }));
       graph = {
         ...graph,
         nodes: graph.nodes.map(node => ({
@@ -519,31 +520,14 @@ export default function createSigmaRenderer(options: SigmaRendererOptions = {}) 
       };
     }
     const cameraState = readCameraState(sigmaInstance);
-    const previousCoordinateBounds = coordinateBounds;
-    lastRenderedGraph = graph;
-    glyphFootprintDirty = true;
     selectedClusterStyle = null;
-    sigmaGraph.clear();
-    coordinateBounds = normalizeGraphBounds(graph.viewMeta.globalBounds) ?? deriveGraphBounds(graph.nodes);
-    if (!graphBoundsEqual(previousCoordinateBounds, coordinateBounds)) {
+    const boundsChanged = beginGraphUpdate(sigmaGraph, graph);
+    if (boundsChanged) {
       applyStableCameraBounds(sigmaInstance, coordinateBounds);
     }
 
-    graph.nodes.forEach(node => {
-      sigmaGraph?.addNode(node.id, {
-        ...(node.attributes ?? {}),
-        x: node.x,
-        y: node.y,
-        size: node.size,
-        color: node.attributes?.isClusterProxy === true ? derivePositionedNodeColor(node) : node.color,
-      });
-    });
-    graph.edges.forEach(edge => {
-      if (!sigmaGraph?.hasNode(edge.source) || !sigmaGraph.hasNode(edge.target)) {
-        return;
-      }
-      sigmaGraph.addEdgeWithKey(edge.id, edge.source, edge.target, { ...edge.attributes });
-    });
+    addPositionedNodes(sigmaGraph, graph.nodes);
+    addPositionedEdges(sigmaGraph, graph);
     updateClusterTriangleRotations();
     syncPieProgramsFromGraph();
     applyHighlighting();
@@ -555,7 +539,7 @@ export default function createSigmaRenderer(options: SigmaRendererOptions = {}) 
       restoreCameraState(sigmaInstance, cameraState);
     }
     updateEdgeLabelVisibility(readSemanticViewState());
-    if (wasTransitioning || lodChanged || planned.origins.size) transitions.start(targets);
+    if (targets) transitions.start(targets);
     else {
       forceMotionController.start(sigmaGraph);
       manipulationHandler?.(false);

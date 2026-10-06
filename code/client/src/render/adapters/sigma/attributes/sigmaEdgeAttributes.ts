@@ -18,25 +18,23 @@ import { edgeSizeForDistance } from './sigmaStyle';
 export function addPositionedEdges(
   graph: Graph,
   positionedGraph: PositionedGraph,
-  rendererOptions: SigmaRendererOptions
+  rendererOptions?: SigmaRendererOptions
 ): void {
-  const distanceRange = distanceRangeForEdges(positionedGraph.edges);
+  const distanceRange = rendererOptions ? distanceRangeForEdges(positionedGraph.edges) : null;
 
   positionedGraph.edges.forEach(edge => {
-    const sourceExists = graph.hasNode(edge.source);
-    const targetExists = graph.hasNode(edge.target);
+    if (!graph.hasNode(edge.source) || !graph.hasNode(edge.target)) return;
 
-    if (!sourceExists || !targetExists) {
-      return;
+    const attributes = { ...edge.attributes };
+    // Prepared snapshots keep their labels, colors and sizes; copy them into Graphology.
+    if (rendererOptions) {
+      attributes.color = deriveEdgeColor(edge.attributes, distanceRange);
+      attributes.size = deriveEdgeSize(edge.attributes, rendererOptions);
+      attributes.label =
+        rendererOptions.display?.edgeDistanceLabels === true ? formatDistanceLabel(edge.attributes?.distance) : '';
+      attributes.forceLabel = rendererOptions.display?.edgeDistanceLabels === true;
     }
-
-    graph.addEdgeWithKey(edge.id, edge.source, edge.target, {
-      ...(edge.attributes ?? {}),
-      color: deriveEdgeColor(edge.attributes, distanceRange),
-      size: deriveEdgeSize(edge.attributes, rendererOptions),
-      label: rendererOptions.display?.edgeDistanceLabels === true ? formatDistanceLabel(edge.attributes?.distance) : '',
-      forceLabel: rendererOptions.display?.edgeDistanceLabels === true,
-    });
+    graph.addEdgeWithKey(edge.id, edge.source, edge.target, attributes);
   });
 }
 

@@ -223,6 +223,7 @@ import {
   SIGMA_NODE_TYPE_PIECHART,
 } from '../src/render/adapters/sigma/sigmaRendering.constants';
 import type { GraphNodeAttributes, PositionedGraph } from '../src/contracts/positioned';
+import { freezeInput } from './helpers/state';
 
 const CONTAINER_ID = 'graph-root';
 
@@ -1562,17 +1563,84 @@ describe('sigmaRenderer', () => {
     edges: [{ id: 'ab', source: 'a', target: 'b', attributes: { size: 1, color: '#123456', distance: 4, label: '' } }],
     viewMeta: { layout: 'server' as const, lodLevel: 0 },
   });
-  it('keeps snapshot edge attributes independent from Graphology updates', () => {
-    const renderer = createSigmaRenderer({ forceMotion: { enabled: false } });
+  it('preserves the different styling rules for initial rendering and prepared snapshots', () => {
+    const input = freezeInput({
+      nodes: [
+        {
+          id: 'a',
+          x: 5,
+          y: 6,
+          size: 8,
+          color: '#123456',
+          attributes: { x: 900, y: 901, size: 77, color: '#abcdef', phyloviz_role: 'group_founder', label: ' sample ' },
+        },
+        { id: 'b', x: 10, y: 0 },
+      ],
+      edges: [
+        {
+          id: 'ab',
+          source: 'a',
+          target: 'b',
+          attributes: { distance: 4, size: 7, color: '#112233', label: ' prepared edge ', forceLabel: false },
+        },
+        { id: 'outside', source: 'b', target: 'missing', attributes: { distance: 8 } },
+      ],
+      viewMeta: { layout: 'server' as const, lodLevel: 0 },
+    });
+    const renderer = createSigmaRenderer({
+      forceMotion: { enabled: false },
+      edge: { size: 2 },
+      display: { edgeDistanceLabels: true },
+    });
     renderer.mount({ container: requireContainer() });
-    const graph = snapshot();
-    Object.freeze(graph.edges[0].attributes);
-    renderer.applyGraphSnapshot(graph);
-    lastGraph!.setEdgeAttribute('ab', 'label', '4');
-    expect(graph.edges[0].attributes.label).toBe('');
-    expect(lastGraph?.getEdgeAttribute('ab', 'label')).toBe('4');
+    renderer.render(input);
+    expect(lastGraph?.getNodeAttributes('a')).toMatchObject({
+      x: 900,
+      y: 901,
+      size: 77,
+      color: '#86efac',
+      label: 'sample',
+    });
+    expect(lastGraph?.getEdgeAttributes('ab')).toMatchObject({
+      size: 2,
+      color: '#232323',
+      label: '4',
+      forceLabel: true,
+    });
+    expect(lastGraph?.edges()).toEqual(['ab']);
+
+    renderer.applyGraphSnapshot(input);
+    expect(lastGraph?.getNodeAttributes('a')).toMatchObject({
+      x: 5,
+      y: 6,
+      size: 8,
+      color: '#123456',
+      label: ' sample ',
+    });
+    expect(lastGraph?.getEdgeAttributes('ab')).toMatchObject({
+      size: 7,
+      color: '#112233',
+      label: ' prepared edge ',
+      forceLabel: false,
+    });
+    expect(lastGraph?.edges()).toEqual(['ab']);
     renderer.unmount();
   });
+
+  it.each(['render', 'applyGraphSnapshot'] as const)(
+    '%s owns edge attributes independently from Graphology updates',
+    operation => {
+      const renderer = createSigmaRenderer({ forceMotion: { enabled: false } });
+      renderer.mount({ container: requireContainer() });
+      const graph = snapshot();
+      Object.freeze(graph.edges[0].attributes);
+      renderer[operation](graph);
+      lastGraph!.setEdgeAttribute('ab', 'label', '4');
+      expect(graph.edges[0].attributes.label).toBe('');
+      expect(lastGraph?.getEdgeAttribute('ab', 'label')).toBe('4');
+      renderer.unmount();
+    }
+  );
   it('owns highlight sets instead of observing edits to the supplied set', () => {
     const renderer = createSigmaRenderer({ forceMotion: { enabled: false } });
     renderer.mount({ container: requireContainer() });

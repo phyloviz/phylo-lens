@@ -15,22 +15,40 @@ import { isUnionNode, UNION_NODE_COLOR, UNION_NODE_SIZE } from '../../../mapping
 import type { SigmaRendererOptions } from '../sigmaRenderer.types';
 import { derivePhylovizNodeColor } from './sigmaStyle';
 
-export function addPositionedNode(
+/** Initial renders derive styles; viewport snapshots already contain prepared styles. */
+export function addPositionedNodes(
+  graph: Graph,
+  nodes: readonly PositionedNode[],
+  rendererOptions?: SigmaRendererOptions,
+  pieSliceKeys: readonly string[] = []
+): void {
+  const displayedPieKeys = new Set(pieSliceKeys.filter(key => key !== PIE_OTHER_SLICE_KEY));
+  nodes.forEach(node => {
+    if (rendererOptions) {
+      addPositionedNode(graph, node, pieSliceKeys, rendererOptions, displayedPieKeys);
+    } else {
+      graph.addNode(node.id, {
+        ...(node.attributes ?? {}),
+        x: node.x,
+        y: node.y,
+        size: node.size,
+        color: node.attributes?.isClusterProxy === true ? derivePositionedNodeColor(node) : node.color,
+      });
+    }
+  });
+}
+
+function addPositionedNode(
   graph: Graph,
   node: PositionedNode,
   pieSliceKeys: readonly string[],
   rendererOptions: SigmaRendererOptions,
-  triangleRotation = 0
+  displayedPieKeys: ReadonlySet<string>
 ): void {
   const unionNode = isUnionNode(node.id, node.attributes);
   const pieAttributes: Record<string, number> = {};
-  const displayedPieKeys = new Set(pieSliceKeys.filter(key => key !== PIE_OTHER_SLICE_KEY));
   pieSliceKeys.forEach(key => {
-    pieAttributes[key] = unionNode
-      ? 0
-      : key === PIE_OTHER_SLICE_KEY
-        ? deriveOtherPieValue(node.attributes, displayedPieKeys)
-        : toPositiveNumber(node.attributes?.[key]);
+    pieAttributes[key] = pieValueForKey(key, node.attributes, displayedPieKeys, unionNode);
   });
   const hasPieData = Object.values(pieAttributes).some(value => value > 0);
   const isClusterProxy = node.attributes?.isClusterProxy === true;
@@ -54,16 +72,11 @@ export function addPositionedNode(
       rendererOptions.label?.enabled === false || rendererOptions.display?.nodeLabels === false
         ? ''
         : deriveNodeLabel(node.id, node.attributes),
-    triangleRotation,
+    triangleRotation: 0,
   });
 }
 
-// Flip synced nodes to the piechart node type once the piechart program for
-// `sliceKeys` has been registered. Mirrors addPositionedNode's pie handling for
-// the LoD sync path, where attributes are written directly to graphology and
-// nodes cannot be re-added through addPositionedNode. Ensures every displayed
-// slice key (plus the aggregated Others bucket) is present on each pie node so
-// the @sigma/node-piechart program can read them.
+// Fill registered pie slots, including Other, while preserving cluster triangles.
 export function applyPieChartNodeTypes(graph: Graph, sliceKeys: readonly string[]): void {
   if (sliceKeys.length === 0) {
     return;
@@ -75,11 +88,7 @@ export function applyPieChartNodeTypes(graph: Graph, sliceKeys: readonly string[
     const unionNode = isUnionNode(nodeId, attributes);
     let hasPieData = false;
     sliceKeys.forEach(key => {
-      const value = unionNode
-        ? 0
-        : key === PIE_OTHER_SLICE_KEY
-          ? deriveOtherPieValue(attributes, displayedPieKeys)
-          : toPositiveNumber(attributes[key]);
+      const value = pieValueForKey(key, attributes, displayedPieKeys, unionNode);
       graph.setNodeAttribute(nodeId, key, value);
       if (value > 0) {
         hasPieData = true;
@@ -95,7 +104,19 @@ export function applyPieChartNodeTypes(graph: Graph, sliceKeys: readonly string[
   });
 }
 
-function deriveOtherPieValue(attributes: Record<string, unknown> | undefined, displayedPieKeys: Set<string>): number {
+function pieValueForKey(
+  key: string,
+  attributes: PositionedNode['attributes'],
+  displayedPieKeys: ReadonlySet<string>,
+  unionNode: boolean
+): number {
+  if (unionNode) return 0;
+  return key === PIE_OTHER_SLICE_KEY
+    ? deriveOtherPieValue(attributes, displayedPieKeys)
+    : toPositiveNumber(attributes?.[key]);
+}
+
+function deriveOtherPieValue(attributes: PositionedNode['attributes'], displayedPieKeys: ReadonlySet<string>): number {
   if (!attributes) {
     return 0;
   }
