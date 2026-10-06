@@ -99,7 +99,7 @@ function createWorkbenchHarness(overrides: Partial<GraphClient> = {}) {
         workbench: createGraphWorkbench({
             graphClient,
             rendererFactory,
-            rendererKind: 'sigma',
+            rendererType: 'sigma',
             renderContext: { container: document.createElement('div') },
         }),
     };
@@ -386,7 +386,7 @@ describe('graphWorkbench navigation', () => {
         const workbench = createGraphWorkbench({
             graphClient,
             rendererFactory,
-            rendererKind: 'sigma',
+            rendererType: 'sigma',
             renderContext: { container: document.createElement('div') },
         });
 
@@ -495,7 +495,7 @@ describe('graphWorkbench navigation', () => {
         const workbench = createGraphWorkbench({
             graphClient,
             rendererFactory,
-            rendererKind: 'sigma',
+            rendererType: 'sigma',
             renderContext: { container: document.createElement('div') },
         });
 

@@ -9,7 +9,7 @@ import type { SfdpOptions } from './contracts/graph/SfdpOptions';
 import { SOURCE_FORMAT_NEWICK, type SourceFormat } from './contracts/models';
 
 import rendererFactory from './render/rendererFactory';
-import { RENDERER_KIND_SIGMA } from './render/renderer.types';
+import { RendererType } from './render/renderer.types';
 import type { VisualMappingOptions } from './render/mapping/visualMapping';
 import { createGraphWorkbench, type GraphWorkbench } from './app/workbench/graphWorkbench';
 import type { GraphWorkbenchOptions } from './app/workbench/graphWorkbench.types';
@@ -158,7 +158,7 @@ function createWorkbench({ container, apiUrl }: PhyloLensViewOptions): GraphWork
     const options: GraphWorkbenchOptions = {
         graphClient: createGraphClient({ baseUrl: apiUrl }),
         rendererFactory: rendererFactory(),
-        rendererKind: RENDERER_KIND_SIGMA,
+        rendererType: RendererType.Sigma,
         renderContext: { container },
     };
     const snapshotObserver = snapshotAppliedObserverForContainer(container);

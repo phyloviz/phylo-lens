@@ -1,6 +1,6 @@
 import { createGraphClient } from '../services/graph/graphService';
 import rendererFactory from '../render/rendererFactory';
-import { RENDERER_KIND_SIGMA } from '../render/renderer.types';
+import { RendererType } from '../render/renderer.types';
 import { createGraphWorkbench } from './workbench/graphWorkbench';
 import uiShell, { type UiShell } from './uiShell';
 
@@ -116,7 +116,7 @@ export default function bootstrapClientShell(baseUrl = ''): UiShell {
     const workbench = createGraphWorkbench({
         graphClient,
         rendererFactory: rendererFactory(),
-        rendererKind: RENDERER_KIND_SIGMA,
+        rendererType: RendererType.Sigma,
         renderContext: { container: elements.graphRoot },
     });
 

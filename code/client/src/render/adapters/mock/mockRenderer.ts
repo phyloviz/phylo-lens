@@ -1,15 +1,14 @@
-import type { PositionedGraph } from "../../../contracts/positioned";
+import type { PositionedGraph } from '../../../contracts/positioned';
 import {
   type GraphRenderer,
-  RENDERER_KIND_MOCK,
+  RendererType,
   type RenderContext,
   type RenderNodeClickState,
   type RenderViewportRequestState,
-  type RendererKind,
   type RenderViewportState,
-} from "../../renderer.types";
+} from '../../renderer.types';
 
-export const MOCK_RENDERER_EMPTY_CONTAINER = "";
+export const MOCK_RENDERER_EMPTY_CONTAINER = '';
 
 // Mock renderer adapter supports testing and local dry-runs without Sigma runtime.
 export default function () {
@@ -27,7 +26,7 @@ export default function () {
   };
 
   return {
-    kind: RENDERER_KIND_MOCK as RendererKind,
+    kind: RendererType.Mock,
     mount: mount,
     render: render,
     setViewChangeHandler: setViewChangeHandler,
@@ -50,7 +49,7 @@ export default function () {
     emitNodeClick: emitNodeClick,
     emitNodeDoubleClick: emitNodeDoubleClick,
   } satisfies GraphRenderer & {
-    kind: RendererKind;
+    kind: RendererType;
     getRenderedGraph: typeof getRenderedGraph;
     getMountedContainerId: typeof getMountedContainerId;
     getLastCenteredNodeId: typeof getLastCenteredNodeId;

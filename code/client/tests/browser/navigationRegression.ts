@@ -1,5 +1,5 @@
 import './newickNavigation';
-import { SigmaRenderer } from '../../src/render/adapters/sigma/sigmaRenderer';
+import createSigmaRenderer from '../../src/render/adapters/sigma/sigmaRenderer';
 import type { PositionedGraph } from '../../src/contracts/positioned';
 
 const container = document.querySelector<HTMLElement>('#graph')!;
@@ -28,7 +28,7 @@ const slice: PositionedGraph = { ...graph, nodes: graph.nodes.slice(0, 1000), ed
 
 button.addEventListener('click', async () => {
     button.disabled = true;
-    const renderer = new SigmaRenderer();
+    const renderer = createSigmaRenderer();
     const measurements: unknown[] = [];
     const failures: string[] = [];
     try {

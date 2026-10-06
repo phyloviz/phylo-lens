@@ -30,7 +30,7 @@ export function createGraphWorkbench(
     options: GraphWorkbenchOptions,
     snapshotObserver?: SnapshotAppliedObserver
 ): GraphWorkbench {
-    const { graphClient, rendererFactory, rendererKind, renderContext } = options;
+    const { graphClient, rendererFactory, rendererType, renderContext } = options;
     // Single mutable binding for application state.
     // Other mutable variables below are locally owned lifecycle resources.
     let state = createInitialWorkbenchState();
@@ -55,7 +55,7 @@ export function createGraphWorkbench(
         viewportCoordinator = coordinator;
     };
 
-    const renderer = rendererFactory.createRenderer(rendererKind);
+    const renderer = rendererFactory.createRenderer(rendererType);
     renderer.mount(renderContext);
 
     const filters = graphFilters({

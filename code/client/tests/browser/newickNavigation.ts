@@ -1,7 +1,7 @@
 import { toClusterId } from '../../src/contracts/graph/graphIdentifiers';
 import { createGraphClient } from '../../src/services/graph/graphService';
 import { GraphViewportCoordinator } from '../../src/app/workbench/viewport/viewportCoordinator';
-import { SigmaRenderer } from '../../src/render/adapters/sigma/sigmaRenderer';
+import createSigmaRenderer from '../../src/render/adapters/sigma/sigmaRenderer';
 import type { PositionedGraph } from '../../src/contracts/positioned';
 
 const button = document.querySelector<HTMLButtonElement>('#run-newick')!;
@@ -14,7 +14,7 @@ button.addEventListener('click', async () => {
         return;
     }
     button.disabled = true;
-    const renderer = new SigmaRenderer();
+    const renderer = createSigmaRenderer();
     let controller: GraphViewportCoordinator | undefined;
     const records: unknown[] = [];
     let latest: PositionedGraph | undefined;

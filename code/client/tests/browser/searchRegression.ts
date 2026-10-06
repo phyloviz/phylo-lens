@@ -1,6 +1,6 @@
 import { createGraphClient } from '../../src/services/graph/graphService';
 import { createGraphWorkbench } from '../../src/app/workbench/graphWorkbench';
-import { SigmaRenderer } from '../../src/render/adapters/sigma/sigmaRenderer';
+import createSigmaRenderer from '../../src/render/adapters/sigma/sigmaRenderer';
 import type { PositionedGraph } from '../../src/contracts/positioned';
 
 const output = document.querySelector<HTMLElement>('#result')!;
@@ -15,7 +15,7 @@ button.addEventListener('click', async () => {
     button.disabled = true;
     disposePrevious?.();
     const client = createGraphClient({ baseUrl: location.origin });
-    const renderer = new SigmaRenderer();
+    const renderer = createSigmaRenderer();
     let release: (() => void) | undefined;
     let delayed = false;
     const workbench = createGraphWorkbench({
@@ -33,7 +33,7 @@ button.addEventListener('click', async () => {
             },
         },
         rendererFactory: { createRenderer: () => renderer },
-        rendererKind: 'sigma',
+        rendererType: 'sigma',
         renderContext: { container: document.querySelector<HTMLElement>('#graph')! },
     });
     disposePrevious = () => workbench.dispose();

@@ -18,7 +18,7 @@ import type {
     RenderContext,
     RenderViewportBounds,
     RendererFactory,
-    RendererKind,
+    RendererType,
 } from '../../render/renderer.types';
 import type { AncillaryInputOptions } from '../../ancillary/ancillaryInput';
 
@@ -58,7 +58,7 @@ export interface LoadGraphOptions extends AncillaryInputOptions {
 export interface GraphWorkbenchOptions {
     graphClient: GraphClient;
     rendererFactory: RendererFactory;
-    rendererKind: RendererKind;
+    rendererType: RendererType;
     renderContext: RenderContext;
 }
 

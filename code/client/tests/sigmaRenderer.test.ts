@@ -24,6 +24,7 @@ let emitMotion: ((positions: number[]) => void) | undefined;
 let pumpMotion: ((iterations: number) => void) | undefined;
 let lastResizeHandler: (() => void) | null = null;
 let sigmaDimensions = { width: 300, height: 200 };
+let sigmaScaleSize: ((size: number) => number) | undefined;
 let lastStageClickHandler: (() => void) | null = null;
 let lastNodeClickHandler: ((payload: { node?: string; event?: { node?: string } }) => void) | null = null;
 let lastNodeDoubleClickHandler: ((payload: { node?: string; event?: { node?: string } }) => void) | null = null;
@@ -192,6 +193,10 @@ vi.mock('sigma', () => {
             return sigmaDimensions;
         }
 
+        get scaleSize() {
+            return sigmaScaleSize;
+        }
+
         setCustomBBox(bounds: { x: [number, number]; y: [number, number] } | null) {
             lastCustomBBox = bounds;
             customBBoxCalls += 1;
@@ -206,9 +211,8 @@ vi.mock('sigma', () => {
     return { default: FakeSigma };
 });
 
-import {
+import createSigmaRenderer, {
     SIGMA_MAX_LOD_ZOOM,
-    SigmaRenderer,
     sigmaCameraToViewportState,
     sigmaCameraToSemanticViewState,
     sigmaRatioToLodZoom,
@@ -235,6 +239,7 @@ function requireContainer(): HTMLElement {
 describe('sigmaRenderer', () => {
     beforeEach(() => {
         workerCommands = [];
+        sigmaScaleSize = undefined;
         document.body.innerHTML = `<div id="${CONTAINER_ID}"></div>`;
         downHandler = null;
         mouseHandlers.clear();
@@ -270,7 +275,7 @@ describe('sigmaRenderer', () => {
     it('mounts, renders, and unmounts with a valid container', () => {
         document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
 
-        const renderer = new SigmaRenderer();
+        const renderer = createSigmaRenderer();
 
         renderer.mount({ container: requireContainer() });
         renderer.render({
@@ -285,8 +290,28 @@ describe('sigmaRenderer', () => {
         renderer.unmount();
     });
 
+    it('keeps renderer instances independent and allows methods to be passed as callbacks', () => {
+        const first = createSigmaRenderer({ forceMotion: { enabled: false } });
+        const second = createSigmaRenderer({ forceMotion: { enabled: false } });
+        first.mount({ container: document.createElement('div') });
+        const firstGraph = lastGraph!;
+        second.mount({ container: document.createElement('div') });
+        const secondGraph = lastGraph!;
+
+        const { render, unmount } = first;
+        render({ nodes: [{ id: 'a', x: 1, y: 2 }], edges: [], viewMeta: { layout: 'server', lodLevel: 0 } });
+        expect(firstGraph.nodes()).toEqual(['a']);
+        expect(secondGraph.nodes()).toEqual([]);
+
+        unmount();
+        second.render({ nodes: [{ id: 'b', x: 3, y: 4 }], edges: [], viewMeta: { layout: 'server', lodLevel: 0 } });
+        expect(secondGraph.nodes()).toEqual(['b']);
+        expect(second.getViewportState()).not.toBeNull();
+        second.unmount();
+    });
+
     it('refreshes viewport detail on resize without requiring a camera change', () => {
-        const renderer = new SigmaRenderer();
+        const renderer = createSigmaRenderer();
         renderer.mount({ container: document.createElement('div') });
         renderer.render({ nodes: [{ id: 'a', x: 0, y: 0 }], edges: [], viewMeta: { layout: 'server', lodLevel: 0 } });
         const handler = vi.fn();
@@ -300,10 +325,9 @@ describe('sigmaRenderer', () => {
     });
 
     it('keeps a stable footprint budget across tiers and resets it for a new render', () => {
-        const renderer = new SigmaRenderer({ forceMotion: { enabled: false } });
+        const renderer = createSigmaRenderer({ forceMotion: { enabled: false } });
         renderer.mount({ container: document.createElement('div') });
-        const sigma = (renderer as unknown as { sigma: { scaleSize: (size: number) => number } }).sigma;
-        sigma.scaleSize = size => size;
+        sigmaScaleSize = size => size;
         const snapshot = {
             nodes: [{ id: 'a', x: 0, y: 0, size: 20 }],
             edges: [],
@@ -322,7 +346,7 @@ describe('sigmaRenderer', () => {
     it('exposes renderer-neutral viewport sync state', () => {
         document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
 
-        const renderer = new SigmaRenderer();
+        const renderer = createSigmaRenderer();
         renderer.mount({ container: requireContainer() });
         lastCamera?.setState({ ratio: 2 });
 
@@ -340,7 +364,7 @@ describe('sigmaRenderer', () => {
     it('emits separate node click and double-click callbacks', () => {
         document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
 
-        const renderer = new SigmaRenderer();
+        const renderer = createSigmaRenderer();
         const clickHandler = vi.fn();
         const doubleClickHandler = vi.fn();
         renderer.mount({ container: requireContainer() });
@@ -371,7 +395,7 @@ describe('sigmaRenderer', () => {
         document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
         graphToViewportPoint = point => ({ x: point.x + 100, y: point.y + 50 });
 
-        const renderer = new SigmaRenderer();
+        const renderer = createSigmaRenderer();
         renderer.mount({ container: requireContainer() });
         renderer.render({
             nodes: [
@@ -397,7 +421,7 @@ describe('sigmaRenderer', () => {
     it('keeps camera and node handlers bound after Sigma is rebuilt for pie programs', () => {
         document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
 
-        const renderer = new SigmaRenderer();
+        const renderer = createSigmaRenderer();
         const viewHandler = vi.fn();
         const clickHandler = vi.fn();
         renderer.mount({ container: requireContainer() });
@@ -442,7 +466,7 @@ describe('sigmaRenderer', () => {
     it('dims non-highlighted nodes/edges via reducers and clears them', () => {
         document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
 
-        const renderer = new SigmaRenderer();
+        const renderer = createSigmaRenderer();
         renderer.mount({ container: requireContainer() });
         renderer.render({
             nodes: [
@@ -492,7 +516,7 @@ describe('sigmaRenderer', () => {
     it('runs live force motion for both client and server layouts', () => {
         document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
 
-        const renderer = new SigmaRenderer();
+        const renderer = createSigmaRenderer();
         renderer.mount({ container: requireContainer() });
         renderer.render({
             nodes: [
@@ -526,7 +550,7 @@ describe('sigmaRenderer', () => {
     it('allows scale-aware force settings to be overridden', () => {
         document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
 
-        const renderer = new SigmaRenderer({
+        const renderer = createSigmaRenderer({
             forceMotion: {
                 settings: { anchorStrength: 0.05, linkStrength: 0.4 },
             },
@@ -552,7 +576,7 @@ describe('sigmaRenderer', () => {
     it('can disable live force motion', () => {
         document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
 
-        const renderer = new SigmaRenderer({ forceMotion: { enabled: false } });
+        const renderer = createSigmaRenderer({ forceMotion: { enabled: false } });
         renderer.mount({ container: requireContainer() });
         renderer.render({
             nodes: [
@@ -571,7 +595,7 @@ describe('sigmaRenderer', () => {
     it('registers node programs for selected nodes and expandable cluster proxies', () => {
         document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
 
-        const renderer = new SigmaRenderer();
+        const renderer = createSigmaRenderer();
         renderer.mount({ container: requireContainer() });
 
         const nodeProgramClasses = lastSigmaOptions?.['nodeProgramClasses'] as Record<string, unknown> | undefined;
@@ -586,7 +610,7 @@ describe('sigmaRenderer', () => {
     it('points cluster proxy triangle tips at their incident tree edges', () => {
         document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
 
-        const renderer = new SigmaRenderer();
+        const renderer = createSigmaRenderer();
         renderer.mount({ container: requireContainer() });
         renderer.render({
             nodes: [
@@ -611,7 +635,7 @@ describe('sigmaRenderer', () => {
     it('keeps cluster proxy triangle tips aligned while force motion moves nodes', () => {
         document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
 
-        const renderer = new SigmaRenderer();
+        const renderer = createSigmaRenderer();
         renderer.mount({ container: requireContainer() });
         renderer.render({
             nodes: [
@@ -637,7 +661,7 @@ describe('sigmaRenderer', () => {
     it('uses centered node labels and hides implementation-only node ids', () => {
         document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
 
-        const renderer = new SigmaRenderer();
+        const renderer = createSigmaRenderer();
         renderer.mount({ container: requireContainer() });
         renderer.render({
             nodes: [
@@ -680,7 +704,7 @@ describe('sigmaRenderer', () => {
     it('renders edge distance labels and distance-weighted edge sizes', () => {
         document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
 
-        const renderer = new SigmaRenderer({
+        const renderer = createSigmaRenderer({
             display: {
                 edgeDistanceLabels: true,
                 distanceWeightedEdges: true,
@@ -722,7 +746,7 @@ describe('sigmaRenderer', () => {
     it('updates display options without remounting the workbench', () => {
         document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
 
-        const renderer = new SigmaRenderer();
+        const renderer = createSigmaRenderer();
         renderer.mount({ container: requireContainer() });
         renderer.render({
             nodes: [
@@ -769,7 +793,7 @@ describe('sigmaRenderer', () => {
     it('applies PHYLOViZ node and goeBURST edge color conventions', () => {
         document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
 
-        const renderer = new SigmaRenderer();
+        const renderer = createSigmaRenderer();
         renderer.mount({ container: requireContainer() });
         renderer.render({
             nodes: [
@@ -825,7 +849,7 @@ describe('sigmaRenderer', () => {
     it('marks focused search nodes as PHYLOViZ selected nodes', () => {
         document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
 
-        const renderer = new SigmaRenderer({
+        const renderer = createSigmaRenderer({
             display: {
                 nodeLabels: false,
             },
@@ -878,7 +902,7 @@ describe('sigmaRenderer', () => {
             y: (point.y - 50) / 40,
         });
 
-        const renderer = new SigmaRenderer();
+        const renderer = createSigmaRenderer();
         renderer.mount({ container: requireContainer() });
 
         expect(renderer.centerOnCoordinates(25, -5)).toBe(true);
@@ -894,7 +918,7 @@ describe('sigmaRenderer', () => {
     it('clears focused node selection when the canvas background is clicked', () => {
         document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
 
-        const renderer = new SigmaRenderer();
+        const renderer = createSigmaRenderer();
         const nodeClickHandler = vi.fn();
         renderer.mount({ container: requireContainer() });
         renderer.setNodeClickHandler(nodeClickHandler);
@@ -921,7 +945,7 @@ describe('sigmaRenderer', () => {
     it('uses darker Full MST grayscale links for lower distances', () => {
         document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
 
-        const renderer = new SigmaRenderer();
+        const renderer = createSigmaRenderer();
         renderer.mount({ container: requireContainer() });
         renderer.render({
             nodes: [
@@ -996,7 +1020,7 @@ describe('sigmaRenderer', () => {
     it('emits camera viewports in global graph bounds when a slice provides them', () => {
         document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
 
-        const renderer = new SigmaRenderer();
+        const renderer = createSigmaRenderer();
         const handler = vi.fn();
         renderer.mount({ container: requireContainer() });
         renderer.setViewChangeHandler(handler);
@@ -1039,7 +1063,7 @@ describe('sigmaRenderer', () => {
         const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {
             return undefined;
         });
-        const renderer = new SigmaRenderer();
+        const renderer = createSigmaRenderer();
         renderer.mount({ container: requireContainer() });
         renderer.render({
             nodes: [{ id: 'a', x: 0, y: 0 }],
@@ -1093,7 +1117,7 @@ describe('sigmaRenderer', () => {
             viewMeta: { layout: 'server' as const, lodLevel: 0 },
         };
 
-        const renderer = new SigmaRenderer();
+        const renderer = createSigmaRenderer();
         renderer.mount({ container: requireContainer() });
         // One construction from mount(); reset so we count only snapshot-driven rebuilds.
         sigmaConstructions = 0;
@@ -1118,7 +1142,7 @@ describe('sigmaRenderer', () => {
             },
         };
 
-        const renderer = new SigmaRenderer();
+        const renderer = createSigmaRenderer();
         renderer.mount({ container: requireContainer() });
         lastCamera?.setState({ x: 0.35, y: 0.45, ratio: 0.2 });
 
@@ -1139,7 +1163,7 @@ describe('sigmaRenderer', () => {
 
     it('preserves the global coordinate frame when toggling labels on a partial slice', () => {
         document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
-        const renderer = new SigmaRenderer();
+        const renderer = createSigmaRenderer();
         renderer.mount({ container: requireContainer() });
         renderer.applyGraphSnapshot({
             nodes: [{ id: 'leaf', x: 10, y: 5 }],
@@ -1175,7 +1199,7 @@ describe('sigmaRenderer', () => {
 
     it('keeps worker motion on while dragging, protects pins and defers viewport replacement', () => {
         document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
-        const renderer = new SigmaRenderer();
+        const renderer = createSigmaRenderer();
         renderer.mount({ container: requireContainer() });
         const snapshot: PositionedGraph = {
             nodes: [
@@ -1186,7 +1210,7 @@ describe('sigmaRenderer', () => {
             viewMeta: { layout: 'server', lodLevel: 0, globalBounds: { minX: 0, maxX: 100, minY: 0, maxY: 100 } },
         };
         renderer.applyGraphSnapshot(snapshot);
-        const graph = (renderer as unknown as { graph: Graph }).graph;
+        const graph = lastGraph!;
         downHandler?.({ node: 'a', event: { x: 0, y: 0 } });
         mouseHandlers.get('mousemovebody')?.forEach(handler => handler({ x: 4, y: 3 }));
         expect(renderer.isManipulating()).toBe(true);
@@ -1215,7 +1239,7 @@ describe('sigmaRenderer', () => {
 
     it('animates expansion from a moved proxy, preserves pause and does not transition ordinary refreshes', () => {
         document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
-        const renderer = new SigmaRenderer({ forceMotion: { enabled: false } });
+        const renderer = createSigmaRenderer({ forceMotion: { enabled: false } });
         renderer.mount({ container: requireContainer() });
         const coarse: PositionedGraph = {
             nodes: [{ id: 'p', x: 20, y: 0, size: 3, attributes: { isClusterProxy: true, clusterId: 'g' } }],
@@ -1235,7 +1259,7 @@ describe('sigmaRenderer', () => {
             edges: [{ id: 'ab', source: 'a', target: 'b' }],
         };
         renderer.applyGraphSnapshot(fine);
-        const graph = (renderer as unknown as { graph: Graph }).graph;
+        const graph = lastGraph!;
         expect(graph.getNodeAttributes('a')).toMatchObject({ x: 25, y: 3 });
         expect(renderer.isManipulating()).toBe(true);
         animationFrameCallback?.(performance.now() + 300);
@@ -1254,7 +1278,7 @@ describe('sigmaRenderer', () => {
 
     it('interrupts child animation at the displayed position when direct dragging starts', () => {
         document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
-        const renderer = new SigmaRenderer({ forceMotion: { enabled: false } });
+        const renderer = createSigmaRenderer({ forceMotion: { enabled: false } });
         renderer.mount({ container: requireContainer() });
         const viewMeta: PositionedGraph['viewMeta'] = {
             layout: 'server',
@@ -1275,7 +1299,7 @@ describe('sigmaRenderer', () => {
             viewMeta,
         });
         animationFrameCallback?.(performance.now() + 80);
-        const graph = (renderer as unknown as { graph: Graph }).graph;
+        const graph = lastGraph!;
         const x = graph.getNodeAttribute('a', 'x');
         expect(x).toBeGreaterThan(20);
         expect(x).toBeLessThan(25);
@@ -1290,7 +1314,7 @@ describe('sigmaRenderer', () => {
 
     it('retains dragged positions while replacing ancillary presentation', () => {
         document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
-        const renderer = new SigmaRenderer();
+        const renderer = createSigmaRenderer();
         renderer.mount({ container: requireContainer() });
         const snapshot: PositionedGraph = {
             nodes: [{ id: 'a', x: 0, y: 0, color: '#123456', size: 3 }],
@@ -1298,7 +1322,7 @@ describe('sigmaRenderer', () => {
             viewMeta: { layout: 'server', lodLevel: 0 },
         };
         renderer.applyGraphSnapshot(snapshot);
-        const graph = (renderer as unknown as { graph: Graph }).graph;
+        const graph = lastGraph!;
         graph.mergeNodeAttributes('a', { x: 0.05, y: 0.07 });
         renderer.applyGraphSnapshot(
             { ...snapshot, nodes: [{ ...snapshot.nodes[0], color: '#abcdef' }] },
@@ -1311,7 +1335,7 @@ describe('sigmaRenderer', () => {
     it('rebuilds pie programs when category colors change', () => {
         document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
 
-        const renderer = new SigmaRenderer();
+        const renderer = createSigmaRenderer();
         renderer.mount({ container: requireContainer() });
         renderer.render({
             nodes: [
@@ -1358,7 +1382,7 @@ describe('sigmaRenderer', () => {
     it('renders omitted high-cardinality pie values through Others', () => {
         document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
 
-        const renderer = new SigmaRenderer();
+        const renderer = createSigmaRenderer();
         renderer.mount({ container: requireContainer() });
         renderer.render({
             nodes: Array.from({ length: MAX_PIE_SLICE_KEYS + 2 }, (_, index) => ({
@@ -1386,7 +1410,7 @@ describe('sigmaRenderer', () => {
         document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
 
         const categories = Array.from({ length: 24 }, (_, index) => `emm_${index}`);
-        const renderer = new SigmaRenderer();
+        const renderer = createSigmaRenderer();
         renderer.mount({ container: requireContainer() });
         renderer.render({
             nodes: categories.map((category, index) => ({
@@ -1413,7 +1437,7 @@ describe('sigmaRenderer', () => {
     it('toggles and restores node selection styling in-place in viewport sync mode', () => {
         document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
 
-        const renderer = new SigmaRenderer();
+        const renderer = createSigmaRenderer();
         renderer.mount({ container: requireContainer() });
         renderer.applyGraphSnapshot({
             nodes: [
@@ -1424,7 +1448,7 @@ describe('sigmaRenderer', () => {
             viewMeta: { layout: 'server', lodLevel: 0 },
         });
 
-        const graph = (renderer as unknown as { graph: Graph }).graph;
+        const graph = lastGraph!;
 
         // Nodes keep their base graphology attributes; selection is a render reducer.
         expect(graph.getNodeAttribute('node_1', 'unselectedStyle')).toBeUndefined();
@@ -1465,7 +1489,7 @@ describe('sigmaRenderer', () => {
 
         vi.spyOn(performance, 'now').mockReturnValue(0);
 
-        const renderer = new SigmaRenderer();
+        const renderer = createSigmaRenderer();
         renderer.mount({ container: requireContainer() });
 
         renderer.render({
@@ -1499,6 +1523,41 @@ describe('sigmaRenderer', () => {
 
         renderer.unmount();
     });
+
+    it('ignores queued transition frames after a newer snapshot or unmount', () => {
+        const renderer = createSigmaRenderer({ forceMotion: { enabled: false } });
+        renderer.mount({ container: requireContainer() });
+        renderer.render({ nodes: [{ id: 'a', x: 0, y: 0 }], edges: [], viewMeta: { layout: 'server', lodLevel: 0 } });
+        renderer.applyGraphSnapshot({
+            nodes: [{ id: 'a', x: 10, y: 0 }],
+            edges: [],
+            viewMeta: { layout: 'server', lodLevel: 1 },
+        });
+        const oldFrame = animationFrameCallback;
+        expect(oldFrame).not.toBeNull();
+
+        renderer.applyGraphSnapshot({
+            nodes: [{ id: 'b', x: 20, y: 0 }],
+            edges: [],
+            viewMeta: { layout: 'server', lodLevel: 2 },
+        });
+        const currentFrame = animationFrameCallback;
+        expect(currentFrame).not.toBeNull();
+        const graph = lastGraph!;
+        const notify = vi.fn();
+        renderer.setManipulationHandler(notify);
+        oldFrame?.(performance.now() + 300);
+        expect(graph.nodes()).toEqual(['b']);
+        expect(graph.getNodeAttributes('b')).toMatchObject({ x: 20, y: 0 });
+        expect(renderer.isManipulating()).toBe(true);
+        expect(notify).not.toHaveBeenCalled();
+
+        renderer.unmount();
+        currentFrame?.(performance.now() + 300);
+        expect(renderer.isManipulating()).toBe(false);
+        expect(graph.getNodeAttributes('b')).toMatchObject({ x: 20, y: 0 });
+        expect(notify).not.toHaveBeenCalled();
+    });
     const snapshot = (attributes: GraphNodeAttributes = {}) => ({
         nodes: [
             { id: 'a', x: 0, y: 0, size: 3, color: '#123456', attributes },
@@ -1510,7 +1569,7 @@ describe('sigmaRenderer', () => {
         viewMeta: { layout: 'server' as const, lodLevel: 0 },
     });
     it('keeps snapshot edge attributes independent from Graphology updates', () => {
-        const renderer = new SigmaRenderer({ forceMotion: { enabled: false } });
+        const renderer = createSigmaRenderer({ forceMotion: { enabled: false } });
         renderer.mount({ container: requireContainer() });
         const graph = snapshot();
         Object.freeze(graph.edges[0].attributes);
@@ -1521,7 +1580,7 @@ describe('sigmaRenderer', () => {
         renderer.unmount();
     });
     it('owns highlight sets instead of observing edits to the supplied set', () => {
-        const renderer = new SigmaRenderer({ forceMotion: { enabled: false } });
+        const renderer = createSigmaRenderer({ forceMotion: { enabled: false } });
         renderer.mount({ container: requireContainer() });
         renderer.applyGraphSnapshot(snapshot());
         const selected = new Set(['a']);
@@ -1559,7 +1618,7 @@ describe('sigmaRenderer', () => {
         physics.dispose();
     });
     it('reuses one pie update path for render and viewport snapshots', () => {
-        const renderer = new SigmaRenderer({ forceMotion: { enabled: false } });
+        const renderer = createSigmaRenderer({ forceMotion: { enabled: false } });
         renderer.mount({ container: requireContainer() });
         const graph = snapshot();
         graph.nodes[0].attributes = { pie__one: 2, __pie_category_colors: { pie__one: '#ff0000' } };
@@ -1583,7 +1642,7 @@ describe('sigmaRenderer', () => {
         renderer.unmount();
     });
     it('keeps the pie fast path and releases event handlers on teardown', () => {
-        const renderer = new SigmaRenderer({ piechart: { enabled: false }, forceMotion: { enabled: false } });
+        const renderer = createSigmaRenderer({ piechart: { enabled: false }, forceMotion: { enabled: false } });
         renderer.mount({ container: requireContainer() });
         renderer.applyGraphSnapshot(snapshot());
         const graph = lastGraph!;
@@ -1600,7 +1659,7 @@ describe('sigmaRenderer', () => {
         expect(lastCamera?.handler).toBeNull();
     });
     it('retains the pie-program failure fallback', () => {
-        const renderer = new SigmaRenderer({ forceMotion: { enabled: false } });
+        const renderer = createSigmaRenderer({ forceMotion: { enabled: false } });
         renderer.mount({ container: requireContainer() });
         const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
         shouldThrowOnPieProgram = true;
@@ -1614,7 +1673,7 @@ describe('sigmaRenderer', () => {
 
     it('captures nested renderer settings before mounting', () => {
         const options = { label: { size: 13 }, display: { nodeLabels: true }, edge: { labelSize: 9 } };
-        const renderer = new SigmaRenderer(options);
+        const renderer = createSigmaRenderer(options);
         options.label.size = 50;
         options.display.nodeLabels = false;
         options.edge.labelSize = 50;

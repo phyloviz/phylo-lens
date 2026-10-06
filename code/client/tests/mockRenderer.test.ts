@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import mockRenderer from '../src/render/adapters/mock/mockRenderer';
-import { RENDERER_KIND_MOCK } from '../src/render/renderer.types';
+import { RendererType } from '../src/render/renderer.types';
 import type { PositionedGraph } from '../src/contracts/positioned';
 
 describe('mockRenderer', () => {
@@ -17,7 +17,7 @@ describe('mockRenderer', () => {
         const clickHandler = vi.fn();
         const doubleClickHandler = vi.fn();
 
-        expect(renderer.kind).toBe(RENDERER_KIND_MOCK);
+        expect(renderer.kind).toBe(RendererType.Mock);
 
         const container = document.createElement('div');
         container.id = 'graph-root';

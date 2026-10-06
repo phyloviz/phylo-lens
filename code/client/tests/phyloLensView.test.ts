@@ -92,7 +92,7 @@ describe('createPhyloLensView', () => {
             rendererFactory: expect.objectContaining({
                 createRenderer: mocks.createRenderer,
             }),
-            rendererKind: 'sigma',
+            rendererType: 'sigma',
             renderContext: { container },
         });
         expect(mocks.loadGraph).toHaveBeenCalledWith(
