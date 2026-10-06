@@ -88,11 +88,6 @@ def _configured_phylolib_jar() -> Path | None:
     return path if path.is_file() else None
 
 
-def phylolib_jar_available() -> bool:
-    """Report whether a local PhyloLib JAR is configured and readable."""
-    return _configured_phylolib_jar() is not None
-
-
 def _java_command() -> str:
     return os.environ.get(ENV_PHYLOLIB_JAVA, JAVA_COMMAND)
 

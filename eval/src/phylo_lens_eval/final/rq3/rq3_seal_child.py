@@ -2,18 +2,17 @@
 
 from __future__ import annotations
 
+from phylo_lens_server.domain.models import SourceFormat
+
 import argparse
 import json
 from pathlib import Path
 
-from phylo_lens_server.data.normalizer import (
-    NormalizeFormat,
-    NormalizeRequest,
-    normalize_dataset,
-)
-from phylo_lens_server.pipeline.worker import PreparedLayoutWorker
+from phylo_lens_server.domain.preparation import PrepareInput
+from phylo_lens_server.pipeline.ingestion import ingest_dataset
+from phylo_lens_server.services.preparation import PreparationService
 from phylo_lens_server.repository.layout.sqlite_layout_repository import (
-    PreparedLayoutStore,
+    SQLiteLayoutRepository,
 )
 
 from ...core.common import write_json
@@ -26,15 +25,15 @@ def main() -> None:
     args = parser.parse_args()
     request = json.loads(args.request.read_text(encoding="utf-8"))
     try:
-        normalized = normalize_dataset(
-            NormalizeRequest(
-                format=NormalizeFormat.NEWICK,
+        normalized = ingest_dataset(
+            PrepareInput(
+                format=SourceFormat.NEWICK,
                 dataset_name=request["dataset_id"],
                 content=Path(request["source_path"]).read_text(encoding="utf-8"),
             )
         )
-        result = PreparedLayoutWorker(
-            PreparedLayoutStore(Path(request["persistence_dir"]))
+        result = PreparationService(
+            SQLiteLayoutRepository(Path(request["persistence_dir"]))
         ).prepare_dataset(normalized.dataset)
         write_json(
             args.output,

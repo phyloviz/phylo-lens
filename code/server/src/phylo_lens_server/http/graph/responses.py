@@ -1,7 +1,15 @@
 from __future__ import annotations
 
+from phylo_lens_server.domain.search import SearchReadResult
+from phylo_lens_server.domain.views import (
+    RegionReadResult,
+    ViewportEdge,
+    ViewportNode,
+    ViewportReadResult,
+)
 from phylo_lens_server.http.graph.schemas import (
     GraphAncillaryField,
+    GraphIsolate,
     GraphLayoutBounds,
     GraphRegionResponse,
     GraphSearchMatch,
@@ -10,52 +18,21 @@ from phylo_lens_server.http.graph.schemas import (
     GraphViewportNode,
     GraphViewportResponse,
 )
-from phylo_lens_server.pipeline.models import (
-    RegionReadResult,
-    SearchReadResult,
-    ViewportReadResult,
-)
 
 
 def graph_viewport_response_from_result(
     result: ViewportReadResult,
-    *,
-    lod_level: int | None,
-    zoom: float,
 ) -> GraphViewportResponse:
     return GraphViewportResponse(
         dataset_id=result.dataset_id,
         layout_version=result.layout_version,
-        lod_level=lod_level,
-        zoom=zoom,
+        lod_level=result.lod_level,
+        zoom=result.zoom,
         layout_status=result.layout_status,
         truncated=result.truncated,
         total_node_count=result.total_node_count,
-        nodes=[
-            GraphViewportNode(
-                id=node.node_id,
-                cluster_id=node.cluster_id,
-                x=node.x,
-                y=node.y,
-                layout_status=node.layout_status,
-                member_count=node.member_count,
-                is_representative=node.is_representative,
-                metadata=node.metadata,
-                isolates=list(node.isolates),
-                ancillary_distribution=list(node.ancillary_distribution),
-            )
-            for node in result.nodes
-        ],
-        edges=[
-            GraphViewportEdge(
-                id=edge.edge_id,
-                source=edge.source,
-                target=edge.target,
-                distance=edge.distance,
-                is_meta=edge.is_meta,
-            )
-            for edge in result.edges
-        ],
+        nodes=[node_response(node) for node in result.nodes],
+        edges=[edge_response(edge) for edge in result.edges],
         global_bounds=(
             GraphLayoutBounds(
                 min_x=result.global_bounds.min_x,
@@ -82,31 +59,8 @@ def graph_region_response_from_result(
         layout_status=result.layout_status,
         truncated=result.truncated,
         total_node_count=result.total_node_count,
-        nodes=[
-            GraphViewportNode(
-                id=node.node_id,
-                cluster_id=node.cluster_id,
-                x=node.x,
-                y=node.y,
-                layout_status=node.layout_status,
-                member_count=node.member_count,
-                is_representative=node.is_representative,
-                metadata=node.metadata,
-                isolates=list(node.isolates),
-                ancillary_distribution=list(node.ancillary_distribution),
-            )
-            for node in result.nodes
-        ],
-        edges=[
-            GraphViewportEdge(
-                id=edge.edge_id,
-                source=edge.source,
-                target=edge.target,
-                distance=edge.distance,
-                is_meta=edge.is_meta,
-            )
-            for edge in result.edges
-        ],
+        nodes=[node_response(node) for node in result.nodes],
+        edges=[edge_response(edge) for edge in result.edges],
         metadata_schema=[
             GraphAncillaryField(key=field.key, type=field.type)
             for field in result.metadata_schema
@@ -134,4 +88,29 @@ def graph_search_response_from_result(
             for match in result.matches
         ],
         total_count=result.total_count,
+    )
+
+
+def node_response(node: ViewportNode) -> GraphViewportNode:
+    return GraphViewportNode(
+        id=node.node_id,
+        cluster_id=node.cluster_id,
+        x=node.x,
+        y=node.y,
+        layout_status=node.layout_status,
+        member_count=node.member_count,
+        is_representative=node.is_representative,
+        metadata=node.metadata,
+        isolates=[GraphIsolate.model_validate(isolate) for isolate in node.isolates],
+        ancillary_distribution=list(node.ancillary_distribution),
+    )
+
+
+def edge_response(edge: ViewportEdge) -> GraphViewportEdge:
+    return GraphViewportEdge(
+        id=edge.edge_id,
+        source=edge.source,
+        target=edge.target,
+        distance=edge.distance,
+        is_meta=edge.is_meta,
     )

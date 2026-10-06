@@ -4,19 +4,21 @@ from time import sleep
 import pytest
 from fastapi.testclient import TestClient
 
-from phylo_lens_server.data.normalizer import NormalizeRequest, normalize_dataset
 from phylo_lens_server.http.graph.dependencies import (
     get_prepare_job_registry,
     get_prepared_layout_store,
 )
+from phylo_lens_server.http.graph.schemas import NormalizeRequest
+from phylo_lens_server.jobs.executor import PrepareExecutor
+from phylo_lens_server.jobs.local import PrepareJobRegistry
 from phylo_lens_server.main import app
+from phylo_lens_server.pipeline.ingestion import ingest_dataset
 from phylo_lens_server.pipeline.layout import GRAPHVIZ_SFDP_COMMAND
-from phylo_lens_server.pipeline.worker import PreparedLayoutWorker
-from phylo_lens_server.repository.jobs.local import PrepareJobRegistry
 from phylo_lens_server.repository.layout.sqlite_layout_repository import (
-    PreparedLayoutStore,
+    SQLiteLayoutRepository,
 )
-from phylo_lens_server.services import graph_service
+from phylo_lens_server.services import graph_reads as graph_service
+from phylo_lens_server.services.preparation import PreparationService
 from phylo_lens_server.utils.versions import API_VERSION, service_version
 
 SFDP_AVAILABLE = shutil.which(GRAPHVIZ_SFDP_COMMAND) is not None
@@ -43,12 +45,14 @@ WEIGHTED_TREE_CONTENT = "(((d:4)c:2)b:1)a;"
 
 @pytest.fixture
 def client(tmp_path):
-    prepared_layout_store = PreparedLayoutStore(tmp_path / "prepared_layout")
+    prepared_layout_store = SQLiteLayoutRepository(tmp_path / "prepared_layout")
     # The background prepare worker must write into the same store the viewport
     # route reads from, so bind the job registry to this test store explicitly.
     # dependency_overrides only patches FastAPI-injected params, not the direct
     # get_prepared_layout_store() call inside the cached registry factory.
-    job_registry = PrepareJobRegistry(PreparedLayoutWorker(prepared_layout_store))
+    job_registry = PrepareJobRegistry(
+        PrepareExecutor(PreparationService(prepared_layout_store))
+    )
     get_prepared_layout_store.cache_clear()
     get_prepare_job_registry.cache_clear()
     app.dependency_overrides[get_prepared_layout_store] = lambda: prepared_layout_store
@@ -82,7 +86,7 @@ def prepare_and_wait(client: TestClient, payload: dict) -> dict:
 
 @pytest.fixture
 def prepared_layout_store(tmp_path):
-    return PreparedLayoutStore(tmp_path / "prepared_layout")
+    return SQLiteLayoutRepository(tmp_path / "prepared_layout")
 
 
 def test_health(client) -> None:
@@ -278,7 +282,7 @@ def test_graph_viewport_lod_zero_without_bounds_shows_root_and_pendant_cluster(
     prepared_layout_store,
 ) -> None:
     dataset = normalize_unit_distance_chain()
-    result = PreparedLayoutWorker(prepared_layout_store).prepare_dataset(dataset)
+    result = PreparationService(prepared_layout_store).prepare_dataset(dataset)
     app.dependency_overrides[get_prepared_layout_store] = lambda: prepared_layout_store
 
     response = client.post(
@@ -307,7 +311,7 @@ def test_graph_lod_zero_uses_real_representative_node_ids(
     prepared_layout_store,
 ) -> None:
     dataset = large_clustered_tree()
-    result = PreparedLayoutWorker(prepared_layout_store).prepare_dataset(dataset)
+    result = PreparationService(prepared_layout_store).prepare_dataset(dataset)
     app.dependency_overrides[get_prepared_layout_store] = lambda: prepared_layout_store
     original_node_ids = {node.id for node in dataset.nodes}
 
@@ -337,7 +341,7 @@ def test_graph_viewport_applies_density_cap(
     prepared_layout_store,
 ) -> None:
     dataset = normalize_weighted_api_tree()
-    result = PreparedLayoutWorker(prepared_layout_store).prepare_dataset(dataset)
+    result = PreparationService(prepared_layout_store).prepare_dataset(dataset)
     app.dependency_overrides[get_prepared_layout_store] = lambda: prepared_layout_store
     xs = [position.x for position in result.node_positions]
     ys = [position.y for position in result.node_positions]
@@ -378,7 +382,7 @@ def test_graph_region_returns_internal_subgraph_and_aggregate(
     prepared_layout_store,
 ) -> None:
     dataset = normalize_weighted_api_tree()
-    result = PreparedLayoutWorker(prepared_layout_store).prepare_dataset(dataset)
+    result = PreparationService(prepared_layout_store).prepare_dataset(dataset)
     app.dependency_overrides[get_prepared_layout_store] = lambda: prepared_layout_store
     xs = [position.x for position in result.node_positions]
     ys = [position.y for position in result.node_positions]
@@ -428,7 +432,7 @@ def test_graph_viewport_lod_one_reads_real_nodes(
     prepared_layout_store,
 ) -> None:
     dataset = normalize_unit_distance_chain()
-    result = PreparedLayoutWorker(prepared_layout_store).prepare_dataset(dataset)
+    result = PreparationService(prepared_layout_store).prepare_dataset(dataset)
     app.dependency_overrides[get_prepared_layout_store] = lambda: prepared_layout_store
     xs = [position.x for position in result.node_positions]
     ys = [position.y for position in result.node_positions]
@@ -460,7 +464,7 @@ def test_graph_viewport_reads_cluster_members_without_bounds(
     prepared_layout_store,
 ) -> None:
     dataset = normalize_unit_distance_chain()
-    result = PreparedLayoutWorker(prepared_layout_store).prepare_dataset(dataset)
+    result = PreparationService(prepared_layout_store).prepare_dataset(dataset)
     app.dependency_overrides[get_prepared_layout_store] = lambda: prepared_layout_store
     cluster = next(
         cluster for cluster in result.artifacts.clusters if cluster.member_count > 1
@@ -492,7 +496,7 @@ def test_graph_viewport_expansion_serializes_meta_edges(
     # one boundary edge b->a as a meta-edge, while its internal
     # Edges stay ordinary (no is_meta in the payload).
     dataset = normalize_split_neighbor_tree()
-    result = PreparedLayoutWorker(prepared_layout_store).prepare_dataset(dataset)
+    result = PreparationService(prepared_layout_store).prepare_dataset(dataset)
     app.dependency_overrides[get_prepared_layout_store] = lambda: prepared_layout_store
     bcde_cluster = next(
         cluster
@@ -544,12 +548,12 @@ def test_graph_viewport_rejects_unknown_prepared_layout(client) -> None:
 
 
 def normalize_weighted_api_tree():
-    normalized = normalize_dataset(
+    normalized = ingest_dataset(
         NormalizeRequest(
             format=FORMAT_NEWICK,
             dataset_name=DATASET_API_TREE,
             content=WEIGHTED_TREE_CONTENT,
-        )
+        ).to_domain()
     ).dataset
     positions = {
         "a": (0.0, 0.0),
@@ -574,12 +578,12 @@ def normalize_weighted_api_tree():
 
 def normalize_split_neighbor_tree():
     # A rooted branch beyond b consists of c, d, e.
-    normalized = normalize_dataset(
+    normalized = ingest_dataset(
         NormalizeRequest(
             format=FORMAT_NEWICK,
             dataset_name=DATASET_API_TREE,
             content="(((d:3,e:4)c:1)b:1)a;",
-        )
+        ).to_domain()
     ).dataset
     positions = {
         "a": (0.0, 0.0),
@@ -608,12 +612,12 @@ def normalize_unit_distance_chain():
     for index in range(8, -1, -1):
         content = f"({content}:1)n{index}"
     content = f"{content};"
-    normalized = normalize_dataset(
+    normalized = ingest_dataset(
         NormalizeRequest(
             format=FORMAT_NEWICK,
             dataset_name=DATASET_API_TREE,
             content=content,
-        )
+        ).to_domain()
     ).dataset
     return normalized.model_copy(
         update={
@@ -635,12 +639,12 @@ def large_clustered_tree():
     for index in range(998, -1, -1):
         content = f"({content}:{(index % 7) + 1})n{index}"
     content = f"{content};"
-    normalized = normalize_dataset(
+    normalized = ingest_dataset(
         NormalizeRequest(
             format=FORMAT_NEWICK,
             dataset_name="large-clustered-tree",
             content=content,
-        )
+        ).to_domain()
     ).dataset
     return normalized.model_copy(
         update={

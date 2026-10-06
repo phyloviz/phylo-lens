@@ -5,7 +5,6 @@ from pathlib import Path
 
 import pytest
 
-from phylo_lens_server.data.normalizer import NormalizeRequest, normalize_dataset
 from phylo_lens_server.data.parsers import ParseError, parse_newick_forest
 from phylo_lens_server.data.phylolib import RootedTypingTree
 from phylo_lens_server.data.typing_profiles import (
@@ -14,7 +13,9 @@ from phylo_lens_server.data.typing_profiles import (
     select_goeburst_root,
     validate_goeburst_tree,
 )
-from phylo_lens_server.pipeline.ingest import layout_version_for_dataset
+from phylo_lens_server.domain.identity import layout_version_for_dataset
+from phylo_lens_server.http.graph.schemas import NormalizeRequest
+from phylo_lens_server.pipeline.ingestion import ingest_dataset
 
 FIXTURES = Path(__file__).resolve().parents[3] / "examples" / "typing"
 
@@ -61,9 +62,9 @@ def test_normalizer_sends_filtered_matrix_and_records_provenance(monkeypatch) ->
         return _typing_tree(profiles, "((iso-B:0)iso-A:1,iso-D:1)iso-C;", "iso_a")
 
     monkeypatch.setattr(
-        "phylo_lens_server.data.normalizer.typing_profiles_to_rooted_tree", convert
+        "phylo_lens_server.pipeline.ingestion.typing_profiles_to_rooted_tree", convert
     )
-    result = normalize_dataset(
+    result = ingest_dataset(
         NormalizeRequest(
             format="typing_data",
             content=(FIXTURES / "missing-loci.tsv").read_text(),
@@ -72,7 +73,7 @@ def test_normalizer_sends_filtered_matrix_and_records_provenance(monkeypatch) ->
                 "join_column": "ID",
                 "content": (FIXTURES / "missing-loci-ancillary.tsv").read_text(),
             },
-        )
+        ).to_domain()
     )
     assert received == [
         "ID\tL1\tL2\niso_a\t1\t2\niso_b\t1\t2\niso_c\t1\t3\niso_d\t2\t3\n"
@@ -92,7 +93,7 @@ def test_complete_profiles_preserve_categorical_values_and_ids() -> None:
     prepared = prepare_typing_profiles(content)
     assert prepared.content == content
     assert prepared.excluded_loci == ()
-    assert prepared.warnings == []
+    assert prepared.warnings == ()
 
 
 def test_bom_crlf_and_surrounding_whitespace_are_normalized() -> None:
@@ -127,7 +128,7 @@ def test_invalid_profiles_fail_before_phylolib(monkeypatch, content, message) ->
         pytest.fail("Invalid profiles must not reach PhyloLib")
 
     monkeypatch.setattr(
-        "phylo_lens_server.data.normalizer.typing_profiles_to_rooted_tree",
+        "phylo_lens_server.pipeline.ingestion.typing_profiles_to_rooted_tree",
         unexpected_call,
     )
     if not content:
@@ -135,19 +136,23 @@ def test_invalid_profiles_fail_before_phylolib(monkeypatch, content, message) ->
             prepare_typing_profiles(content)
         return
     with pytest.raises(ParseError, match=message):
-        normalize_dataset(NormalizeRequest(format="typing_data", content=content))
+        ingest_dataset(
+            NormalizeRequest(format="typing_data", content=content).to_domain()
+        )
 
 
 def test_newick_zero_length_branches_are_not_filtered() -> None:
-    result = normalize_dataset(NormalizeRequest(format="newick", content="(A:0,B:1)R;"))
+    result = ingest_dataset(
+        NormalizeRequest(format="newick", content="(A:0,B:1)R;").to_domain()
+    )
     assert len(result.dataset.nodes) == 3
     assert sorted(edge.distance for edge in result.dataset.edges) == [0, 1]
     assert result.dataset.source.provenance is None
 
 
 def test_direct_newick_preserves_serialized_roots_and_anonymous_nodes() -> None:
-    result = normalize_dataset(
-        NormalizeRequest(format="newick", content="(A:1,B:1);(C:1,D:1)R;")
+    result = ingest_dataset(
+        NormalizeRequest(format="newick", content="(A:1,B:1);(C:1,D:1)R;").to_domain()
     )
     assert len(result.dataset.technical_roots) == 2
     assert result.dataset.technical_roots[0].endswith("union_1")
@@ -188,18 +193,18 @@ def test_typing_layout_ignores_newick_serialization_root(monkeypatch) -> None:
         return _typing_tree(profiles, "(A:1,(D:1)C:1)B;", "a")
 
     monkeypatch.setattr(
-        "phylo_lens_server.data.normalizer.typing_profiles_to_rooted_tree",
+        "phylo_lens_server.pipeline.ingestion.typing_profiles_to_rooted_tree",
         convert_first,
     )
-    first = normalize_dataset(
-        NormalizeRequest(format="typing_data", content=content)
+    first = ingest_dataset(
+        NormalizeRequest(format="typing_data", content=content).to_domain()
     ).dataset
     monkeypatch.setattr(
-        "phylo_lens_server.data.normalizer.typing_profiles_to_rooted_tree",
+        "phylo_lens_server.pipeline.ingestion.typing_profiles_to_rooted_tree",
         lambda profiles: _typing_tree(profiles, "((A:1)B:1,D:1)C;", "a"),
     )
-    second = normalize_dataset(
-        NormalizeRequest(format="typing_data", content=content)
+    second = ingest_dataset(
+        NormalizeRequest(format="typing_data", content=content).to_domain()
     ).dataset
     assert first.technical_roots == second.technical_roots == ("a",)
     assert first.edges == second.edges
@@ -210,11 +215,11 @@ def test_duplicate_profile_first_occurrence_breaks_final_lv_tie(monkeypatch) -> 
     # Z appears first but shares A's profile; A is the canonical node ID.
     content = "ID\tL1\tL2\nZ\ta\ta\nB\ta\tb\nC\tb\tb\nD\tb\ta\nA\ta\ta\n"
     monkeypatch.setattr(
-        "phylo_lens_server.data.normalizer.typing_profiles_to_rooted_tree",
+        "phylo_lens_server.pipeline.ingestion.typing_profiles_to_rooted_tree",
         lambda profiles: _typing_tree(profiles, "((Z:0)A:1,(D:1)C:1)B;", "a"),
     )
-    dataset = normalize_dataset(
-        NormalizeRequest(format="typing_data", content=content)
+    dataset = ingest_dataset(
+        NormalizeRequest(format="typing_data", content=content).to_domain()
     ).dataset
     assert dataset.technical_roots == ("a",)
     assert {node.id for node in dataset.nodes} == {"a", "b", "c", "d"}
@@ -248,12 +253,14 @@ def test_goeburst_root_rejects_incomplete_matrix(tmp_path) -> None:
 
 def test_typing_rejects_newick_serialization_junction(monkeypatch) -> None:
     monkeypatch.setattr(
-        "phylo_lens_server.data.normalizer.typing_profiles_to_rooted_tree",
+        "phylo_lens_server.pipeline.ingestion.typing_profiles_to_rooted_tree",
         lambda profiles: _typing_tree(profiles, "(A:1,B:1);", "a"),
     )
     with pytest.raises(ParseError, match="not typing profiles"):
-        normalize_dataset(
-            NormalizeRequest(format="typing_data", content="ID\tL1\nA\t1\nB\t2\n")
+        ingest_dataset(
+            NormalizeRequest(
+                format="typing_data", content="ID\tL1\nA\t1\nB\t2\n"
+            ).to_domain()
         )
 
 
@@ -261,24 +268,26 @@ def test_typing_rejects_anonymous_node_even_if_generated_id_matches_profile(
     monkeypatch,
 ) -> None:
     monkeypatch.setattr(
-        "phylo_lens_server.data.normalizer.typing_profiles_to_rooted_tree",
+        "phylo_lens_server.pipeline.ingestion.typing_profiles_to_rooted_tree",
         lambda profiles: _typing_tree(profiles, "((:1,A:1)B:1)C;", "a"),
     )
     with pytest.raises(ParseError, match="not typing profiles"):
-        normalize_dataset(
+        ingest_dataset(
             NormalizeRequest(
                 format="typing_data",
                 content="ID\tL1\nleaf_1\t1\nA\t2\nB\t3\nC\t4\n",
-            )
+            ).to_domain()
         )
 
 
 def test_typing_rejects_a_disconnected_full_mst(monkeypatch) -> None:
     monkeypatch.setattr(
-        "phylo_lens_server.data.normalizer.typing_profiles_to_rooted_tree",
+        "phylo_lens_server.pipeline.ingestion.typing_profiles_to_rooted_tree",
         lambda profiles: _typing_tree(profiles, "A;B;", "a"),
     )
     with pytest.raises(ParseError, match="one connected profile tree"):
-        normalize_dataset(
-            NormalizeRequest(format="typing_data", content="ID\tL1\nA\t1\nB\t2\n")
+        ingest_dataset(
+            NormalizeRequest(
+                format="typing_data", content="ID\tL1\nA\t1\nB\t2\n"
+            ).to_domain()
         )

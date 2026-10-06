@@ -14,8 +14,8 @@ sequenceDiagram
   participant C as Graph client
   participant A as API service
   participant J as Job backend
-  participant P as Prepare worker
-  participant S as Layout store
+  participant P as Preparation service
+  participant S as Layout repository
   participant R as Renderer
 
   H->>V: load(options)
@@ -24,8 +24,11 @@ sequenceDiagram
   C->>A: GET /health
   A-->>C: status, service_version, api_version
   C->>A: POST /api/graph/prepare
-  A->>J: reserve/submit job
-  J->>P: prepare canonical dataset
+  A->>J: reserve local ingestion capacity
+  A->>P: ingest source and construct Dataset
+  P-->>A: validated Dataset and warnings
+  A->>J: submit Dataset
+  J->>P: execute preparation
   A-->>C: 202 job_id
 
   loop poll until terminal
@@ -49,6 +52,10 @@ sequenceDiagram
   V-->>H: load() resolves
 ```
 
+Local admission reserves capacity before source ingestion. Durable admission is
+checked atomically at submission after ingestion. Executors and durable workers
+run the preparation service; it owns the computation/publication flow.
+
 ## Preparation internals
 
 ```mermaid
@@ -56,7 +63,7 @@ flowchart TD
   Request[NormalizeRequest]
   Admission[Capacity admission]
   Parse[Parse Newick or run PhyloLib]
-  Canonical[CanonicalDataset]
+  DatasetValue[Dataset]
   Fingerprint[Compute layout_version]
   Cluster[Select hop depths and pendant subtrees]
   PersistBase[Persist refining artifacts]
@@ -65,7 +72,7 @@ flowchart TD
   PersistLayout[Persist node and cluster layouts]
   Publish[Publish ready]
 
-  Request --> Admission --> Parse --> Canonical --> Fingerprint --> Cluster
+  Request --> Admission --> Parse --> DatasetValue --> Fingerprint --> Cluster
   Cluster --> PersistBase
   Cluster --> Edges
   Cluster --> Layout
@@ -85,7 +92,7 @@ sequenceDiagram
   participant R as Sigma renderer
   participant C as Viewport controller
   participant A as API service
-  participant S as Layout store
+  participant S as Layout repository
 
   U->>R: pan or zoom
   R->>C: camera ratio and world bounds
@@ -107,7 +114,7 @@ finest detail do not continuously query the service on camera movement.
 sequenceDiagram
   participant H as Host/workbench
   participant A as API service
-  participant S as Layout store
+  participant S as Layout repository
   participant R as Renderer
 
   H->>A: POST /api/graph/search
@@ -129,7 +136,7 @@ sequenceDiagram
   participant U as User
   participant C as Viewport controller
   participant A as API service
-  participant S as Layout store
+  participant S as Layout repository
   participant R as Renderer
 
   U->>C: click representative

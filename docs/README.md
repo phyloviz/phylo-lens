@@ -12,8 +12,8 @@ release information across several files.
 | Follow one dataset from `load()` to interactive rendering | [Runtime flow](flow.md) |
 | Prepare Newick, typing profiles, and ancillary metadata correctly | [Input formats](INPUT_FORMATS.md) |
 | Integrate directly with the HTTP service | [API reference](API_REFERENCE.md) |
-| Understand canonical, prepared, wire, and persistence models | [Data model](DATA_MODEL.md) |
-| Understand normalization, clustering, layout, jobs, and publication | [Server preparation pipeline](SERVER_PIPELINE.md) |
+| Understand domain, prepared, wire, and persistence models | [Data model](DATA_MODEL.md) |
+| Understand ingestion, clustering, layout, jobs, and publication | [Server preparation pipeline](SERVER_PIPELINE.md) |
 | Understand hop-depth tiers and semantic zoom | [LoD and clustering](LOD_AND_CLUSTERING.md) |
 | Understand viewport synchronization and Sigma rendering | [Client rendering](CLIENT_RENDERING.md) |
 | Understand representative expansion, meta-edges, and collapse | [Cluster expand/collapse](EXPAND_COLLAPSE.md) |
@@ -57,7 +57,7 @@ The documentation uses the following names consistently:
 - **level of detail (LoD)** — a rooted hop-depth cut used for semantic zoom;
 - **representative** — the node displayed in place of a multi-node cluster;
 - **typing data** — an MLST/cgMLST-style allelic-profile matrix;
-- **ancillary metadata** — tabular isolate or sample metadata joined to graph
+- **ancillary data** — tabular isolate or sample observations joined to graph
   nodes.
 
 ## Scope and evidence

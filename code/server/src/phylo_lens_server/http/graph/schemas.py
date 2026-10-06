@@ -1,11 +1,80 @@
 from __future__ import annotations
 
-from pydantic import BaseModel, Field, model_validator
+from types import MappingProxyType
+from typing import Literal
 
-from phylo_lens_server.data.normalizer import AncillaryDataRequest
-from phylo_lens_server.domain.ancillary import AncillaryObservation
-from phylo_lens_server.domain.models import Isolate
-from phylo_lens_server.pipeline.models import LayoutStatus
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from phylo_lens_server.domain.ancillary import (
+    AncillaryData,
+    AncillaryField,
+    AncillaryObservation,
+)
+from phylo_lens_server.domain.models import SourceFormat
+from phylo_lens_server.domain.preparation import PrepareInput, PrepareOptions
+from phylo_lens_server.domain.revisions import AncillaryTable
+from phylo_lens_server.domain.sfdp import SfdpOptions
+from phylo_lens_server.domain.views import LayoutStatus
+
+
+class NormalizeOptions(BaseModel):
+    allow_self_loops: bool = False
+
+
+class AncillaryDataRequest(BaseModel):
+    """Tabular ancillary observations supplied alongside graph/tree content."""
+
+    content: str = Field(min_length=1)
+    join_column: str = Field(min_length=1)
+    format: Literal["auto", "csv", "tsv"] = "auto"
+
+
+class NormalizeRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    format: SourceFormat
+    dataset_name: str = Field(default="dataset", min_length=1)
+    content: str = Field(min_length=1)
+    options: NormalizeOptions = Field(default_factory=NormalizeOptions)
+    ancillary_schema: list[AncillaryField] = Field(
+        default_factory=list, alias="metadata_schema"
+    )
+    ancillary_by_node_id: dict[str, AncillaryData] = Field(
+        default_factory=dict, alias="metadata_by_node_id"
+    )
+    ancillary_data: AncillaryDataRequest | None = None
+    sfdp_options: SfdpOptions = Field(default_factory=SfdpOptions)
+
+    @model_validator(mode="before")
+    @classmethod
+    def reject_ambiguous_aliases(cls, data):
+        if isinstance(data, dict):
+            for current, legacy in (
+                ("ancillary_schema", "metadata_schema"),
+                ("ancillary_by_node_id", "metadata_by_node_id"),
+            ):
+                if current in data and legacy in data:
+                    raise ValueError(
+                        f"Supply {current} or deprecated {legacy}, not both."
+                    )
+        return data
+
+    def to_domain(self) -> PrepareInput:
+        return PrepareInput(
+            format=self.format,
+            content=self.content,
+            dataset_name=self.dataset_name,
+            options=PrepareOptions(self.options.allow_self_loops),
+            ancillary_schema=tuple(self.ancillary_schema),
+            ancillary_by_node_id=MappingProxyType(
+                {key: dict(value) for key, value in self.ancillary_by_node_id.items()}
+            ),
+            ancillary_data=AncillaryTable(**self.ancillary_data.model_dump())
+            if self.ancillary_data
+            else None,
+            sfdp_options=self.sfdp_options,
+        )
+
 
 DEFAULT_SEARCH_LIMIT = 25
 HARD_MAX_SEARCH_LIMIT = 500
@@ -24,13 +93,13 @@ class GraphPrepareResponse(BaseModel):
 
 class GraphPrepareJob(BaseModel):
     job_id: str
-    status: str
+    status: Literal["pending", "ready", "failed"]
     dataset_id: str
 
 
 class GraphPrepareStatus(BaseModel):
     job_id: str
-    status: str
+    status: Literal["pending", "ready", "failed"]
     result: GraphPrepareResponse | None = None
     error: str | None = None
     error_details: dict[str, str | int | float | None] | None = None
@@ -87,6 +156,16 @@ class GraphAncillaryField(BaseModel):
     type: str
 
 
+class GraphIsolate(BaseModel):
+    """API v1 names; the domain stores ancillary_data instead of metadata."""
+
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+    id: str = Field(min_length=1)
+    metadata: dict[str, str | float | bool | None] = Field(
+        default_factory=dict, validation_alias="ancillary_data"
+    )
+
+
 class GraphViewportNode(BaseModel):
     id: str
     cluster_id: str
@@ -96,7 +175,7 @@ class GraphViewportNode(BaseModel):
     member_count: int = Field(default=1, ge=1)
     is_representative: bool = False
     metadata: dict[str, str | float | bool | None] | None = None
-    isolates: list[Isolate] = Field(default_factory=list)
+    isolates: list[GraphIsolate] = Field(default_factory=list)
     ancillary_distribution: list[AncillaryObservation] = Field(default_factory=list)
 
 

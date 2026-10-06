@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from phylo_lens_server.domain.models import SourceFormat
+
 import argparse
 import json
 import math
@@ -229,23 +231,21 @@ def main():
         )
     assert file_hash(args.dataset) == DATA_SHA
     sys.path.insert(0, str(product / "code/server/src"))
-    from phylo_lens_server.http.graph.schemas import GraphViewportQuery
+    from phylo_lens_server.domain.views import ViewportQuery
     from phylo_lens_server.repository.layout.sqlite_layout_repository import (
-        PreparedLayoutStore,
+        SQLiteLayoutRepository,
     )
-    from phylo_lens_server.services.graph_service import read_graph_viewport
+    from phylo_lens_server.services.graph_reads import read_graph_viewport
 
-    store = PreparedLayoutStore(args.layout_dir.resolve())
+    store = SQLiteLayoutRepository(args.layout_dir.resolve())
     if args.current_source:
-        from phylo_lens_server.data.normalizer import (
-            NormalizeRequest,
-            normalize_dataset,
-        )
-        from phylo_lens_server.pipeline.ingest import layout_version_for_dataset
+        from phylo_lens_server.domain.preparation import PrepareInput
+        from phylo_lens_server.pipeline.ingestion import ingest_dataset
+        from phylo_lens_server.domain.identity import layout_version_for_dataset
 
-        normalized = normalize_dataset(
-            NormalizeRequest(
-                format="newick",
+        normalized = ingest_dataset(
+            PrepareInput(
+                format=SourceFormat("newick"),
                 dataset_name=args.dataset.stem,
                 content=args.dataset.read_text(),
             )
@@ -306,7 +306,7 @@ def main():
         print("TARGET", target, flush=True)
     conditions = condition_queries()
     for condition in conditions:
-        response = read_graph_viewport(GraphViewportQuery(**condition["query"]), store)
+        response = read_graph_viewport(ViewportQuery(**condition["query"]), store)
         condition["expected"] = {
             "lod_level": response.lod_level,
             "nodes": len(response.nodes),

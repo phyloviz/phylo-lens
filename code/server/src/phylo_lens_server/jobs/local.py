@@ -1,65 +1,32 @@
 from __future__ import annotations
 
-import json
 import threading
 import uuid
 from collections.abc import Generator
 from concurrent.futures import Future
 from contextlib import contextmanager
-from dataclasses import dataclass
-from typing import Any, Literal, Protocol
 
-from phylo_lens_server.domain.models import CanonicalDataset
-from phylo_lens_server.pipeline.ingest import layout_version_for_dataset
-from phylo_lens_server.pipeline.layout import GraphvizLayoutError
-from phylo_lens_server.pipeline.models import PreparedLayoutResult
-from phylo_lens_server.pipeline.sfdp import SfdpOptions
-from phylo_lens_server.repository.jobs.result_payload import prepare_result_payload
+from phylo_lens_server.domain.identity import layout_version_for_dataset
+from phylo_lens_server.domain.models import Dataset
+from phylo_lens_server.domain.preparation import (
+    PreparationSummary,
+    PreparedLayoutResult,
+)
+from phylo_lens_server.domain.sfdp import SfdpOptions
 
-PrepareJobStatus = Literal["pending", "ready", "failed"]
-
-JOB_STATUS_PENDING: PrepareJobStatus = "pending"
-JOB_STATUS_READY: PrepareJobStatus = "ready"
-JOB_STATUS_FAILED: PrepareJobStatus = "failed"
-
-ERR_JOB_CANCELLED = "Layout preparation was cancelled."
-ERR_PREPARE_QUEUE_FULL = "Too many graph prepare jobs are already queued or running."
+from .failures import error_details, error_message
+from .models import (
+    ERR_JOB_CANCELLED,
+    ERR_PREPARE_QUEUE_FULL,
+    JOB_STATUS_FAILED,
+    JOB_STATUS_PENDING,
+    JOB_STATUS_READY,
+    PrepareJobSnapshot,
+    PrepareQueueFullError,
+    PrepareWorker,
+)
 
 PrepareLayoutKey = tuple[str, str]
-
-
-class PrepareQueueFullError(RuntimeError):
-    """Raised when a new prepare job would exceed the registry's active limit."""
-
-
-class PrepareWorker(Protocol):
-    def submit_prepare_dataset(
-        self,
-        dataset: CanonicalDataset,
-        *,
-        sfdp_options: SfdpOptions | None = None,
-    ) -> Future[PreparedLayoutResult]: ...
-
-    def shutdown(self) -> None: ...
-
-
-@dataclass(frozen=True)
-class PrepareJobSnapshot:
-    """Immutable view of a prepare job's current state.
-
-    Exactly one of ``result`` (when ``status == "ready"``) or ``error`` (when
-    ``status == "failed"``) is populated; both are ``None`` while pending.
-    ``warnings`` carries the normalize/distance warnings captured at submit time
-    so the ready response can combine them with layout warnings.
-    """
-
-    job_id: str
-    status: PrepareJobStatus
-    result: PreparedLayoutResult | None = None
-    result_payload: dict[str, Any] | None = None
-    error: str | None = None
-    error_details: dict[str, Any] | None = None
-    warnings: tuple[str, ...] = ()
 
 
 class PrepareJobRegistry:
@@ -89,7 +56,7 @@ class PrepareJobRegistry:
 
     def submit(
         self,
-        dataset: CanonicalDataset,
+        dataset: Dataset,
         warnings: tuple[str, ...] = (),
         *,
         sfdp_options: SfdpOptions | None = None,
@@ -124,13 +91,13 @@ class PrepareJobRegistry:
         return job_id
 
     @contextmanager
-    def reserve_capacity(self) -> Generator[None]:
+    def reserve_capacity(self) -> Generator[bool]:
         with self._lock:
             if self._is_at_active_job_limit_locked():
                 raise PrepareQueueFullError(ERR_PREPARE_QUEUE_FULL)
             self._active_reservations += 1
         try:
-            yield
+            yield True
         finally:
             with self._lock:
                 self._active_reservations -= 1
@@ -150,28 +117,7 @@ class PrepareJobRegistry:
                 status=JOB_STATUS_PENDING,
                 warnings=warnings,
             )
-        if future.cancelled():
-            return PrepareJobSnapshot(
-                job_id=job_id,
-                status=JOB_STATUS_FAILED,
-                error=ERR_JOB_CANCELLED,
-                warnings=warnings,
-            )
-        error = future.exception()
-        if error is not None:
-            return PrepareJobSnapshot(
-                job_id=job_id,
-                status=JOB_STATUS_FAILED,
-                error=error_message(error),
-                error_details=error_details(error),
-                warnings=warnings,
-            )
-        return PrepareJobSnapshot(
-            job_id=job_id,
-            status=JOB_STATUS_READY,
-            result=future.result(),
-            warnings=warnings,
-        )
+        return completed_snapshot(job_id, future, warnings)
 
     def shutdown(self) -> None:
         self._worker.shutdown()
@@ -209,32 +155,7 @@ class PrepareJobRegistry:
         with self._lock:
             warnings = self._warnings.get(job_id, ())
 
-        snapshot: PrepareJobSnapshot
-        if future.cancelled():
-            snapshot = PrepareJobSnapshot(
-                job_id=job_id,
-                status=JOB_STATUS_FAILED,
-                error=ERR_JOB_CANCELLED,
-                warnings=warnings,
-            )
-        else:
-            error = future.exception()
-            if error is not None:
-                snapshot = PrepareJobSnapshot(
-                    job_id=job_id,
-                    status=JOB_STATUS_FAILED,
-                    error=error_message(error),
-                    error_details=error_details(error),
-                    warnings=warnings,
-                )
-            else:
-                result = future.result()
-                snapshot = PrepareJobSnapshot(
-                    job_id=job_id,
-                    status=JOB_STATUS_READY,
-                    result_payload=prepare_result_payload(result, warnings),
-                    warnings=warnings,
-                )
+        snapshot = completed_snapshot(job_id, future, warnings)
 
         with self._lock:
             self._futures.pop(job_id, None)
@@ -245,7 +166,7 @@ class PrepareJobRegistry:
 
 
 def prepare_layout_key(
-    dataset: CanonicalDataset,
+    dataset: Dataset,
     sfdp_options: SfdpOptions | None = None,
 ) -> PrepareLayoutKey:
     return (dataset.dataset_id, layout_version_for_dataset(dataset, sfdp_options))
@@ -259,31 +180,25 @@ def is_reusable_future(future: Future[PreparedLayoutResult]) -> bool:
     return future.exception() is None
 
 
-def error_message(error: BaseException) -> str:
-    return str(error) or type(error).__name__
-
-
-def error_details(error: BaseException) -> dict[str, Any] | None:
-    if isinstance(error, GraphvizLayoutError):
-        return error.diagnostics.as_dict()
-    return None
-
-
-def serialize_failure(error: str, details: dict[str, Any] | None) -> str:
-    """Persist structured diagnostics in legacy text-only durable job storage."""
-    if details is None:
-        return error
-    return json.dumps({"message": error, "details": details}, sort_keys=True)
-
-
-def deserialize_failure(error: str | None) -> tuple[str | None, dict[str, Any] | None]:
-    if not error:
-        return error, None
-    try:
-        payload = json.loads(error)
-    except json.JSONDecodeError:
-        return error, None
-    if not isinstance(payload, dict) or not isinstance(payload.get("message"), str):
-        return error, None
-    details = payload.get("details")
-    return payload["message"], details if isinstance(details, dict) else None
+def completed_snapshot(
+    job_id: str, future: Future[PreparedLayoutResult], warnings: tuple[str, ...]
+) -> PrepareJobSnapshot:
+    if future.cancelled():
+        return PrepareJobSnapshot(
+            job_id, JOB_STATUS_FAILED, error=ERR_JOB_CANCELLED, warnings=warnings
+        )
+    error = future.exception()
+    if error is not None:
+        return PrepareJobSnapshot(
+            job_id,
+            JOB_STATUS_FAILED,
+            error=error_message(error),
+            error_details=error_details(error),
+            warnings=warnings,
+        )
+    return PrepareJobSnapshot(
+        job_id,
+        JOB_STATUS_READY,
+        result=PreparationSummary.from_result(future.result(), warnings),
+        warnings=warnings,
+    )

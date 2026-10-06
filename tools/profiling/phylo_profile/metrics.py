@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from contextlib import contextmanager
-from datetime import UTC, datetime
 import json
-from pathlib import Path
 import time
 import tracemalloc
-from typing import Any, Iterator
+from collections.abc import Iterator
+from contextlib import contextmanager
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
 
 
 class JsonlSink:

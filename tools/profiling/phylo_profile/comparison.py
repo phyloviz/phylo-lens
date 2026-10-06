@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from collections import defaultdict
-from dataclasses import dataclass
 import json
-from pathlib import Path
 import statistics
-from typing import Any, Iterable
+from collections import defaultdict
+from collections.abc import Iterable
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -78,4 +79,3 @@ def format_key(key: tuple[Any, ...]) -> str:
     if max_nodes is not None:
         parts.append(f"max={max_nodes}")
     return " ".join(parts)
-

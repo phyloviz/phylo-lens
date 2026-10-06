@@ -5,6 +5,8 @@ Every observation uses a fresh service/store. Heavy generated persistence is
 removed after its size/hash and timing evidence are saved, unless requested.
 """
 
+from phylo_lens_server.domain.models import SourceFormat
+
 import argparse
 import json
 import os
@@ -210,7 +212,8 @@ def run(args):
     write(directory / "manifest.json", state)
     shutil.copyfile(Path(__file__), directory / "harness-snapshot.py")
     sys.path.insert(0, str(product / "code/server/src"))
-    from phylo_lens_server.data.normalizer import NormalizeRequest, normalize_dataset
+    from phylo_lens_server.domain.preparation import PrepareInput
+    from phylo_lens_server.pipeline.ingestion import ingest_dataset
 
     wrappers = {}
     if args.campaign == "external":
@@ -234,14 +237,16 @@ def run(args):
     for count in args.nodes:
         dataset = args.thesis_root / f"data/salmonella/fullmst/tree_fullmst_{count}.nwk"
         content = dataset.read_text()
-        canonical = normalize_dataset(
-            NormalizeRequest(
-                format="newick", dataset_name=dataset.stem, content=content
+        canonical = ingest_dataset(
+            PrepareInput(
+                format=SourceFormat("newick"),
+                dataset_name=dataset.stem,
+                content=content,
             )
         ).dataset
         assert len(canonical.nodes) == count and len(canonical.edges) == count - 1
         # Leaf cardinality belongs to rooted input, not undirected degree.
-        from phylo_lens_server.pipeline.clustering import rooted_depths, tree_adjacency
+        from phylo_lens_server.pipeline.lod import rooted_depths, tree_adjacency
 
         adjacency = tree_adjacency(canonical)
         depths = rooted_depths(adjacency, canonical.technical_roots)

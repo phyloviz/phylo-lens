@@ -1,5 +1,7 @@
 """Independently audit retained final observations and write a thesis-facing report."""
 
+from phylo_lens_server.domain.models import SourceFormat
+
 import argparse
 import json
 import re
@@ -223,19 +225,20 @@ def main():
     write(directory / "navigation-timer-audit.json", timer_evidence)
     # Fresh validation links the current prepared hierarchy to these viewport responses.
     sys.path.insert(0, str(product / "code/server/src"))
-    from phylo_lens_server.data.normalizer import NormalizeRequest, normalize_dataset
-    from phylo_lens_server.pipeline.clustering import (
+    from phylo_lens_server.domain.preparation import PrepareInput
+    from phylo_lens_server.pipeline.ingestion import ingest_dataset
+    from phylo_lens_server.pipeline.lod import (
         rooted_depths,
         selected_depths,
         tree_adjacency,
     )
     from phylo_lens_server.repository.layout.sqlite_layout_repository import (
-        PreparedLayoutStore,
+        SQLiteLayoutRepository,
     )
 
-    dataset = normalize_dataset(
-        NormalizeRequest(
-            format="newick",
+    dataset = ingest_dataset(
+        PrepareInput(
+            format=SourceFormat("newick"),
             dataset_name="tree_fullmst_100000",
             content=Path(manifest["dataset_path"]).read_text(),
         )
@@ -244,7 +247,7 @@ def main():
     assert database.exists(), (
         f"Restore the verified archive with gzip -dk {database}.gz before auditing"
     )
-    store = PreparedLayoutStore(database.parent)
+    store = SQLiteLayoutRepository(database.parent)
     cuts = selected_depths(
         rooted_depths(tree_adjacency(dataset), dataset.technical_roots)
     )

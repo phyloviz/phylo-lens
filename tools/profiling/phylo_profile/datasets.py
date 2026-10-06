@@ -1,23 +1,26 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
 import math
+from datetime import UTC, datetime
 from random import Random
 
 from .paths import bootstrap_server_src
 
 bootstrap_server_src()
 
-from phylo_lens_server.domain.models import (  # noqa: E402
-    CanonicalDataset,
-    CanonicalEdge,
-    CanonicalNode,
+from phylo_lens_server.domain.ancillary import (
+    AncillaryField,
+    AncillaryType,
+    NodeAnnotations,
+)
+from phylo_lens_server.domain.models import (
+    NEWICK_ROOTING_STRATEGY,
+    Dataset,
     DatasetSource,
-    MetadataField,
-    MetadataType,
+    GraphEdge,
+    GraphNode,
     SourceFormat,
 )
-
 
 SYNTHETIC_SHAPES = ("balanced", "chain", "star", "forest", "random")
 
@@ -28,12 +31,12 @@ def synthetic_tree_dataset(
     shape: str,
     metadata_fields: int,
     seed: int,
-) -> CanonicalDataset:
+) -> Dataset:
     rng = Random(seed)
-    nodes = [CanonicalNode(id=node_id(index)) for index in range(node_count)]
+    nodes = [GraphNode(id=node_id(index)) for index in range(node_count)]
     edges = synthetic_tree_edges(node_count=node_count, shape=shape, rng=rng)
     metadata_schema = [
-        MetadataField(key=f"field_{index:02d}", type=MetadataType.STRING)
+        AncillaryField(key=f"field_{index:02d}", type=AncillaryType.STRING)
         for index in range(metadata_fields)
     ]
     metadata_by_node_id = {
@@ -43,16 +46,22 @@ def synthetic_tree_dataset(
         }
         for node_index, node in enumerate(nodes)
     }
-    return CanonicalDataset(
+    child_ids = {edge.target for edge in edges}
+    return Dataset(
         dataset_id=f"profile-{shape}-{node_count}",
-        nodes=nodes,
-        edges=edges,
-        metadata_schema=metadata_schema,
-        metadata_by_node_id=metadata_by_node_id,
+        nodes=tuple(nodes),
+        edges=tuple(edges),
+        technical_roots=tuple(node.id for node in nodes if node.id not in child_ids),
+        ancillary_schema=tuple(metadata_schema),
+        annotations_by_node_id={
+            node_id: NodeAnnotations(ancillary_data=values)
+            for node_id, values in metadata_by_node_id.items()
+        },
         source=DatasetSource(
             format=SourceFormat.NEWICK,
             generated_at=datetime.now(UTC).isoformat(),
             provenance=f"tools/profiling synthetic {shape}",
+            rooting_strategy=NEWICK_ROOTING_STRATEGY,
         ),
     )
 
@@ -62,11 +71,11 @@ def synthetic_tree_edges(
     node_count: int,
     shape: str,
     rng: Random,
-) -> list[CanonicalEdge]:
+) -> list[GraphEdge]:
     if node_count <= 1:
         return []
 
-    edges: list[CanonicalEdge] = []
+    edges: list[GraphEdge] = []
     for child in range(1, node_count):
         parent = parent_for_shape(
             child=child,
@@ -79,7 +88,7 @@ def synthetic_tree_edges(
 
         distance = 1.0 + ((child * 37) % 100) / 100.0
         edges.append(
-            CanonicalEdge(
+            GraphEdge(
                 id=f"e_{node_id(parent)}_{node_id(child)}",
                 source=node_id(parent),
                 target=node_id(child),

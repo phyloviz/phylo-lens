@@ -6,32 +6,29 @@ PhyloLens is a two-part system:
 2. an API service for computational preparation and graph queries.
 
 The boundary is intentional. Global topology, layout, LoD construction, and
-persistence remain server-side. Camera state, semantic-zoom selection, visual
-mapping, and rendering remain browser-side.
+persistence remain server-side. Camera state, semantic-zoom preference, visual
+mapping, and rendering remain browser-side; the service selects the effective
+LoD tier from viewport representation counts.
 
 ```mermaid
 flowchart LR
-  Host[Host application]
-  View[PhyloLens view]
-  Workbench[Workbench and viewport controller]
-  Renderer[Sigma renderer adapter]
-  API[PhyloLens API service]
-  Jobs[Prepare-job backend]
-  Worker[Preparation worker]
-  Store[Prepared-layout store]
-  PhyloLib[PhyloLib JAR]
-  Graphviz[Graphviz sfdp]
-
-  Host --> View
-  View --> Workbench
-  Workbench --> Renderer
-  Workbench -->|HTTP API v1| API
-  API --> Jobs
-  Jobs --> Worker
-  Worker --> PhyloLib
-  Worker --> Graphviz
-  Worker --> Store
-  API --> Store
+  Host[Host application] --> View[PhyloLens view]
+  View --> Workbench[Workbench and viewport controller]
+  Workbench --> Renderer[Sigma renderer adapter]
+  Workbench -->|HTTP API v1| HTTP[HTTP layer]
+  HTTP --> Services[Application services]
+  Services --> Repository[Layout repository]
+  Repository --> Database[(SQLite or PostgreSQL)]
+  Services -->|submit and poll| Jobs[Job infrastructure]
+  Jobs -->|execute preparation| Services
+  Services --> Pipeline[Preparation computations]
+  Pipeline --> PhyloLib[PhyloLib JAR]
+  Pipeline --> Graphviz[Graphviz sfdp]
+  Domain[Shared immutable domain values and invariants]
+  HTTP -.-> Domain
+  Services -.-> Domain
+  Pipeline -.-> Domain
+  Repository -.-> Domain
 ```
 
 ## Architectural objectives
@@ -114,32 +111,39 @@ not expose Sigma-specific objects to the workbench.
 
 | Layer | Responsibility |
 | --- | --- |
-| `http/` | FastAPI routes, request/response schemas and HTTP error mapping |
-| `services/` | Application use cases: prepare, status, viewport, region and search |
-| `data/` | Newick parsing, ancillary normalization and PhyloLib integration |
-| `domain/` | Canonical models, metadata rules and validation invariants |
-| `pipeline/` | clustering, layout, prepared edges and worker orchestration |
-| `repository/jobs/` | local or PostgreSQL job control |
-| `repository/layout/` | SQLite or PostgreSQL artifact persistence and query readers |
-| `config/` | deployment configuration and timeout parsing |
+| `http/` | FastAPI DTOs, dependency injection, response mapping and HTTP errors |
+| `services/` | Application orchestration for preparation, status, reads and ancillary replacement |
+| `domain/` | Immutable graph/ancillary/query values, invariants, identity and pure policies |
+| `data/` | Newick/typing/ancillary parsing and PhyloLib integration |
+| `pipeline/` | Source ingestion, rooted subtree LoD, quotient edges and layout computation |
+| `jobs/` | Local admission/executors/futures and durable status/lease/heartbeat orchestration |
+| `repository/layout/` | Shared reads/writes, row mapping and backend-owned transactions |
+| `repository/jobs/` | Durable PostgreSQL job SQL and payload mapping |
+| `database/` | Driver connections, fixed-query dialect handling and schema initialization |
+| `config/` | Deployment configuration and timeout parsing |
 
 Dependency direction:
 
 ```text
-HTTP
-  → services
-    → data/domain
-    → job repositories
-    → layout repositories
-      → database
+HTTP → Services → Repository → Database
+       Domain values and invariants are shared
 
-prepare worker
-  → pipeline
-    → layout repository
-    → PhyloLib / Graphviz
+Preparation service → computational pipeline
+Preparation service → repository staging/publication
+Job infrastructure → preparation service execution
 ```
 
-Domain models do not depend on HTTP, database, Graphviz, or browser code.
+Services have no HTTP dependency. Domain has no dependency on HTTP, services,
+persistence, job orchestration or the preparation pipeline. Search and region
+read directly through repositories. SQLite and PostgreSQL share retrieval and
+annotation assembly while retaining their parameter, ID-query and transaction
+strategies. Source-table handling for ancillary replacement does not require the
+graph preparation pipeline.
+
+Internal Python import paths are not supported public contracts. Repository-local
+consumers use the current module owners; no old-path adapters or naming aliases
+remain. Compatibility decoding is limited to public HTTP and persisted payload
+boundaries, with deterministic fingerprint encodings preserved.
 
 ## Deployment modes
 
@@ -205,8 +209,8 @@ contract.
 
 ### Preparation boundary
 
-A `CanonicalDataset` is the last input-oriented representation. The preparation
-worker turns it into persisted layout artifacts. Interactive reads never accept
+A `Dataset` is the last input-oriented representation. The preparation
+service computes artifacts and stages/publishes them through repositories. Interactive reads never accept
 raw Newick or typing profiles.
 
 ### Renderer boundary
@@ -238,27 +242,28 @@ layout. Reads that omit `layout_version` resolve the latest published `ready` or
 
 ## Preparation publication model
 
-A worker writes a version with status `refining`, persists all artifact tables,
-and then publishes it as `ready` or `degraded`. Readers do not select refining
-versions as the latest layout.
+The preparation service stages a version as `refining`, persists the artifact
+tables in repository transactions, then publishes it as `ready`. Readers select
+only `ready` or legacy `degraded` versions as the latest layout. Ownership checks
+and publication are separate operations, not an atomic stale-worker fence.
 
-This prevents an incomplete preparation from replacing a previously published
-version.
+When preparing a different identity, an incomplete version does not replace the
+previous published version selected by latest-version reads.
 
 ## Core correctness invariants
 
-- Every canonical edge references existing nodes.
-- Every edge entering layout preparation carries a finite, non-negative
-  distance.
+- Every graph edge references existing nodes.
+- Supplied edge distances entering preparation are finite and non-negative;
+  absent Newick distances remain absent.
 - A layout version changes when any persisted input changes.
 - Every returned viewport edge references returned nodes.
 - Cluster expansion preserves external connectivity through server-computed
   meta-edges.
-- Published metadata schemas, search results, and region summaries exclude
-  internal aggregation keys; viewport render metadata may retain them for pie
-  and profile-count mappings.
-- Local completed jobs do not retain complete prepared graphs after result
-  payload extraction.
+- Published ancillary schemas and search matching exclude internal summary
+  keys. Viewport metadata and region aggregates may retain count projections
+  for category and represented-isolate summaries.
+- Local completed jobs do not retain complete prepared graphs after compact typed
+  summary extraction.
 - Only the most recent browser `load()` may commit renderer state.
 - `load()` resolves after the first viewport snapshot is applied.
 

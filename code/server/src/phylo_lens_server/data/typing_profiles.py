@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import csv
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from io import StringIO
 from pathlib import Path
+from typing import NamedTuple
 
 from phylo_lens_server.data.parsers import (
     ParsedEdge,
@@ -16,42 +17,63 @@ from phylo_lens_server.data.parsers import (
 )
 
 
+class TypingRow(NamedTuple):
+    identifier: str
+    alleles: tuple[str, ...]
+
+
+class ProfileMember(NamedTuple):
+    original_id: str
+    normalized_id: str
+
+
 @dataclass(frozen=True)
 class PreparedTypingProfiles:
     content: str
     retained_loci: tuple[str, ...]
     excluded_loci: tuple[str, ...]
 
-    def membership(self) -> dict[str, list[tuple[str, str]]]:
-        """Map a stable profile node to (original ID, canonical isolate ID)."""
-        rows = list(csv.reader(StringIO(self.content), delimiter="\t"))[1:]
-        groups: dict[tuple[str, ...], list[tuple[str, str]]] = {}
-        canonical_ids: set[str] = set()
+    rows: tuple[TypingRow, ...] = field(init=False, repr=False)
+    header: tuple[str, ...] = field(init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        header, *rows = csv.reader(StringIO(self.content), delimiter="\t")
+        object.__setattr__(self, "header", tuple(header))
+        object.__setattr__(
+            self, "rows", tuple(TypingRow(row[0], tuple(row[1:])) for row in rows)
+        )
+
+    def membership(self) -> dict[str, tuple[ProfileMember, ...]]:
+        """Map a profile node to original isolate IDs and normalized graph IDs."""
+        rows = self.rows
+        groups: dict[tuple[str, ...], list[ProfileMember]] = {}
+        normalized_ids: set[str] = set()
         for row in rows:
             node_id = slugify_label(row[0])
             if not node_id or node_id.startswith("union_"):
                 raise ParseError(
                     "Typing identifiers must normalize to non-empty, non-structural node IDs."
                 )
-            if node_id in canonical_ids:
+            if node_id in normalized_ids:
                 raise ParseError(
                     "Typing identifiers collide after canonical normalization."
                 )
-            canonical_ids.add(node_id)
-            groups.setdefault(tuple(row[1:]), []).append((row[0], node_id))
+            normalized_ids.add(node_id)
+            groups.setdefault(row.alleles, []).append(
+                ProfileMember(row.identifier, node_id)
+            )
         return {
-            min(node_id for _, node_id in members): sorted(members)
+            min(node_id for _, node_id in members): tuple(sorted(members))
             for members in groups.values()
         }
 
     def algorithm_content(self) -> str:
         """Safe labels for the Newick boundary, with duplicate profiles retained."""
-        rows = list(csv.reader(StringIO(self.content), delimiter="\t"))
         output = StringIO()
         writer = csv.writer(output, delimiter="\t", lineterminator="\n")
-        writer.writerow(rows[0])
-        for row in rows[1:]:
-            writer.writerow([slugify_label(row[0]), *row[1:]])
+        writer.writerow(self.header)
+        for row in self.rows:
+            writer.writerow([slugify_label(row.identifier), *row.alleles])
         return output.getvalue()
 
     @property
@@ -66,16 +88,16 @@ class PreparedTypingProfiles:
         )
 
     @property
-    def warnings(self) -> list[str]:
+    def warnings(self) -> tuple[str, ...]:
         if not self.excluded_loci:
-            return []
-        return [
+            return ()
+        return (
             (
                 f"Excluded {len(self.excluded_loci)} loci containing allele 0 in at "
                 f"least one profile; retained {len(self.retained_loci)} loci. "
                 f"Excluded loci: {', '.join(self.excluded_loci)}."
-            )
-        ]
+            ),
+        )
 
 
 def prepare_typing_profiles(content: str) -> PreparedTypingProfiles:
@@ -222,7 +244,7 @@ def select_goeburst_root(
     membership: dict[str, list[tuple[str, str]]],
 ) -> str:
     """Stream PhyloLib's triangular Hamming matrix; rank distinct profiles by LV counts."""
-    rows = list(csv.reader(StringIO(profiles.content), delimiter="\t"))[1:]
+    rows = profiles.rows
     input_order = {slugify_label(row[0]): index for index, row in enumerate(rows)}
     representative = {
         isolate_id: node_id

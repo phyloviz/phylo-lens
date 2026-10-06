@@ -3,9 +3,9 @@ from __future__ import annotations
 
 import argparse
 import cProfile
-from pathlib import Path
 import pstats
 import tracemalloc
+from pathlib import Path
 from uuid import uuid4
 
 from phylo_profile.datasets import SYNTHETIC_SHAPES
@@ -15,16 +15,12 @@ from phylo_profile.server_runner import ServerProfileConfig, run_one_dataset
 
 bootstrap_server_src()
 
-from phylo_lens_server.pipeline import layout as layout_module  # noqa: E402
-
 
 DEFAULT_VIEWPORT_FRACTIONS = (0.05, 0.2, 1.0)
 DEFAULT_LOD_LEVELS = (0, 1, 2, -1)
-DEFAULT_LAYOUT_MAXITER = getattr(
-    layout_module,
-    "GRAPHVIZ_ROUGH_MAXITER",
-    layout_module.GRAPHVIZ_BASE_MAXITER,
-)
+# Retained result/config field for comparing profiling runs; current SFDP has
+# no maxiter override. It is never forwarded to the layout algorithm.
+DEFAULT_LAYOUT_MAXITER = 50
 
 
 def parse_args() -> argparse.Namespace:
@@ -57,7 +53,7 @@ def parse_args() -> argparse.Namespace:
         "--layout-maxiter",
         type=int,
         default=DEFAULT_LAYOUT_MAXITER,
-        help="Graphviz sfdp maxiter for development profiling.",
+        help="Profiling result annotation; the current SFDP API does not accept a maxiter override.",
     )
     parser.add_argument("--search-query", default="n000")
     parser.add_argument("--seed", type=int, default=23)

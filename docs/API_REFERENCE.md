@@ -134,11 +134,11 @@ Normalizes input and submits preparation of a persisted layout.
 | `dataset_name` | non-empty `string` | no | `"dataset"` | Dataset identifier and layout namespace |
 | `content` | non-empty `string` | yes | — | Newick text or allelic-profile matrix |
 | `options.allow_self_loops` | `boolean` | no | `false` | Permit self-loop edges during domain validation |
-| `metadata_schema` | `MetadataField[]` | no | `[]` | Declared public metadata types |
+| `metadata_schema` | `AncillaryField[]` | no | `[]` | Declared public metadata types |
 | `metadata_by_node_id` | object | no | `{}` | Direct metadata keyed by canonical node ID |
 | `ancillary_data` | `AncillaryDataRequest \| null` | no | `null` | CSV/TSV metadata joined to nodes |
 
-`MetadataField`:
+`AncillaryField`:
 
 | Field | Type |
 | --- | --- |

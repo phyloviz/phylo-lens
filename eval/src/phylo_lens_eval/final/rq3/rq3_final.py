@@ -7,6 +7,8 @@ source graph.  It intentionally performs no browser or performance measurement.
 
 from __future__ import annotations
 
+from phylo_lens_server.domain.models import SourceFormat
+
 import argparse
 import hashlib
 import json
@@ -20,13 +22,10 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-from phylo_lens_server.data.normalizer import (
-    NormalizeFormat,
-    NormalizeRequest,
-    normalize_dataset,
-)
+from phylo_lens_server.domain.preparation import PrepareInput
+from phylo_lens_server.pipeline.ingestion import ingest_dataset
 from phylo_lens_server.repository.layout.sqlite_layout_repository import (
-    PreparedLayoutStore,
+    SQLiteLayoutRepository,
 )
 
 from ... import SCHEMA_VERSION
@@ -150,16 +149,16 @@ def _source_path(root: Path, config: dict) -> Path:
 def parse_canonical_source(root: Path, config: dict) -> dict[str, Any]:
     path = _source_path(root, config)
     source_bytes = path.read_bytes()
-    result = normalize_dataset(
-        NormalizeRequest(
-            format=NormalizeFormat.NEWICK,
+    result = ingest_dataset(
+        PrepareInput(
+            format=SourceFormat.NEWICK,
             dataset_name=config["dataset"]["id"],
             content=source_bytes.decode("utf-8"),
         )
     )
     dataset = result.dataset
     # The frozen canonical source checksum is the retained Newick byte stream.
-    # CanonicalDataset embeds a creation timestamp, so hashing its model would
+    # Dataset embeds a creation timestamp, so hashing its model would
     # be non-deterministic and is deliberately not used as input provenance.
     canonical_sha = hashlib.sha256(source_bytes).hexdigest()
     node_ids = tuple(sorted(node.id for node in dataset.nodes))
@@ -275,7 +274,7 @@ def run(args: argparse.Namespace) -> Path:
         runtime_root = run_dir / "runtime-validation" / f"lod-level-{level}"
         _copy_master_for_runtime(layout_root, runtime_root, layout["database_sha256"])
         case = validate_level(
-            PreparedLayoutStore(runtime_root),
+            SQLiteLayoutRepository(runtime_root),
             source,
             layout,
             level,
@@ -533,7 +532,7 @@ def inspect_layout(
 
 
 def validate_level(
-    store: PreparedLayoutStore,
+    store: SQLiteLayoutRepository,
     source: dict[str, Any],
     layout: dict,
     level: int,

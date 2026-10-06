@@ -1,22 +1,23 @@
 from __future__ import annotations
 
-from phylo_lens_server.pipeline.models import (
-    RegionReadResult,
-)
-from phylo_lens_server.repository.layout.metadata_reader import (
+from phylo_lens_server.database.sql import LayoutSQL
+from phylo_lens_server.domain.summaries import (
     aggregate_layout_status,
     aggregate_render_metadata,
+)
+from phylo_lens_server.domain.views import RegionReadResult
+from phylo_lens_server.repository.layout.metadata_reader import (
     attach_node_metadata,
     load_metadata_schema,
 )
 from phylo_lens_server.repository.layout.viewport_reader import (
     read_edges_for_nodes,
-    read_ready_nodes,
+    read_positioned_nodes,
 )
 
 
 def read_region(
-    connection_context,
+    connection: LayoutSQL,
     *,
     dataset_id: str,
     layout_version: str,
@@ -25,44 +26,36 @@ def read_region(
     ymin: float,
     ymax: float,
     max_nodes: int | None = None,
-    read_ready_nodes_fn=read_ready_nodes,
-    read_edges_for_nodes_fn=None,
-    attach_node_metadata_fn=attach_node_metadata,
-    load_metadata_schema_fn=load_metadata_schema,
 ) -> RegionReadResult:
-    if read_edges_for_nodes_fn is None:
-        read_edges_for_nodes_fn = read_edges_for_nodes
-
-    with connection_context as connection:
-        ready_nodes, total_node_count = read_ready_nodes_fn(
-            connection,
-            dataset_id=dataset_id,
-            layout_version=layout_version,
-            xmin=xmin,
-            xmax=xmax,
-            ymin=ymin,
-            ymax=ymax,
-            max_nodes=max_nodes,
-        )
-        nodes = tuple(ready_nodes)
-        node_ids = {node.node_id for node in nodes}
-        edges = read_edges_for_nodes_fn(
-            connection,
-            dataset_id=dataset_id,
-            layout_version=layout_version,
-            node_ids=node_ids,
-        )
-        nodes = attach_node_metadata_fn(
-            connection,
-            dataset_id=dataset_id,
-            layout_version=layout_version,
-            nodes=nodes,
-        )
-        metadata_schema = load_metadata_schema_fn(
-            connection,
-            dataset_id=dataset_id,
-            layout_version=layout_version,
-        )
+    ready_nodes, total_node_count = read_positioned_nodes(
+        connection,
+        dataset_id=dataset_id,
+        layout_version=layout_version,
+        xmin=xmin,
+        xmax=xmax,
+        ymin=ymin,
+        ymax=ymax,
+        max_nodes=max_nodes,
+    )
+    nodes = tuple(ready_nodes)
+    node_ids = {node.node_id for node in nodes}
+    edges = read_edges_for_nodes(
+        connection,
+        dataset_id=dataset_id,
+        layout_version=layout_version,
+        node_ids=node_ids,
+    )
+    nodes = attach_node_metadata(
+        connection,
+        dataset_id=dataset_id,
+        layout_version=layout_version,
+        nodes=nodes,
+    )
+    metadata_schema = load_metadata_schema(
+        connection,
+        dataset_id=dataset_id,
+        layout_version=layout_version,
+    )
 
     aggregated_metadata = aggregate_render_metadata(
         [node.metadata or {} for node in nodes],

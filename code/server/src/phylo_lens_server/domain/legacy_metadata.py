@@ -1,9 +1,15 @@
 """Translate the API v1/persisted flat metadata encoding at compatibility boundaries."""
 
+from __future__ import annotations
+
 from math import isfinite
+from typing import TYPE_CHECKING
 from urllib.parse import quote, unquote
 
 from .ancillary import AncillaryData, AncillarySummary, NodeAnnotations, ProfileSummary
+
+if TYPE_CHECKING:
+    from .models import Dataset
 
 CATEGORY_COUNT_FIELD_PREFIX = "__category_count__"
 CATEGORY_COUNT_FIELD_SEPARATOR = "__value__"
@@ -63,3 +69,11 @@ def _positive_count(value: object) -> int:
     ):
         raise ValueError("Summary counts must be positive integers.")
     return int(value)
+
+
+def encode_dataset_annotations(dataset: Dataset) -> dict[str, AncillaryData]:
+    """Encode the persisted/API-v1 annotation shape used by deterministic identity."""
+    return {
+        key: encode_node_annotations(value)
+        for key, value in dataset.annotations_by_node_id.items()
+    }

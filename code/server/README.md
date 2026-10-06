@@ -366,26 +366,42 @@ For internals, see:
 
 ## Ancillary domain model and compatibility
 
-Canonical datasets now separate user observations (`ancillary_schema` and
+Datasets separate user observations (`ancillary_schema` and
 `annotations_by_node_id[*].ancillary_data`) from calculated category frequencies
 (`ancillary_summary.category_counts`) and represented isolate counts
 (`profile_summary.isolate_count`). `Isolate.ancillary_data` contains the original
 isolate observations. Topology, layout state and provenance remain separate.
 
-Normalization requests accept `ancillary_schema` / `ancillary_by_node_id` and
+HTTP preparation requests accept `ancillary_schema` / `ancillary_by_node_id` and
 the API v1 `metadata_schema` / `metadata_by_node_id` aliases. Sending both names
 for one option is rejected. API v1 responses and existing SQL column/table names
-are unchanged; compatibility adapters preserve the legacy numeric encoding used
+are unchanged; boundary codecs preserve the numeric encoding used
 in layout fingerprints. This refactor does not require a database migration.
-
-Old Python domain imports (`MetadataField`, `MetadataType`, `IsolateRecord`) remain
-aliases. Canonical `metadata_by_node_id` is a deprecated, derived snapshot:
-mutate `annotations_by_node_id` instead. Native canonical serialization uses the
-new domain names; old canonical payloads remain accepted. See
-[the migration notes](../../docs/ancillary-domain.md).
 
 Scalar values produced by grouping (for example, a concatenated set of countries)
 are stored in `AncillarySummary.values`, alongside category frequencies. Original
 per-isolate values remain in `Isolate` ancillary data. Flat legacy records with
 computed counts are decoded as node summaries; legacy records without counts
 remain direct ancillary values.
+
+## Server architecture
+
+HTTP routes own request/response DTOs, dependency injection and error translation.
+Services orchestrate typed queries, ancillary replacement and preparation. Domain
+values are immutable and shared; repositories own SQL, mapping and transactions.
+Search and region read directly through the repository. Viewport uses the same
+repository readers on SQLite and PostgreSQL, with backend-specific parameter and
+ID-query strategies.
+
+Preparation constructs a source tree/forest and biological membership, attaches
+ancillary observations, builds rooted subtree clusters and quotient edges, computes
+SFDP geometry, and stages/publishes the result. Jobs own executors, capacity,
+coalescing, completion, leases and heartbeats. Input/tree construction occurs before job submission.
+
+The internal topology types are `Dataset`, `GraphNode` and `GraphEdge`.
+A cluster remains a collapsed connected descendant subtree in the LoD hierarchy.
+HTTP fields follow API v1. Repository-local consumers use the current module paths directly.
+
+Optional real PostgreSQL integration tests require a dedicated
+`PHYLO_LENS_TEST_POSTGRES_DSN`. They create and delete a disposable schema and never
+use production credentials implicitly.

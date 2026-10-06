@@ -9,28 +9,23 @@ from __future__ import annotations
 import hashlib
 import json
 from collections.abc import Iterable
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from itertools import groupby
-from typing import Any
+from types import MappingProxyType
 
-from phylo_lens_server.data.normalizer import (
-    AncillaryDataRequest,
-    AncillaryReplacement,
-    normalize_ancillary_replacement,
-)
+from phylo_lens_server.database.sql import Connection
 from phylo_lens_server.domain.legacy_metadata import encode_node_annotations
 from phylo_lens_server.domain.models import Isolate
-from phylo_lens_server.repository.layout.metadata_reader import (
-    aggregate_cluster_metadata_by_node_ids,
+from phylo_lens_server.domain.revisions import (
+    AncillaryLayoutNotFoundError,
+    AncillaryReplacement,
+    AncillarySource,
 )
+from phylo_lens_server.domain.summaries import aggregate_cluster_metadata_by_node_ids
 from phylo_lens_server.repository.layout.writer import (
     PRECOMPUTED_CLUSTER_METADATA_TIERS,
 )
-
-
-class AncillaryLayoutNotFoundError(LookupError):
-    """The exact source version is missing or is not published."""
-
 
 # Explicit columns keep geometry copying reviewable and exclude publication dates.
 GEOMETRY_COLUMNS = {
@@ -45,35 +40,52 @@ GEOMETRY_COLUMNS = {
 }
 
 
-def apply_replacement(
-    connection,
-    dataset_id: str,
-    version: str,
-    request: AncillaryDataRequest,
-    placeholder: str,
-):
+@dataclass(frozen=True)
+class AncillaryRevision:
+    """A source snapshot and publisher bound to one repository transaction."""
+
+    connection: Connection
+    dataset_id: str
+    version: str
+    placeholder: str
+    source: AncillarySource
+
+    def publish(self, replacement: AncillaryReplacement) -> str:
+        return publish_revision(
+            self.connection,
+            self.dataset_id,
+            self.version,
+            replacement,
+            self.placeholder,
+        )
+
+
+def open_revision(
+    connection: Connection, dataset_id: str, version: str, placeholder: str
+) -> AncillaryRevision:
     require_published(connection, dataset_id, version, placeholder)
-    node_ids = {
+    node_ids = frozenset(
         row["node_id"]
         for row in connection.execute(
             f"select node_id from node_positions where dataset_id = {placeholder} and layout_version = {placeholder}",
             (dataset_id, version),
         )
-    }
-    isolates = {}
+    )
+    isolates: dict[str, list[Isolate]] = {}
     for row in connection.execute(
         f"select node_id, isolate_id from profile_isolates where dataset_id = {placeholder} and layout_version = {placeholder} order by node_id, isolate_id",
         (dataset_id, version),
     ):
         isolates.setdefault(row["node_id"], []).append(Isolate(id=row["isolate_id"]))
-    replacement = normalize_ancillary_replacement(request, node_ids, isolates)
-    return publish_revision(
-        connection, dataset_id, version, replacement, placeholder
-    ), replacement
+    source = AncillarySource(
+        node_ids,
+        MappingProxyType({key: tuple(value) for key, value in isolates.items()}),
+    )
+    return AncillaryRevision(connection, dataset_id, version, placeholder, source)
 
 
 def require_published(
-    connection: Any, dataset_id: str, version: str, placeholder: str
+    connection: Connection, dataset_id: str, version: str, placeholder: str
 ) -> str:
     row = connection.execute(
         f"""select status from datasets
@@ -86,7 +98,7 @@ def require_published(
 
 
 def publish_revision(
-    connection: Any,
+    connection: Connection,
     dataset_id: str,
     source_version: str,
     replacement: AncillaryReplacement,
@@ -160,7 +172,7 @@ def publish_revision(
                 version,
                 node_id,
                 isolate.id,
-                json.dumps(isolate.ancillary_data),
+                json.dumps(dict(isolate.ancillary_data)),
             )
             for node_id, isolates in replacement.isolates_by_node_id.items()
             for isolate in isolates
@@ -209,7 +221,9 @@ def publish_revision(
     return version
 
 
-def _insert_many(connection: Any, sql: str, rows: Iterable[tuple[Any, ...]]) -> None:
+def _insert_many(
+    connection: Connection, sql: str, rows: Iterable[tuple[object, ...]]
+) -> None:
     cursor = connection.cursor()
     try:
         cursor.executemany(sql, rows)

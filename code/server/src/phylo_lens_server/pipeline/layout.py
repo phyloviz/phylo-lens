@@ -3,46 +3,23 @@ from __future__ import annotations
 import shlex
 import shutil
 import subprocess
-from dataclasses import dataclass
 from math import ceil, hypot, sqrt
 
 from phylo_lens_server.config.settings import graphviz_sfdp_timeout_seconds
-from phylo_lens_server.domain.models import CanonicalDataset, CanonicalEdge
-from phylo_lens_server.pipeline.models import (
+from phylo_lens_server.domain.layout_errors import (
+    GraphvizLayoutError,
+    LayoutFailureDiagnostics,
+)
+from phylo_lens_server.domain.models import Dataset, GraphEdge
+from phylo_lens_server.domain.preparation import (
     ClusterLayout,
-    LayoutBounds,
     NodeLayoutPosition,
     PreparedLayoutArtifacts,
 )
-from phylo_lens_server.pipeline.sfdp import SfdpOptions, resolve_sfdp_options
+from phylo_lens_server.domain.sfdp import SfdpOptions, resolve_sfdp_options
+from phylo_lens_server.domain.views import LayoutBounds
 
 GRAPHVIZ_SFDP_COMMAND = "sfdp"
-
-
-@dataclass(frozen=True)
-class LayoutFailureDiagnostics:
-    algorithm: str = "sfdp"
-    stage: str = "global_layout"
-    exit_status: int | None = None
-    timeout_seconds: float | None = None
-    stderr: str | None = None
-    detail: str | None = None
-
-    def as_dict(self) -> dict[str, str | int | float | None]:
-        return {
-            "algorithm": self.algorithm,
-            "stage": self.stage,
-            "exit_status": self.exit_status,
-            "timeout_seconds": self.timeout_seconds,
-            "stderr": self.stderr,
-            "detail": self.detail,
-        }
-
-
-class GraphvizLayoutError(RuntimeError):
-    def __init__(self, message: str, diagnostics: LayoutFailureDiagnostics) -> None:
-        super().__init__(message)
-        self.diagnostics = diagnostics
 
 
 def compute_prepared_layouts(
@@ -106,7 +83,7 @@ def compute_prepared_layouts(
 
 
 def compute_global_node_positions(
-    dataset: CanonicalDataset,
+    dataset: Dataset,
     options: SfdpOptions | None = None,
 ) -> dict[str, tuple[float, float]]:
     node_ids = tuple(sorted(node.id for node in dataset.nodes))
@@ -121,7 +98,7 @@ def compute_global_node_positions(
 
 def graphviz_sfdp_positions(
     node_ids: tuple[str, ...],
-    edges: tuple[CanonicalEdge, ...],
+    edges: tuple[GraphEdge, ...],
     options: SfdpOptions | None = None,
 ) -> dict[str, tuple[float, float]]:
     # Graphviz's spring smoother asserts that every node has a non-self
@@ -204,6 +181,7 @@ def _place_isolated_nodes(
     isolated_ids: tuple[str, ...],
 ) -> dict[str, tuple[float, float]]:
     """Pack a deterministic grid beside SFDP geometry, preserving its positions."""
+    positions = dict(positions)
     if not isolated_ids:
         return positions
     if positions:
@@ -226,7 +204,7 @@ def _place_isolated_nodes(
 
 def graphviz_dot_payload(
     node_ids: tuple[str, ...],
-    edges: tuple[CanonicalEdge, ...],
+    edges: tuple[GraphEdge, ...],
     options: SfdpOptions | None = None,
 ) -> str:
     options = resolve_sfdp_options(options)

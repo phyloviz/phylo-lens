@@ -19,7 +19,7 @@ Direct Newick input has no original profile-distance matrix, so each component
 uses the root expressed by its Newick serialization. Anonymous internal nodes
 are valid here. A direct Newick forest has one technical root per component.
 
-Technical roots are explicit in `CanonicalDataset.technical_roots`; the source
+Technical roots are explicit in `Dataset.technical_roots`; the source
 records the rooting strategy. Both participate in the layout fingerprint.
 
 ## Hop-depth hierarchy

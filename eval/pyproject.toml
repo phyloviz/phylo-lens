@@ -16,3 +16,7 @@ select = ["E4", "E7", "E9", "F"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src", "../code/server/src", "scripts"]
+
+[tool.ruff.lint.per-file-ignores]
+# This standalone source-tree runner adds server/src before importing its algorithms.
+"scripts/evaluate_lod_growth.py" = ["E402"]

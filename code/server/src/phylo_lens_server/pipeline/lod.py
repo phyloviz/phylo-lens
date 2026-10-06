@@ -5,14 +5,22 @@ from __future__ import annotations
 from collections import Counter, deque
 from math import isfinite, log
 
-from phylo_lens_server.domain.models import CanonicalDataset
-from phylo_lens_server.pipeline.models import PreparedCluster
+from phylo_lens_server.domain.identity import (
+    LOD_REPRESENTATION_GROWTH_FACTOR,
+    layout_version_for_dataset,
+)
+from phylo_lens_server.domain.models import Dataset
+from phylo_lens_server.domain.preparation import (
+    PreparedCluster,
+    PreparedLayoutArtifacts,
+    QuotientEdge,
+)
+from phylo_lens_server.domain.sfdp import SfdpOptions, resolve_sfdp_options
 
-LOD_REPRESENTATION_GROWTH_FACTOR = 2.0
 Adjacency = dict[str, list[tuple[str, str]]]
 
 
-def tree_adjacency(dataset: CanonicalDataset) -> Adjacency:
+def tree_adjacency(dataset: Dataset) -> Adjacency:
     neighbors: Adjacency = {node.id: [] for node in dataset.nodes}
     if len(neighbors) != len(dataset.nodes):
         raise ValueError("Tree nodes must have distinct IDs.")
@@ -165,3 +173,99 @@ def clusters_at_depth(
             )
         )
     return tuple(clusters)
+
+
+ERR_EMPTY_DATASET = "Prepared layout requires at least one node."
+
+
+class PreparedLayoutIngestError(ValueError):
+    """Raised when a dataset cannot be prepared for materialized layout."""
+
+
+def prepare_layout_artifacts(
+    dataset: Dataset,
+    *,
+    sfdp_options: SfdpOptions | None = None,
+) -> PreparedLayoutArtifacts:
+    if not dataset.nodes:
+        raise PreparedLayoutIngestError(ERR_EMPTY_DATASET)
+
+    resolved_sfdp_options = resolve_sfdp_options(sfdp_options)
+    neighbors = tree_adjacency(dataset)
+    depths = rooted_depths(neighbors, dataset.technical_roots)
+    cuts = selected_depths(depths, LOD_REPRESENTATION_GROWTH_FACTOR)
+    clusters = tuple(
+        cluster
+        for lod_level, hop_depth in enumerate(cuts)
+        for cluster in clusters_at_depth(neighbors, depths, hop_depth, lod_level)
+    )
+    return PreparedLayoutArtifacts(
+        dataset=dataset,
+        layout_version=layout_version_for_dataset(dataset, resolved_sfdp_options),
+        clusters=clusters,
+        sfdp_options=resolved_sfdp_options,
+    )
+
+
+def compute_prepared_edges(
+    artifacts: PreparedLayoutArtifacts,
+) -> tuple[QuotientEdge, ...]:
+    prepared: list[QuotientEdge] = []
+    clusters_by_level: dict[int, list[PreparedCluster]] = {}
+    for cluster in artifacts.clusters:
+        clusters_by_level.setdefault(cluster.lod_level, []).append(cluster)
+
+    for lod_level, clusters in sorted(clusters_by_level.items()):
+        members = [
+            node_id for cluster in clusters for node_id in cluster.member_node_ids
+        ]
+        if len(members) != len(set(members)) or set(members) != {
+            node.id for node in artifacts.dataset.nodes
+        }:
+            raise ValueError(
+                "Each LoD level must partition all tree nodes exactly once."
+            )
+        node_to_rep = {
+            node_id: cluster.representative_node_id
+            for cluster in clusters
+            for node_id in cluster.member_node_ids
+        }
+        seen_pairs: set[tuple[str, str]] = set()
+        degree: dict[str, int] = {}
+
+        for edge in artifacts.dataset.edges:
+            source_rep = node_to_rep[edge.source]
+            target_rep = node_to_rep[edge.target]
+            if source_rep == target_rep:
+                continue
+
+            source, target = sorted((source_rep, target_rep))
+            pair = (source, target)
+            if pair in seen_pairs:
+                raise ValueError("Contracting a tree cannot create parallel edges.")
+            seen_pairs.add(pair)
+            degree[source] = degree.get(source, 0) + 1
+            degree[target] = degree.get(target, 0) + 1
+            prepared.append(
+                QuotientEdge(
+                    dataset_id=artifacts.dataset.dataset_id,
+                    layout_version=artifacts.layout_version,
+                    lod_level=lod_level,
+                    edge_id=f"quotient_edge:{lod_level}:{source}:{target}",
+                    source=source,
+                    target=target,
+                    distance=edge.distance,
+                )
+            )
+        for cluster in clusters:
+            if (
+                cluster.member_count > 1
+                and degree.get(cluster.representative_node_id, 0) > 1
+            ):
+                raise ValueError(
+                    "A collapsed cluster cannot connect two visible tree parts."
+                )
+
+    return tuple(
+        sorted(prepared, key=lambda edge: (edge.lod_level, edge.source, edge.target))
+    )

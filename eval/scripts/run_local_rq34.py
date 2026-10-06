@@ -6,6 +6,8 @@ release configurations, layouts, targets and observation schemas are untouched.
 
 from __future__ import annotations
 
+from phylo_lens_server.domain.models import SourceFormat
+
 import argparse
 import hashlib
 import json
@@ -424,15 +426,16 @@ def main():
     if args.repetitions < 1 or Path(args.run_id).name != args.run_id:
         parser.error("A positive repetition count and simple run ID are required")
     sys.path.insert(0, str(args.product_root / "code/server/src"))
-    from phylo_lens_server.data.normalizer import NormalizeRequest, normalize_dataset
-    from phylo_lens_server.pipeline.clustering import (
+    from phylo_lens_server.domain.preparation import PrepareInput
+    from phylo_lens_server.pipeline.ingestion import ingest_dataset
+    from phylo_lens_server.pipeline.lod import (
         rooted_depths,
         selected_depths,
         tree_adjacency,
     )
-    from phylo_lens_server.pipeline.worker import PreparedLayoutWorker
+    from phylo_lens_server.services.preparation import PreparationService
     from phylo_lens_server.repository.layout.sqlite_layout_repository import (
-        PreparedLayoutStore,
+        SQLiteLayoutRepository,
     )
 
     directory = (args.results_root / args.run_id).resolve()
@@ -443,9 +446,11 @@ def main():
         directory / "browser-runner-snapshot.mjs",
     )
     content = args.dataset.read_text()
-    dataset = normalize_dataset(
-        NormalizeRequest(
-            format="newick", dataset_name=args.dataset.stem, content=content
+    dataset = ingest_dataset(
+        PrepareInput(
+            format=SourceFormat("newick"),
+            dataset_name=args.dataset.stem,
+            content=content,
         )
     ).dataset
     env = {**os.environ, "PYTHONPATH": str(args.product_root / "code/server/src")}
@@ -489,7 +494,7 @@ def main():
         "headless": args.headless,
     }
     write(directory / "manifest.json", provenance)
-    store = PreparedLayoutStore(args.layout_dir or directory / "prepared-layout")
+    store = SQLiteLayoutRepository(args.layout_dir or directory / "prepared-layout")
     stages = []
     from contextlib import contextmanager
 
@@ -502,7 +507,7 @@ def main():
         write(directory / "preparation-stages.json", stages)
 
     if args.layout_dir:
-        from phylo_lens_server.pipeline.ingest import layout_version_for_dataset
+        from phylo_lens_server.domain.identity import layout_version_for_dataset
 
         version = layout_version_for_dataset(dataset)
         with sqlite3.connect(store.path) as connection:
@@ -517,9 +522,7 @@ def main():
         provenance["reused_layout"] = str(store.path.resolve())
         write(directory / "manifest.json", provenance)
     else:
-        result = PreparedLayoutWorker(store, stage_factory=stage).prepare_dataset(
-            dataset
-        )
+        result = PreparationService(store, stage_factory=stage).prepare_dataset(dataset)
         version = result.artifacts.layout_version
     depths = rooted_depths(tree_adjacency(dataset), dataset.technical_roots)
     cuts = selected_depths(depths)

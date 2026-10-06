@@ -1,20 +1,26 @@
+from phylo_lens_server.domain.views import ViewportQuery
+
 """Unbounded normal reads and explicit caller-controlled limits."""
 
 import pytest
 from pydantic import ValidationError
 
-from phylo_lens_server.data.normalizer import NormalizeRequest, normalize_dataset
-from phylo_lens_server.http.graph.schemas import GraphRegionQuery, GraphViewportQuery
-from phylo_lens_server.pipeline.ingest import prepare_layout_artifacts
-from phylo_lens_server.pipeline.models import (
-    ClusterLayout,
-    LayoutBounds,
-    NodeLayoutPosition,
+from phylo_lens_server.database.sql import LayoutSQL
+from phylo_lens_server.domain.preparation import ClusterLayout, NodeLayoutPosition
+from phylo_lens_server.domain.views import LayoutBounds
+from phylo_lens_server.http.graph.schemas import (
+    GraphRegionQuery,
+    GraphViewportQuery,
+    NormalizeRequest,
 )
-from phylo_lens_server.pipeline.worker import compute_prepared_edges
-from phylo_lens_server.repository.layout import postgres_layout_repository as postgres
+from phylo_lens_server.pipeline.ingestion import ingest_dataset
+from phylo_lens_server.pipeline.lod import (
+    compute_prepared_edges,
+    prepare_layout_artifacts,
+)
+from phylo_lens_server.repository.layout import viewport_reader as reader
 from phylo_lens_server.repository.layout.sqlite_layout_repository import (
-    PreparedLayoutStore,
+    SQLiteLayoutRepository,
 )
 
 
@@ -22,11 +28,13 @@ from phylo_lens_server.repository.layout.sqlite_layout_repository import (
 def large_prepared_tree(tmp_path_factory):
     # Count-limit regression only: a cheap positioned tree avoids Graphviz cost.
     content = "(" + ",".join(f"(leaf{i})branch{i}" for i in range(10001)) + ")root;"
-    dataset = normalize_dataset(
-        NormalizeRequest(format="newick", dataset_name="unbounded", content=content)
+    dataset = ingest_dataset(
+        NormalizeRequest(
+            format="newick", dataset_name="unbounded", content=content
+        ).to_domain()
     ).dataset
     artifacts = prepare_layout_artifacts(dataset)
-    store = PreparedLayoutStore(tmp_path_factory.mktemp("unbounded"))
+    store = SQLiteLayoutRepository(tmp_path_factory.mktemp("unbounded"))
     store.save_artifacts(artifacts)
     index = {n.id: i for i, n in enumerate(dataset.nodes)}
     finest = max(c.lod_level for c in artifacts.clusters)
@@ -154,14 +162,15 @@ class RecordingConnection:
 
 @pytest.mark.parametrize("limit", [None, 7])
 def test_postgres_sql_limits_are_only_explicit(limit):
-    conn = RecordingConnection()
+    raw = RecordingConnection()
+    conn = LayoutSQL(raw, "postgres")
     args = {"dataset_id": "x", "layout_version": "v", "max_nodes": limit}
     bounds = {"xmin": None, "xmax": None, "ymin": None, "ymax": None}
-    postgres.read_ready_nodes(conn, **args, **bounds)
-    postgres.read_cluster_member_nodes(conn, **args, cluster_id="c")
-    postgres.read_cluster_representatives(conn, **args, **bounds, cluster_level=0)
-    postgres.read_node_positions_by_ids(conn, **args, node_ids={"a"})
-    for sql, params in conn.calls:
+    reader.read_positioned_nodes(conn, **args, **bounds)
+    reader._read_cluster_member_nodes(conn, **args, cluster_id="c")
+    reader._read_cluster_representatives(conn, **args, **bounds, cluster_level=0)
+    reader._read_node_positions_by_ids(conn, **args, node_ids={"a"})
+    for sql, params in raw.calls:
         assert "{limit_clause}" not in sql
         if "count(*)" not in sql:
             assert ("limit %s" in sql) == (limit is not None)
@@ -171,7 +180,7 @@ def test_postgres_sql_limits_are_only_explicit(limit):
 def test_adaptive_selection_counts_the_complete_detail_boundary_fan(
     large_prepared_tree,
 ):
-    from phylo_lens_server.services.graph_service import read_graph_viewport
+    from phylo_lens_server.services.graph_reads import read_graph_viewport
 
     store, artifacts = large_prepared_tree
     root = next(
@@ -188,8 +197,8 @@ def test_adaptive_selection_counts_the_complete_detail_boundary_fan(
     counts = store.viewport_representation_counts(**args)
     assert counts == {0: 1, 1: 10002}
     response = read_graph_viewport(
-        GraphViewportQuery(**args, lod_level=1, lod_target_representations=1), store
+        ViewportQuery(**args, lod_level=1, lod_target_representations=1), store
     )
     assert response.lod_level == 0
-    assert [n.id for n in response.nodes] == ["root"]
+    assert [n.node_id for n in response.nodes] == ["root"]
     assert not response.truncated

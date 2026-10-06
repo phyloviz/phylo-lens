@@ -4,9 +4,12 @@ from typing import Any
 
 import pytest
 
-from phylo_lens_server.data.normalizer import NormalizeRequest, normalize_dataset
-from phylo_lens_server.database import schema_files
+from phylo_lens_server.database import postgres, schema_files
 from phylo_lens_server.database.schema_files import schema_file_path
+from phylo_lens_server.domain.preparation import PreparationSummary
+from phylo_lens_server.http.graph.schemas import NormalizeRequest
+from phylo_lens_server.jobs.durable import DurablePrepareJobRegistry
+from phylo_lens_server.pipeline.ingestion import ingest_dataset
 from phylo_lens_server.repository.jobs import postgres as job_store
 
 
@@ -19,7 +22,14 @@ def test_durable_prepare_job_from_row_normalizes_json_fields() -> None:
             "status": "ready",
             "warnings": ["slow layout"],
             "error": None,
-            "result": {"layout_status": "ready"},
+            "result": {
+                "dataset_id": "dataset-1",
+                "layout_version": "layout-1",
+                "node_count": 3,
+                "edge_count": 2,
+                "cluster_count": 1,
+                "layout_status": "ready",
+            },
             "worker_id": "worker-1",
         }
     )
@@ -27,7 +37,7 @@ def test_durable_prepare_job_from_row_normalizes_json_fields() -> None:
     assert record.job_id == "job-1"
     assert record.status == "ready"
     assert record.warnings == ("slow layout",)
-    assert record.result == {"layout_status": "ready"}
+    assert record.result.layout_status == "ready"
     assert record.worker_id == "worker-1"
 
 
@@ -47,8 +57,8 @@ def test_validate_lease_seconds_rejects_non_positive_values() -> None:
 
 
 def test_postgres_schema_defines_durable_job_controls() -> None:
-    schema = job_store.POSTGRES_CREATE_SCHEMA_SQL
-    statements = job_store.postgres_create_schema_statements()
+    schema = postgres.POSTGRES_CREATE_SCHEMA_SQL
+    statements = postgres.sql_statements(postgres.POSTGRES_CREATE_SCHEMA_SQL)
 
     assert schema == schema_file_path("postgres").read_text(encoding="utf-8")
     assert "create table if not exists prepare_jobs" in schema
@@ -132,12 +142,12 @@ class RecordingDurableStore:
 
 
 def test_durable_prepare_job_registry_submits_and_maps_ready_snapshot() -> None:
-    dataset = normalize_dataset(
+    dataset = ingest_dataset(
         NormalizeRequest(
             format="newick",
             dataset_name="durable-tree",
             content="(a:1,b:1)root;",
-        )
+        ).to_domain()
     ).dataset
     result_payload = {
         "dataset_id": "durable-tree",
@@ -156,10 +166,10 @@ def test_durable_prepare_job_registry_submits_and_maps_ready_snapshot() -> None:
             layout_version="abc",
             status="ready",
             warnings=("note",),
-            result=result_payload,
+            result=PreparationSummary.model_validate(result_payload),
         )
     )
-    registry = job_store.DurablePrepareJobRegistry(store, max_active_jobs=2)
+    registry = DurablePrepareJobRegistry(store, max_active_jobs=2)
 
     job_id = registry.submit(dataset, ("note",))
     snapshot = registry.snapshot(job_id)
@@ -168,20 +178,61 @@ def test_durable_prepare_job_registry_submits_and_maps_ready_snapshot() -> None:
     assert store.submitted == [("durable-tree", ("note",), 2)]
     assert snapshot is not None
     assert snapshot.status == "ready"
-    assert snapshot.result_payload == result_payload
+    assert snapshot.result.model_dump(mode="json") == result_payload
 
 
 def test_postgres_schema_is_checksummed() -> None:
-    schema = job_store.postgres_schema()
+    schema = postgres.postgres_schema()
 
-    assert schema.version == job_store.POSTGRES_SCHEMA_VERSION
+    assert schema.version == postgres.POSTGRES_SCHEMA_VERSION
     assert len(schema.checksum) == 64
-    assert schema.sql == job_store.POSTGRES_CREATE_SCHEMA_SQL
+    assert schema.sql == postgres.POSTGRES_CREATE_SCHEMA_SQL
 
 
 def test_postgres_schema_assertion_does_not_run_ddl() -> None:
-    source = job_store.PostgresPrepareJobStore.assert_schema_current.__code__.co_consts
-    names = job_store.PostgresPrepareJobStore.assert_schema_current.__code__.co_names
+    source = postgres.assert_schema_current.__code__.co_consts
+    names = postgres.assert_schema_current.__code__.co_names
 
     assert not any("create table" in str(constant).lower() for constant in source)
     assert "_schema_version_table_exists" in names
+
+
+def test_historical_durable_dataset_payload_decodes_at_repository_boundary():
+    from phylo_lens_server.domain.identity import layout_version_for_dataset
+    from phylo_lens_server.domain.legacy_metadata import encode_dataset_annotations
+    from phylo_lens_server.domain.models import (
+        NEWICK_ROOTING_STRATEGY,
+        Dataset,
+        DatasetSource,
+        GraphNode,
+        Isolate,
+    )
+    from phylo_lens_server.repository.jobs.postgres import decode_dataset_payload
+
+    current = Dataset(
+        dataset_id="persisted-compat",
+        nodes=(GraphNode(id="a"),),
+        edges=(),
+        technical_roots=("a",),
+        source=DatasetSource(
+            format="newick",
+            generated_at="fixed",
+            rooting_strategy=NEWICK_ROOTING_STRATEGY,
+        ),
+        isolates_by_node_id={
+            "a": (Isolate(id="original", ancillary_data={"country": "PT"}),)
+        },
+    )
+    old = current.model_dump(mode="json")
+    old.pop("annotations_by_node_id")
+    old.pop("ancillary_schema")
+    old.pop("summary_schema")
+    old["metadata_by_node_id"] = {}
+    old["metadata_schema"] = []
+    old["isolates_by_node_id"]["a"][0]["metadata"] = old["isolates_by_node_id"]["a"][
+        0
+    ].pop("ancillary_data")
+    decoded = decode_dataset_payload(old)
+    assert decoded == current
+    assert encode_dataset_annotations(decoded) == {}
+    assert layout_version_for_dataset(decoded) == layout_version_for_dataset(current)

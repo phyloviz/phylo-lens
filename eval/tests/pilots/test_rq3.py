@@ -18,9 +18,9 @@ from phylo_lens_eval.pilots.rq3 import (
     semantic_equivalence,
     synthetic_dataset,
 )
-from phylo_lens_server.pipeline.worker import PreparedLayoutWorker
+from phylo_lens_server.services.preparation import PreparationService
 from phylo_lens_server.repository.layout.sqlite_layout_repository import (
-    PreparedLayoutStore,
+    SQLiteLayoutRepository,
 )
 
 
@@ -42,8 +42,8 @@ def test_persisted_members_reconstruct_full_detail_with_base_coordinates(
     assert dataset.technical_roots == ("n-0",)
     assert dataset.source.rooting_strategy == "newick-component-root-v1"
     assert all(edge.distance is None for edge in dataset.edges)
-    store = PreparedLayoutStore(tmp_path / "layout")
-    prepared = PreparedLayoutWorker(store).prepare_dataset(dataset)
+    store = SQLiteLayoutRepository(tmp_path / "layout")
+    prepared = PreparationService(store).prepare_dataset(dataset)
     _request, triangles, detail = paired_responses(
         store,
         prepared.artifacts.layout_version,
