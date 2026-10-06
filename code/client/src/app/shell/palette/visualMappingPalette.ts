@@ -1,14 +1,19 @@
-import { normalizedPieFields, type PieCategoryGrouping } from "../../../render/mapping/pieMapping";
-import type { GraphWorkbench } from "../../workbench/graphWorkbench";
-import type { PositionedGraph } from "../../../contracts/positioned";
-import { resolveMappingPalette, type VisualMappingOptions } from "../../../render/mapping/visualMapping";
-import { buildVisualMappingForControls } from "../controls/visualMappingControls";
-import { downloadTextFile, readTextFile } from "../inputs/fileInputs";
-import { parseCategoryColorPalette, serializeCategoryColorPalette } from "./categoryPalette";
-import categoryColorControls from "./categoryColorControls";
+import { initialPaletteState, reducePalette, type PaletteAction } from './paletteState';
+import { toError } from '../../errors';
+import { normalizedPieFields } from '../../../render/mapping/pieMapping';
+import type { PositionedGraph } from '../../../contracts/positioned';
+import {
+  resolveMappingPalette,
+  copyVisualMapping,
+  type VisualMappingOptions,
+} from '../../../render/mapping/visualMapping';
+import { buildVisualMappingForControls } from '../controls/visualMappingControls';
+import { downloadTextFile, readTextFile } from '../inputs/fileInputs';
+import { parseCategoryColorPalette, serializeCategoryColorPalette } from './categoryPalette';
+import categoryColorControls from './categoryColorControls';
 
-export interface VisualMappingPaletteOptions {
-  workbench: GraphWorkbench;
+export type VisualMappingPaletteOptions = {
+  readonly updateVisualMapping: (mapping: VisualMappingOptions) => void;
   container?: HTMLElement;
   loadInput?: HTMLInputElement;
   saveFilename: string;
@@ -20,15 +25,16 @@ export interface VisualMappingPaletteOptions {
   onChanged: () => void;
   setStatus: (status: string) => void;
   setFailureStatus: (message: string) => void;
-}
+};
 
 export default function (options: VisualMappingPaletteOptions) {
-  let baseVisualMapping: VisualMappingOptions = {};
-  let currentVisualMapping: VisualMappingOptions = {};
-  let categoryColorOverrides: Record<string, string> = {};
-  const groupingByFields = new Map<string, PieCategoryGrouping>();
+  let state = initialPaletteState();
+  let revision = 0;
+  const dispatch = (action: PaletteAction) => {
+    state = reducePalette(state, action);
+  };
   const fieldKey = (fields: string[]) => JSON.stringify(normalizedPieFields(fields));
-  const currentGrouping = () => groupingByFields.get(fieldKey(options.getSelectedFields())) ?? {};
+  const currentGrouping = () => state.groupingByFields[fieldKey(options.getSelectedFields())] ?? {};
   const controls = categoryColorControls(options.container);
 
   return {
@@ -43,85 +49,77 @@ export default function (options: VisualMappingPaletteOptions) {
   };
 
   function getCurrentVisualMapping(): VisualMappingOptions {
-    return currentVisualMapping;
+    return copyVisualMapping(state.mapping);
   }
 
   function getCategoryColorOverrides(): Record<string, string> {
-    return categoryColorOverrides;
+    return { ...state.colors };
   }
 
-  function setBaseVisualMapping(visualMapping: VisualMappingOptions): void {
-    baseVisualMapping = visualMapping;
-    groupingByFields.set(fieldKey(options.getSelectedFields()), { ...visualMapping.pie?.categoryGrouping });
-    categoryColorOverrides = { ...visualMapping.pie?.categoryColors };
-    currentVisualMapping = buildCurrentVisualMapping();
+  function setBaseVisualMapping(mapping: VisualMappingOptions): void {
+    revision++;
+    dispatch({ kind: 'baseChanged', mapping, fieldKey: fieldKey(options.getSelectedFields()) });
+    dispatch({ kind: 'mappingApplied', mapping: buildCurrentVisualMapping() });
   }
 
   function reset(): void {
-    baseVisualMapping = {};
-    groupingByFields.clear();
-    currentVisualMapping = {};
-    categoryColorOverrides = {};
+    revision++;
+    dispatch({ kind: 'reset' });
   }
 
   function renderControls(): void {
     controls.render({
       graph: options.getGraph(),
       selectedFields: options.getSelectedFields(),
-      categoryColorOverrides,
-      palette: resolveMappingPalette(currentVisualMapping),
+      categoryColorOverrides: { ...state.colors },
+      palette: resolveMappingPalette(state.mapping),
       categoryGrouping: currentGrouping(),
     });
   }
 
-  function readControls(): void {
-    const { fields, grouping } = controls.readGrouping();
-    groupingByFields.set(fieldKey(fields), grouping);
-    categoryColorOverrides = { ...categoryColorOverrides, ...controls.readSelectedColors(true) };
+  function applyControlChange(): void {
+    revision++;
+    applyMapping();
   }
 
-  function applyControlChange(): void {
-    readControls();
-    currentVisualMapping = buildCurrentVisualMapping(categoryColorOverrides);
-
-    if (!options.getGraph()) {
-      options.onChanged();
-      return;
+  function applyMapping(): void {
+    const { fields, grouping } = controls.readGrouping();
+    dispatch({
+      kind: 'controlsRead',
+      fieldKey: fieldKey(fields),
+      grouping,
+      colors: controls.readSelectedColors(true) ?? {},
+    });
+    dispatch({ kind: 'mappingApplied', mapping: buildCurrentVisualMapping() });
+    if (options.getGraph()) {
+      try {
+        options.updateVisualMapping(copyVisualMapping(state.mapping));
+      } catch (error) {
+        options.setFailureStatus(toError(error).message);
+      }
     }
-
-    try {
-      options.workbench.updateVisualMapping(currentVisualMapping);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "unknown error";
-      options.setFailureStatus(message);
-    }
-
     options.onChanged();
   }
 
   async function load(): Promise<void> {
     const file = options.loadInput?.files?.[0];
-    if (!file) {
-      return;
-    }
-
+    if (!file) return;
+    const request = ++revision;
+    const selectedFields = fieldKey(options.getSelectedFields());
+    const isCurrent = () => request === revision && selectedFields === fieldKey(options.getSelectedFields());
+    const categories = controls.readEditableOrder();
     try {
-      const categories = controls.readEditableOrder();
-      const loadedColors = parseCategoryColorPalette(await readTextFile(file), categories);
-      categoryColorOverrides = {
-        ...categoryColorOverrides,
-        ...loadedColors,
-      };
+      const content = await readTextFile(file);
+      if (!isCurrent()) return;
+      const colors = parseCategoryColorPalette(content, categories);
+      dispatch({ kind: 'colorsLoaded', colors });
       renderControls();
-      applyControlChange();
-      options.setStatus(`Loaded ${Object.keys(loadedColors).length} category colors`);
+      applyMapping();
+      if (isCurrent()) options.setStatus(`Loaded ${Object.keys(colors).length} category colors`);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "unknown error";
-      options.setFailureStatus(message);
+      if (isCurrent()) options.setFailureStatus(toError(error).message);
     } finally {
-      if (options.loadInput) {
-        options.loadInput.value = "";
-      }
+      if (isCurrent() && options.loadInput?.files?.[0] === file) options.loadInput.value = '';
     }
   }
 
@@ -129,7 +127,7 @@ export default function (options: VisualMappingPaletteOptions) {
     const colors = controls.readSelectedColors();
     const categories = controls.readEditableOrder();
     if (!colors || categories.length === 0) {
-      options.setFailureStatus("no category colors to save");
+      options.setFailureStatus('no category colors to save');
       return;
     }
 
@@ -137,24 +135,21 @@ export default function (options: VisualMappingPaletteOptions) {
     options.setStatus(`Saved ${categories.length} category colors`);
   }
 
-  function buildCurrentVisualMapping(categoryColors?: Record<string, string>): VisualMappingOptions {
+  function buildCurrentVisualMapping(): VisualMappingOptions {
     const mapping = buildVisualMappingForControls(
-      baseVisualMapping,
+      state.baseMapping,
       options.getSelectedFields(),
       options.getSizeFieldValue(),
       options.getSizeScaleValue(),
-      categoryColors,
+      { ...state.colors }
     );
-    if (mapping.pie) {
+    const pie = mapping.pie && { ...mapping.pie };
+    if (pie) {
       const grouping = currentGrouping();
-      mapping.pie = { ...mapping.pie };
-      if (Object.keys(grouping).length) mapping.pie.categoryGrouping = grouping;
-      else delete mapping.pie.categoryGrouping;
+      if (Object.keys(grouping).length) pie.categoryGrouping = grouping;
+      else delete pie.categoryGrouping;
     }
     const enabled = options.getPiesEnabled?.();
-    if (enabled !== undefined) {
-      mapping.pie = { ...mapping.pie, enabled };
-    }
-    return mapping;
+    return enabled !== undefined ? { ...mapping, pie: { ...pie, enabled } } : pie ? { ...mapping, pie } : mapping;
   }
 }

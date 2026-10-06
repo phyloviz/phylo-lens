@@ -6,7 +6,11 @@ export default function () {
     clear: clear,
   };
 
-  function on(target: EventTarget | null | undefined, type: string, listener: EventListener): void {
+  function on<K extends keyof HTMLElementEventMap>(
+    target: HTMLElement | null | undefined,
+    type: K,
+    listener: (event: HTMLElementEventMap[K]) => void
+  ): void {
     if (!target) {
       return;
     }
@@ -18,7 +22,7 @@ export default function () {
   }
 
   function clear(): void {
-    removers.splice(0).forEach((remove) => {
+    removers.splice(0).forEach(remove => {
       remove();
     });
   }

@@ -1,8 +1,9 @@
-import { describe, expect, it, vi } from "vitest";
+import { toDatasetId, toLayoutVersion, toClusterId } from '../src/contracts/graph/graphIdentifiers';
+import { describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   prepareGraph: vi.fn(),
-  renderNewick: vi.fn(),
+  loadGraph: vi.fn(),
   exportPng: vi.fn(),
   updateVisualMapping: vi.fn(),
   applyAncillaryData: vi.fn(),
@@ -16,21 +17,21 @@ const mocks = vi.hoisted(() => ({
   setKeepExpanded: vi.fn(),
 }));
 
-vi.mock("../src/api/graphClient", () => ({
+vi.mock('../src/services/graph/graphService', () => ({
   createGraphClient: vi.fn((options: { baseUrl: string }) => ({
     apiUrl: options.baseUrl,
     prepareGraph: mocks.prepareGraph,
   })),
 }));
 
-vi.mock("../src/render/rendererFactory", () => ({
+vi.mock('../src/render/rendererFactory', () => ({
   default: vi.fn(() => ({
     createRenderer: mocks.createRenderer,
   })),
 }));
 
-vi.mock("../src/app/workbench/graphWorkbench", () => ({
-  ERR_GRAPH_LOAD_SUPERSEDED: "Graph load was superseded by a newer load.",
+vi.mock('../src/app/workbench/graphWorkbench', () => ({
+  ERR_GRAPH_LOAD_SUPERSEDED: 'Graph load was superseded by a newer load.',
   createGraphWorkbench: vi.fn(() => ({
     expandAll: mocks.expandAll,
     collapseAll: mocks.collapseAll,
@@ -41,9 +42,10 @@ vi.mock("../src/app/workbench/graphWorkbench", () => ({
     setInteractionFeedbackHandler: vi.fn(),
     setMotionEnabled: vi.fn(),
     isMotionEnabled: vi.fn(() => true),
+    setErrorHandler: vi.fn(),
     setNodeClickedHandler: vi.fn(),
     setGraphRenderedHandler: vi.fn(),
-    renderNewick: mocks.renderNewick,
+    loadGraph: mocks.loadGraph,
     exportPng: mocks.exportPng,
     updateVisualMapping: mocks.updateVisualMapping,
     applyAncillaryData: mocks.applyAncillaryData,
@@ -51,14 +53,14 @@ vi.mock("../src/app/workbench/graphWorkbench", () => ({
   })),
 }));
 
-import { createGraphWorkbench } from "../src/app/workbench/graphWorkbench";
-import { createPhyloLensView } from "../src";
-import { ERR_PHYLO_LENS_VIEW_DISPOSED } from "../src/phyloLensView";
+import { createGraphWorkbench } from '../src/app/workbench/graphWorkbench';
+import { createPhyloLensView } from '../src/index';
+import { ERR_PHYLO_LENS_VIEW_DISPOSED } from '../src/phyloLensView';
 
-describe("createPhyloLensView", () => {
+describe('createPhyloLensView', () => {
   beforeEach(() => {
     mocks.prepareGraph.mockReset();
-    mocks.renderNewick.mockReset();
+    mocks.loadGraph.mockReset();
     mocks.exportPng.mockReset();
     mocks.updateVisualMapping.mockReset();
     mocks.applyAncillaryData.mockReset();
@@ -66,81 +68,89 @@ describe("createPhyloLensView", () => {
     mocks.createRenderer.mockReset();
   });
 
-  it("creates the existing workbench stack and loads Newick content", async () => {
-    const container = document.createElement("div");
+  it('creates the existing workbench stack and loads Newick content', async () => {
+    const container = document.createElement('div');
     const view = createPhyloLensView({
       container,
-      apiUrl: "https://phylo-lens.example.test",
+      apiUrl: 'https://phylo-lens.example.test',
     });
 
     await view.load({
-      content: "(a:1,b:1)root;",
-      name: "example-tree",
-      metadataSchema: [{ key: "country", type: "string" }],
-      metadataByNodeId: {
-        a: { country: "PT" },
+      content: '(a:1,b:1)root;',
+      name: 'example-tree',
+      ancillarySchema: [{ key: 'country', type: 'string' }],
+      ancillaryByNodeId: {
+        a: { country: 'PT' },
       },
     });
     view.dispose();
 
     expect(createGraphWorkbench).toHaveBeenCalledWith({
       graphClient: expect.objectContaining({
-        apiUrl: "https://phylo-lens.example.test",
+        apiUrl: 'https://phylo-lens.example.test',
       }),
       rendererFactory: expect.objectContaining({
         createRenderer: mocks.createRenderer,
       }),
-      rendererKind: "sigma",
+      rendererType: 'sigma',
       renderContext: { container },
     });
-    expect(mocks.renderNewick).toHaveBeenCalledWith("(a:1,b:1)root;", "example-tree", {
-      sourceFormat: "newick",
-      metadataSchema: [{ key: "country", type: "string" }],
-      metadataByNodeId: {
-        a: { country: "PT" },
-      },
-    });
+    expect(mocks.loadGraph).toHaveBeenCalledWith(
+      { content: '(a:1,b:1)root;', datasetName: 'example-tree', format: 'newick' },
+      {
+        ancillarySchema: [{ key: 'country', type: 'string' }],
+        ancillaryByNodeId: {
+          a: { country: 'PT' },
+        },
+      }
+    );
     expect(mocks.dispose).toHaveBeenCalledOnce();
   });
 
-  it("delegates each load call to the workbench", async () => {
+  it('delegates each load call to the workbench', async () => {
     const view = createPhyloLensView({
-      container: document.createElement("div"),
-      apiUrl: "https://phylo-lens.example.test",
+      container: document.createElement('div'),
+      apiUrl: 'https://phylo-lens.example.test',
     });
 
-    await view.load({ content: "(a:1)b;", name: "first" });
-    await view.load({ content: "(c:1)d;", name: "second" });
+    await view.load({ content: '(a:1)b;', name: 'first' });
+    await view.load({ content: '(c:1)d;', name: 'second' });
 
-    expect(mocks.renderNewick).toHaveBeenNthCalledWith(1, "(a:1)b;", "first", {
-      sourceFormat: "newick",
-    });
-    expect(mocks.renderNewick).toHaveBeenNthCalledWith(2, "(c:1)d;", "second", {
-      sourceFormat: "newick",
-    });
+    expect(mocks.loadGraph).toHaveBeenNthCalledWith(
+      1,
+      { content: '(a:1)b;', datasetName: 'first', format: 'newick' },
+      {}
+    );
+    expect(mocks.loadGraph).toHaveBeenNthCalledWith(
+      2,
+      { content: '(c:1)d;', datasetName: 'second', format: 'newick' },
+      {}
+    );
   });
 
-  it("exposes SFDP configuration through the public load API", async () => {
+  it('exposes SFDP configuration through the public load API', async () => {
     const view = createPhyloLensView({
-      container: document.createElement("div"),
-      apiUrl: "https://phylo-lens.example.test",
+      container: document.createElement('div'),
+      apiUrl: 'https://phylo-lens.example.test',
     });
 
     await view.load({
-      content: "(a:1)b;",
-      sfdpOptions: { overlap: "prism", quadtree: "fast" },
+      content: '(a:1)b;',
+      sfdpOptions: { overlap: 'prism', quadtree: 'fast' },
     });
 
-    expect(mocks.renderNewick).toHaveBeenCalledWith("(a:1)b;", undefined, {
-      sourceFormat: "newick",
-      sfdpOptions: { overlap: "prism", quadtree: "fast" },
-    });
+    expect(mocks.loadGraph).toHaveBeenCalledWith(
+      { content: '(a:1)b;', datasetName: undefined, format: 'newick' },
+      {
+        sfdpOptions: { overlap: 'prism', quadtree: 'fast' },
+      }
+    );
   });
 
-  it("makes dispose idempotent", () => {
+  it('makes dispose idempotent', () => {
     const view = createPhyloLensView({
-      container: document.createElement("div"),
-      apiUrl: "https://phylo-lens.example.test",
+      container: document.createElement('div'),
+      apiUrl: 'https://phylo-lens.example.test',
     });
 
     view.dispose();
@@ -149,67 +159,67 @@ describe("createPhyloLensView", () => {
     expect(mocks.dispose).toHaveBeenCalledOnce();
   });
 
-  it("exposes PNG export on the normal view API", async () => {
-    const png = new Blob(["png"], { type: "image/png" });
+  it('exposes PNG export on the normal view API', async () => {
+    const png = new Blob(['png'], { type: 'image/png' });
     mocks.exportPng.mockResolvedValueOnce(png);
     const view = createPhyloLensView({
-      container: document.createElement("div"),
-      apiUrl: "https://phylo-lens.example.test",
+      container: document.createElement('div'),
+      apiUrl: 'https://phylo-lens.example.test',
     });
 
     await expect(view.exportPng()).resolves.toBe(png);
     expect(mocks.exportPng).toHaveBeenCalledOnce();
   });
 
-  it("allows dispose after a failed load", async () => {
-    mocks.renderNewick.mockRejectedValueOnce(new Error("prepare failed"));
+  it('allows dispose after a failed load', async () => {
+    mocks.loadGraph.mockRejectedValueOnce(new Error('prepare failed'));
     const view = createPhyloLensView({
-      container: document.createElement("div"),
-      apiUrl: "https://phylo-lens.example.test",
+      container: document.createElement('div'),
+      apiUrl: 'https://phylo-lens.example.test',
     });
 
-    await expect(view.load({ content: "(a:1)b;" })).rejects.toThrow("prepare failed");
+    await expect(view.load({ content: '(a:1)b;' })).rejects.toThrow('prepare failed');
     view.dispose();
 
     expect(mocks.dispose).toHaveBeenCalledOnce();
   });
 
-  it("rejects an in-flight load with the public disposed error after disposal", async () => {
+  it('rejects an in-flight load with the public disposed error after disposal', async () => {
     let rejectLoad: (error: unknown) => void = () => undefined;
-    mocks.renderNewick.mockReturnValueOnce(
+    mocks.loadGraph.mockReturnValueOnce(
       new Promise((_resolve, reject) => {
         rejectLoad = reject;
-      }),
+      })
     );
     const view = createPhyloLensView({
-      container: document.createElement("div"),
-      apiUrl: "https://phylo-lens.example.test",
+      container: document.createElement('div'),
+      apiUrl: 'https://phylo-lens.example.test',
     });
 
-    const load = view.load({ content: "(a:1)b;" });
+    const load = view.load({ content: '(a:1)b;' });
     view.dispose();
-    rejectLoad(new Error("Graph load was superseded by a newer load."));
+    rejectLoad(new Error('Graph load was superseded by a newer load.'));
 
     await expect(load).rejects.toThrow(ERR_PHYLO_LENS_VIEW_DISPOSED);
     expect(mocks.dispose).toHaveBeenCalledOnce();
   });
 
-  it("rejects load calls after disposal with a clear error", async () => {
+  it('rejects load calls after disposal with a clear error', async () => {
     const view = createPhyloLensView({
-      container: document.createElement("div"),
-      apiUrl: "https://phylo-lens.example.test",
+      container: document.createElement('div'),
+      apiUrl: 'https://phylo-lens.example.test',
     });
 
     view.dispose();
 
-    await expect(view.load({ content: "(a:1)b;" })).rejects.toThrow(ERR_PHYLO_LENS_VIEW_DISPOSED);
-    expect(mocks.renderNewick).not.toHaveBeenCalled();
+    await expect(view.load({ content: '(a:1)b;' })).rejects.toThrow(ERR_PHYLO_LENS_VIEW_DISPOSED);
+    expect(mocks.loadGraph).not.toHaveBeenCalled();
   });
 
-  it("rejects export after disposal with the public disposed error", () => {
+  it('rejects export after disposal with the public disposed error', () => {
     const view = createPhyloLensView({
-      container: document.createElement("div"),
-      apiUrl: "https://phylo-lens.example.test",
+      container: document.createElement('div'),
+      apiUrl: 'https://phylo-lens.example.test',
     });
     view.dispose();
 
@@ -217,9 +227,9 @@ describe("createPhyloLensView", () => {
   });
 });
 
-it("updates pie visibility through the public API and rejects changes after disposal", async () => {
-  const view = createPhyloLensView({ container: document.createElement("div"), apiUrl: "" });
-  await view.load({ content: "(A,B);" });
+it('updates pie visibility through the public API and rejects changes after disposal', async () => {
+  const view = createPhyloLensView({ container: document.createElement('div'), apiUrl: '' });
+  await view.load({ content: '(A,B);' });
   view.updateVisualMapping({ pie: { enabled: false } });
   expect(mocks.updateVisualMapping).toHaveBeenLastCalledWith({ pie: { enabled: false } });
   view.updateVisualMapping({ pie: { enabled: true } });
@@ -228,24 +238,24 @@ it("updates pie visibility through the public API and rejects changes after disp
   expect(() => view.updateVisualMapping({})).toThrow(ERR_PHYLO_LENS_VIEW_DISPOSED);
 });
 
-it("exposes ancillary upload results without leaking layout identifiers", async () => {
+it('exposes ancillary upload results without leaking layout identifiers', async () => {
   mocks.applyAncillaryData.mockResolvedValue({
-    dataset_id: "tree",
-    layout_version: "revision",
-    matched_node_count: 2,
-    warnings: ["Unmatched row"],
+    datasetId: toDatasetId('tree'),
+    layoutVersion: toLayoutVersion('revision'),
+    matchedNodeCount: 2,
+    warnings: ['Unmatched row'],
   });
-  const view = createPhyloLensView({ container: document.createElement("div"), apiUrl: "" });
-  const data = { content: "id,country\nA,PT", join_column: "id", format: "csv" as const };
-  await expect(view.applyAncillaryData(data)).resolves.toEqual({ matchedNodeCount: 2, warnings: ["Unmatched row"] });
+  const view = createPhyloLensView({ container: document.createElement('div'), apiUrl: '' });
+  const data = { content: 'id,country\nA,PT', joinColumn: 'id', format: 'csv' as const };
+  await expect(view.applyAncillaryData(data)).resolves.toEqual({ matchedNodeCount: 2, warnings: ['Unmatched row'] });
   expect(mocks.applyAncillaryData).toHaveBeenCalledWith(data);
   view.dispose();
   await expect(view.applyAncillaryData(data)).rejects.toThrow(ERR_PHYLO_LENS_VIEW_DISPOSED);
 });
 
-it("exposes expansion results and prevents operations after disposal", async () => {
+it('exposes expansion results and prevents operations after disposal', async () => {
   const partial = {
-    status: "partial",
+    status: 'partial',
     renderedNodeCount: 10,
     maxNodes: 10,
     partial: true,
@@ -254,23 +264,23 @@ it("exposes expansion results and prevents operations after disposal", async () 
     keepExpanded: true,
   };
   mocks.expandAll.mockResolvedValue(partial);
-  const view = createPhyloLensView({ container: document.createElement("div"), apiUrl: "" });
+  const view = createPhyloLensView({ container: document.createElement('div'), apiUrl: '' });
   expect(await view.expandAll()).toEqual(partial);
   view.setKeepExpanded(true);
   expect(mocks.setKeepExpanded).toHaveBeenCalledWith(true);
-  await view.expandCluster("group");
-  expect(mocks.expandCluster).toHaveBeenCalledWith("group");
+  await view.expandCluster(toClusterId('group'));
+  expect(mocks.expandCluster).toHaveBeenCalledWith('group');
   view.dispose();
   await expect(view.expandAll()).rejects.toThrow(ERR_PHYLO_LENS_VIEW_DISPOSED);
   await expect(view.collapseAll()).rejects.toThrow(ERR_PHYLO_LENS_VIEW_DISPOSED);
-  expect(() => view.collapseCluster("group")).toThrow(ERR_PHYLO_LENS_VIEW_DISPOSED);
+  expect(() => view.collapseCluster(toClusterId('group'))).toThrow(ERR_PHYLO_LENS_VIEW_DISPOSED);
 });
 
-it("exposes motion preference and feedback without allowing calls after disposal", () => {
+it('exposes motion preference and feedback without allowing calls after disposal', () => {
   const feedback = vi.fn();
   const view = createPhyloLensView({
-    container: document.createElement("div"),
-    apiUrl: "",
+    container: document.createElement('div'),
+    apiUrl: '',
     onInteractionFeedback: feedback,
   });
   const workbench = vi.mocked(createGraphWorkbench).mock.results.at(-1)!.value;

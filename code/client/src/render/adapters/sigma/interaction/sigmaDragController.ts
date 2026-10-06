@@ -1,8 +1,8 @@
-import type Graph from "graphology";
-import type Sigma from "sigma";
-import type { DragSelection } from "../../../renderer.types";
+import type { Point } from '../../../../contracts/Point';
+import type Graph from 'graphology';
+import type Sigma from 'sigma';
+import type { DragSelection } from '../../../renderer.types';
 
-type Point = { x: number; y: number };
 type Pointer = Point & { preventSigmaDefault?: () => void; original?: MouseEvent | TouchEvent };
 type NodeEvent = { node: string; event: Pointer; preventSigmaDefault?: () => void };
 type Member = Point & { fixed: boolean };
@@ -30,9 +30,9 @@ export default function (options: Options) {
   function reset(): void {
     const graph = options.getGraph();
     const sigma = options.getSigma();
-    if (origin) sigma?.setSetting("enableCameraPanning", panning);
+    if (origin) sigma?.setSetting('enableCameraPanning', panning);
     members.forEach((member, id) => {
-      if (graph?.hasNode(id)) graph.setNodeAttribute(id, "fixed", member.fixed);
+      if (graph?.hasNode(id)) graph.setNodeAttribute(id, 'fixed', member.fixed);
     });
     const active = origin !== null;
     members.clear();
@@ -54,19 +54,19 @@ export default function (options: Options) {
     }
     const ids = selection.nodeIds;
     members = new Map(
-      ids.map((id) => [
+      ids.map(id => [
         id,
         {
-          x: graph.getNodeAttribute(id, "x"),
-          y: graph.getNodeAttribute(id, "y"),
-          fixed: graph.getNodeAttribute(id, "fixed") === true,
+          x: graph.getNodeAttribute(id, 'x'),
+          y: graph.getNodeAttribute(id, 'y'),
+          fixed: graph.getNodeAttribute(id, 'fixed') === true,
         },
-      ]),
+      ])
     );
     origin = sigma.viewportToGraph(payload.event);
-    panning = sigma.getSetting("enableCameraPanning");
-    sigma.setSetting("enableCameraPanning", false);
-    ids.forEach((id) => graph.setNodeAttribute(id, "fixed", true));
+    panning = sigma.getSetting('enableCameraPanning');
+    sigma.setSetting('enableCameraPanning', false);
+    ids.forEach(id => graph.setNodeAttribute(id, 'fixed', true));
     options.onStart(ids);
     payload.preventSigmaDefault?.();
     payload.event.preventSigmaDefault?.();
@@ -98,18 +98,18 @@ export default function (options: Options) {
     reset,
     bind: () => {
       const sigma = options.getSigma();
-      sigma?.on("downNode", start);
-      sigma?.getMouseCaptor?.()?.on?.("mousemovebody", drag);
-      sigma?.getMouseCaptor?.()?.on?.("mouseup", end);
-      window.addEventListener("blur", end);
+      sigma?.on('downNode', start);
+      sigma?.getMouseCaptor?.()?.on?.('mousemovebody', drag);
+      sigma?.getMouseCaptor?.()?.on?.('mouseup', end);
+      window.addEventListener('blur', end);
     },
     unbind: () => {
       const sigma = options.getSigma();
       reset();
-      sigma?.off("downNode", start);
-      sigma?.getMouseCaptor?.()?.off?.("mousemovebody", drag);
-      sigma?.getMouseCaptor?.()?.off?.("mouseup", end);
-      window.removeEventListener("blur", end);
+      sigma?.off('downNode', start);
+      sigma?.getMouseCaptor?.()?.off?.('mousemovebody', drag);
+      sigma?.getMouseCaptor?.()?.off?.('mouseup', end);
+      window.removeEventListener('blur', end);
     },
   };
 }
@@ -117,21 +117,21 @@ export default function (options: Options) {
 export function resolveDragMembers(
   graph: Graph,
   grabbed: string,
-  selection: DragSelection,
+  selection: DragSelection
 ): { nodeIds: string[]; error?: string } {
-  if (!graph.hasNode(grabbed)) return { nodeIds: [], error: "This node is no longer loaded." };
+  if (!graph.hasNode(grabbed)) return { nodeIds: [], error: 'This node is no longer loaded.' };
   switch (selection.kind) {
-    case "node":
+    case 'node':
       return { nodeIds: [grabbed] };
-    case "group":
+    case 'group':
       return selection.nodeIds.includes(grabbed)
-        ? { nodeIds: [...new Set(selection.nodeIds)].filter((id) => graph.hasNode(id)) }
-        : { nodeIds: [], error: "Drag a member of the selected group, or switch to direct dragging." };
-    case "branch": {
+        ? { nodeIds: [...new Set(selection.nodeIds)].filter(id => graph.hasNode(id)) }
+        : { nodeIds: [], error: 'Drag a member of the selected group, or switch to direct dragging.' };
+    case 'branch': {
       if (!graph.hasNode(selection.rootId))
         return {
           nodeIds: [],
-          error: "The arrangement root is not loaded. Choose a visible root or use direct dragging.",
+          error: 'The arrangement root is not loaded. Choose a visible root or use direct dragging.',
         };
       const parent = new Map<string, string | null>([[selection.rootId, null]]);
       const queue = [selection.rootId];
@@ -140,14 +140,14 @@ export function resolveDragMembers(
         for (const neighbor of graph.neighbors(id)) {
           if (neighbor === parent.get(id)) continue;
           if (parent.has(neighbor))
-            return { nodeIds: [], error: "This component contains a cycle; choose a group or use direct dragging." };
+            return { nodeIds: [], error: 'This component contains a cycle; choose a group or use direct dragging.' };
           parent.set(neighbor, id);
           queue.push(neighbor);
         }
       }
-      if (!parent.has(grabbed)) return { nodeIds: [], error: "This node is disconnected from the arrangement root." };
+      if (!parent.has(grabbed)) return { nodeIds: [], error: 'This node is disconnected from the arrangement root.' };
       const selected = new Set([grabbed]);
-      for (const id of queue) if (selected.has(parent.get(id) ?? "")) selected.add(id);
+      for (const id of queue) if (selected.has(parent.get(id) ?? '')) selected.add(id);
       return { nodeIds: [...selected] };
     }
   }

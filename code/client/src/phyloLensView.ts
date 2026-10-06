@@ -1,28 +1,28 @@
-import type { DragSelection, PngExportOptions } from "./render/renderer.types";
-import type { ExpansionState, ExpansionResult } from "./contracts/expansion";
-import type { AncillaryTableInput } from "./contracts/ancillary";
-import type { AncillaryInputOptions } from "./ancillary/ancillaryInput";
-import { createGraphClient } from "./api/graphClient";
-import type { SfdpOptions } from "./api/graphContracts";
-import { SOURCE_FORMAT_NEWICK, type SourceFormat, type Viewport } from "./contracts/models";
-import rendererFactory from "./render/rendererFactory";
-import { RENDERER_KIND_SIGMA } from "./render/renderer.types";
-import type { VisualMappingOptions } from "./render/mapping/visualMapping";
-import {
-  createGraphWorkbench,
-  ERR_GRAPH_LOAD_SUPERSEDED,
-  type GraphWorkbench,
-  type RenderNewickOptions,
-} from "./app/workbench/graphWorkbench";
-import type { GraphWorkbenchOptions } from "./app/workbench/graphWorkbench.types";
-import { snapshotAppliedObserverForContainer } from "./app/workbench/internalSnapshotObserver";
+import { toNodeId, toClusterId } from './contracts/graph/graphIdentifiers';
+import type { ClusterId, NodeId } from './contracts/graph/graphIdentifiers';
+import type { DragSelection, PngExportOptions } from './render/renderer.types';
+import type { ExpansionState, ExpansionResult } from './contracts/expansion';
+import type { AncillaryTableInput } from './contracts/ancillary';
+import type { AncillaryInputOptions } from './ancillary/ancillaryInput';
+import { createGraphClient } from './services/graph/graphService';
+import type { SfdpOptions } from './contracts/graph/SfdpOptions';
+import { SOURCE_FORMAT_NEWICK, type SourceFormat } from './contracts/models';
 
-export const ERR_PHYLO_LENS_VIEW_DISPOSED = "PhyloLens view has been disposed.";
+import rendererFactory from './render/rendererFactory';
+import { RendererType } from './render/renderer.types';
+import type { VisualMappingOptions } from './render/mapping/visualMapping';
+import { createGraphWorkbench, type GraphWorkbench } from './app/workbench/graphWorkbench';
+import type { GraphWorkbenchOptions } from './app/workbench/graphWorkbench.types';
+import { GRAPH_WORKBENCH_ERRORS } from './app/workbench/graphWorkbench.errors';
+import { snapshotAppliedObserverForContainer } from './app/workbench/internalSnapshotObserver';
+
+export const ERR_PHYLO_LENS_VIEW_DISPOSED = 'PhyloLens view has been disposed.';
 
 export interface PhyloLensViewOptions {
   container: HTMLElement;
   apiUrl: string;
-  onNodeSelected?: (selection: { nodeId: string | null; clusterId: string | null; expandable: boolean }) => void;
+  onError?: (error: Error) => void;
+  onNodeSelected?: (selection: { nodeId: NodeId | null; clusterId: ClusterId | null; expandable: boolean }) => void;
   onInteractionFeedback?: (message: string) => void;
   onExpansionChanged?: (state: ExpansionState) => void;
 }
@@ -37,22 +37,20 @@ export interface PhyloLensLoadOptions extends AncillaryInputOptions {
     maxNodes?: number;
     representationSpacingPx?: number;
     smallTreeThreshold?: number;
-    lodHint?: number;
-    viewport?: Viewport;
   };
 }
 
 export interface PhyloLensAncillaryResult {
-  matchedNodeCount: number;
-  warnings: string[];
+  readonly matchedNodeCount: number;
+  readonly warnings: readonly string[];
 }
 
 export interface PhyloLensView {
-  searchNodes: GraphWorkbench["searchNodes"];
-  focusNode: GraphWorkbench["focusNode"];
+  searchNodes: GraphWorkbench['searchNodes'];
+  focusNode: GraphWorkbench['focusNode'];
   cancelPendingFocus: () => void;
-  expandCluster: (clusterId: string) => Promise<ExpansionResult>;
-  collapseCluster: (clusterId: string) => ExpansionState;
+  expandCluster: (clusterId: ClusterId) => Promise<ExpansionResult>;
+  collapseCluster: (clusterId: ClusterId) => ExpansionState;
   expandAll: () => Promise<ExpansionResult>;
   collapseAll: () => Promise<ExpansionResult>;
   setKeepExpanded: (keep: boolean) => ExpansionState;
@@ -73,13 +71,14 @@ export interface PhyloLensView {
 export function createPhyloLensView(options: PhyloLensViewOptions): PhyloLensView {
   const workbench = createWorkbench(options);
   let disposed = false;
+  workbench.setErrorHandler(options.onError ?? null);
   workbench.setInteractionFeedbackHandler(options.onInteractionFeedback ?? null);
-  workbench.setNodeClickedHandler((state) =>
+  workbench.setNodeClickedHandler(state =>
     options.onNodeSelected?.({
-      nodeId: state.nodeId,
-      clusterId: typeof state.attributes?.cluster_id === "string" ? state.attributes.cluster_id : null,
-      expandable: state.attributes?.is_cluster_proxy === true,
-    }),
+      nodeId: state.nodeId === null ? null : toNodeId(state.nodeId),
+      clusterId: typeof state.attributes?.clusterId === 'string' ? toClusterId(state.attributes.clusterId) : null,
+      expandable: state.attributes?.isClusterProxy === true,
+    })
   );
   workbench.setGraphRenderedHandler(() => options.onExpansionChanged?.(workbench.getExpansionState()));
 
@@ -89,53 +88,57 @@ export function createPhyloLensView(options: PhyloLensViewOptions): PhyloLensVie
   };
 
   return {
-    setMotionEnabled: (enabled) => activeWorkbench().setMotionEnabled(enabled),
+    setMotionEnabled: enabled => activeWorkbench().setMotionEnabled(enabled),
     isMotionEnabled: () => activeWorkbench().isMotionEnabled(),
-    setDragSelection: (selection) => activeWorkbench().setDragSelection(selection),
+    setDragSelection: selection => activeWorkbench().setDragSelection(selection),
     resetLayoutEdits: () => activeWorkbench().resetLayoutEdits(),
-    searchNodes: (query) => activeWorkbench().searchNodes(query),
+    searchNodes: query => activeWorkbench().searchNodes(query),
     focusNode: (id, coordinates) => activeWorkbench().focusNode(id, coordinates),
     cancelPendingFocus: () => activeWorkbench().cancelPendingFocus(),
-    expandCluster: async (id) => activeWorkbench().expandCluster(id),
-    collapseCluster: (id) => activeWorkbench().collapseCluster(id),
+    expandCluster: async id => activeWorkbench().expandCluster(id),
+    collapseCluster: id => activeWorkbench().collapseCluster(id),
     expandAll: async () => activeWorkbench().expandAll(),
     collapseAll: async () => activeWorkbench().collapseAll(),
-    setKeepExpanded: (keep) => activeWorkbench().setKeepExpanded(keep),
+    setKeepExpanded: keep => activeWorkbench().setKeepExpanded(keep),
     getExpansionState: () => activeWorkbench().getExpansionState(),
     load: async ({ content, name, sourceFormat = SOURCE_FORMAT_NEWICK, ...loadOptions }) => {
       if (disposed) {
         throw new Error(ERR_PHYLO_LENS_VIEW_DISPOSED);
       }
-      const renderOptions = {
-        ...loadOptions,
-        sourceFormat,
-      } satisfies RenderNewickOptions;
+
       try {
-        await workbench.renderNewick(content, name, renderOptions);
+        await workbench.loadGraph(
+          {
+            content,
+            format: sourceFormat,
+            datasetName: name,
+          },
+          loadOptions
+        );
       } catch (error) {
-        if (disposed && error instanceof Error && error.message === ERR_GRAPH_LOAD_SUPERSEDED) {
+        if (disposed && error instanceof Error && error.message === GRAPH_WORKBENCH_ERRORS.loadSuperseded) {
           throw new Error(ERR_PHYLO_LENS_VIEW_DISPOSED);
         }
         throw error;
       }
     },
-    applyAncillaryData: async (data) => {
+    applyAncillaryData: async data => {
       if (disposed) throw new Error(ERR_PHYLO_LENS_VIEW_DISPOSED);
       try {
         const result = await workbench.applyAncillaryData(data);
-        return { matchedNodeCount: result.matched_node_count, warnings: result.warnings };
+        return { matchedNodeCount: result.matchedNodeCount, warnings: result.warnings };
       } catch (error) {
         if (disposed) throw new Error(ERR_PHYLO_LENS_VIEW_DISPOSED);
         throw error;
       }
     },
-    updateVisualMapping: (mapping) => {
+    updateVisualMapping: mapping => {
       if (disposed) {
         throw new Error(ERR_PHYLO_LENS_VIEW_DISPOSED);
       }
       workbench.updateVisualMapping(mapping);
     },
-    exportPng: (exportOptions) => {
+    exportPng: exportOptions => {
       if (disposed) {
         throw new Error(ERR_PHYLO_LENS_VIEW_DISPOSED);
       }
@@ -155,7 +158,7 @@ function createWorkbench({ container, apiUrl }: PhyloLensViewOptions): GraphWork
   const options: GraphWorkbenchOptions = {
     graphClient: createGraphClient({ baseUrl: apiUrl }),
     rendererFactory: rendererFactory(),
-    rendererKind: RENDERER_KIND_SIGMA,
+    rendererType: RendererType.Sigma,
     renderContext: { container },
   };
   const snapshotObserver = snapshotAppliedObserverForContainer(container);

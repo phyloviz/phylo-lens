@@ -1,18 +1,45 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from 'vitest';
 
-import { fitSigmaToGraphSnapshot } from "../src/render/adapters/sigma/viewport/graphViewportFit";
+import { fitSigmaToGraphSnapshot } from '../src/render/adapters/sigma/viewport/graphViewportFit';
 
 const graph = {
   nodes: [
-    { id: "left", x: 10, y: 0 },
-    { id: "right", x: 20, y: 10 },
+    { id: 'left', x: 10, y: 0 },
+    { id: 'right', x: 20, y: 10 },
   ],
   edges: [],
-  viewMeta: { layout: "server", lodLevel: 0 },
+  viewMeta: { layout: 'server', lodLevel: 0 },
 } as const;
 
-describe("graphViewportFit", () => {
-  it("fits graph snapshots using Sigma framed coordinates instead of raw graph coordinates", () => {
+describe('graphViewportFit', () => {
+  it.each([true, undefined])('captures overview fit options before its delay (resetFirst=%s)', async initial => {
+    vi.useFakeTimers();
+    const camera = { getState: () => ({ x: 0, y: 0, ratio: 1, angle: 0 }), animate: vi.fn() };
+    const sigma = {
+      getCamera: () => camera,
+      getDimensions: () => ({ width: 100, height: 100 }),
+      graphToViewport: (p: { x: number; y: number }) => p,
+      viewportToFramedGraph: (p: { x: number; y: number }) => p,
+      refresh: vi.fn(),
+    };
+    const slice = {
+      ...graph,
+      viewMeta: { ...graph.viewMeta, globalBounds: { minX: -100, maxX: 100, minY: -100, maxY: 100 } },
+    };
+    try {
+      const options = { resetFirst: initial };
+      fitSigmaToGraphSnapshot(sigma as never, slice, options);
+      options.resetFirst = false;
+      await vi.advanceTimersByTimeAsync(50);
+      expect(camera.animate.mock.calls[0][0]).toEqual({ x: 0, y: 0, ratio: 2.3 });
+      camera.animate.mockClear();
+      fitSigmaToGraphSnapshot(sigma as never, slice, { resetFirst: false });
+      expect(camera.animate.mock.calls[0][0]).toEqual({ x: 15, y: 5, ratio: 0.115 });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  it('fits graph snapshots using Sigma framed coordinates instead of raw graph coordinates', () => {
     const camera = {
       getState: () => ({ x: 0, y: 0, ratio: 2, angle: 0 }),
       animate: vi.fn(),
@@ -42,11 +69,11 @@ describe("graphViewportFit", () => {
         ratio: expect.any(Number),
       }),
       { duration: 300 },
-      expect.any(Function),
+      expect.any(Function)
     );
   });
 
-  it.each([0, 50, 100])("cancels initial fits after %i ms without a late reset", async (elapsed) => {
+  it.each([0, 50, 100])('cancels initial fits after %i ms without a late reset', async elapsed => {
     vi.useFakeTimers();
     const state = { x: 0.2, y: 0.8, ratio: 0.4, angle: 0 };
     const camera = { getState: () => state, animate: vi.fn(), animatedReset: vi.fn() };
@@ -72,7 +99,7 @@ describe("graphViewportFit", () => {
     }
   });
 
-  it("zooms out before fitting a graph snapshot from a very deep camera zoom", async () => {
+  it('zooms out before fitting a graph snapshot from a very deep camera zoom', async () => {
     vi.useFakeTimers();
     const camera = {
       getState: () => ({ x: -20, y: 12, ratio: 0.01, angle: 0 }),
@@ -105,7 +132,7 @@ describe("graphViewportFit", () => {
           ratio: expect.any(Number),
         }),
         { duration: 140 },
-        expect.any(Function),
+        expect.any(Function)
       );
 
       await vi.advanceTimersByTimeAsync(140);
@@ -118,7 +145,7 @@ describe("graphViewportFit", () => {
           ratio: expect.any(Number),
         }),
         { duration: 160 },
-        expect.any(Function),
+        expect.any(Function)
       );
     } finally {
       vi.useRealTimers();

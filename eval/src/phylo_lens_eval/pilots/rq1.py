@@ -1,7 +1,7 @@
 """Run RQ1 direct-tree preparation measurements in isolated child processes.
 
 RQ: RQ1 server-side preparation scalability.
-Command: ``PYTHONPATH=eval/src:code/server/src python -m phylo_lens_eval.rq1 --experiment rq1-direct-tree``.
+Command: ``PYTHONPATH=eval/src:code/server/src python -m phylo_lens_eval.pilots.rq1 --experiment rq1-direct-tree``.
 Parameters: experiment id, optional dataset id, repetitions, warm-ups, timeout, and results root.
 Initial state: Python dependencies from ``eval/pyproject.toml`` and server dependencies are installed.
 Timing: child wall time covers parse/normalization through SQLite publication; parent measures RSS.

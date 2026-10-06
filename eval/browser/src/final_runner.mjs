@@ -180,6 +180,7 @@ try {
   browserServer = await bounded("chromium_launch", () =>
     chromium.launchServer({
       headless: false,
+      executablePath: control.browser.executable_path || undefined,
       args: control.browser.launch_args,
     }),
   );
@@ -189,7 +190,8 @@ try {
   const runtime = {
     browser_pid: browserServer.process()?.pid ?? null,
     browser_version: browser.version(),
-    browser_executable_path: chromium.executablePath() || null,
+    browser_executable_path:
+      control.browser.executable_path || chromium.executablePath() || null,
     phase: "launched",
   };
   await runtimeState(runtime);
@@ -268,6 +270,13 @@ try {
   await runtimeState(runtime);
   await bounded("quiescence", () => page.waitForTimeout(control.quiescence_ms));
   const heapPost = await bounded("heap_post_t2", heapSnapshot);
+  let replaySetup = null;
+  if (control.local_replay_isolation) {
+    replaySetup = await bounded("pin_replay", () =>
+      page.evaluate(() => window.phyloLensEvaluation.rq2Final.pinReplay()),
+    );
+    await page.waitForTimeout(350);
+  }
   const beforeStress = graphRequests().length;
   await bounded("frame_start", () =>
     page.evaluate(() =>
@@ -302,7 +311,9 @@ try {
   );
   const postInitial = afterStress - beforeStress;
   const requestPatternValid =
-    requests.length === 1 &&
+    (control.local_replay_isolation
+      ? requests.length >= 2
+      : requests.length === 1) &&
     postInitial ===
       control.frame_stress.expected_post_initial_viewport_requests;
   await writeJson(control.frame_samples_path, {
@@ -337,7 +348,8 @@ try {
     message: status === "success" ? null : failureKind,
     browser: {
       version: browser.version(),
-      executable_path: chromium.executablePath() || null,
+      executable_path:
+        control.browser.executable_path || chromium.executablePath() || null,
       playwright_version: playwrightVersion,
     },
     gpu,
@@ -367,6 +379,7 @@ try {
       fixture_congruent: snapshotCongruent,
     },
     replay: {
+      controlled_setup: replaySetup,
       request_count: replay.accessLog.length,
       viewport_request_count: requests.length,
       post_initial_viewport_request_count: postInitial,
@@ -395,7 +408,8 @@ try {
     message: text,
     browser: {
       version: browser?.version?.() ?? null,
-      executable_path: chromium.executablePath() || null,
+      executable_path:
+        control.browser.executable_path || chromium.executablePath() || null,
       playwright_version: playwrightVersion,
     },
     gpu: {

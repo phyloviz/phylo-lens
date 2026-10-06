@@ -1,53 +1,29 @@
-import { resolveAncillaryInput } from "../../../ancillary/ancillaryInput";
-import type { AncillaryField } from "../../../contracts/models";
-import type { VisualMappingOptions } from "../../../render/mapping/visualMapping";
+import type { AncillaryData, AncillaryField } from '../../../contracts/ancillary';
+import type { VisualMappingOptions } from '../../../render/mapping/visualMapping';
+import { isAncillaryByNodeId, isAncillarySchema } from '../../../validation/ancillaryGuards';
+import { isRecord } from '../../../validation/guards';
+import { isVisualMapping } from '../../../validation/visualMappingGuards';
 
-export const ERR_INVALID_ANCILLARY_JSON =
-  "Ancillary JSON must include ancillary_schema and/or ancillary_by_node_id (legacy metadata aliases are also accepted).";
+export const ERR_INVALID_ANCILLARY_JSON = 'Ancillary JSON must include ancillary_schema and/or ancillary_by_node_id.';
+export const ERR_INVALID_VISUAL_MAPPING = 'Ancillary JSON contains an invalid visual mapping.';
 
-const KEY_METADATA_SCHEMA = "metadata_schema";
-const KEY_METADATA_BY_NODE_ID = "metadata_by_node_id";
-const KEY_VISUAL_MAPPING = "visual_mapping";
+export type AncillaryPayload = {
+  ancillarySchema?: readonly AncillaryField[];
+  ancillaryByNodeId?: Readonly<Record<string, AncillaryData>>;
+  visualMapping?: VisualMappingOptions;
+};
 
-export interface AncillaryPayload {
-  ancillarySchema?: AncillaryField[];
-  ancillaryByNodeId?: Record<string, Record<string, string | number | boolean | null>>;
-  visual_mapping?: VisualMappingOptions;
-}
-
+/** User input is unknown until its columns, values and mapping options have been checked. */
 export function parseAncillaryPayload(rawInput: string): AncillaryPayload {
-  if (!rawInput) {
-    return {};
-  }
-
+  if (!rawInput) return {};
   const parsed: unknown = JSON.parse(rawInput);
-  if (!parsed || typeof parsed !== "object") {
-    throw new Error(ERR_INVALID_ANCILLARY_JSON);
-  }
-
-  const record = parsed as Record<string, unknown>;
-  const metadataSchema = record.ancillary_schema ?? record[KEY_METADATA_SCHEMA];
-  const metadataByNodeId = record.ancillary_by_node_id ?? record[KEY_METADATA_BY_NODE_ID];
-  const visualMapping = record[KEY_VISUAL_MAPPING];
-
-  const hasSchema = Array.isArray(metadataSchema);
-  const hasByNodeId =
-    metadataByNodeId !== undefined && metadataByNodeId !== null && typeof metadataByNodeId === "object";
-
-  if (!hasSchema && !hasByNodeId) {
-    throw new Error(ERR_INVALID_ANCILLARY_JSON);
-  }
-
-  return {
-    ...resolveAncillaryInput({
-      ancillarySchema: record.ancillary_schema as AncillaryField[] | undefined,
-      metadataSchema: record[KEY_METADATA_SCHEMA] as AncillaryField[] | undefined,
-      ancillaryByNodeId: record.ancillary_by_node_id as
-        Record<string, Record<string, string | number | boolean | null>> | undefined,
-      metadataByNodeId: record[KEY_METADATA_BY_NODE_ID] as
-        Record<string, Record<string, string | number | boolean | null>> | undefined,
-    }),
-    visual_mapping:
-      visualMapping && typeof visualMapping === "object" ? (visualMapping as VisualMappingOptions) : undefined,
-  };
+  if (!isRecord(parsed)) throw new Error(ERR_INVALID_ANCILLARY_JSON);
+  const schema = parsed.ancillary_schema;
+  const values = parsed.ancillary_by_node_id;
+  const mapping = parsed.visual_mapping;
+  if (schema === undefined && values === undefined) throw new Error(ERR_INVALID_ANCILLARY_JSON);
+  if (schema !== undefined && !isAncillarySchema(schema)) throw new Error(ERR_INVALID_ANCILLARY_JSON);
+  if (values !== undefined && !isAncillaryByNodeId(values)) throw new Error(ERR_INVALID_ANCILLARY_JSON);
+  if (mapping !== undefined && !isVisualMapping(mapping)) throw new Error(ERR_INVALID_VISUAL_MAPPING);
+  return { ancillarySchema: schema ?? [], ancillaryByNodeId: values ?? {}, visualMapping: mapping };
 }

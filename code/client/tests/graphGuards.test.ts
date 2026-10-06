@@ -1,231 +1,233 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from 'vitest';
 
-import {
-  isGraphPrepareResponse,
-  isGraphPrepareStatus,
-  isGraphRegionResponse,
-  isGraphSearchResponse,
-  isGraphViewportResponse,
-  isNormalizeRequest,
-} from "../src/api/graphGuards";
+import { isGraphPrepareRequestDto, isGraphPrepareStatusDto } from '../src/services/graph/guards/graphPrepareGuards';
+import { isGraphViewportResponseDto } from '../src/services/graph/guards/graphViewportGuards';
+import { isGraphRegionResponseDto } from '../src/services/graph/guards/graphRegionGuards';
+import { isGraphSearchResponseDto } from '../src/services/graph/guards/graphSearchGuards';
 
 const VIEWPORT_FIXTURE = {
-  dataset_id: "tree",
-  layout_version: "abc123",
+  dataset_id: 'tree',
+  layout_version: 'abc123',
   lod_level: 0,
   zoom: 0.5,
-  layout_status: "ready",
+  layout_status: 'ready',
   truncated: false,
   total_node_count: 1,
   global_bounds: { min_x: -10, max_x: 10, min_y: -5, max_y: 5 },
   nodes: [
     {
-      id: "cluster_1",
-      cluster_id: "cluster_1",
+      id: 'cluster_1',
+      cluster_id: 'cluster_1',
       x: 10,
       y: 12,
-      layout_status: "ready",
+      layout_status: 'ready',
       member_count: 4,
       is_representative: true,
     },
   ],
   edges: [],
-} satisfies unknown;
+};
 
 const PREPARE_FIXTURE = {
-  dataset_id: "tree",
-  layout_version: "abc123",
+  dataset_id: 'tree',
+  layout_version: 'abc123',
   node_count: 3,
   edge_count: 2,
   cluster_count: 2,
-  layout_status: "ready",
+  layout_status: 'ready',
   warnings: [],
-} satisfies unknown;
+};
 
 const REGION_FIXTURE = {
-  dataset_id: "tree",
-  layout_version: "abc123",
-  layout_status: "ready",
+  dataset_id: 'tree',
+  layout_version: 'abc123',
+  layout_status: 'ready',
   truncated: false,
   total_node_count: 2,
   nodes: [
     {
-      id: "a",
-      cluster_id: "a",
+      id: 'a',
+      cluster_id: 'a',
       x: 1,
       y: 2,
-      layout_status: "ready",
+      layout_status: 'ready',
       member_count: 1,
       is_representative: false,
     },
   ],
   edges: [],
-  aggregated_metadata: { region: "north", score: 16 },
-} satisfies unknown;
+  aggregated_metadata: { region: 'north', score: 16 },
+};
 
 const SEARCH_FIXTURE = {
-  dataset_id: "tree",
-  layout_version: "abc123",
-  query: "port",
+  dataset_id: 'tree',
+  layout_version: 'abc123',
+  query: 'port',
   total_count: 2,
   matches: [
-    { node_id: "portugal_1", score: 60, matched_text: "portugal_1", cluster_id: "cluster_portugal" },
-    { node_id: "isolate_x", score: 20, matched_text: "isolate_x Portugal" },
+    { node_id: 'portugal_1', score: 60, matched_text: 'portugal_1', cluster_id: 'cluster_portugal' },
+    { node_id: 'isolate_x', score: 20, matched_text: 'isolate_x Portugal' },
   ],
-} satisfies unknown;
+};
 
-describe("graphGuards", () => {
-  it("requires ancillary join_column on normalize requests", () => {
+describe('graphGuards', () => {
+  it('requires ancillary join_column on prepare requests', () => {
     expect(
-      isNormalizeRequest({
-        format: "newick",
-        dataset_name: "tree",
-        content: "(A,B)Root;",
+      isGraphPrepareRequestDto({
+        format: 'newick',
+        dataset_name: 'tree',
+        content: '(A,B)Root;',
         ancillary_data: {
-          content: "isolate\tcountry\nA\tPT\n",
-          join_column: "isolate",
-          format: "tsv",
+          content: 'isolate\tcountry\nA\tPT\n',
+          join_column: 'isolate',
+          format: 'tsv',
         },
-      }),
+      })
     ).toBe(true);
 
     expect(
-      isNormalizeRequest({
-        format: "newick",
-        dataset_name: "tree",
-        content: "(A,B)Root;",
+      isGraphPrepareRequestDto({
+        format: 'newick',
+        dataset_name: 'tree',
+        content: '(A,B)Root;',
         ancillary_data: {
-          content: "isolate\tcountry\nA\tPT\n",
-          format: "tsv",
+          content: 'isolate\tcountry\nA\tPT\n',
+          format: 'tsv',
         },
-      }),
+      })
     ).toBe(false);
   });
 
-  it("validates supported SFDP preparation options", () => {
+  it('validates supported SFDP preparation options', () => {
     const request = {
-      format: "newick",
-      dataset_name: "tree",
-      content: "(A,B)Root;",
+      format: 'newick',
+      dataset_name: 'tree',
+      content: '(A,B)Root;',
       sfdp_options: {
         k: 0.5,
         repulsiveForce: 2,
-        overlap: "prism",
+        overlap: 'prism',
         prismIterations: 10,
         overlapScaling: -4,
-        smoothing: "spring",
-        quadtree: "fast",
+        smoothing: 'spring',
+        quadtree: 'fast',
         beautify: true,
       },
     };
 
-    expect(isNormalizeRequest(request)).toBe(true);
-    expect(isNormalizeRequest({ ...request, sfdp_options: { overlap: "other" } })).toBe(false);
-    expect(isNormalizeRequest({ ...request, sfdp_options: { k: 0 } })).toBe(false);
-    expect(isNormalizeRequest({ ...request, sfdp_options: { prismIterations: -1 } })).toBe(false);
-    expect(isNormalizeRequest({ ...request, sfdp_options: { prismIterations: 1.5 } })).toBe(false);
-    expect(isNormalizeRequest({ ...request, sfdp_options: { overlap: "scale", prismIterations: 1 } })).toBe(false);
-    expect(isNormalizeRequest({ ...request, sfdp_options: { overlap: "scale", overlapScaling: -2 } })).toBe(false);
-    expect(isNormalizeRequest({ ...request, sfdp_options: { iterations: 100 } })).toBe(false);
+    expect(isGraphPrepareRequestDto(request)).toBe(true);
+    expect(isGraphPrepareRequestDto({ ...request, sfdp_options: { overlap: 'other' } })).toBe(false);
+    expect(isGraphPrepareRequestDto({ ...request, sfdp_options: { k: 0 } })).toBe(false);
+    expect(isGraphPrepareRequestDto({ ...request, sfdp_options: { prismIterations: -1 } })).toBe(false);
+    expect(isGraphPrepareRequestDto({ ...request, sfdp_options: { prismIterations: 1.5 } })).toBe(false);
+    expect(isGraphPrepareRequestDto({ ...request, sfdp_options: { overlap: 'scale', prismIterations: 1 } })).toBe(
+      false
+    );
+    expect(isGraphPrepareRequestDto({ ...request, sfdp_options: { overlap: 'scale', overlapScaling: -2 } })).toBe(
+      false
+    );
+    expect(isGraphPrepareRequestDto({ ...request, sfdp_options: { iterations: 100 } })).toBe(false);
   });
 
-  it("validates prepare responses", () => {
-    expect(isGraphPrepareResponse(PREPARE_FIXTURE)).toBe(true);
-    expect(isGraphPrepareResponse({ ...PREPARE_FIXTURE, node_count: "3" })).toBe(false);
-  });
-
-  it("accepts structured failed-prepare diagnostics", () => {
+  it('validates prepare responses', () => {
+    expect(isGraphPrepareStatusDto({ job_id: 'job', status: 'ready', result: PREPARE_FIXTURE })).toBe(true);
     expect(
-      isGraphPrepareStatus({
-        job_id: "job-1",
-        status: "failed",
-        error: "sfdp exited",
+      isGraphPrepareStatusDto({ job_id: 'job', status: 'ready', result: { ...PREPARE_FIXTURE, node_count: '3' } })
+    ).toBe(false);
+  });
+
+  it('accepts structured failed-prepare diagnostics', () => {
+    expect(
+      isGraphPrepareStatusDto({
+        job_id: 'job-1',
+        status: 'failed',
+        error: 'sfdp exited',
         error_details: {
-          algorithm: "sfdp",
-          stage: "global_layout",
+          algorithm: 'sfdp',
+          stage: 'global_layout',
           exit_status: 17,
-          stderr: "bad input",
+          stderr: 'bad input',
         },
-      }),
+      })
     ).toBe(true);
   });
 
-  it("validates viewport responses", () => {
-    expect(isGraphViewportResponse(VIEWPORT_FIXTURE)).toBe(true);
-    expect(isGraphViewportResponse({ ...VIEWPORT_FIXTURE, nodes: [{}] })).toBe(false);
+  it('validates viewport responses', () => {
+    expect(isGraphViewportResponseDto(VIEWPORT_FIXTURE)).toBe(true);
+    expect(isGraphViewportResponseDto({ ...VIEWPORT_FIXTURE, nodes: [{}] })).toBe(false);
     expect(
-      isGraphViewportResponse({
+      isGraphViewportResponseDto({
         ...VIEWPORT_FIXTURE,
-        global_bounds: { min_x: -10, max_x: "10", min_y: -5, max_y: 5 },
-      }),
+        global_bounds: { min_x: -10, max_x: '10', min_y: -5, max_y: 5 },
+      })
     ).toBe(false);
   });
 
-  it("validates region responses", () => {
-    expect(isGraphRegionResponse(REGION_FIXTURE)).toBe(true);
+  it('validates region responses', () => {
+    expect(isGraphRegionResponseDto(REGION_FIXTURE)).toBe(true);
     // metadata_schema is optional; aggregated_metadata is required.
     const withoutAggregate = { ...REGION_FIXTURE } as Record<string, unknown>;
     delete withoutAggregate.aggregated_metadata;
-    expect(isGraphRegionResponse(withoutAggregate)).toBe(false);
+    expect(isGraphRegionResponseDto(withoutAggregate)).toBe(false);
     // Non-scalar aggregate values are rejected.
     expect(
-      isGraphRegionResponse({
+      isGraphRegionResponseDto({
         ...REGION_FIXTURE,
         aggregated_metadata: { region: { nested: true } },
-      }),
+      })
     ).toBe(false);
     // Malformed nodes are rejected.
-    expect(isGraphRegionResponse({ ...REGION_FIXTURE, nodes: [{}] })).toBe(false);
+    expect(isGraphRegionResponseDto({ ...REGION_FIXTURE, nodes: [{}] })).toBe(false);
   });
 
-  it("accepts meta-edge fields on edges and rejects wrong types", () => {
+  it('accepts meta-edge fields on edges and rejects wrong types', () => {
     const withMetaEdge = {
       ...VIEWPORT_FIXTURE,
       edges: [
         {
-          id: "meta_edge:a:cluster_1",
-          source: "a",
-          target: "cluster_1",
+          id: 'meta_edge:a:cluster_1',
+          source: 'a',
+          target: 'cluster_1',
           distance: 2,
           is_meta: true,
         },
       ],
     };
-    expect(isGraphViewportResponse(withMetaEdge)).toBe(true);
+    expect(isGraphViewportResponseDto(withMetaEdge)).toBe(true);
 
     const plainEdge = {
       ...VIEWPORT_FIXTURE,
-      edges: [{ id: "e1", source: "a", target: "cluster_1", distance: 1 }],
+      edges: [{ id: 'e1', source: 'a', target: 'cluster_1', distance: 1 }],
     };
-    expect(isGraphViewportResponse(plainEdge)).toBe(true);
+    expect(isGraphViewportResponseDto(plainEdge)).toBe(true);
 
     expect(
-      isGraphViewportResponse({
+      isGraphViewportResponseDto({
         ...VIEWPORT_FIXTURE,
         edges: [
           {
-            id: "e1",
-            source: "a",
-            target: "cluster_1",
-            is_meta: "yes",
+            id: 'e1',
+            source: 'a',
+            target: 'cluster_1',
+            is_meta: 'yes',
           },
         ],
-      }),
+      })
     ).toBe(false);
   });
 
-  it("accepts node metadata and a metadata schema", () => {
+  it('accepts node metadata and a metadata schema', () => {
     const withMetadata = {
       ...VIEWPORT_FIXTURE,
       metadata_schema: [
-        { key: "region", type: "string" },
-        { key: "distance", type: "number" },
+        { key: 'region', type: 'string' },
+        { key: 'distance', type: 'number' },
       ],
       nodes: [
         {
           ...VIEWPORT_FIXTURE.nodes[0],
           metadata: {
-            region: "eu",
+            region: 'eu',
             distance: 3,
             resistant: true,
             missing: null,
@@ -234,20 +236,20 @@ describe("graphGuards", () => {
       ],
     };
 
-    expect(isGraphViewportResponse(withMetadata)).toBe(true);
+    expect(isGraphViewportResponseDto(withMetadata)).toBe(true);
   });
 
-  it("treats absent node metadata and metadata schema as valid", () => {
-    expect(isGraphViewportResponse(VIEWPORT_FIXTURE)).toBe(true);
+  it('treats absent node metadata and metadata schema as valid', () => {
+    expect(isGraphViewportResponseDto(VIEWPORT_FIXTURE)).toBe(true);
     expect(
-      isGraphViewportResponse({
+      isGraphViewportResponseDto({
         ...VIEWPORT_FIXTURE,
         nodes: [{ ...VIEWPORT_FIXTURE.nodes[0], metadata: null }],
-      }),
+      })
     ).toBe(true);
   });
 
-  it("permits internal-key metadata to pass the guard untouched", () => {
+  it('permits internal-key metadata to pass the guard untouched', () => {
     // Internal aggregation keys are scalar values; downstream code filters them
     // from public views rather than asking the contract guard to strip them.
     const withInternalKeys = {
@@ -258,22 +260,22 @@ describe("graphGuards", () => {
           metadata: {
             profile_count: 5,
             __category_count__region__value__eu: 3,
-            region: "eu",
+            region: 'eu',
           },
         },
       ],
     };
 
-    expect(isGraphViewportResponse(withInternalKeys)).toBe(true);
+    expect(isGraphViewportResponseDto(withInternalKeys)).toBe(true);
   });
 
-  it("rejects non-scalar node metadata values", () => {
+  it('rejects non-scalar node metadata values', () => {
     const nestedObject = {
       ...VIEWPORT_FIXTURE,
       nodes: [
         {
           ...VIEWPORT_FIXTURE.nodes[0],
-          metadata: { region: { nested: "eu" } },
+          metadata: { region: { nested: 'eu' } },
         },
       ],
     };
@@ -282,7 +284,7 @@ describe("graphGuards", () => {
       nodes: [
         {
           ...VIEWPORT_FIXTURE.nodes[0],
-          metadata: { regions: ["eu", "us"] },
+          metadata: { regions: ['eu', 'us'] },
         },
       ],
     };
@@ -296,28 +298,28 @@ describe("graphGuards", () => {
       ],
     };
 
-    expect(isGraphViewportResponse(nestedObject)).toBe(false);
-    expect(isGraphViewportResponse(arrayValue)).toBe(false);
-    expect(isGraphViewportResponse(nonFiniteNumber)).toBe(false);
+    expect(isGraphViewportResponseDto(nestedObject)).toBe(false);
+    expect(isGraphViewportResponseDto(arrayValue)).toBe(false);
+    expect(isGraphViewportResponseDto(nonFiniteNumber)).toBe(false);
   });
 
-  it("rejects malformed metadata schema entries", () => {
+  it('rejects malformed metadata schema entries', () => {
     const missingType = {
       ...VIEWPORT_FIXTURE,
-      metadata_schema: [{ key: "region" }],
+      metadata_schema: [{ key: 'region' }],
     };
     const notAnArray = {
       ...VIEWPORT_FIXTURE,
-      metadata_schema: { region: "string" },
+      metadata_schema: { region: 'string' },
     };
 
-    expect(isGraphViewportResponse(missingType)).toBe(false);
-    expect(isGraphViewportResponse(notAnArray)).toBe(false);
+    expect(isGraphViewportResponseDto(missingType)).toBe(false);
+    expect(isGraphViewportResponseDto(notAnArray)).toBe(false);
   });
 
-  it("validates search responses", () => {
-    expect(isGraphSearchResponse(SEARCH_FIXTURE)).toBe(true);
-    expect(isGraphSearchResponse({ ...SEARCH_FIXTURE, total_count: "2" })).toBe(false);
-    expect(isGraphSearchResponse({ ...SEARCH_FIXTURE, matches: [{ node_id: "x" }] })).toBe(false);
+  it('validates search responses', () => {
+    expect(isGraphSearchResponseDto(SEARCH_FIXTURE)).toBe(true);
+    expect(isGraphSearchResponseDto({ ...SEARCH_FIXTURE, total_count: '2' })).toBe(false);
+    expect(isGraphSearchResponseDto({ ...SEARCH_FIXTURE, matches: [{ node_id: 'x' }] })).toBe(false);
   });
 });

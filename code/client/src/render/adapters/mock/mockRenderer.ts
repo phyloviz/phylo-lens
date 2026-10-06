@@ -1,33 +1,33 @@
-import type { PositionedGraph } from "../../../contracts/positioned";
+import type { Point } from '../../../contracts/Point';
+import type { PositionedGraph } from '../../../contracts/positioned';
 import {
   type GraphRenderer,
-  RENDERER_KIND_MOCK,
+  RendererType,
   type RenderContext,
   type RenderNodeClickState,
-  type RenderViewportSyncState,
-  type RendererKind,
+  type RenderViewportRequestState,
   type RenderViewportState,
-} from "../../renderer.types";
+} from '../../renderer.types';
 
-export const MOCK_RENDERER_EMPTY_CONTAINER = "";
+export const MOCK_RENDERER_EMPTY_CONTAINER = '';
 
 // Mock renderer adapter supports testing and local dry-runs without Sigma runtime.
 export default function () {
   let container: HTMLElement | null = null;
   let lastGraph: PositionedGraph | null = null;
   let lastCenteredNodeId: string | null = null;
-  let lastCenteredCoordinates: { x: number; y: number } | null = null;
+  let lastCenteredCoordinates: Point | null = null;
   let lastFocusedNodeId: string | null = null;
   let viewChangeHandler: ((state: RenderViewportState) => void) | null = null;
   let nodeClickHandler: ((state: RenderNodeClickState) => void) | null = null;
   let nodeDoubleClickHandler: ((state: RenderNodeClickState) => void) | null = null;
-  let viewportSyncState: RenderViewportSyncState | null = {
+  let viewportState: RenderViewportRequestState | null = {
     bounds: { xmin: 0, xmax: 100, ymin: 0, ymax: 100 },
     cameraRatio: 1,
   };
 
   return {
-    kind: RENDERER_KIND_MOCK as RendererKind,
+    kind: RendererType.Mock,
     mount: mount,
     render: render,
     setViewChangeHandler: setViewChangeHandler,
@@ -35,7 +35,7 @@ export default function () {
     centerOnNode: centerOnNode,
     centerOnCoordinates: centerOnCoordinates,
     focusNode: focusNode,
-    getViewportSyncState: getViewportSyncState,
+    getViewportState: getViewportState,
     applyGraphSnapshot: render,
     fitGraphSnapshot: fitGraphSnapshot,
     setNodeDoubleClickHandler: setNodeDoubleClickHandler,
@@ -45,18 +45,18 @@ export default function () {
     getLastCenteredNodeId: getLastCenteredNodeId,
     getLastCenteredCoordinates: getLastCenteredCoordinates,
     getLastFocusedNodeId: getLastFocusedNodeId,
-    setViewportSyncState: setViewportSyncState,
+    setViewportState: setViewportState,
     emitViewChange: emitViewChange,
     emitNodeClick: emitNodeClick,
     emitNodeDoubleClick: emitNodeDoubleClick,
   } satisfies GraphRenderer & {
-    kind: RendererKind;
+    kind: RendererType;
     getRenderedGraph: typeof getRenderedGraph;
     getMountedContainerId: typeof getMountedContainerId;
     getLastCenteredNodeId: typeof getLastCenteredNodeId;
     getLastCenteredCoordinates: typeof getLastCenteredCoordinates;
     getLastFocusedNodeId: typeof getLastFocusedNodeId;
-    setViewportSyncState: typeof setViewportSyncState;
+    setViewportState: typeof setViewportState;
     emitViewChange: typeof emitViewChange;
     emitNodeClick: typeof emitNodeClick;
     emitNodeDoubleClick: typeof emitNodeDoubleClick;
@@ -98,12 +98,12 @@ export default function () {
     lastFocusedNodeId = nodeId;
   }
 
-  function getViewportSyncState(): RenderViewportSyncState | null {
-    return viewportSyncState;
+  function getViewportState(): RenderViewportRequestState | null {
+    return viewportState;
   }
 
-  function setViewportSyncState(state: RenderViewportSyncState | null): void {
-    viewportSyncState = state;
+  function setViewportState(state: RenderViewportRequestState | null): void {
+    viewportState = state;
   }
 
   function fitGraphSnapshot(): null {
@@ -139,7 +139,7 @@ export default function () {
     return lastCenteredNodeId;
   }
 
-  function getLastCenteredCoordinates(): { x: number; y: number } | null {
+  function getLastCenteredCoordinates(): Point | null {
     return lastCenteredCoordinates;
   }
 

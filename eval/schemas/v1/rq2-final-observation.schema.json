@@ -7,7 +7,7 @@
   "properties": {
     "schema_version": {"const": "1"},
     "run_id": {"type": "string", "minLength": 1},
-    "experiment_id": {"const": "rq2-client-final-v020"},
+    "experiment_id": {"enum": ["rq2-client-final-v020", "rq2-client-final-v022"]},
     "observation_id": {"type": "string", "minLength": 1},
     "role": {"enum": ["warmup", "measured"]},
     "repetition_index": {"type": "integer", "minimum": 0},

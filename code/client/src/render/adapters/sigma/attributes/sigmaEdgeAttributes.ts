@@ -1,7 +1,7 @@
-import type Graph from "graphology";
-import type { PositionedGraph } from "../../../../contracts/positioned";
-import { firstAttributeValue, normalizeRoleValue, toPositiveNumber } from "./sigmaAttributeUtils";
-import { formatDistanceLabel } from "./sigmaLabels";
+import type Graph from 'graphology';
+import type { PositionedGraph } from '../../../../contracts/positioned';
+import { firstAttributeValue, normalizeRoleValue, toPositiveNumber } from './sigmaAttributeUtils';
+import { formatDistanceLabel } from './sigmaLabels';
 import {
   PHYLOVIZ_EDGE_DLV_COLOR,
   PHYLOVIZ_EDGE_TIEBREAK_NONE_COLOR,
@@ -11,50 +11,48 @@ import {
   PHYLOVIZ_EDGE_TIEBREAK_RULE_4_OR_5_COLOR,
   PHYLOVIZ_EDGE_TLV_COLOR,
   SIGMA_DEFAULT_EDGE_SIZE,
-} from "../sigmaRendering.constants";
-import type { SigmaRendererOptions } from "../sigmaRenderer.types";
-import { edgeSizeForDistance } from "./sigmaStyle";
+} from '../sigmaRendering.constants';
+import type { SigmaRendererOptions } from '../sigmaRenderer.types';
+import { edgeSizeForDistance } from './sigmaStyle';
 
 export function addPositionedEdges(
   graph: Graph,
   positionedGraph: PositionedGraph,
-  rendererOptions: SigmaRendererOptions,
+  rendererOptions?: SigmaRendererOptions
 ): void {
-  const distanceRange = distanceRangeForEdges(positionedGraph.edges);
+  const distanceRange = rendererOptions ? distanceRangeForEdges(positionedGraph.edges) : null;
 
-  positionedGraph.edges.forEach((edge) => {
-    const sourceExists = graph.hasNode(edge.source);
-    const targetExists = graph.hasNode(edge.target);
+  positionedGraph.edges.forEach(edge => {
+    if (!graph.hasNode(edge.source) || !graph.hasNode(edge.target)) return;
 
-    if (!sourceExists || !targetExists) {
-      return;
+    const attributes = { ...edge.attributes };
+    // Prepared snapshots keep their labels, colors and sizes; copy them into Graphology.
+    if (rendererOptions) {
+      attributes.color = deriveEdgeColor(edge.attributes, distanceRange);
+      attributes.size = deriveEdgeSize(edge.attributes, rendererOptions);
+      attributes.label =
+        rendererOptions.display?.edgeDistanceLabels === true ? formatDistanceLabel(edge.attributes?.distance) : '';
+      attributes.forceLabel = rendererOptions.display?.edgeDistanceLabels === true;
     }
-
-    graph.addEdgeWithKey(edge.id, edge.source, edge.target, {
-      ...(edge.attributes ?? {}),
-      color: deriveEdgeColor(edge.attributes, distanceRange),
-      size: deriveEdgeSize(edge.attributes, rendererOptions),
-      label: rendererOptions.display?.edgeDistanceLabels === true ? formatDistanceLabel(edge.attributes?.distance) : "",
-      forceLabel: rendererOptions.display?.edgeDistanceLabels === true,
-    });
+    graph.addEdgeWithKey(edge.id, edge.source, edge.target, attributes);
   });
 }
 
 function deriveEdgeSize(
   attributes: Record<string, unknown> | undefined,
-  rendererOptions: SigmaRendererOptions,
+  rendererOptions: SigmaRendererOptions
 ): number {
   const baseSize = rendererOptions.edge?.size ?? SIGMA_DEFAULT_EDGE_SIZE;
   return edgeSizeForDistance(
     toPositiveNumber(attributes?.distance),
     baseSize,
-    rendererOptions.display?.distanceWeightedEdges === true,
+    rendererOptions.display?.distanceWeightedEdges === true
   );
 }
 
 function deriveEdgeColor(
   attributes: Record<string, unknown> | undefined,
-  distanceRange: { min: number; max: number } | null,
+  distanceRange: { min: number; max: number } | null
 ): string {
   const tiebreakColor = deriveTiebreakEdgeColor(attributes);
   if (tiebreakColor) {
@@ -71,45 +69,45 @@ function deriveEdgeColor(
 
 function deriveTiebreakEdgeColor(attributes: Record<string, unknown> | undefined): string | null {
   const rawRule = firstAttributeValue(attributes, [
-    "tie_break_rule",
-    "tiebreak_rule",
-    "tiebreak",
-    "tie_break",
-    "goeburst_rule",
-    "rule",
-    "level",
+    'tie_break_rule',
+    'tiebreak_rule',
+    'tiebreak',
+    'tie_break',
+    'goeburst_rule',
+    'rule',
+    'level',
   ]);
   const rule = normalizeRoleValue(rawRule);
 
-  if (rule === "none" || rule === "no_tiebreak" || rule === "without_tiebreak") {
+  if (rule === 'none' || rule === 'no_tiebreak' || rule === 'without_tiebreak') {
     return PHYLOVIZ_EDGE_TIEBREAK_NONE_COLOR;
   }
-  if (rule === "1" || rule === "rule_1" || rule === "slv") {
+  if (rule === '1' || rule === 'rule_1' || rule === 'slv') {
     return PHYLOVIZ_EDGE_TIEBREAK_RULE_1_COLOR;
   }
-  if (rule === "2" || rule === "rule_2") {
+  if (rule === '2' || rule === 'rule_2') {
     return PHYLOVIZ_EDGE_TIEBREAK_RULE_2_COLOR;
   }
-  if (rule === "3" || rule === "rule_3") {
+  if (rule === '3' || rule === 'rule_3') {
     return PHYLOVIZ_EDGE_TIEBREAK_RULE_3_COLOR;
   }
-  if (rule === "4" || rule === "5" || rule === "rule_4" || rule === "rule_5") {
+  if (rule === '4' || rule === '5' || rule === 'rule_4' || rule === 'rule_5') {
     return PHYLOVIZ_EDGE_TIEBREAK_RULE_4_OR_5_COLOR;
   }
-  if (rule === "dlv") {
+  if (rule === 'dlv') {
     return PHYLOVIZ_EDGE_DLV_COLOR;
   }
-  if (rule === "tlv") {
+  if (rule === 'tlv') {
     return PHYLOVIZ_EDGE_TLV_COLOR;
   }
 
   return null;
 }
 
-function distanceRangeForEdges(edges: PositionedGraph["edges"]): { min: number; max: number } | null {
+function distanceRangeForEdges(edges: PositionedGraph['edges']): { min: number; max: number } | null {
   const distances = edges
-    .map((edge) => edge.attributes?.distance)
-    .filter((distance): distance is number => typeof distance === "number" && Number.isFinite(distance));
+    .map(edge => edge.attributes?.distance)
+    .filter((distance): distance is number => typeof distance === 'number' && Number.isFinite(distance));
   if (distances.length === 0) {
     return null;
   }
@@ -126,6 +124,6 @@ function grayscaleForDistance(distance: number, range: { min: number; max: numbe
   // Keep the distance ordering, but avoid near-white links disappearing on
   // Sigma's white canvas.
   const channel = Math.round(35 + normalized * 115);
-  const hex = channel.toString(16).padStart(2, "0");
+  const hex = channel.toString(16).padStart(2, '0');
   return `#${hex}${hex}${hex}`;
 }

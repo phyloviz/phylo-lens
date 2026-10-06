@@ -1,53 +1,81 @@
-import type { PositionedGraph } from "../../../contracts/positioned";
+import type { PositionedGraph } from '../../../contracts/positioned';
+import type { GraphViewportResult } from '../../../contracts/graph/viewport/GraphViewportResult';
+import type { NodeId } from '../../../contracts/graph/graphIdentifiers';
+import { graphSnapshotFromViewportResponse, type ViewportRenderSettings } from './viewportSnapshot';
+
+/** A partial cluster response must not replace its representative with an incomplete group. */
+export function isIncompleteExpansion(response: GraphViewportResult): boolean {
+  return response.truncated || response.totalNodeCount > response.nodes.filter(node => !node.isRepresentative).length;
+}
+
+export function composeViewportExpansion(
+  base: GraphViewportResult,
+  patches: readonly GraphViewportResult[],
+  settings: ViewportRenderSettings | undefined,
+  maxNodes: number | undefined,
+  priorityNodeId?: NodeId | null
+) {
+  const composed = composeExpandedViewport(
+    graphSnapshotFromViewportResponse(base, settings),
+    patches.map(patch => graphSnapshotFromViewportResponse(patch, settings)),
+    maxNodes,
+    priorityNodeId
+  );
+  return {
+    graph: composed.graph,
+    exceedsNodeLimit: composed.partial,
+    partial: composed.partial || base.truncated || patches.some(isIncompleteExpansion),
+  };
+}
 
 /** Compose patches at the same LoD tier. Detailed nodes win over boundary proxies. */
 export function composeExpandedViewport(
   base: PositionedGraph,
   patches: readonly PositionedGraph[],
   maxNodes: number | undefined,
-  priorityNodeId?: string | null,
+  priorityNodeId?: string | null
 ) {
-  const nodes = new Map(base.nodes.map((node) => [node.id, node]));
-  const edges = new Map(base.edges.map((edge) => [edge.id, edge]));
+  const nodes = new Map(base.nodes.map(node => [node.id, node]));
+  const edges = new Map(base.edges.map(edge => [edge.id, edge]));
   const boundaryPairs = new Set(
-    patches.flatMap((patch) =>
+    patches.flatMap(patch =>
       patch.edges
-        .filter((edge) => edge.attributes?.isMeta === true)
-        .map((edge) => [edge.source, edge.target].sort().join("\0")),
-    ),
+        .filter(edge => edge.attributes?.isMeta === true)
+        .map(edge => [edge.source, edge.target].sort().join('\0'))
+    )
   );
   for (const [id, edge] of edges) {
-    if (boundaryPairs.has([edge.source, edge.target].sort().join("\0"))) edges.delete(id);
+    if (boundaryPairs.has([edge.source, edge.target].sort().join('\0'))) edges.delete(id);
   }
   for (const patch of patches) {
     for (const node of patch.nodes) {
-      if (node.attributes?.is_cluster_proxy !== true || !nodes.has(node.id)) nodes.set(node.id, node);
+      if (node.attributes?.isClusterProxy !== true || !nodes.has(node.id)) nodes.set(node.id, node);
     }
     for (const edge of patch.edges) edges.set(edge.id, edge);
   }
   // Expanded members replace their summary; counting both would duplicate isolates.
   const detailedClusters = new Set(
-    patches.flatMap((patch) =>
+    patches.flatMap(patch =>
       patch.nodes
-        .filter((node) => node.attributes?.is_cluster_proxy !== true)
-        .map((node) => node.attributes?.cluster_id)
-        .filter((id): id is string => typeof id === "string"),
-    ),
+        .filter(node => node.attributes?.isClusterProxy !== true)
+        .map(node => node.attributes?.clusterId)
+        .filter((id): id is string => typeof id === 'string')
+    )
   );
   for (const [id, node] of nodes) {
-    const clusterId = node.attributes?.cluster_id;
-    if (node.attributes?.is_cluster_proxy === true && typeof clusterId === "string" && detailedClusters.has(clusterId))
+    const clusterId = node.attributes?.clusterId;
+    if (node.attributes?.isClusterProxy === true && typeof clusterId === 'string' && detailedClusters.has(clusterId))
       nodes.delete(id);
   }
   const partial = maxNodes !== undefined && nodes.size > maxNodes;
   const ordered = [...nodes.values()];
   const priority = priorityNodeId ? nodes.get(priorityNodeId) : undefined;
-  const rendered = (priority ? [priority, ...ordered.filter((node) => node.id !== priority.id)] : ordered).slice(
+  const rendered = (priority ? [priority, ...ordered.filter(node => node.id !== priority.id)] : ordered).slice(
     0,
-    maxNodes,
+    maxNodes
   );
-  const ids = new Set(rendered.map((node) => node.id));
-  const visibleEdges = [...edges.values()].filter((edge) => ids.has(edge.source) && ids.has(edge.target));
+  const ids = new Set(rendered.map(node => node.id));
+  const visibleEdges = [...edges.values()].filter(edge => ids.has(edge.source) && ids.has(edge.target));
   return {
     partial,
     graph: {

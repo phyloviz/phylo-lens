@@ -1,5 +1,6 @@
-import type { PositionedGraphBounds } from "../../../../contracts/positioned";
-import type { RenderViewportState } from "../../../renderer.types";
+import type { Point } from '../../../../contracts/Point';
+import type { GraphLayoutBounds } from '../../../../contracts/graph/viewport/GraphLayoutBounds';
+import type { RenderViewportState } from '../../../renderer.types';
 
 export const SIGMA_DEFAULT_CAMERA_ZOOM = 1;
 export const SIGMA_MIN_CAMERA_RATIO = 0.002;
@@ -9,13 +10,6 @@ export const SIGMA_ZOOMING_RATIO = 1.15;
 export const SIGMA_DEFAULT_CAMERA_X = 0.5;
 export const SIGMA_DEFAULT_CAMERA_Y = 0.5;
 export const SIGMA_EDGE_LABEL_MAX_CAMERA_RATIO = 0.5;
-
-export interface GraphBounds {
-  minX: number;
-  maxX: number;
-  minY: number;
-  maxY: number;
-}
 
 export interface SigmaCameraState {
   x?: number;
@@ -29,7 +23,7 @@ export interface SigmaSemanticViewState {
     y: number;
     ratio: number;
   };
-  viewport: RenderViewportState["viewport"];
+  viewport: RenderViewportState['viewport'];
   lodZoom: number;
   edgeDistanceLabelsVisible: boolean;
 }
@@ -52,13 +46,16 @@ export function sigmaRatioToLodZoom(ratio: number): number {
 }
 
 export function sigmaCameraToViewportState(
-  bounds: GraphBounds,
-  camera: SigmaCameraState,
-): RenderViewportState["viewport"] {
+  bounds: GraphLayoutBounds,
+  camera: SigmaCameraState
+): RenderViewportState['viewport'] {
   return sigmaNormalizedCameraToViewportState(bounds, normalizeSigmaCameraState(camera));
 }
 
-export function sigmaCameraToSemanticViewState(bounds: GraphBounds, camera: SigmaCameraState): SigmaSemanticViewState {
+export function sigmaCameraToSemanticViewState(
+  bounds: GraphLayoutBounds,
+  camera: SigmaCameraState
+): SigmaSemanticViewState {
   const normalizedCamera = normalizeSigmaCameraState(camera);
 
   return {
@@ -78,16 +75,13 @@ export function normalizeSigmaCameraState(camera: SigmaCameraState): {
     x: clampUnit(camera.x ?? SIGMA_DEFAULT_CAMERA_X),
     y: clampUnit(camera.y ?? SIGMA_DEFAULT_CAMERA_Y),
     ratio:
-      typeof camera.ratio === "number" && Number.isFinite(camera.ratio)
+      typeof camera.ratio === 'number' && Number.isFinite(camera.ratio)
         ? Math.max(camera.ratio, SIGMA_MIN_CAMERA_RATIO)
         : SIGMA_DEFAULT_CAMERA_ZOOM,
   };
 }
 
-export function graphCoordinatesToCameraCenter(
-  bounds: GraphBounds,
-  point: { x: number; y: number },
-): { x: number; y: number } {
+export function graphCoordinatesToCameraCenter(bounds: GraphLayoutBounds, point: Point): Point {
   const spanX = Math.max(bounds.maxX - bounds.minX, 1);
   const spanY = Math.max(bounds.maxY - bounds.minY, 1);
 
@@ -97,7 +91,7 @@ export function graphCoordinatesToCameraCenter(
   };
 }
 
-export function normalizeGraphBounds(bounds: PositionedGraphBounds | undefined): GraphBounds | null {
+export function normalizeGraphBounds(bounds: GraphLayoutBounds | undefined): GraphLayoutBounds | null {
   if (!bounds) {
     return null;
   }
@@ -114,7 +108,7 @@ export function normalizeGraphBounds(bounds: PositionedGraphBounds | undefined):
   return bounds;
 }
 
-export function deriveGraphBounds(nodes: readonly { x: number; y: number }[]): GraphBounds | null {
+export function deriveGraphBounds(nodes: readonly Point[]): GraphLayoutBounds | null {
   if (nodes.length === 0) {
     return null;
   }
@@ -124,7 +118,7 @@ export function deriveGraphBounds(nodes: readonly { x: number; y: number }[]): G
   let minY = nodes[0]?.y ?? 0;
   let maxY = minY;
 
-  nodes.forEach((node) => {
+  nodes.forEach(node => {
     minX = Math.min(minX, node.x);
     maxX = Math.max(maxX, node.x);
     minY = Math.min(minY, node.y);
@@ -142,9 +136,9 @@ function clampUnit(value: number): number {
 }
 
 function sigmaNormalizedCameraToViewportState(
-  bounds: GraphBounds,
-  camera: { x: number; y: number; ratio: number },
-): RenderViewportState["viewport"] {
+  bounds: GraphLayoutBounds,
+  camera: { x: number; y: number; ratio: number }
+): RenderViewportState['viewport'] {
   const spanX = Math.max(bounds.maxX - bounds.minX, 1);
   const spanY = Math.max(bounds.maxY - bounds.minY, 1);
 

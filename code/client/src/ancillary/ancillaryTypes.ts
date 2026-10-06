@@ -1,22 +1,17 @@
-export type { AncillaryData, AncillaryValue } from "../contracts/ancillary";
+export type { AncillaryData, AncillaryValue } from '../contracts/ancillary';
 
-export interface CategoricalFieldFilter {
-  fieldKey: string;
-  acceptedValues: string[];
-}
+export type CategoricalFieldFilter = {
+  readonly fieldKey: string;
+  readonly acceptedValues: readonly string[];
+};
 
-export interface NumericFieldFilter {
-  fieldKey: string;
-  min?: number;
-  max?: number;
-}
+export type NumericFieldFilter = {
+  readonly fieldKey: string;
+  readonly min?: number;
+  readonly max?: number;
+};
 
-export interface AncillaryFilterState {
-  categorical: CategoricalFieldFilter[];
-  numeric: NumericFieldFilter[];
-}
-
-export interface NumericStats {
-  min: number;
-  max: number;
-}
+export type AncillaryFilterState = {
+  readonly categorical: readonly CategoricalFieldFilter[];
+  readonly numeric: readonly NumericFieldFilter[];
+};

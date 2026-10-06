@@ -1,308 +1,328 @@
 # Server preparation pipeline
 
-`POST /api/graph/prepare` converts raw input into an immutable, queryable layout
-version. Preparation is the only operation that requires the complete graph.
-Viewport, region, and search requests operate on persisted artifacts.
+`POST /api/graph/prepare` turns a Newick tree or an allelic-profile table into a
+stored graph with node positions and levels of detail (LoD). Once preparation
+finishes, the server can answer viewport, region, and search requests from the
+stored data without laying out the whole graph again.
 
 ```text
 request validation
-  → capacity admission
-  → normalization
-  → layout identity
-  → rooted hop-depth clustering
+  → local capacity check, when using local jobs
+  → input parsing and normalization
+  → layout version and subtree clusters
+  → storage of the dataset and clusters as refining
+  → edges for each level of detail
   → global layout
-  → LoD edge materialization
-  → persistence
-  → publication
+  → storage of positions and prepared edges
+  → publication as ready
 ```
 
 ## 1. Request validation
 
-FastAPI validates the `NormalizeRequest` contract before application logic runs.
-The request contains:
+FastAPI checks the request fields before preparation starts. The request contains:
 
 - source format and content;
 - dataset name;
-- self-loop policy;
-- optional typed metadata;
-- optional ancillary CSV/TSV data.
+- options for handling self-loops;
+- optional node metadata and field types;
+- optional ancillary CSV/TSV data;
+- optional Graphviz `sfdp` settings.
 
-Malformed HTTP payloads return `422`. Source-format and domain errors are mapped
-to the API errors described in [API reference](./API_REFERENCE.md).
+Malformed HTTP requests return `422`. Input parsing and validation errors are
+listed in the [API reference](./API_REFERENCE.md).
 
-## 2. Job admission
+## 2. Preparation jobs
 
 ### Local backend
 
-The in-process `PrepareJobRegistry` enforces the configured active-job limit.
-Capacity is reserved **before normalization**, so typing-data requests cannot
-start expensive PhyloLib subprocesses outside the queue limit.
+The local job registry limits the number of active preparation jobs. It reserves
+a place before parsing the input, including before any PhyloLib calculation.
+The reservation is released if parsing fails. Otherwise, it is held until the
+background job finishes.
 
-The reservation is released on every exit path. After normalization, the job is
-submitted with `reserved_capacity=True`; the registry then tracks the worker
-future.
-
-The local registry may reuse an active or successful completed job with the same
-`(dataset_id, layout_version)`. Failed jobs are not reused.
-
-Completed jobs retain a small response payload, not the complete
-`PreparedLayoutResult`, preventing prepared graphs from accumulating in memory.
+The registry can reuse an active or successfully completed job with the same
+`(dataset_id, layout_version)`. Failed jobs are not reused. Completed jobs keep
+a small response with counts and status, rather than the whole prepared graph
+in memory.
 
 ### PostgreSQL backend
 
-The API inserts a durable prepare job. External workers claim jobs through
-PostgreSQL row locking and leases. The job payload and artifact store survive API
-process restarts.
+The API first parses and normalizes the input, then stores a preparation job in
+PostgreSQL. External workers claim these jobs using row locks. Each worker has
+a time-limited lease that it renews while working. Stored jobs and graph data
+survive an API restart.
 
-## 3. Normalization
+## 3. Input parsing and normalization
 
-`normalize_dataset` converts the selected source into a `CanonicalDataset`.
+`normalize_dataset` converts either input format into the same internal dataset
+structure, `CanonicalDataset`.
 
-### Newick path
+### Newick input
 
 ```text
 Newick text
-  → parse one tree or forest
-  → canonical node identifiers
-  → canonical edges and branch distances
-  → metadata and ancillary join
-  → domain validation
+  → parse one tree or a forest
+  → assign node identifiers
+  → record edges, branch lengths, and component roots
+  → join metadata and ancillary data
+  → validate the dataset
 ```
 
-### Typing-data path
+### Typing-data input
 
 ```text
-allelic-profile matrix
-  → PhyloLib Hamming distance
-  → technical root from distinct-profile LV counts + PhyloLib goeBURST Full MST
-  → rooted topology
-  → hop-depth cuts and pendant subtrees
+allelic-profile table
+  → identify distinct profiles and their isolates
+  → PhyloLib Hamming distance calculation
+  → PhyloLib goeBURST Full MST
+  → choose a technical root
+  → group identical profiles into one node
+  → join isolate metadata and build profile summaries
+  → validate the dataset
 ```
 
-Typing data and ancillary metadata are independent. PhyloLib constructs the
-relationship graph; PhyloLens joins isolate or profile attributes afterwards.
+The result is a minimum spanning tree of distinct profiles. Each profile node
+keeps the identifiers and metadata of its isolates. Ancillary data does not
+change the goeBURST tree.
 
-### Optional branch distances
+### Branch lengths and allelic distances
 
-Supplied branch or allelic distances remain canonical edge data. Omitted Newick
-branch lengths remain absent, even in a partially weighted tree. Neither LoD
-membership nor Graphviz layout requires complete distances.
+Supplied branch lengths and allelic distances are stored on the edges. Missing
+Newick branch lengths remain absent, including when only some branches have
+lengths. Preparation does not require a distance on every edge.
 
-### Metadata handling
+These values do not determine subtree clusters or node positions. In particular,
+the geometric length of a drawn edge does not encode its branch length or
+allelic distance. Use distance labels to read the supplied values.
 
-Normalization:
+### Metadata
 
-- validates caller-supplied metadata types;
-- infers undeclared field types;
-- joins ancillary rows by exact or slug-normalized identifier;
-- aggregates multiple rows per node;
-- preserves direct metadata on field conflicts;
-- hides internal aggregation keys from public schemas.
+Normalization checks declared field types and infers types for other fields.
+Ancillary rows are matched by identifier, using either an exact match or a
+normalized identifier. Directly supplied metadata takes precedence when fields
+conflict.
 
-The normalization result also records ingest and normalization durations for
-internal diagnostics. These values are not currently part of the public prepare
-response.
+For typing data, each isolate can have at most one ancillary row. Isolates with
+an identical profile share a graph node, but their individual records are kept.
+Profile summaries combine their metadata; for example, a declared numeric field
+uses the mean of the available isolate values. Newick nodes can have multiple
+ancillary rows. Internal summary fields are hidden from public metadata schemas.
 
-## 4. Dataset validation
+The server also records parsing and normalization times for internal diagnostics.
+These times are not included in the public preparation response.
 
-Domain validation checks structural invariants, including:
+## 4. Dataset and tree validation
 
-- non-empty identifiers;
-- edge endpoints that exist in the node set;
-- self-loop policy;
-- metadata values compatible with the canonical schema;
-- no use of reserved metadata fields.
+Dataset validation checks:
 
-Preparation adds two requirements:
+- non-empty, unique node and edge identifiers;
+- edge endpoints that exist in the dataset;
+- the requested self-loop policy;
+- metadata values and declared field types;
+- reserved metadata field names.
 
-- at least one node;
-- a distance value on every edge.
+Preparation also requires at least one node and a tree or forest. It rejects
+cycles, self-loops, and repeated edges between the same pair of nodes. Each tree
+component must have exactly one technical root. Missing edge distances are
+allowed.
 
-## 5. Layout identity
+## 5. Layout versions
 
-`layout_version_for_dataset` computes a deterministic fingerprint from:
+`layout_version_for_dataset` creates a repeatable version identifier from:
 
-- `LAYOUT_PIPELINE_VERSION`;
-- dataset identifier;
-- sorted nodes and edges;
-- distances;
-- metadata schema and values;
-- ancillary rows;
-- stable source semantics.
+- the pipeline version and LoD growth factor;
+- the resolved `sfdp` settings;
+- the dataset identifier;
+- nodes, edges, and supplied distances;
+- component roots and rooting strategy;
+- metadata, ancillary rows, and isolate records;
+- source format and provenance.
 
-The generated timestamp is excluded. Canonical JSON serialization makes the
-fingerprint independent of dictionary insertion order.
+The generation timestamp is excluded. Nodes and edges are sorted, and the data
+is serialized consistently before computing the identifier.
 
-This identity controls job reuse and artifact publication. A change to persisted
-metadata or layout-affecting pipeline semantics creates a new version.
+This identifier allows the server to reuse preparation jobs and distinguish
+stored versions. Changing a distance or metadata value creates a new version,
+even though those values do not control the layout geometry.
 
-## 6. Rooted hop-depth clustering
+## 6. Subtree levels of detail
 
-Typing data chooses a technical root by the full goeBURST LV count vector
-(SLVs, DLVs, and successive allelic distances), using original input order for
-a final tie. Direct Newick keeps the parsed root of each component. These roots
-are explicit in the canonical dataset and the layout fingerprint.
+For typing data, PhyloLens chooses a technical root using the goeBURST LV counts:
+first single-locus variants (SLVs), then double-locus variants (DLVs), and then
+successive allelic distances. Original input order breaks a final tie. For
+Newick input, it keeps the parsed root of each tree component. A technical root
+organizes the display; it does not establish an evolutionary ancestor.
 
-The pipeline orients each tree and assigns hop depths. At a cut depth, the
-rooted prefix remains visible; each child branch beyond it becomes a connected
-pendant subtree with exactly one external edge. Edge distances remain canonical
-data but do not affect cluster membership. Materialized levels approximate
-geometric growth in visible representation count, with multiplicative-nearest
-target selection and no fixed level cap. The final cut is maximum hop depth,
-representing every original node individually. Normal viewport reads use
-spatial bounds without a node-count limit; only explicit caller limits truncate.
+Depth is measured in hops: one hop is one tree edge, regardless of its distance.
+At a chosen depth, nodes from the root down to that depth remain individual
+nodes. Each remaining branch is collapsed into a connected subtree attached by
+one edge. The node at the attachment end of that subtree represents it in the
+coarse view.
 
-For every cluster, the pipeline records:
+Successive LoD levels aim to roughly double the number of displayed nodes and
+collapsed subtrees. The pipeline chooses the available depth closest to that
+target by ratio. There is no fixed limit on the number of levels. The final
+level shows every original node individually. Some trees, such as stars,
+already show all nodes at the first cut.
 
-- member nodes;
-- the attachment member as representative for a collapsed branch.
-
-The internal-edge and single-boundary-edge properties are checked during
-preparation; redundant edge lists are not stored on the cluster.
-
-The partitions are nested: increasing depth reveals nodes inside existing
+For each cluster, the server stores its members and representative node. It
+checks that a collapsed branch is connected and has exactly one edge joining
+it to the rest of the tree. Increasing detail reveals nodes within existing
 branches without moving them between unrelated clusters.
 
-See [LoD and clustering](./LOD_AND_CLUSTERING.md) for the selection and query
-semantics.
+See [LoD and clustering](./LOD_AND_CLUSTERING.md) for more detail.
 
-## 7. Artifact publication begins
+## 7. Storing an unfinished version
 
-The worker clears an incomplete artifact set with the same identity, then writes
-the canonical dataset and cluster records with status `refining`.
+The worker clears any previous data for the same layout version, then stores the
+dataset and clusters with status `refining`.
 
-A `refining` version is not selected as the latest readable version. An earlier
-published layout therefore remains available while a new version is prepared.
+A version marked `refining` is not selected as the latest readable version.
+An earlier ready version with a different identifier can remain available while
+the new version is prepared.
 
-## 8. Prepared quotient edges
+## 8. Edges for coarse views
 
-For each non-finest hop cut, the pipeline maps canonical edge endpoints to
-cluster representatives.
+For each LoD level, the server replaces each edge endpoint with its cluster's
+representative. Edges inside a cluster disappear from that view. Edges between
+clusters keep the distance of the original connecting edge.
 
-Edges internal to one cluster disappear at that tier. Tree contraction cannot
-create parallel quotient edges. A multi-node collapsed representative has
-degree one, so it cannot join two visible parts of the tree.
+This is tree contraction, also called a quotient graph. Contracting these
+subtrees cannot create parallel edges. Each collapsed branch has one connection
+to the rest of the tree, so it cannot become a shortcut between two visible
+parts of the tree.
 
-These quotient edges allow viewport reads to return a topologically consistent
-coarse graph without rebuilding it on every request.
+The server stores these edges in advance so viewport requests do not need to
+rebuild the coarse graph.
 
 ## 9. Global layout
 
-The layout stage computes one global position for each canonical node.
-
-### Source coordinates
-
-When every node already has `x` and `y`, those positions are used as the global
-layout input.
+The server computes one position for each original node. A single-node dataset
+is placed at the origin. Supplied node `x` and `y` values do not bypass this step.
 
 ### Graphviz `sfdp`
 
-Otherwise, PhyloLens invokes Graphviz `sfdp` with a generated undirected DOT
-graph.
+For components containing edges, PhyloLens sends Graphviz `sfdp` an undirected
+DOT graph containing the nodes and their connections.
 
-- Edge lengths use the ratio between each positive distance and the median
-  positive distance, subject to bounded minimum and maximum lengths.
-- Connected graphs use global overlap removal.
-- Disconnected forests use component packing to avoid a pathological global
-  overlap pass.
-- `maxiter` is derived from node count.
-- by default the subprocess has no wall-clock timeout; an operator can opt in
-  to `PHYLO_LENS_GRAPHVIZ_SFDP_TIMEOUT_SECONDS`.
+- Branch lengths and allelic distances are not supplied as preferred edge lengths.
+- The global `K` setting controls approximate spacing for the graph as a whole.
+- The default settings use `K=0.3`, Prism overlap removal, spring smoothing,
+  and a normal quadtree. Other supported settings can be supplied in the request.
+- Component packing is enabled. The configured overlap setting is passed to
+  Graphviz for both connected trees and forests.
+- PhyloLens does not set `maxiter` from the node count; Graphviz uses its own default.
+- There is no default timeout. An operator can set a positive timeout with
+  `PHYLO_LENS_GRAPHVIZ_SFDP_TIMEOUT_SECONDS`.
 
-Graphviz output is parsed from the `plain` format, centered, and scaled to a
-target median edge length. A one-axis output receives deterministic separation;
-a complete point-collapsed `sfdp` result is retained as returned rather than
-silently replaced with another layout algorithm.
+Graphviz's per-edge `len` attribute is supported by `neato` and `fdp`, rather
+than `sfdp`. Adding it to the current DOT graph would not make biological
+distances control edge lengths. See the [Graphviz documentation for `len`](https://graphviz.org/docs/attrs/len/).
+The current layout cannot use biological distances as target edge lengths.
+Adding this support is future work.
+
+The server reads node positions from Graphviz's `plain` output and keeps those
+coordinates without centering or rescaling them. It does not spread out a
+one-dimensional or point-collapsed result.
+
+Isolated nodes are handled separately because the spring smoother requires a
+neighbour for each node. PhyloLens places isolates in a repeatable grid beside
+the Graphviz layout without adding artificial edges. If all nodes are isolated,
+the grid is used on its own and `sfdp` is not called.
 
 ### Layout failures
 
-If `sfdp` is missing, exits unsuccessfully, times out when an explicit timeout
-is configured, or returns incomplete positions, preparation fails and does not
-publish a layout version. The failed job reports structured diagnostics,
-including `algorithm`, `stage`, exit status, configured timeout, and stderr or
-error detail where available. Circular layout is not an implicit fallback.
+If `sfdp` is required but is missing, cannot start, exits with an error, times
+out, or returns invalid or incomplete positions, preparation fails. The version
+is not published. The job reports the reason and any available exit status,
+timeout, or Graphviz error output. The server does not substitute a circular
+layout after a Graphviz failure.
 
-## 10. Cluster and node layouts
+## 10. Node and cluster positions
 
-The global node coordinates are used to derive:
+The server stores one position per original node. A cluster uses the position
+of its representative node, with bounds and a radius calculated from all its
+members.
 
-- one `NodeLayoutPosition` per canonical node;
-- one `ClusterLayout` per prepared cluster.
+All LoD levels share the same coordinate system. The server does not lay out
+each level separately, so expanding a branch reveals its nodes at their stored
+global positions.
 
-A cluster layout uses the global position of its representative and stores
-member-derived bounds and radius. The pipeline does not run a separate layout
-for each semantic-zoom tier; all tiers remain in one global coordinate system.
+## 11. Storage
 
-## 11. Persistence
+The worker stores:
 
-The worker persists:
+1. the dataset, metadata, and isolate records;
+2. clusters and their member nodes;
+3. original tree edges;
+4. global node positions;
+5. cluster positions, bounds, and metadata summaries;
+6. edges for each LoD level.
 
-1. canonical dataset and metadata;
-2. prepared clusters and membership;
-3. original graph edges;
-4. node positions;
-5. cluster layouts and aggregated metadata;
-6. per-tier prepared edges.
+SQLite and PostgreSQL support the same preparation and query operations. Large
+writes are split into batches and grouped into database transactions.
 
-SQLite and PostgreSQL implement the same repository contract. Bulk writes are
-chunked and grouped under transaction boundaries.
+## 12. Making the layout available
 
-## 12. Publication
+After all preparation data has been stored, the worker marks the version `ready`.
+Requests that omit `layout_version` can then select it as the latest ready
+version.
 
-After all artifacts are stored, the worker publishes the dataset row as `ready`.
+The job returns counts, the number of LoD levels, layout status, and warnings.
+Local jobs and PostgreSQL jobs use the same response format.
 
-Only then can reads that omit `layout_version` resolve the new version.
+## 13. Preparation failures
 
-The worker returns a compact prepare result containing counts, LoD tier count,
-layout status, and combined warnings. Both local and PostgreSQL job paths use the
-same canonical payload builder.
-
-## 13. Failure and cancellation behavior
-
-A failed preparation records a terminal job error and does not publish the
-layout. Relevant cases include:
+A failed job records an error and leaves the unfinished layout unpublished.
+Possible causes include:
 
 - invalid Newick or typing data;
-- PhyloLib process failure or timeout;
-- Graphviz missing, non-zero, incomplete, or explicitly timed-out layout;
-- database error;
-- lost PostgreSQL lease before publication.
+- a PhyloLib error or timeout;
+- a Graphviz error, missing executable, or configured timeout;
+- a database error;
+- a PostgreSQL worker losing its job lease before publication.
 
-PostgreSQL workers use lease ownership checks between publication phases. A
-worker that loses ownership aborts before publishing further artifacts.
+PostgreSQL workers check that they still own the job between storage steps and
+before publication. A worker that loses ownership stops before the next step.
 
-## 14. Interactive read path
+## 14. Viewport, region, and search requests
 
-After publication, interactive requests do not repeat preparation. They resolve a
-layout version and execute bounded repository reads:
+Once a version is ready, interactive requests use the stored graph:
 
 ```text
-viewport query
-  → LoD hop-depth cut
-  → bounds lookup
-  → visible nodes and required neighbours
-  → matching original or prepared edges
-  → metadata attachment
-  → HTTP response
+viewport request
+  → resolve the layout version
+  → choose a prepared LoD level
+  → find nodes or clusters within the view bounds
+  → include required neighbours and matching edges
+  → attach metadata
+  → return the response
 ```
 
-Region selection always reads finest-detail nodes within the requested box.
-Search reads node identifiers and public metadata, ranks matches, and returns
-global positions for navigation.
+When the client supplies a target number of visible representations, the server
+uses counts within the view bounds to choose a level of detail. A sparse view
+can show more detail than the zoom preference alone would suggest. The previous
+level helps avoid repeated switching near a density threshold. The target
+selects a whole prepared level; it does not cut nodes out of that level.
 
-## Evaluation guidance
+Normal viewport requests have no node-count limit. An explicit `max_nodes`
+limit can truncate the response. Region selection reads original nodes within
+the requested box at full detail. Search matches identifiers and public
+metadata, ranks the results, and returns stored positions for navigation.
 
-Preparation measurements should separate at least:
+## Measuring preparation time
 
-- source ingest and parsing;
+Useful measurements separate:
+
+- input parsing;
 - PhyloLib distance calculation;
-- goeBURST;
-- canonical normalization;
-- cluster/LoD construction;
+- goeBURST tree construction;
+- dataset normalization;
+- subtree and LoD construction;
 - Graphviz layout;
-- persistence;
-- initial viewport read and serialization.
+- database storage;
+- the first viewport read and response serialization.
 
-A benchmark should use a clean process or explicitly control cache and persisted
-layout reuse. Reusing an identical `(dataset_id, layout_version)` measures cache
-behavior, not preparation throughput.
+Use a fresh process, or account for cached jobs and stored layouts. Reusing the
+same `(dataset_id, layout_version)` measures reuse time rather than a new
+preparation run.

@@ -1,30 +1,23 @@
-import mockRenderer from "./adapters/mock/mockRenderer";
-import { SigmaRenderer } from "./adapters/sigma/sigmaRenderer";
-import {
-  type GraphRenderer,
-  RENDERER_KIND_MOCK,
-  RENDERER_KIND_SIGMA,
-  type RendererFactory,
-  type RendererKind,
-} from "./renderer.types";
+import mockRenderer from './adapters/mock/mockRenderer';
+import createSigmaRenderer from './adapters/sigma/sigmaRenderer';
+import { type GraphRenderer, RendererType, type RendererFactory } from './renderer.types';
 
-export const ERR_UNSUPPORTED_RENDERER = "Unsupported renderer kind: {kind}";
+export const ERR_UNSUPPORTED_RENDERER = 'Unsupported renderer type: {type}';
 
-// Create renderer adapters through one modular factory entry point.
-export default function () {
+export default function rendererFactory(): RendererFactory {
   return {
-    createRenderer: createRenderer,
-  } satisfies RendererFactory;
+    createRenderer,
+  };
 
-  function createRenderer(kind: RendererKind): GraphRenderer {
-    if (kind === RENDERER_KIND_SIGMA) {
-      return new SigmaRenderer();
+  function createRenderer(type: RendererType): GraphRenderer {
+    switch (type) {
+      case RendererType.Sigma:
+        return createSigmaRenderer();
+
+      case RendererType.Mock:
+        return mockRenderer();
     }
 
-    if (kind === RENDERER_KIND_MOCK) {
-      return mockRenderer();
-    }
-
-    throw new Error(ERR_UNSUPPORTED_RENDERER.replace("{kind}", kind));
+    throw new Error(ERR_UNSUPPORTED_RENDERER.replace('{type}', String(type)));
   }
 }

@@ -1,4 +1,4 @@
-import type { AncillarySummary } from "../../contracts/ancillary";
+import type { AncillarySummary } from '../../contracts/ancillary';
 import {
   CATEGORY_COUNT_FIELD_PREFIX,
   CATEGORY_COUNT_FIELD_SEPARATOR,
@@ -6,28 +6,7 @@ import {
   PIE_FIELD_VALUE_SEPARATOR,
   type CategoryCountEntry,
   type AncillaryData,
-} from "./pieMapping.types";
-
-export function categoricalPieValues(value: string | number | boolean | null | undefined): string[] {
-  if (value === undefined || value === null || value === "") {
-    return [];
-  }
-
-  if (typeof value !== "string") {
-    return [String(value)];
-  }
-
-  const parts = value
-    .split(/[;|]/)
-    .map((part) => part.trim())
-    .filter((part) => part.length > 0);
-
-  if (parts.length <= 1) {
-    return [value.trim()].filter((part) => part.length > 0);
-  }
-
-  return [...new Set(parts)];
-}
+} from './pieMapping.types';
 
 export function pieCategoricalAttributeKey(fieldKey: string, value: string): string {
   return `${PIE_ATTRIBUTE_PREFIX}${safeAttributeToken(fieldKey)}${PIE_FIELD_VALUE_SEPARATOR}${safeAttributeToken(value)}`;
@@ -36,7 +15,7 @@ export function pieCategoricalAttributeKey(fieldKey: string, value: string): str
 export function categoryCountsForField(
   metadata: AncillaryData,
   fieldKey: string,
-  summary?: AncillarySummary,
+  summary?: AncillarySummary
 ): CategoryCountEntry[] {
   if (summary)
     return Object.entries(summary.categoryCounts[fieldKey] ?? {})
@@ -54,10 +33,10 @@ export function isCategoryCountMetadataKey(key: string): boolean {
 
 export function parseCategoryCountMetadataEntry(
   key: string,
-  value: string | number | boolean | null,
+  value: string | number | boolean | null
 ): CategoryCountEntry | null {
   const parsedKey = parseCategoryCountMetadataKey(key);
-  if (!parsedKey || typeof value !== "number" || !Number.isFinite(value)) {
+  if (!parsedKey || typeof value !== 'number' || !Number.isFinite(value)) {
     return null;
   }
   if (value <= 0) {
@@ -70,7 +49,7 @@ export function parseCategoryCountMetadataEntry(
   };
 }
 
-function parseCategoryCountMetadataKey(key: string): Omit<CategoryCountEntry, "count"> | null {
+function parseCategoryCountMetadataKey(key: string): Omit<CategoryCountEntry, 'count'> | null {
   if (!key.startsWith(CATEGORY_COUNT_FIELD_PREFIX)) {
     return null;
   }
@@ -97,10 +76,10 @@ function parseCategoryCountMetadataKey(key: string): Omit<CategoryCountEntry, "c
 function safeAttributeToken(value: string): string {
   const readableToken = value
     .trim()
-    .replaceAll(/[^a-zA-Z0-9_-]+/g, "_")
-    .replaceAll(/^_+|_+$/g, "")
+    .replaceAll(/[^a-zA-Z0-9_-]+/g, '_')
+    .replaceAll(/^_+|_+$/g, '')
     .slice(0, 48);
-  return `${readableToken || "blank"}_${hashString(value)}`;
+  return `${readableToken || 'blank'}_${hashString(value)}`;
 }
 
 function hashString(value: string): string {

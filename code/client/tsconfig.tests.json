@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.tests.tsbuildinfo",
+    "types": ["vitest/globals", "node", "vite/client"]
+  },
+  "include": [
+    "tests/**/*.test.ts",
+    "tests/**/*.test-d.ts",
+    "tests/fixtures/**/*.ts",
+    "tests/helpers/**/*.ts",
+    "src/worker.d.ts"
+  ]
+}

@@ -1,83 +1,78 @@
-import type { GraphWorkbench } from "../../workbench/graphWorkbench";
-import { renderSearchResults, type SearchResultItem } from "./searchResultsView";
+import { toError } from '../../errors';
+import type { GraphWorkbench } from '../../workbench/graphWorkbench';
+import { renderSearchResults, type SearchResultItem } from './searchResultsView';
 
 const SEARCH_LIMIT = 25;
 
-export interface SearchControllerOptions {
-  workbench: GraphWorkbench;
+type SearchControllerOptions = {
+  workbench: Pick<GraphWorkbench, 'searchNodes' | 'focusNode' | 'cancelPendingFocus'>;
   input?: HTMLInputElement;
   results?: HTMLElement;
   setStatus: (status: string) => void;
   setFailureStatus: (message: string) => void;
   onNodeFocused: (nodeId: string) => void;
-}
+};
 
-export default function (options: SearchControllerOptions) {
-  let generation = 0;
-  let focusGeneration = 0;
-  const reset = () => {
-    generation += 1;
-    focusGeneration += 1;
+export default function createSearchController(options: SearchControllerOptions) {
+  // New searches invalidate pending searches and focus; selections invalidate only focus.
+  let searchSequence = 0;
+  let focusSequence = 0;
+
+  function reset(): void {
+    searchSequence += 1;
+    focusSequence += 1;
     options.workbench.cancelPendingFocus();
     renderMatches([]);
-  };
-  return {
-    reset,
-    searchCurrentDataset: searchCurrentDataset,
-  };
+  }
 
   async function searchCurrentDataset(): Promise<void> {
     reset();
-    const request = generation;
-    const query = options.input?.value.trim() ?? "";
+    const searchAtStart = searchSequence;
+    const query = options.input?.value.trim() ?? '';
 
-    if (!query) {
-      renderMatches([]);
-      return;
-    }
+    if (!query) return;
 
     try {
-      const response = await options.workbench.searchNodes({
+      const result = await options.workbench.searchNodes({
         query,
         limit: SEARCH_LIMIT,
       });
-      if (request !== generation) return;
-      renderMatches(response.matches);
-      options.setStatus(`Search found ${response.total_count} matches`);
+      if (searchAtStart !== searchSequence) return;
+      renderMatches(result.matches);
+      options.setStatus(`Search found ${result.totalCount} matches`);
     } catch (error) {
-      if (request !== generation) return;
-      const message = error instanceof Error ? error.message : "unknown error";
-      options.setFailureStatus(message);
+      if (searchAtStart !== searchSequence) return;
+      options.setFailureStatus(toError(error).message);
     }
   }
 
-  function renderMatches(matches: SearchResultItem[]): void {
-    renderSearchResults(options.results, matches, (match) => {
+  function renderMatches(matches: readonly SearchResultItem[]): void {
+    renderSearchResults(options.results, matches, match => {
+      // The click starts focus; focusSearchResult handles its completion and errors.
       void focusSearchResult(match);
     });
   }
 
   async function focusSearchResult(match: SearchResultItem): Promise<void> {
-    const request = generation;
-    const focus = ++focusGeneration;
-    const isCurrent = () => request === generation && focus === focusGeneration;
-    const nodeId = match.node_id;
+    const searchAtStart = searchSequence;
+    const focusAtStart = ++focusSequence;
+    const isCurrent = () => searchAtStart === searchSequence && focusAtStart === focusSequence;
+    const nodeId = match.nodeId;
     try {
-      // Pass the match's global coordinates so the workbench can fetch a region
-      // around the hit when it lies outside the current LoD slice; only then is
-      // the node present in the rendered graph to center and highlight.
+      // Global coordinates allow focusing a match outside the current LoD view.
       await options.workbench.focusNode(nodeId, {
         x: match.x ?? null,
         y: match.y ?? null,
-        clusterId: match.cluster_id ?? null,
+        clusterId: match.clusterId ?? null,
       });
       if (!isCurrent()) return;
       options.onNodeFocused(nodeId);
       options.setStatus(`Focused ${nodeId}`);
     } catch (error) {
       if (!isCurrent()) return;
-      const message = error instanceof Error ? error.message : "unknown error";
-      options.setFailureStatus(message);
+      options.setFailureStatus(toError(error).message);
     }
   }
+
+  return { reset, searchCurrentDataset };
 }

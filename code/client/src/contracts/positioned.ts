@@ -1,52 +1,46 @@
-export const LAYOUT_FORCE = "force";
-export const LAYOUT_RADIAL = "radial";
-export const LAYOUT_DENDROGRAM = "dendrogram";
-export const LAYOUT_SERVER = "server";
+import type { GraphLayoutBounds } from './graph/viewport/GraphLayoutBounds';
+import type { AncillaryObservation, Isolate, NodeAnnotations } from './ancillary';
+import type { Point } from './Point';
+export const LAYOUT_FORCE = 'force';
+export const LAYOUT_RADIAL = 'radial';
+export const LAYOUT_DENDROGRAM = 'dendrogram';
+export const LAYOUT_SERVER = 'server';
 
 export type LayoutMode = typeof LAYOUT_FORCE | typeof LAYOUT_RADIAL | typeof LAYOUT_DENDROGRAM | typeof LAYOUT_SERVER;
 
-export interface PositionedNode {
-  id: string;
-  x: number;
-  y: number;
-  size?: number;
-  color?: string;
-  attributes?: Record<string, unknown>;
-}
+/** Known ancillary values stay typed; hosts may supply other readonly attributes. */
+export type GraphNodeAttributes = Readonly<Record<string, unknown>> & {
+  readonly annotations?: NodeAnnotations;
+  readonly isolates?: readonly Isolate[];
+  readonly ancillaryDistribution?: readonly AncillaryObservation[];
+};
 
-export interface PositionedEdge {
-  id: string;
-  source: string;
-  target: string;
-  attributes?: Record<string, unknown>;
-}
+export type PositionedNode = Point & {
+  readonly id: string;
+  readonly size?: number;
+  readonly color?: string;
+  readonly attributes?: GraphNodeAttributes;
+};
 
-export interface PositionedGraphBounds {
-  minX: number;
-  maxX: number;
-  minY: number;
-  maxY: number;
-}
+export type PositionedEdge = {
+  readonly id: string;
+  readonly source: string;
+  readonly target: string;
+  readonly attributes?: Readonly<Record<string, unknown>>;
+};
 
-export interface PositionedGraph {
-  nodes: PositionedNode[];
-  edges: PositionedEdge[];
-  viewMeta: {
-    layout: LayoutMode;
-    lodLevel: number;
-    // Total number of precomputed LoD tiers for the dataset. Together with
-    // lodLevel this lets the shell show "LoD tier X/Y" so a semantic-zoom tier
-    // change is observable (the coarse tier no longer looks distinct once
-    // single-member proxies render as plain leaves).
-    lodTierCount?: number;
-    sliceNodeCount?: number;
-    sliceEdgeCount?: number;
-    zoom?: number;
-    globalBounds?: PositionedGraphBounds;
-    // Server layout status for the current slice. "degraded" is retained only
-    // for layouts created by earlier service versions.
-    layoutStatus?: string;
-    // Human-readable warnings from the prepare step.
-    layoutWarnings?: string[];
+export type PositionedGraph = {
+  readonly nodes: readonly PositionedNode[];
+  readonly edges: readonly PositionedEdge[];
+  readonly viewMeta: {
+    readonly layout: LayoutMode;
+    readonly lodLevel: number;
+    readonly lodTierCount?: number;
+    readonly sliceNodeCount?: number;
+    readonly sliceEdgeCount?: number;
+    readonly zoom?: number;
+    readonly globalBounds?: GraphLayoutBounds;
+    readonly layoutStatus?: string;
+    readonly layoutWarnings?: readonly string[];
   };
-}
+};

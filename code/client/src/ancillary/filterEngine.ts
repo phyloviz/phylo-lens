@@ -1,22 +1,13 @@
-import { filterNodeIdsByFieldValues, getNodeAncillaryData } from "./ancillaryIndex";
-import type { AncillaryIndex } from "./ancillaryIndex";
-import type { CategoricalFieldFilter, AncillaryFilterState, AncillaryData, NumericFieldFilter } from "./ancillaryTypes";
-import type { PositionedGraph } from "../contracts/positioned";
+import type { CategoricalFieldFilter, AncillaryFilterState, AncillaryData, NumericFieldFilter } from './ancillaryTypes';
 
-export type GraphFilter = (
-  graph: PositionedGraph,
-  ancillaryIndex: AncillaryIndex,
-  filterState: AncillaryFilterState,
-) => PositionedGraph;
-
-export const EMPTY_ANCILLARY_FILTER_STATE: AncillaryFilterState = {
-  categorical: [],
-  numeric: [],
-};
+export const EMPTY_ANCILLARY_FILTER_STATE: AncillaryFilterState = Object.freeze({
+  categorical: Object.freeze([]),
+  numeric: Object.freeze([]),
+});
 
 export function matchesFilterState(
   ancillaryData: AncillaryData | null | undefined,
-  filterState: AncillaryFilterState,
+  filterState: AncillaryFilterState
 ): boolean {
   return (
     matchesCategoricalFilters(ancillaryData, filterState.categorical) &&
@@ -24,53 +15,9 @@ export function matchesFilterState(
   );
 }
 
-// Local ancillaryData filtering implementation.
-// This function can later be replaced by a server-side GraphFilter.
-export const filterGraphByAncillaryData: GraphFilter = (graph, ancillaryIndex, filterState) => {
-  if (!hasActiveFilters(filterState)) {
-    return graph;
-  }
-
-  const selectedNodeIds = getMatchingNodeIds(graph, ancillaryIndex, filterState);
-
-  return {
-    ...graph,
-    nodes: graph.nodes.filter((node) => selectedNodeIds.has(node.id)),
-    edges: graph.edges.filter((edge) => selectedNodeIds.has(edge.source) && selectedNodeIds.has(edge.target)),
-  };
-};
-
-function getMatchingNodeIds(
-  graph: PositionedGraph,
-  ancillaryIndex: AncillaryIndex,
-  filterState: AncillaryFilterState,
-): Set<string> {
-  let selectedNodeIds = new Set(graph.nodes.map((node) => node.id));
-
-  for (const filter of filterState.categorical) {
-    if (filter.acceptedValues.length === 0) {
-      continue;
-    }
-
-    const matchingNodeIds = filterNodeIdsByFieldValues(ancillaryIndex, filter.fieldKey, filter.acceptedValues);
-
-    selectedNodeIds = intersectSets(selectedNodeIds, matchingNodeIds);
-  }
-
-  for (const nodeId of selectedNodeIds) {
-    const ancillaryData = getNodeAncillaryData(ancillaryIndex, nodeId);
-
-    if (!matchesNumericFilters(ancillaryData, filterState.numeric)) {
-      selectedNodeIds.delete(nodeId);
-    }
-  }
-
-  return selectedNodeIds;
-}
-
 function matchesCategoricalFilters(
   ancillaryData: AncillaryData | null | undefined,
-  filters: CategoricalFieldFilter[],
+  filters: readonly CategoricalFieldFilter[]
 ): boolean {
   for (const filter of filters) {
     if (filter.acceptedValues.length === 0) {
@@ -89,7 +36,7 @@ function matchesCategoricalFilters(
 
 function matchesNumericFilters(
   ancillaryData: AncillaryData | null | undefined,
-  filters: NumericFieldFilter[],
+  filters: readonly NumericFieldFilter[]
 ): boolean {
   for (const filter of filters) {
     if (filter.min == null && filter.max == null) {
@@ -99,7 +46,7 @@ function matchesNumericFilters(
     const value = ancillaryData?.[filter.fieldKey];
 
     if (
-      typeof value !== "number" ||
+      typeof value !== 'number' ||
       (filter.min != null && value < filter.min) ||
       (filter.max != null && value > filter.max)
     ) {
@@ -110,17 +57,23 @@ function matchesNumericFilters(
   return true;
 }
 
-function intersectSets(left: Set<string>, right: Set<string>): Set<string> {
-  return new Set([...left].filter((value) => right.has(value)));
-}
-
 export function hasActiveFilters(filterState: AncillaryFilterState): boolean {
   return (
-    filterState.categorical.some((filter) => filter.acceptedValues.length > 0) ||
-    filterState.numeric.some((filter) => filter.min != null || filter.max != null)
+    filterState.categorical.some(filter => filter.acceptedValues.length > 0) ||
+    filterState.numeric.some(filter => filter.min != null || filter.max != null)
   );
 }
 
-/** @deprecated Use EMPTY_ANCILLARY_FILTER_STATE / filterGraphByAncillaryData. */
-export const EMPTY_METADATA_FILTER_STATE = EMPTY_ANCILLARY_FILTER_STATE;
-export const filterGraphByMetadata = filterGraphByAncillaryData;
+export function copyFilterState(filters: AncillaryFilterState): AncillaryFilterState {
+  return Object.freeze({
+    categorical: Object.freeze(
+      filters.categorical.map(filter =>
+        Object.freeze({
+          ...filter,
+          acceptedValues: Object.freeze([...filter.acceptedValues]),
+        })
+      )
+    ),
+    numeric: Object.freeze(filters.numeric.map(filter => Object.freeze({ ...filter }))),
+  });
+}

@@ -1,7 +1,7 @@
 """RQ1 child process: normalization through SQLite publication for one preparation.
 
 RQ: RQ1 server-side preparation scalability.
-Command: invoked by ``phylo_lens_eval.rq1`` with ``--request`` and ``--output``.
+Command: invoked by ``phylo_lens_eval.pilots.rq1`` with ``--request`` and ``--output``.
 Input: a validated JSON request with a direct-tree dataset and empty persistence directory.
 Timing: starts before parsing and ends after publication; stage times may overlap only by
 their explicit boundaries and are never summed into wall time.

@@ -1,58 +1,63 @@
-import type { PositionedGraph } from "../contracts/positioned";
+import type { GraphNodeAttributes, PositionedGraph } from '../contracts/positioned';
+import type { Point } from '../contracts/Point';
 
-export const RENDERER_KIND_SIGMA = "sigma";
-export const RENDERER_KIND_MOCK = "mock";
+export const RendererType = {
+  Sigma: 'sigma',
+  Mock: 'mock',
+} as const;
 
-export type RendererKind = typeof RENDERER_KIND_SIGMA | typeof RENDERER_KIND_MOCK;
+export type RendererType = (typeof RendererType)[keyof typeof RendererType];
 
 export interface RenderContext {
-  container: HTMLElement;
+  readonly container: HTMLElement;
 }
 
 export interface RenderViewportState {
-  viewport: {
-    x: number;
-    y: number;
-    width: number;
-    height: number;
+  readonly viewport: Point & {
+    readonly width: number;
+    readonly height: number;
   };
-  zoom: number;
+  readonly zoom: number;
 }
 
 export interface RenderViewportBounds {
-  xmin: number;
-  xmax: number;
-  ymin: number;
-  ymax: number;
+  readonly xmin: number;
+  readonly xmax: number;
+  readonly ymin: number;
+  readonly ymax: number;
 }
 
-export interface RenderViewportSyncState {
-  bounds: RenderViewportBounds;
-  cameraRatio: number;
+export interface RenderViewportRequestState {
+  /** Unpadded camera bounds for choosing detail; bounds may include a motion halo. */
+  readonly selectionBounds?: RenderViewportBounds;
+  /** Conservative CSS-pixel footprint including glyph clearance, if available. */
+  readonly representationSpacingPx?: number;
+  readonly bounds: RenderViewportBounds;
+  readonly cameraRatio: number;
   /** CSS-pixel area used to select structural detail by visible complexity. */
-  pixelSize?: { width: number; height: number };
+  readonly pixelSize?: { readonly width: number; readonly height: number };
 }
 
 export interface RenderNodeClickState {
-  nodeId: string | null;
-  attributes?: Record<string, unknown>;
+  readonly nodeId: string | null;
+  readonly attributes?: GraphNodeAttributes;
 }
 
 // Internal renderer-neutral diagnostics descriptor. It deliberately exposes
 // only real pointer hit coordinates, never renderer implementation objects.
 export interface RenderInteractiveAggregateTarget {
-  clusterId: string;
-  representedNodeCount: number;
-  clientX: number;
-  clientY: number;
+  readonly clusterId: string;
+  readonly representedNodeCount: number;
+  readonly clientX: number;
+  readonly clientY: number;
 }
 
 export interface GraphDisplayOptions {
-  nodeLabels?: boolean;
-  edgeDistanceLabels?: boolean;
+  readonly nodeLabels?: boolean;
+  readonly edgeDistanceLabels?: boolean;
   /** Auto retains the interactive zoom threshold; always shows enabled labels at every zoom. */
-  edgeDistanceLabelPolicy?: "auto" | "always";
-  distanceWeightedEdges?: boolean;
+  readonly edgeDistanceLabelPolicy?: 'auto' | 'always';
+  readonly distanceWeightedEdges?: boolean;
 }
 
 /** Publication export of the currently loaded slice and camera, without loading more detail.
@@ -61,14 +66,14 @@ export interface GraphDisplayOptions {
  * Scale multiplies viewport CSS dimensions (1–4); the optional slice legend adds height.
  */
 export interface PngExportOptions {
-  scale?: number;
+  readonly scale?: number;
   /** Current follows the live label policy; all ignores zoom; none hides distances. */
-  edgeLabels?: "current" | "all" | "none";
+  readonly edgeLabels?: 'current' | 'all' | 'none';
   /** Label only these edge IDs; geometry is preserved. Omit to include every distance. */
-  edgeIds?: readonly string[];
+  readonly edgeIds?: readonly string[];
   /** Font size in logical pixels before scaling (6–72). */
-  edgeLabelSize?: number;
-  includeLegend?: boolean;
+  readonly edgeLabelSize?: number;
+  readonly includeLegend?: boolean;
 }
 
 /** Arrangement only: a branch follows the loaded tree away from an explicit root.
@@ -77,7 +82,9 @@ export interface PngExportOptions {
  * Groups move only when a selected member is grabbed. Unloaded IDs are ignored.
  */
 export type DragSelection =
-  { kind: "node" } | { kind: "branch"; rootId: string } | { kind: "group"; nodeIds: readonly string[] };
+  | { readonly kind: 'node' }
+  | { readonly kind: 'branch'; readonly rootId: string }
+  | { readonly kind: 'group'; readonly nodeIds: readonly string[] };
 
 export interface GraphRenderer {
   setMotionEnabled?: (enabled: boolean) => void;
@@ -121,7 +128,7 @@ export interface GraphRenderer {
 
   updateDisplayOptions?: (options: GraphDisplayOptions) => void;
 
-  getViewportSyncState?: () => RenderViewportSyncState | null;
+  getViewportState?: () => RenderViewportRequestState | null;
 
   applyGraphSnapshot?: (graph: PositionedGraph, options?: { preservePositions?: boolean }) => void;
 
@@ -146,5 +153,5 @@ export interface GraphRenderer {
 }
 
 export interface RendererFactory {
-  createRenderer(kind: RendererKind): GraphRenderer;
+  createRenderer(type: RendererType): GraphRenderer;
 }

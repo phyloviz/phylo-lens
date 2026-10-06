@@ -4,25 +4,21 @@ import {
   SIZE_SCALE_LOG,
   type SizeScale,
   type VisualMappingOptions,
-} from "../../../render/mapping/visualMapping";
+} from '../../../render/mapping/visualMapping';
 
 export function buildVisualMappingForControls(
   baseVisualMapping: VisualMappingOptions,
-  fieldKeys: string[],
+  fieldKeys: readonly string[],
   sizeFieldKey: string | undefined,
   sizeScaleValue: string | undefined,
-  categoryColors: Record<string, string> | undefined,
+  categoryColors: Readonly<Record<string, string>> | undefined
 ): VisualMappingOptions {
-  const selectedFields = fieldKeys.map((field) => field.trim()).filter(Boolean);
-  const mapping: VisualMappingOptions = { ...baseVisualMapping };
+  const selectedFields = fieldKeys.map(field => field.trim()).filter(Boolean);
+  const mapping = { ...baseVisualMapping };
   const hasSizeControls = sizeFieldKey !== undefined || sizeScaleValue !== undefined;
 
-  if (hasSizeControls || baseVisualMapping.size || baseVisualMapping.sizeField) {
-    const selectedSizeField =
-      sizeFieldKey?.trim() ||
-      baseVisualMapping.size?.field ||
-      baseVisualMapping.sizeField ||
-      DEFAULT_PROFILE_COUNT_FIELD;
+  if (hasSizeControls || baseVisualMapping.size) {
+    const selectedSizeField = sizeFieldKey?.trim() || baseVisualMapping.size?.field || DEFAULT_PROFILE_COUNT_FIELD;
     mapping.size = {
       ...(baseVisualMapping.size ?? {}),
       field: selectedSizeField,

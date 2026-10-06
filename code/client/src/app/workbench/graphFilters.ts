@@ -1,74 +1,85 @@
-import { EMPTY_ANCILLARY_FILTER_STATE } from "../../ancillary/filterEngine";
-import type { AncillaryFilterState } from "../../ancillary/ancillaryTypes";
-import type { PositionedGraph } from "../../contracts/positioned";
-import type { VisualMappingOptions } from "../../render/mapping/visualMapping";
-import type { GraphDisplayOptions, GraphRenderer } from "../../render/renderer.types";
-import { requirePreparedSession } from "./graphWorkbench.state";
-import type { GraphWorkbenchState } from "./graphWorkbench.types";
-import { createEmptyGraph } from "./viewportGraph";
-import type { ViewportSyncController } from "./viewport/viewportSyncController";
+import { EMPTY_ANCILLARY_FILTER_STATE } from '../../ancillary/filterEngine';
+import type { AncillaryFilterState } from '../../ancillary/ancillaryTypes';
+import type { PositionedGraph } from '../../contracts/positioned';
+import type { VisualMappingOptions } from '../../render/mapping/visualMapping';
+import type { GraphDisplayOptions, GraphRenderer } from '../../render/renderer.types';
+import { getGraphSession, getGraphSnapshot, hasGraphSession } from './graphWorkbench.state';
+import type { GraphWorkbenchState } from './graphWorkbench.state';
+import { createEmptyGraph } from './viewportGraph';
+import type { GraphViewportCoordinator } from './viewport/viewportCoordinator';
+import type { GraphWorkbenchAction } from './graphWorkbench.actions';
 
 interface GraphFiltersOptions {
-  state: GraphWorkbenchState;
+  getState: () => GraphWorkbenchState;
+  dispatch: (action: GraphWorkbenchAction) => void;
   renderer: GraphRenderer;
-  getViewportSync: () => ViewportSyncController | null;
+  getViewportCoordinator: () => GraphViewportCoordinator | null;
 }
 
-export default function createGraphFilters({ state, renderer, getViewportSync }: GraphFiltersOptions) {
+export default function createGraphFilters({
+  getState,
+  dispatch,
+  renderer,
+  getViewportCoordinator,
+}: GraphFiltersOptions) {
   return {
-    applyMetadataFilters: applyMetadataFilters,
-    clearMetadataFilters: clearMetadataFilters,
+    applyAncillaryFilters: applyAncillaryFilters,
+    clearAncillaryFilters: clearAncillaryFilters,
     updateVisualMapping: updateVisualMapping,
     updateDisplayOptions: updateDisplayOptions,
   };
 
-  function applyMetadataFilters(filterState: AncillaryFilterState): PositionedGraph {
-    requirePreparedSession(state);
-
-    // Filtering is applied inside the viewport sync via getRenderSettings; the
-    // refresh re-fetches the current viewport and re-runs the filter/visual pass.
-    state.activeFilters = filterState;
-    getViewportSync()?.refreshNow();
-
-    return currentGraph(state);
+  function applyAncillaryFilters(filterState: AncillaryFilterState): PositionedGraph {
+    return updateGraphState({
+      kind: 'filtersUpdated',
+      filters: filterState,
+    });
   }
 
-  function clearMetadataFilters(): PositionedGraph {
-    requirePreparedSession(state);
-
-    state.activeFilters = EMPTY_ANCILLARY_FILTER_STATE;
-    getViewportSync()?.refreshNow();
-
-    return currentGraph(state);
+  function clearAncillaryFilters(): PositionedGraph {
+    return updateGraphState({
+      kind: 'filtersUpdated',
+      filters: EMPTY_ANCILLARY_FILTER_STATE,
+    });
   }
 
   function updateVisualMapping(visualMapping: VisualMappingOptions): PositionedGraph {
-    const session = requirePreparedSession(state);
-
-    // Persist the mapping so the viewport sync re-derives visuals on refresh.
-    session.visualMapping = visualMapping;
-    getViewportSync()?.refreshNow();
-
-    return currentGraph(state);
+    return updateGraphState({
+      kind: 'visualMappingUpdated',
+      visualMapping,
+    });
   }
 
   // Apply presentation toggles (node labels, edge distance labels, distance-
   // weighted edges) to the live LoD view. The renderer rebuilds its settings,
-  // while the sync controller derives a new snapshot from the current slice.
+  // while the viewport coordinator derives a new snapshot from the current slice.
   // This avoids a redundant viewport request and does not call renderer.render,
   // which would replace the live LoD graph with a stale coarse snapshot.
   function updateDisplayOptions(displayOptions: GraphDisplayOptions): void {
-    if (state.preparedSession) {
-      state.preparedSession.displayOptions = {
-        ...state.preparedSession.displayOptions,
-        ...displayOptions,
-      };
-    }
+    dispatch({
+      kind: 'displayOptionsUpdated',
+      displayOptions,
+    });
+
     renderer.updateDisplayOptions?.(displayOptions);
-    getViewportSync()?.updateDisplayOptions(state.preparedSession?.displayOptions ?? displayOptions);
+
+    const state = getState();
+    getViewportCoordinator()?.updateDisplayOptions(
+      hasGraphSession(state) ? state.session.displayOptions : displayOptions
+    );
+  }
+
+  function updateGraphState(action: GraphWorkbenchAction): PositionedGraph {
+    getGraphSession(getState());
+
+    dispatch(action);
+
+    getViewportCoordinator()?.refreshNow();
+
+    return currentSnapshot(getState());
   }
 }
 
-function currentGraph(state: GraphWorkbenchState): PositionedGraph {
-  return state.currentGraph ?? createEmptyGraph();
+function currentSnapshot(state: GraphWorkbenchState): PositionedGraph {
+  return getGraphSnapshot(state) ?? createEmptyGraph();
 }

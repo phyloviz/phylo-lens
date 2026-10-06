@@ -1,14 +1,14 @@
-import type Graph from "graphology";
-import type Sigma from "sigma";
+import { isClusterRepresentative } from '../../../mapping/clusterNodes';
+import type Graph from 'graphology';
+import type Sigma from 'sigma';
 
 import {
   PHYLOVIZ_NODE_SELECTED_BORDER_COLOR,
   PHYLOVIZ_NODE_SELECTED_COLOR,
   SIGMA_NODE_TYPE_BORDER,
-  SIGMA_NODE_TYPE_TRIANGLE,
   SIGMA_REGION_DIMMED_EDGE_COLOR,
   SIGMA_REGION_DIMMED_NODE_COLOR,
-} from "../sigmaRendering.constants";
+} from '../sigmaRendering.constants';
 
 const SELECTED_NODE_SCALE_FACTOR = 1.35;
 const SELECTED_NODE_SIZE_BOOST = 2;
@@ -31,22 +31,22 @@ export default function applySigmaHighlighting({
   }
 
   if (!highlightedNodeIds && !selectedNodeId) {
-    sigma.setSetting("nodeReducer", null);
-    sigma.setSetting("edgeReducer", null);
+    sigma.setSetting('nodeReducer', null);
+    sigma.setSetting('edgeReducer', null);
     return;
   }
 
-  sigma.setSetting("nodeReducer", (nodeId, data) => {
+  sigma.setSetting('nodeReducer', (nodeId, data) => {
     const outsideHighlight = highlightedNodeIds !== null && !highlightedNodeIds.has(nodeId);
-    const representative = isRepresentativeNode(data);
+    const representative = isClusterRepresentative(data);
     const selected = nodeId === selectedNodeId;
-    const nextData = outsideHighlight ? { ...data, color: SIGMA_REGION_DIMMED_NODE_COLOR, label: "" } : data;
+    const nextData = outsideHighlight ? { ...data, color: SIGMA_REGION_DIMMED_NODE_COLOR, label: '' } : data;
 
     if (!selected) {
       return nextData;
     }
 
-    const baseSize = typeof data.size === "number" ? data.size : 5;
+    const baseSize = typeof data.size === 'number' ? data.size : 5;
     return {
       ...nextData,
       color: PHYLOVIZ_NODE_SELECTED_COLOR,
@@ -57,13 +57,13 @@ export default function applySigmaHighlighting({
             type: SIGMA_NODE_TYPE_BORDER,
             borderColor: PHYLOVIZ_NODE_SELECTED_BORDER_COLOR,
           }),
-      label: typeof nextData.label === "string" && nextData.label.length > 0 ? nextData.label : nodeId,
+      label: typeof nextData.label === 'string' && nextData.label.length > 0 ? nextData.label : nodeId,
       forceLabel: true,
     };
   });
 
   sigma.setSetting(
-    "edgeReducer",
+    'edgeReducer',
     highlightedNodeIds
       ? (edgeId, data) => {
           const source = graph?.source(edgeId);
@@ -75,14 +75,6 @@ export default function applySigmaHighlighting({
             highlightedNodeIds.has(target);
           return withinRegion ? data : { ...data, color: SIGMA_REGION_DIMMED_EDGE_COLOR };
         }
-      : null,
-  );
-}
-
-function isRepresentativeNode(data: Record<string, unknown>): boolean {
-  return (
-    data.type === SIGMA_NODE_TYPE_TRIANGLE ||
-    data.is_cluster_proxy === true ||
-    (typeof data.member_count === "number" && data.member_count > 1)
+      : null
   );
 }

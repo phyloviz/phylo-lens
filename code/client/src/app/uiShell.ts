@@ -1,219 +1,103 @@
-import { expansionControls, type ExpansionControlsElements } from "./shell/controls/expansionControls";
-import type { GraphWorkbench, RenderNewickOptions } from "./workbench/graphWorkbench";
-import type { PositionedGraph } from "../contracts/positioned";
-import { SOURCE_FORMAT_NEWICK, SOURCE_FORMAT_TYPING_DATA, type SourceFormat } from "../contracts/models";
-import { buildRenderedStatus } from "./shell/status/renderedStatus";
-import { parseAncillaryPayload } from "./shell/inputs/ancillaryPayload";
-import {
-  ANCILLARY_MODE_GLOBAL,
-  ANCILLARY_MODE_CURRENT,
-  ANCILLARY_MODE_SELECTED,
-  type AncillaryMode,
-  getAncillaryMode,
-  updateNodeSelectionVisibility as updateNodeSelectionVisibilityControl,
-  updateNodeSelector,
-} from "./shell/ancillary/nodeSelector";
-import ancillaryWheels from "./shell/ancillary/ancillaryWheels";
-import {
-  DISPLAY_OPTION_DISTANCE_WEIGHTED_EDGES,
-  DISPLAY_OPTION_EDGE_DISTANCE_LABELS,
-  DISPLAY_OPTION_NODE_LABELS,
-  buildDisplayOptions,
-  toggleClickedOption,
-} from "./shell/controls/displayOptionsControls";
-import {
-  isLodGraph,
-  parseMaxNodes,
-  updateLodPlaybackControls as updateLodPlaybackControlsView,
-} from "./shell/controls/lodControls";
-import metadataPieFieldControls from "./shell/controls/metadataPieFieldControls";
-import { getSelectedOptions } from "./shell/controls/selectOptions";
-import { downloadBlob, readTextFile, resolveAncillaryFormat } from "./shell/inputs/fileInputs";
-import { ancillaryJoinColumnPicker } from "./shell/inputs/ancillaryJoinColumn";
-import eventBindings from "./shell/events/eventBindings";
-import searchController from "./shell/search/searchController";
-import regionSelection from "./shell/region/regionSelection";
-import visualMappingPalette from "./shell/palette/visualMappingPalette";
+import { toError } from './errors';
+import { expansionControls, type ExpansionControlsElements } from './shell/controls/expansionControls';
+import type { GraphWorkbench } from './workbench/graphWorkbench';
+import type { PositionedGraph } from '../contracts/positioned';
+import { buildRenderedStatus } from './shell/status/renderedStatus';
+import createAncillaryControls, { type AncillaryControlsElements } from './shell/ancillary/ancillaryControls';
+import createGraphLoading, { type GraphLoadingElements } from './shell/inputs/graphLoading';
+import createDisplayOptionsControls, {
+  type DisplayOptionsControlsElements,
+} from './shell/controls/displayOptionsControls';
+import { isLodGraph, updateLodPlaybackControls } from './shell/controls/lodControls';
+import eventBindings from './shell/events/eventBindings';
+import searchController from './shell/search/searchController';
+import regionSelection from './shell/region/regionSelection';
+import createArrangementControls, { type ArrangementControlsElements } from './shell/controls/arrangementControls';
+import createPngExportControls, { type PngExportControlsElements } from './shell/controls/pngExportControls';
 
-// Re-export constants for external use.
-export { STATUS_RENDERED_PREFIX } from "./shell/status/renderedStatus";
-export { ERR_INVALID_ANCILLARY_JSON } from "./shell/inputs/ancillaryPayload";
-export { CATEGORY_COLOR_INPUT_SELECTOR } from "./shell/palette/categoryColorControls";
-
-// Status and user feedback messages for the shell UI.
-export const DEFAULT_STATUS_READY = "Ready";
-export const STATUS_RENDERING_PREFIX = "Rendering";
-export const STATUS_FAILED_PREFIX = "Failed";
-export const CATEGORY_COLOR_SAVE_FILENAME = "phyloviz-category-colors.txt";
-export const SELECTED_NODE_WHEEL_EMPTY_MESSAGE = "Click a node to view its ancillary distribution.";
-export const SELECT_PIE_FIELD_MESSAGE = "Select an ancillary field to view its distribution.";
-
-// Re-export ancillary mode constants for external use.
+export { STATUS_RENDERED_PREFIX } from './shell/status/renderedStatus';
+export { STATUS_RENDERING_PREFIX } from './shell/inputs/graphLoading';
+export { ERR_INVALID_ANCILLARY_JSON } from './shell/inputs/ancillaryPayload';
+export { ERR_ANCILLARY_JOIN_COLUMN_REQUIRED } from './shell/inputs/graphInput';
+export { CATEGORY_COLOR_INPUT_SELECTOR } from './shell/palette/categoryColorControls';
+export {
+  CATEGORY_COLOR_SAVE_FILENAME,
+  SELECTED_NODE_WHEEL_EMPTY_MESSAGE,
+  SELECT_PIE_FIELD_MESSAGE,
+} from './shell/ancillary/ancillaryControls';
 export {
   ANCILLARY_MODE_GLOBAL,
   ANCILLARY_MODE_CURRENT,
   ANCILLARY_MODE_SELECTED,
+  type AncillaryMode,
+} from './shell/ancillary/nodeSelector';
+export {
   DISPLAY_OPTION_DISTANCE_WEIGHTED_EDGES,
   DISPLAY_OPTION_EDGE_DISTANCE_LABELS,
   DISPLAY_OPTION_NODE_LABELS,
+} from './shell/controls/displayOptionsControls';
+
+export const DEFAULT_STATUS_READY = 'Ready';
+export const STATUS_FAILED_PREFIX = 'Failed';
+export const ERR_STATUS_ELEMENT_REQUIRED = 'Status element is required.';
+export const ERR_RENDER_FORM_REQUIRED = 'Render form is required.';
+export const ERR_NEWICK_INPUT_REQUIRED = 'Newick input is required.';
+
+export type UiShellElements = ArrangementControlsElements &
+  DisplayOptionsControlsElements &
+  PngExportControlsElements &
+  AncillaryControlsElements &
+  GraphLoadingElements & {
+    readonly status: HTMLElement;
+    readonly expansion?: ExpansionControlsElements;
+    readonly lodPlayButton?: HTMLButtonElement;
+    readonly lodPauseButton?: HTMLButtonElement;
+    readonly searchInput?: HTMLInputElement;
+    readonly searchButton?: HTMLButtonElement;
+    readonly searchResults?: HTMLElement;
+    readonly regionSelectToggle?: HTMLButtonElement;
+    readonly regionSelectionPanel?: HTMLElement;
+  };
+
+export type UiShellOptions = {
+  readonly workbench: GraphWorkbench;
+  readonly elements: UiShellElements;
 };
-export type { AncillaryMode };
 
-// Error messages for required shell elements.
-export const ERR_STATUS_ELEMENT_REQUIRED = "Status element is required.";
-export const ERR_RENDER_FORM_REQUIRED = "Render form is required.";
-export const ERR_NEWICK_INPUT_REQUIRED = "Newick input is required.";
-export const ERR_ANCILLARY_JOIN_COLUMN_REQUIRED = "Ancillary table join column is required.";
-
-export interface UiShellElements {
-  form: HTMLFormElement;
-  newickInput: HTMLTextAreaElement;
-  newickFileInput?: HTMLInputElement;
-  newickSourceControls?: HTMLElement;
-  sourceFormatSelect?: HTMLSelectElement;
-  typingFileInput?: HTMLInputElement;
-  typingSourceControls?: HTMLElement;
-  datasetNameInput?: HTMLInputElement;
-  ancillaryInput?: HTMLTextAreaElement;
-  ancillaryFileInput?: HTMLInputElement;
-  applyAncillaryButton?: HTMLButtonElement;
-  ancillaryJoinColumnInput?: HTMLInputElement | HTMLSelectElement;
-  ancillaryFormatSelect?: HTMLSelectElement;
-  status: HTMLElement;
-  ancillaryWheelContainer?: HTMLElement;
-  ancillarySelectedNodeWheelContainer?: HTMLElement;
-  ancillaryModeSelect?: HTMLSelectElement;
-  ancillaryNodeSelect?: HTMLSelectElement;
-  metadataPieFieldSelect?: HTMLSelectElement;
-  showNodePiesInput?: HTMLInputElement;
-  metadataSizeFieldInput?: HTMLInputElement;
-  metadataSizeScaleSelect?: HTMLSelectElement;
-  paletteControlsContainer?: HTMLElement;
-  paletteLoadButton?: HTMLButtonElement;
-  paletteLoadInput?: HTMLInputElement;
-  paletteSaveButton?: HTMLButtonElement;
-  displayOptionsSelect?: HTMLSelectElement;
-  motionInput?: HTMLInputElement;
-  branchRootButton?: HTMLButtonElement;
-  singleDragButton?: HTMLButtonElement;
-  resetLayoutButton?: HTMLButtonElement;
-  dragStatus?: HTMLElement;
-  edgeLabelPolicySelect?: HTMLSelectElement;
-  exportScaleInput?: HTMLSelectElement;
-  exportLabelSizeInput?: HTMLInputElement;
-  exportButton?: HTMLButtonElement;
-  expansion?: ExpansionControlsElements;
-  lodPlayButton?: HTMLButtonElement;
-  lodPauseButton?: HTMLButtonElement;
-  maxNodesInput?: HTMLInputElement;
-  searchInput?: HTMLInputElement;
-  searchButton?: HTMLButtonElement;
-  searchResults?: HTMLElement;
-  regionSelectToggle?: HTMLButtonElement;
-  regionSelectionPanel?: HTMLElement;
-}
-
-export interface UiShellOptions {
-  workbench: GraphWorkbench;
-  elements: UiShellElements;
-}
-
-export interface UiShell {
+export type UiShell = {
   mount: () => void;
   renderCurrentInput: () => Promise<void>;
   unmount: () => void;
-}
+};
 
-// Connect a minimal UI shell to the graph workbench orchestration layer.
-export default function (options: UiShellOptions): UiShell {
-  const workbench = options.workbench;
+export default function createUiShell(options: UiShellOptions): UiShell {
+  const { workbench, elements } = options;
   const {
-    form,
-    newickInput,
-    newickFileInput,
-    newickSourceControls,
-    sourceFormatSelect,
-    typingFileInput,
-    typingSourceControls,
-    datasetNameInput,
-    ancillaryInput,
-    ancillaryFileInput,
-    applyAncillaryButton,
-    ancillaryJoinColumnInput,
-    ancillaryFormatSelect,
-    status: statusElement,
-    ancillaryWheelContainer,
-    ancillarySelectedNodeWheelContainer,
-    ancillaryModeSelect,
-    ancillaryNodeSelect,
-    metadataPieFieldSelect,
-    showNodePiesInput,
-    metadataSizeFieldInput,
-    metadataSizeScaleSelect,
-    paletteControlsContainer,
-    paletteLoadButton,
-    paletteLoadInput,
-    paletteSaveButton,
-    displayOptionsSelect,
-    motionInput,
-    branchRootButton,
-    singleDragButton,
-    resetLayoutButton,
-    dragStatus,
-    edgeLabelPolicySelect,
-    exportScaleInput,
-    exportLabelSizeInput,
-    exportButton,
+    status,
     lodPlayButton,
     lodPauseButton,
-    maxNodesInput,
     searchInput,
     searchButton,
     searchResults,
     regionSelectToggle,
     regionSelectionPanel,
-  } = options.elements;
+  } = elements;
+  if (!elements.form) throw new Error(ERR_RENDER_FORM_REQUIRED);
+  if (!elements.newickInput) throw new Error(ERR_NEWICK_INPUT_REQUIRED);
+  if (!status) throw new Error(ERR_STATUS_ELEMENT_REQUIRED);
 
-  const expansion = expansionControls(workbench, options.elements.expansion);
-  let applyingAncillary = false;
-  let loadingGraph = false;
   let lastRenderedGraph: PositionedGraph | null = null;
+  const getGraph = (): PositionedGraph | null => lastRenderedGraph;
   const bindings = eventBindings();
-  const joinColumnPicker = ancillaryJoinColumnPicker({
-    fileInput: ancillaryFileInput,
-    columnInput: ancillaryJoinColumnInput,
-    formatSelect: ancillaryFormatSelect,
-    onError: setFailureStatus,
-  });
-  const pieFieldControls = metadataPieFieldControls(metadataPieFieldSelect);
-  const palette = visualMappingPalette({
-    workbench,
-    container: paletteControlsContainer,
-    loadInput: paletteLoadInput,
-    saveFilename: CATEGORY_COLOR_SAVE_FILENAME,
-    getGraph: () => lastRenderedGraph,
-    getSelectedFields: () => getSelectedOptions(metadataPieFieldSelect),
-    getPiesEnabled: () => showNodePiesInput?.checked,
-    getSizeFieldValue: () => metadataSizeFieldInput?.value,
-    getSizeScaleValue: () => metadataSizeScaleSelect?.value,
-    onChanged: () => {
-      wheels.renderOverview();
-      wheels.refreshSelectedNode();
-    },
+  const expansion = expansionControls(workbench, elements.expansion);
+  const arrangement = createArrangementControls(workbench, elements);
+  const display = createDisplayOptionsControls(workbench, elements);
+  const ancillary = createAncillaryControls({
+    updateVisualMapping: mapping => workbench.updateVisualMapping(mapping),
+    elements,
+    getGraph,
     setStatus,
     setFailureStatus,
-  });
-  const wheels = ancillaryWheels({
-    overviewContainer: ancillaryWheelContainer,
-    selectedNodeContainer: ancillarySelectedNodeWheelContainer,
-    modeSelect: ancillaryModeSelect,
-    nodeSelect: ancillaryNodeSelect,
-    getGraph: () => lastRenderedGraph,
-    getVisualMapping: () => palette.getCurrentVisualMapping(),
-    getCategoryColorOverrides: () => palette.getCategoryColorOverrides(),
-    getSelectedFields: () => getSelectedOptions(metadataPieFieldSelect),
-    selectPieFieldMessage: SELECT_PIE_FIELD_MESSAGE,
-    selectedNodeEmptyMessage: SELECTED_NODE_WHEEL_EMPTY_MESSAGE,
   });
   const search = searchController({
     workbench,
@@ -221,7 +105,7 @@ export default function (options: UiShellOptions): UiShell {
     results: searchResults,
     setStatus,
     setFailureStatus,
-    onNodeFocused: wheels.renderSelectedNode,
+    onNodeFocused: ancillary.showNode,
   });
   const region = regionSelection({
     workbench,
@@ -230,263 +114,85 @@ export default function (options: UiShellOptions): UiShell {
     readyStatus: DEFAULT_STATUS_READY,
     setStatus,
     setFailureStatus,
-    buildWheelStats: wheels.buildStats,
+    getAncillaryDistribution: ancillary.getDistribution,
+  });
+  const loading = createGraphLoading({
+    workbench,
+    elements,
+    ancillary,
+    getGraph,
+    getDisplayOptions: display.readOptions,
+    setStatus,
+    setFailureStatus,
+    onLoadStarted: () => {
+      search.reset();
+      region.reset();
+      arrangement.reset();
+      expansion.setReady(false);
+    },
+    onLoadFailed: () => {
+      lastRenderedGraph = null;
+      ancillary.resetAfterFailure();
+    },
+  });
+  const pngExport = createPngExportControls({
+    workbench,
+    elements,
+    hasGraph: () => lastRenderedGraph !== null,
+    getEdgeLabelsEnabled: () => display.readOptions().edgeDistanceLabels === true,
+    getLoadSequence: loading.getLoadSequence,
+    setStatus,
+    setFailureStatus,
   });
 
-  if (!form) {
-    throw new Error(ERR_RENDER_FORM_REQUIRED);
-  }
+  return { mount, renderCurrentInput: loading.renderCurrentInput, unmount };
 
-  if (!newickInput) {
-    throw new Error(ERR_NEWICK_INPUT_REQUIRED);
-  }
-
-  let selectedDragRoot: string | null = null;
-
-  if (!statusElement) {
-    throw new Error(ERR_STATUS_ELEMENT_REQUIRED);
-  }
-
-  return {
-    mount: mount,
-    renderCurrentInput: renderCurrentInput,
-    unmount: unmount,
-  };
-
-  // Attach submit handlers and set initial shell status.
   function mount(): void {
     setStatus(DEFAULT_STATUS_READY);
-    void joinColumnPicker.refresh();
-    bindings.on(ancillaryFileInput, "change", () => void joinColumnPicker.refresh());
-    bindings.on(ancillaryFormatSelect, "change", () => void joinColumnPicker.refresh());
-    if (motionInput) motionInput.checked = workbench.isMotionEnabled?.() ?? true;
-    workbench.setInteractionFeedbackHandler?.((message) => {
-      if (dragStatus) dragStatus.textContent = message;
-    });
+    loading.mount();
+    arrangement.mount();
     expansion.mount();
-    workbench.setGraphRenderedHandler((graph) => {
-      handleGraphRendered(graph);
-    });
-    workbench.setNodeClickedHandler((state) => {
+    workbench.setErrorHandler(error => setFailureStatus(error.message));
+    workbench.setGraphRenderedHandler(handleGraphRendered);
+    workbench.setNodeClickedHandler(state => {
       expansion.select(state);
-      selectedDragRoot = state.nodeId;
-      if (branchRootButton) branchRootButton.disabled = state.nodeId === null;
-      const { nodeId } = state;
-      if (nodeId === null) {
-        wheels.resetSelectedNode();
-        return;
-      }
-      wheels.renderSelectedNode(nodeId);
+      arrangement.selectNode(state.nodeId);
+      if (state.nodeId === null) ancillary.resetSelectedNode();
+      else ancillary.showNode(state.nodeId);
     });
-    wheels.renderOverview();
-    wheels.resetSelectedNode();
-    palette.renderControls();
-
-    const handleAncillaryModeChange = () => {
-      updateNodeSelector(
-        ancillaryNodeSelect,
-        getAncillaryMode(ancillaryModeSelect) === ANCILLARY_MODE_SELECTED ? lastRenderedGraph : null,
-      );
-      updateNodeSelectionVisibility();
-      wheels.renderOverview();
-    };
-    const handleMetadataPieFieldChange = () => {
-      palette.renderControls();
-      palette.applyControlChange();
-    };
-    bindings.on(ancillaryModeSelect, "change", handleAncillaryModeChange);
-    bindings.on(ancillaryNodeSelect, "change", () => {
-      wheels.renderOverview();
-    });
-    bindings.on(metadataPieFieldSelect, "change", handleMetadataPieFieldChange);
-    bindings.on(showNodePiesInput, "change", () => palette.applyControlChange());
-    bindings.on(metadataPieFieldSelect, "mousedown", (event) => {
-      handleMetadataPieFieldPointerDown(event as MouseEvent);
-    });
-    bindings.on(metadataSizeFieldInput, "input", () => {
-      palette.applyControlChange();
-    });
-    bindings.on(metadataSizeScaleSelect, "change", () => {
-      palette.applyControlChange();
-    });
-    bindings.on(paletteControlsContainer, "input", palette.applyControlChange);
-    bindings.on(paletteLoadButton, "click", () => {
-      paletteLoadInput?.click();
-    });
-    bindings.on(paletteLoadInput, "change", () => {
-      void palette.load();
-    });
-    bindings.on(paletteSaveButton, "click", () => {
-      palette.save();
-    });
-    bindings.on(motionInput, "change", () => {
-      workbench.setMotionEnabled(motionInput!.checked);
-    });
-    bindings.on(branchRootButton, "click", () => {
-      if (!selectedDragRoot) return;
-      workbench.setDragSelection({ kind: "branch", rootId: selectedDragRoot });
-      if (dragStatus) dragStatus.textContent = `Drag branches away from arrangement root: ${selectedDragRoot}.`;
-    });
-    bindings.on(singleDragButton, "click", () => {
-      workbench.setDragSelection({ kind: "node" });
-      if (dragStatus) dragStatus.textContent = "Direct dragging: connected nodes react while Motion is on.";
-    });
-    bindings.on(resetLayoutButton, "click", () => {
-      workbench.resetLayoutEdits();
-      if (motionInput) motionInput.checked = false;
-      resetDragControls();
-    });
-    bindings.on(edgeLabelPolicySelect, "change", handleDisplayOptionsChange);
-    bindings.on(exportButton, "click", () => void exportCurrentView());
-    bindings.on(displayOptionsSelect, "change", () => {
-      handleDisplayOptionsChange();
-    });
-    bindings.on(displayOptionsSelect, "mousedown", (event) => {
-      handleDisplayOptionPointerDown(event as MouseEvent);
-    });
-    bindings.on(lodPlayButton, "click", () => {
-      void handleLodPlaybackChange(false);
-    });
-    bindings.on(lodPauseButton, "click", () => {
-      void handleLodPlaybackChange(true);
-    });
-    bindings.on(searchInput, "input", search.reset);
-    bindings.on(searchButton, "click", () => {
-      void search.searchCurrentDataset();
-    });
-    bindings.on(regionSelectToggle, "click", () => {
-      region.toggle();
-    });
-    bindings.on(sourceFormatSelect, "change", updateSourceControls);
-    workbench.setRegionSelectedHandler((bounds) => {
-      void region.handleSelected(bounds);
-    });
+    ancillary.mount();
+    display.mount();
+    pngExport.mount();
+    bindings.on(lodPlayButton, 'click', () => handleLodPlaybackChange(false));
+    bindings.on(lodPauseButton, 'click', () => handleLodPlaybackChange(true));
+    bindings.on(searchInput, 'input', search.reset);
+    bindings.on(searchButton, 'click', () => void search.searchCurrentDataset());
+    bindings.on(regionSelectToggle, 'click', region.toggle);
+    workbench.setRegionSelectedHandler(bounds => void region.handleSelected(bounds));
     region.mount();
-
-    updateNodeSelectionVisibility();
-    updateSourceControls();
-    pieFieldControls.updateOptions(null);
-    updateLodPlaybackControls(false);
-    handleDisplayOptionsChange();
-
-    updateApplyAncillaryButton();
-    bindings.on(applyAncillaryButton, "click", () => {
-      void applyCurrentAncillaryData();
-    });
-    bindings.on(form, "submit", (event) => {
-      event.preventDefault();
-      void renderCurrentInput();
-    });
+    refreshLodControls(false);
+    display.apply();
   }
 
-  function updateApplyAncillaryButton(): void {
-    if (applyAncillaryButton) {
-      applyAncillaryButton.disabled = !lastRenderedGraph || applyingAncillary || loadingGraph;
-    }
-  }
-
-  function updateSourceControls(): void {
-    const typingDataSelected = getSourceFormat() === SOURCE_FORMAT_TYPING_DATA;
-    newickSourceControls?.toggleAttribute("hidden", typingDataSelected);
-    typingSourceControls?.toggleAttribute("hidden", !typingDataSelected);
-  }
-
-  async function applyCurrentAncillaryData(): Promise<void> {
-    if (!lastRenderedGraph || applyingAncillary || loadingGraph) return;
-    applyingAncillary = true;
-    updateApplyAncillaryButton();
-    setStatus("Applying ancillary data...");
-    try {
-      const data = await getAncillaryDataInput();
-      if (!data) throw new Error("Choose an ancillary table first.");
-      const result = await workbench.applyAncillaryData(data);
-      setStatus(
-        `Applied ancillary data to ${result.matched_node_count} nodes.${result.warnings.length ? " " + result.warnings.join(" ") : ""}`,
-      );
-    } catch (error) {
-      setFailureStatus(error instanceof Error ? error.message : "unknown error");
-    } finally {
-      applyingAncillary = false;
-      updateApplyAncillaryButton();
-    }
-  }
-
-  // Normalize and render using current user input values.
-  async function renderCurrentInput(): Promise<void> {
-    const sourceFormat = getSourceFormat();
-    const content = (await getSourceContent(sourceFormat)).trim();
-    const datasetName = datasetNameInput?.value.trim();
-    const ancillaryRaw = ancillaryInput?.value.trim() ?? "";
-
-    if (!content) {
-      const label = sourceFormat === SOURCE_FORMAT_TYPING_DATA ? "empty typing data input" : "empty Newick input";
-      setFailureStatus(label);
-      return;
-    }
-
-    search.reset();
-    resetDragControls();
-    loadingGraph = true;
-    expansion.setReady(false);
-    updateApplyAncillaryButton();
-    setStatus(`${STATUS_RENDERING_PREFIX}...`);
-
-    try {
-      wheels.resetSelectedNode();
-      const ancillaryPayload = parseAncillaryPayload(ancillaryRaw);
-      const ancillaryData = await getAncillaryDataInput();
-      const mapping = ancillaryPayload.visual_mapping ?? {};
-      pieFieldControls.setSelection(
-        mapping.pie?.enabled !== false && mapping.pie?.fields?.length
-          ? mapping.pie.fields
-          : mapping.colorField
-            ? [mapping.colorField]
-            : [],
-      );
-      palette.reset();
-      palette.setBaseVisualMapping(mapping);
-      await workbench.renderNewick(content, datasetName || undefined, {
-        sourceFormat,
-        ancillarySchema: ancillaryPayload.ancillarySchema,
-        ancillaryByNodeId: ancillaryPayload.ancillaryByNodeId,
-        ancillaryData,
-        visualMapping: palette.getCurrentVisualMapping(),
-        displayOptions: buildCurrentDisplayOptions(),
-        lod: {
-          maxNodes: getSelectedMaxNodes(),
-        },
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "unknown error";
-      setFailureStatus(message);
-      lastRenderedGraph = null;
-      palette.reset();
-      updateNodeSelector(ancillaryNodeSelect, null);
-      pieFieldControls.updateOptions(null);
-      palette.renderControls();
-      wheels.renderOverview();
-    } finally {
-      loadingGraph = false;
-      updateApplyAncillaryButton();
-    }
-  }
-
-  // Remove shell event listeners and dispose rendering resources.
   function unmount(): void {
-    joinColumnPicker.dispose();
+    loading.unmount();
+    ancillary.unmount();
     search.reset();
+    region.reset();
     bindings.clear();
+    display.unmount();
+    pngExport.unmount();
     expansion.dispose();
+    workbench.setErrorHandler(null);
     workbench.setGraphRenderedHandler(null);
-    workbench.setInteractionFeedbackHandler?.(null);
+    arrangement.unmount();
     workbench.setNodeClickedHandler(null);
     workbench.setRegionSelectedHandler(null);
     workbench.dispose();
   }
 
-  // Update the shell status text for user feedback.
-  function setStatus(status: string): void {
-    statusElement.textContent = status;
+  function setStatus(message: string): void {
+    status.textContent = message;
   }
 
   function setFailureStatus(message: string): void {
@@ -497,142 +203,28 @@ export default function (options: UiShellOptions): UiShell {
     setStatus(buildRenderedStatus(graph));
     lastRenderedGraph = graph;
     expansion.setReady(true);
-    updateApplyAncillaryButton();
-    updateNodeSelector(
-      ancillaryNodeSelect,
-      getAncillaryMode(ancillaryModeSelect) === ANCILLARY_MODE_SELECTED ? graph : null,
-    );
-    pieFieldControls.updateOptions(graph);
-    palette.renderControls();
-    updateNodeSelectionVisibility();
-    updateLodPlaybackControls(isLodGraph(graph));
-    wheels.renderOverview();
-    wheels.refreshSelectedNode();
+    loading.updateApplyAncillaryButton();
+    ancillary.refreshGraph(graph);
+    refreshLodControls(isLodGraph(graph));
     region.reset();
   }
 
-  function handleDisplayOptionsChange(): void {
-    workbench.updateDisplayOptions(buildCurrentDisplayOptions());
-  }
-
-  function handleMetadataPieFieldPointerDown(event: MouseEvent): void {
-    if (pieFieldControls.toggleOption(event)) {
-      palette.renderControls();
-      palette.applyControlChange();
-    }
-  }
-
-  function handleDisplayOptionPointerDown(event: MouseEvent): void {
-    if (toggleClickedOption(displayOptionsSelect, event)) {
-      handleDisplayOptionsChange();
-    }
-  }
-
-  async function handleLodPlaybackChange(paused: boolean): Promise<void> {
+  function handleLodPlaybackChange(paused: boolean): void {
     try {
-      await workbench.setLodRefreshPaused(paused);
-      updateLodPlaybackControls(isLodGraph(lastRenderedGraph));
-      if (paused) {
-        setStatus("LoD paused: navigate freely without slice refreshes");
-      }
+      workbench.setLodRefreshPaused(paused);
+      refreshLodControls(isLodGraph(lastRenderedGraph));
+      if (paused) setStatus('LoD paused: navigate freely without slice refreshes');
     } catch (error) {
-      const message = error instanceof Error ? error.message : "unknown error";
-      setFailureStatus(message);
+      setFailureStatus(toError(error).message);
     }
   }
 
-  function updateNodeSelectionVisibility(): void {
-    updateNodeSelectionVisibilityControl(ancillaryNodeSelect, ancillaryModeSelect);
-  }
-
-  function updateLodPlaybackControls(lodAvailable: boolean): void {
-    updateLodPlaybackControlsView({
+  function refreshLodControls(lodAvailable: boolean): void {
+    updateLodPlaybackControls({
       playButton: lodPlayButton,
       pauseButton: lodPauseButton,
       lodAvailable,
       paused: workbench.isLodRefreshPaused(),
     });
-  }
-
-  function getSelectedMaxNodes(): number | undefined {
-    return parseMaxNodes(maxNodesInput?.value);
-  }
-
-  function resetDragControls(): void {
-    selectedDragRoot = null;
-    if (branchRootButton) branchRootButton.disabled = true;
-    if (dragStatus) dragStatus.textContent = "Direct dragging: connected nodes react while Motion is on.";
-  }
-
-  function buildCurrentDisplayOptions() {
-    const display = buildDisplayOptions(getSelectedOptions(displayOptionsSelect));
-    return edgeLabelPolicySelect
-      ? {
-          ...display,
-          edgeDistanceLabelPolicy: edgeLabelPolicySelect.value === "always" ? ("always" as const) : ("auto" as const),
-        }
-      : display;
-  }
-
-  async function exportCurrentView(): Promise<void> {
-    if (!lastRenderedGraph || !exportButton) {
-      setFailureStatus("load a tree before exporting");
-      return;
-    }
-    exportButton.disabled = true;
-    try {
-      const blob = await workbench.exportPng({
-        scale: Number(exportScaleInput?.value ?? 2),
-        edgeLabelSize: Number(exportLabelSizeInput?.value ?? 12),
-        edgeLabels: buildCurrentDisplayOptions().edgeDistanceLabels ? "all" : "none",
-        includeLegend: true,
-      });
-      downloadBlob("phylo-lens.png", blob);
-      setStatus("Exported PNG of the current slice and view.");
-    } catch (error) {
-      setFailureStatus(error instanceof Error ? error.message : "PNG export failed");
-    } finally {
-      exportButton.disabled = false;
-    }
-  }
-
-  function getSourceFormat(): SourceFormat {
-    return sourceFormatSelect?.value === SOURCE_FORMAT_TYPING_DATA ? SOURCE_FORMAT_TYPING_DATA : SOURCE_FORMAT_NEWICK;
-  }
-
-  // Read the raw dataset content for the active source format: a typing-data
-  // allelic-profile file when in typing mode, otherwise the Newick file (with
-  // the hidden textarea as a fallback so a no-file demo still works).
-  async function getSourceContent(sourceFormat: SourceFormat): Promise<string> {
-    if (sourceFormat === SOURCE_FORMAT_TYPING_DATA) {
-      const typingFile = typingFileInput?.files?.[0];
-      return typingFile ? readTextFile(typingFile) : "";
-    }
-
-    const file = newickFileInput?.files?.[0];
-    if (file) {
-      return readTextFile(file);
-    }
-
-    return newickInput.value;
-  }
-
-  async function getAncillaryDataInput(): Promise<RenderNewickOptions["ancillaryData"] | undefined> {
-    await joinColumnPicker.whenReady();
-    const file = ancillaryFileInput?.files?.[0];
-    if (!file) {
-      return undefined;
-    }
-
-    const joinColumn = ancillaryJoinColumnInput?.value.trim();
-    if (!joinColumn) {
-      throw new Error(ERR_ANCILLARY_JOIN_COLUMN_REQUIRED);
-    }
-
-    return {
-      content: (await readTextFile(file)).replace(/^\uFEFF/, ""),
-      join_column: joinColumn,
-      format: resolveAncillaryFormat(ancillaryFormatSelect?.value, file.name),
-    };
   }
 }

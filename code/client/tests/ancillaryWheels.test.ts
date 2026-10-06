@@ -1,35 +1,35 @@
-import { describe, expect, it } from "vitest";
-import ancillaryWheels from "../src/app/shell/ancillary/ancillaryWheels";
-import type { PositionedGraph } from "../src/contracts/positioned";
+import { describe, expect, it, vi } from 'vitest';
+import ancillaryWheels from '../src/app/shell/ancillary/ancillaryWheels';
+import type { PositionedGraph } from '../src/contracts/positioned';
 
 function fixture() {
   let graph: PositionedGraph = {
     nodes: [
       {
-        id: "profile",
+        id: 'profile',
         x: 0,
         y: 0,
         attributes: {
-          member_count: 1,
+          memberCount: 1,
           metadata: {
             profile_count: 2,
-            country: "Portugal;Spain",
+            country: 'Portugal;Spain',
             __category_count__country__value__Portugal: 1,
             __category_count__country__value__Spain: 1,
           },
           isolates: [
-            { id: "Original A", metadata: { country: "Portugal" } },
-            { id: "<b>Original B</b>", metadata: { country: "Spain" } },
+            { id: 'Original A', ancillaryData: { country: 'Portugal' } },
+            { id: '<b>Original B</b>', ancillaryData: { country: 'Spain' } },
           ],
         },
       },
     ],
     edges: [],
-    viewMeta: { layout: "server", lodLevel: 0 },
+    viewMeta: { layout: 'server', lodLevel: 0 },
   };
   let fields: string[] = [];
-  const overview = document.createElement("div");
-  const selected = document.createElement("div");
+  const overview = document.createElement('div');
+  const selected = document.createElement('div');
   const wheels = ancillaryWheels({
     overviewContainer: overview,
     selectedNodeContainer: selected,
@@ -37,8 +37,8 @@ function fixture() {
     getSelectedFields: () => fields,
     getVisualMapping: () => ({}),
     getCategoryColorOverrides: () => ({}),
-    selectPieFieldMessage: "Choose a field",
-    selectedNodeEmptyMessage: "Choose a node",
+    selectPieFieldMessage: 'Choose a field',
+    selectedNodeEmptyMessage: 'Choose a node',
   });
   return {
     wheels,
@@ -53,64 +53,103 @@ function fixture() {
   };
 }
 
-describe("ancillary node inspection", () => {
-  it("shows original IDs and counts without metadata coloring, treating IDs as text", () => {
-    const { wheels, selected } = fixture();
-    wheels.renderSelectedNode("profile");
-    expect(selected.textContent).toContain("Profile: profile");
-    expect(selected.textContent).toContain("2 isolates");
-    expect([...selected.querySelectorAll("li")].map((item) => item.textContent)).toEqual([
-      "Original A",
-      "<b>Original B</b>",
-    ]);
-    expect(selected.querySelector("b")).toBeNull();
-    expect(selected.textContent).toContain("Ancillary coloring: none");
+describe('ancillary node inspection', () => {
+  it('uses the same field selection for the chart and its heading', () => {
+    const overview = document.createElement('div');
+    const wheels = ancillaryWheels({
+      overviewContainer: overview,
+      getGraph: () => ({
+        nodes: [{ id: 'a', x: 0, y: 0, attributes: { metadata: { country: 'Portugal' } } }],
+        edges: [],
+        viewMeta: { layout: 'server', lodLevel: 0 },
+      }),
+      getSelectedFields: vi.fn<() => readonly string[]>().mockReturnValueOnce(['country']).mockReturnValue([]),
+      getVisualMapping: () => ({}),
+      getCategoryColorOverrides: () => ({}),
+      selectPieFieldMessage: 'Choose a field',
+      selectedNodeEmptyMessage: 'Choose a node',
+    });
+    wheels.renderOverview();
+    expect(overview.textContent).toContain('Color field: country');
+    expect(overview.querySelector('.wheel-chart')).not.toBeNull();
+    expect(overview.textContent).toContain('Portugal');
   });
 
-  it("keeps the selected profile and displays the active field and per-isolate distribution", () => {
+  it('shows original IDs and counts without metadata coloring, treating IDs as text', () => {
+    const { wheels, selected } = fixture();
+    wheels.renderSelectedNode('profile');
+    expect(selected.textContent).toContain('Profile: profile');
+    expect(selected.textContent).toContain('2 isolates');
+    const details = selected.querySelector('details')!;
+    expect(details.querySelectorAll('li')).toHaveLength(0);
+    details.open = true;
+    details.dispatchEvent(new Event('toggle'));
+    expect([...selected.querySelectorAll('li')].map(item => item.textContent)).toEqual([
+      'Original A',
+      '<b>Original B</b>',
+    ]);
+    expect(selected.querySelector('b')).toBeNull();
+    expect(selected.textContent).toContain('Ancillary coloring: none');
+
+    details.open = false;
+    details.dispatchEvent(new Event('toggle'));
+    details.open = true;
+    details.dispatchEvent(new Event('toggle'));
+    expect(details.querySelectorAll('li')).toHaveLength(2);
+  });
+
+  it('keeps the selected profile and displays the active field and per-isolate distribution', () => {
     const { wheels, selected, overview, setFields } = fixture();
-    wheels.renderSelectedNode("profile");
-    const details = selected.querySelector("details");
-    if (details) details.open = true;
-    setFields(["country"]);
+    wheels.renderSelectedNode('profile');
+    const details = selected.querySelector('details');
+    if (details) {
+      details.open = true;
+      details.dispatchEvent(new Event('toggle'));
+    }
+    setFields(['country']);
     wheels.refreshSelectedNode();
     wheels.renderOverview();
-    expect(selected.textContent).toContain("Profile: profile");
-    expect(selected.textContent).toContain("Color field: country");
-    expect(selected.querySelector("details")?.open).toBe(true);
-    expect(selected.querySelectorAll(".wheel-meta li")).toHaveLength(2);
+    expect(selected.textContent).toContain('Profile: profile');
+    expect(selected.textContent).toContain('Color field: country');
+    expect(selected.querySelector('details')?.open).toBe(true);
+    expect(selected.querySelectorAll('.wheel-meta li')).toHaveLength(2);
     expect(selected.textContent?.match(/50.0%/g)).toHaveLength(2);
-    expect(overview.textContent).toContain("Current view · Color field: country");
+    expect(overview.textContent).toContain('Current view · Color field: country');
     setFields([]);
     wheels.refreshSelectedNode();
-    expect(selected.querySelector(".wheel-chart")).toBeNull();
-    expect(selected.textContent).toContain("2 isolates");
+    expect(selected.querySelector('.wheel-chart')).toBeNull();
+    expect(selected.textContent).toContain('2 isolates');
     wheels.resetSelectedNode();
     wheels.refreshSelectedNode();
-    expect(selected.textContent).toBe("Choose a node");
+    expect(selected.textContent).toBe('Choose a node');
   });
 
-  it("does not leave stale details when the selected node leaves the viewport", () => {
+  it('does not leave stale details when the selected node leaves the viewport', () => {
     const { wheels, selected, setGraph } = fixture();
-    wheels.renderSelectedNode("profile");
-    setGraph({ nodes: [], edges: [], viewMeta: { layout: "server", lodLevel: 0 } });
+    wheels.renderSelectedNode('profile');
+    setGraph({ nodes: [], edges: [], viewMeta: { layout: 'server', lodLevel: 0 } });
     wheels.refreshSelectedNode();
-    expect(selected.textContent).toContain("outside the current view");
-    expect(selected.textContent).not.toContain("Original A");
+    expect(selected.textContent).toContain('outside the current view');
+    expect(selected.textContent).not.toContain('Original A');
   });
 
-  it("distinguishes a LoD cluster from a biological profile", () => {
+  it('distinguishes a LoD cluster from a biological profile', () => {
     const { wheels, selected, setGraph } = fixture();
     setGraph({
       nodes: [
-        { id: "cluster", x: 0, y: 0, attributes: { member_count: 3, metadata: { profile_count: 7 }, isolates: [] } },
+        {
+          id: 'cluster',
+          x: 0,
+          y: 0,
+          attributes: { memberCount: 3, metadata: { profile_count: 7 }, isolates: [] },
+        },
       ],
       edges: [],
-      viewMeta: { layout: "server", lodLevel: 1 },
+      viewMeta: { layout: 'server', lodLevel: 1 },
     });
-    wheels.renderSelectedNode("cluster");
-    expect(selected.textContent).toContain("Cluster: cluster");
-    expect(selected.textContent).toContain("3 profiles · 7 isolates");
-    expect(selected.querySelector("details")).toBeNull();
+    wheels.renderSelectedNode('cluster');
+    expect(selected.textContent).toContain('Cluster: cluster');
+    expect(selected.textContent).toContain('3 nodes · 7 isolates');
+    expect(selected.querySelector('details')).toBeNull();
   });
 });

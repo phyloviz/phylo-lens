@@ -1,33 +1,34 @@
-import { forceCollide, forceLink, forceSimulation, forceX, forceY, type SimulationNodeDatum } from "d3-force";
+import { forceCollide, forceLink, forceSimulation, forceX, forceY, type SimulationNodeDatum } from 'd3-force';
+import type { Point } from '../../../../contracts/Point';
 
-export interface MotionSettings {
-  linkStrength?: number;
-  anchorStrength?: number;
-  velocityDecay?: number;
-  alphaDecay?: number;
+export type MotionSettings = {
+  readonly linkStrength?: number;
+  readonly anchorStrength?: number;
+  readonly velocityDecay?: number;
+  readonly alphaDecay?: number;
   /** Radius relative to the median edge length. Zero keeps collision handling disabled. */
-  collisionRadius?: number;
-  collisionStrength?: number;
-  collisionIterations?: number;
-}
+  readonly collisionRadius?: number;
+  readonly collisionStrength?: number;
+  readonly collisionIterations?: number;
+};
 
-export interface MotionNode {
-  id: string;
-  x: number;
-  y: number;
-  referenceX: number;
-  referenceY: number;
-  anchorX: number;
-  anchorY: number;
-  size?: number;
-}
+export type MotionNode = Point & {
+  readonly id: string;
+  readonly referenceX: number;
+  readonly referenceY: number;
+  readonly anchorX: number;
+  readonly anchorY: number;
+  readonly size?: number;
+  /** Actual glyph radius plus clearance, converted to prepared graph coordinates. */
+  readonly collisionRadius?: number;
+};
 
-export interface MotionGraph {
-  nodes: MotionNode[];
-  links: { source: string; target: string }[];
-}
+export type MotionGraph = {
+  readonly nodes: readonly MotionNode[];
+  readonly links: ReadonlyArray<{ readonly source: string; readonly target: string }>;
+};
 
-export type MotionPoint = { id: string; x: number; y: number };
+export type MotionPoint = Point & { readonly id: string };
 
 interface Particle extends SimulationNodeDatum {
   id: string;
@@ -36,9 +37,10 @@ interface Particle extends SimulationNodeDatum {
   anchorX: number;
   anchorY: number;
   size: number;
+  collisionRadius: number;
 }
 
-export const DEFAULT_MOTION_SETTINGS = {
+export const DEFAULT_MOTION_SETTINGS = Object.freeze({
   linkStrength: 0.35,
   anchorStrength: 0.06,
   velocityDecay: 0.5,
@@ -46,7 +48,7 @@ export const DEFAULT_MOTION_SETTINGS = {
   collisionRadius: 0.15,
   collisionStrength: 1,
   collisionIterations: 2,
-};
+});
 /** Elastic refinement, not another global layout. No charge or origin gravity:
  * the prepared arrangement is an equilibrium until the user edits it. Normalize
  * by geometric edge length so Graphviz units do not tune the physics.
@@ -67,24 +69,24 @@ export function createElasticSimulation(graph: MotionGraph, options: MotionSetti
   };
 
   if (!Object.entries(validators).every(([key, validate]) => validate(settings[key as keyof typeof settings]))) {
-    throw new Error("Invalid motion setting");
+    throw new Error('Invalid motion setting');
   }
 
-  const references = new Map(graph.nodes.map((n) => [n.id, n]));
-  const lengths = graph.links.map((link) => {
+  const references = new Map(graph.nodes.map(n => [n.id, n]));
+  const lengths = graph.links.map(link => {
     const a = references.get(link.source)!;
     const b = references.get(link.target)!;
 
     return Math.hypot(a.referenceX - b.referenceX, a.referenceY - b.referenceY);
   });
 
-  const positive = lengths.filter((length) => length > 0 && Number.isFinite(length)).sort((a, b) => a - b);
+  const positive = lengths.filter(length => length > 0 && Number.isFinite(length)).sort((a, b) => a - b);
   const unit = positive[Math.floor(positive.length / 2)] ?? 1;
-  const origin = graph.nodes[0] ?? { x: 0, y: 0 };
+  const origin = { x: graph.nodes[0]?.x ?? 0, y: graph.nodes[0]?.y ?? 0 };
 
   const sizes = graph.nodes
-    .map((node) => node.size)
-    .filter((size): size is number => typeof size === "number" && Number.isFinite(size) && size > 0)
+    .map(node => node.size)
+    .filter((size): size is number => typeof size === 'number' && Number.isFinite(size) && size > 0)
     .sort((a, b) => a - b);
 
   const medianSize =
@@ -94,18 +96,22 @@ export function createElasticSimulation(graph: MotionGraph, options: MotionSetti
         ? sizes[Math.floor(sizes.length / 2)]
         : (sizes[sizes.length / 2 - 1] + sizes[sizes.length / 2]) / 2;
 
-  const nodes: Particle[] = graph.nodes.map((n) => ({
+  const nodes: Particle[] = graph.nodes.map(n => ({
     id: n.id,
     x: (n.x - origin.x) / unit,
     y: (n.y - origin.y) / unit,
     anchorX: (n.anchorX - origin.x) / unit,
     anchorY: (n.anchorY - origin.y) / unit,
-    size: typeof n.size === "number" && Number.isFinite(n.size) && n.size > 0 ? n.size : medianSize,
+    collisionRadius:
+      typeof n.collisionRadius === 'number' && Number.isFinite(n.collisionRadius) && n.collisionRadius >= 0
+        ? n.collisionRadius / unit
+        : settings.collisionRadius * ((n.size ?? medianSize) / medianSize),
+    size: typeof n.size === 'number' && Number.isFinite(n.size) && n.size > 0 ? n.size : medianSize,
   }));
 
-  const byId = new Map(nodes.map((n) => [n.id, n]));
-  const xForce = forceX<Particle>((n) => n.anchorX).strength(settings.anchorStrength);
-  const yForce = forceY<Particle>((n) => n.anchorY).strength(settings.anchorStrength);
+  const byId = new Map(nodes.map(n => [n.id, n]));
+  const xForce = forceX<Particle>(n => n.anchorX).strength(settings.anchorStrength);
+  const yForce = forceY<Particle>(n => n.anchorY).strength(settings.anchorStrength);
   const links = graph.links.map((link, i) => ({ ...link, distance: lengths[i] / unit }));
 
   const simulation = forceSimulation(nodes)
@@ -113,29 +119,29 @@ export function createElasticSimulation(graph: MotionGraph, options: MotionSetti
     .velocityDecay(settings.velocityDecay)
     .alphaDecay(settings.alphaDecay)
     .force(
-      "links",
+      'links',
       forceLink<Particle, (typeof links)[number]>(links)
-        .id((n) => n.id)
-        .distance((link) => link.distance)
+        .id(n => n.id)
+        .distance(link => link.distance)
         .strength(settings.linkStrength)
-        .iterations(2),
+        .iterations(2)
     )
-    .force("anchorX", xForce)
-    .force("anchorY", yForce);
+    .force('anchorX', xForce)
+    .force('anchorY', yForce);
 
   if (settings.collisionRadius > 0) {
     simulation.force(
-      "collide",
-      forceCollide<Particle>((node) => settings.collisionRadius * (node.size / medianSize))
+      'collide',
+      forceCollide<Particle>(node => node.collisionRadius)
         .strength(settings.collisionStrength)
-        .iterations(settings.collisionIterations),
+        .iterations(settings.collisionIterations)
     );
   }
 
   let pinned = false;
 
   return {
-    pin(points: MotionPoint[], released: MotionPoint[] = []) {
+    pin(points: readonly MotionPoint[], released: readonly MotionPoint[] = []) {
       for (const n of nodes) {
         n.fx = null;
         n.fy = null;
@@ -157,8 +163,8 @@ export function createElasticSimulation(graph: MotionGraph, options: MotionSetti
         n.vx = n.vy = 0;
       }
 
-      xForce.x((n) => n.anchorX);
-      yForce.y((n) => n.anchorY);
+      xForce.x(n => n.anchorX);
+      yForce.y(n => n.anchorY);
       pinned = points.length > 0;
       simulation.alphaTarget(pinned ? 0.25 : 0).alpha(Math.max(simulation.alpha(), 0.35));
     },
@@ -166,6 +172,6 @@ export function createElasticSimulation(graph: MotionGraph, options: MotionSetti
       simulation.tick(iterations);
     },
     settled: () => !pinned && simulation.alpha() < simulation.alphaMin(),
-    positions: () => new Float64Array(nodes.flatMap((n) => [origin.x + n.x * unit, origin.y + n.y * unit])),
+    positions: () => new Float64Array(nodes.flatMap(n => [origin.x + n.x * unit, origin.y + n.y * unit])),
   };
 }

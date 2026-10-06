@@ -1,35 +1,33 @@
-export interface SearchResultItem {
-  node_id: string;
-  matched_text: string;
-  score: number;
-  cluster_id?: string | null;
-  // Global layout coordinates of the matched node (omitted when unavailable),
-  // forwarded to the focus handler so it can fetch a region around the hit.
-  x?: number | null;
-  y?: number | null;
-}
+import type { ClusterId, NodeId } from '../../../contracts/graph/graphIdentifiers';
+
+export type SearchResultItem = {
+  readonly nodeId: NodeId;
+  readonly matchedText: string;
+  readonly score: number;
+  readonly clusterId?: ClusterId | null;
+  readonly x?: number | null;
+  readonly y?: number | null;
+};
 
 export function renderSearchResults(
   container: HTMLElement | undefined,
-  matches: SearchResultItem[],
-  onFocusNode: (match: SearchResultItem) => void,
+  matches: readonly SearchResultItem[],
+  onFocusNode: (match: SearchResultItem) => void
 ): void {
   if (!container) {
     return;
   }
 
-  container.innerHTML = "";
+  container.innerHTML = '';
 
-  matches.forEach((match) => {
-    const item = document.createElement("button");
-    item.type = "button";
-    item.className = "search-result";
+  matches.forEach(match => {
+    const item = document.createElement('button');
+    item.type = 'button';
+    item.className = 'search-result';
     item.textContent =
-      match.score < 40 || match.matched_text === match.node_id
-        ? match.node_id
-        : `${match.matched_text} → ${match.node_id}`;
-    item.title = match.matched_text;
-    item.addEventListener("click", () => {
+      match.score < 40 || match.matchedText === match.nodeId ? match.nodeId : `${match.matchedText} → ${match.nodeId}`;
+    item.title = match.matchedText;
+    item.addEventListener('click', () => {
       onFocusNode(match);
     });
     container.appendChild(item);

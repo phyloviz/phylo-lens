@@ -1,8 +1,8 @@
-import { createElasticSimulation, type MotionGraph, type MotionPoint, type MotionSettings } from "./elasticSimulation";
+import { createElasticSimulation, type MotionGraph, type MotionPoint, type MotionSettings } from './elasticSimulation';
 
 export type MotionCommand =
-  | { type: "start"; graph: MotionGraph; settings: MotionSettings; revision: number }
-  | { type: "pin"; points: MotionPoint[]; released: MotionPoint[]; revision: number };
+  | { type: 'start'; graph: MotionGraph; settings: MotionSettings; revision: number }
+  | { type: 'pin'; points: readonly MotionPoint[]; released: readonly MotionPoint[]; revision: number };
 
 export interface MotionFrame {
   positions: Float64Array;
@@ -28,7 +28,7 @@ function frame() {
 
 self.onmessage = ({ data }: MessageEvent<MotionCommand>) => {
   revision = data.revision;
-  if (data.type === "start") {
+  if (data.type === 'start') {
     simulation = createElasticSimulation(data.graph, data.settings);
   } else {
     simulation?.pin(data.points, data.released);

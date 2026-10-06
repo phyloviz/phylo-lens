@@ -1,15 +1,18 @@
-import { describe, expect, it, vi } from "vitest";
+import { toDatasetId, toNodeId, toClusterId } from '../src/contracts/graph/graphIdentifiers';
+import { decodeApiMetadata } from '../src/ancillary/apiMetadata';
+import { describe, expect, it, vi } from 'vitest';
 
-import uiShell from "../src/app/uiShell";
-import type { GraphWorkbench } from "../src/app/workbench/graphWorkbench";
-import type { PositionedGraph } from "../src/contracts/positioned";
+import uiShell from '../src/app/uiShell';
+import type { GraphWorkbench } from '../src/app/workbench/graphWorkbench';
+import type { PositionedGraph } from '../src/contracts/positioned';
+import { deferred } from './helpers/state';
 
 function makeFakeWorkbench(
   renderedGraph: PositionedGraph = {
     nodes: [],
     edges: [],
-    viewMeta: { layout: "force", lodLevel: 0 },
-  },
+    viewMeta: { layout: 'force', lodLevel: 0 },
+  }
 ) {
   let graphRenderedHandler: ((graph: PositionedGraph) => void) | null = null;
   let nodeClickedHandler: ((state: { nodeId: string | null }) => void) | null = null;
@@ -19,7 +22,29 @@ function makeFakeWorkbench(
   let regionSelectModeEnabled = false;
 
   return {
-    renderNewick: vi.fn(async () => {
+    setErrorHandler: vi.fn(),
+    applyAncillaryFilters: vi.fn(() => renderedGraph),
+    clearAncillaryFilters: vi.fn(() => renderedGraph),
+    setMotionEnabled: vi.fn(),
+    isMotionEnabled: vi.fn(() => true),
+    setInteractionFeedbackHandler: vi.fn(),
+    setDragSelection: vi.fn(),
+    resetLayoutEdits: vi.fn(),
+    exportPng: vi.fn(),
+    expandCluster: vi.fn(),
+    collapseCluster: vi.fn(),
+    expandAll: vi.fn(),
+    collapseAll: vi.fn(),
+    setKeepExpanded: vi.fn(),
+    getExpansionState: vi.fn(() => ({
+      keepExpanded: false,
+      expandedClusterIds: [],
+      allExpanded: false,
+      partial: false,
+      renderedNodeCount: renderedGraph.nodes.length,
+    })),
+    applyAncillaryData: vi.fn(),
+    loadGraph: vi.fn(async () => {
       graphRenderedHandler?.(renderedGraph);
       return renderedGraph;
     }),
@@ -28,36 +53,36 @@ function makeFakeWorkbench(
       return renderedGraph;
     }),
     updateDisplayOptions: vi.fn(),
-    setLodRefreshPaused: vi.fn(async (paused: boolean) => {
+    setLodRefreshPaused: vi.fn((paused: boolean) => {
       lodRefreshPaused = paused;
       return renderedGraph;
     }),
     isLodRefreshPaused: vi.fn(() => lodRefreshPaused),
     searchNodes: vi.fn(async () => ({
-      dataset_id: "fixture-tree",
-      query: "port",
+      datasetId: toDatasetId('fixture-tree'),
+      query: 'port',
       matches: [
         {
-          node_id: "a",
+          nodeId: toNodeId('a'),
           score: 8,
-          matched_text: "a Portugal",
-          metadata: { country: "Portugal" },
-          cluster_id: "cluster-a",
+          matchedText: 'a Portugal',
+          annotations: decodeApiMetadata({ country: 'Portugal' }),
+          clusterId: toClusterId('cluster-a'),
           x: 12,
           y: 34,
         },
       ],
-      total_count: 1,
+      totalCount: 1,
     })),
     cancelPendingFocus: vi.fn(),
     focusNode: vi.fn(async () => {
       graphRenderedHandler?.(renderedGraph);
       return renderedGraph;
     }),
-    setGraphRenderedHandler: vi.fn((handler) => {
+    setGraphRenderedHandler: vi.fn(handler => {
       graphRenderedHandler = handler;
     }),
-    setNodeClickedHandler: vi.fn((handler) => {
+    setNodeClickedHandler: vi.fn(handler => {
       nodeClickedHandler = handler;
     }),
     setRegionSelectModeEnabled: vi.fn((enabled: boolean) => {
@@ -65,13 +90,13 @@ function makeFakeWorkbench(
     }),
     isRegionSelectModeEnabled: () => regionSelectModeEnabled,
     selectRegion: vi.fn(async () => ({
-      nodeIds: ["a", "b"],
+      nodeIds: [toNodeId('a'), toNodeId('b')],
       nodeCount: 2,
       truncated: false,
-      aggregatedMetadata: { country: "Portugal", score: 4 },
+      aggregatedAncillaryData: { country: 'Portugal', score: 4 },
       ancillarySchema: [],
     })),
-    setRegionSelectedHandler: vi.fn((handler) => {
+    setRegionSelectedHandler: vi.fn(handler => {
       regionSelectedHandler = handler;
     }),
     clearRegionSelection: vi.fn(),
@@ -82,22 +107,26 @@ function makeFakeWorkbench(
       regionSelectedHandler?.(bounds);
     },
     dispose: vi.fn(),
-  } as unknown as GraphWorkbench;
+  } satisfies GraphWorkbench & {
+    isRegionSelectModeEnabled: () => boolean;
+    emitNodeClick: (nodeId: string) => void;
+    emitRegionSelected: (bounds: { xmin: number; xmax: number; ymin: number; ymax: number }) => void;
+  };
 }
 
-describe("uiShell", () => {
-  it("starts each dataset from its explicit mapping and clears old metadata coloring", async () => {
-    const form = document.createElement("form");
-    const input = document.createElement("textarea");
-    const ancillaryInput = document.createElement("textarea");
-    const select = document.createElement("select");
+describe('uiShell', () => {
+  it('starts each dataset from its explicit mapping and clears old metadata coloring', async () => {
+    const form = document.createElement('form');
+    const input = document.createElement('textarea');
+    const ancillaryInput = document.createElement('textarea');
+    const select = document.createElement('select');
     select.multiple = true;
-    input.value = "(A,B)Root;";
-    ancillaryInput.value = JSON.stringify({ ancillary_schema: [], visual_mapping: { colorField: "country" } });
+    input.value = '(A,B)Root;';
+    ancillaryInput.value = JSON.stringify({ ancillary_schema: [], visual_mapping: { colorField: 'country' } });
     const workbench = makeFakeWorkbench({
-      nodes: [{ id: "a", x: 0, y: 0, attributes: { metadata: { country: "Portugal" } } }],
+      nodes: [{ id: 'a', x: 0, y: 0, attributes: { annotations: decodeApiMetadata({ country: 'Portugal' }) } }],
       edges: [],
-      viewMeta: { layout: "server", lodLevel: 0 },
+      viewMeta: { layout: 'server', lodLevel: 0 },
     });
     const shell = uiShell({
       workbench,
@@ -105,47 +134,45 @@ describe("uiShell", () => {
         form,
         newickInput: input,
         ancillaryInput,
-        metadataPieFieldSelect: select,
-        status: document.createElement("div"),
+        ancillaryFieldSelect: select,
+        status: document.createElement('div'),
       },
     });
     shell.mount();
     await shell.renderCurrentInput();
-    expect(select.value).toBe("country");
-    expect(workbench.renderNewick).toHaveBeenLastCalledWith(
-      "(A,B)Root;",
-      undefined,
-      expect.objectContaining({ visualMapping: expect.objectContaining({ colorField: "country" }) }),
+    expect(select.value).toBe('country');
+    expect(workbench.loadGraph).toHaveBeenLastCalledWith(
+      { content: '(A,B)Root;', datasetName: undefined, format: 'newick' },
+      expect.objectContaining({ visualMapping: expect.objectContaining({ colorField: 'country' }) })
     );
-    ancillaryInput.value = "";
+    ancillaryInput.value = '';
     await shell.renderCurrentInput();
-    expect(select.value).toBe("");
-    expect(workbench.renderNewick).toHaveBeenLastCalledWith(
-      "(A,B)Root;",
-      undefined,
-      expect.objectContaining({ visualMapping: {} }),
+    expect(select.value).toBe('');
+    expect(workbench.loadGraph).toHaveBeenLastCalledWith(
+      { content: '(A,B)Root;', datasetName: undefined, format: 'newick' },
+      expect.objectContaining({ visualMapping: {} })
     );
     shell.unmount();
   });
 
-  it("updates status after successful render", async () => {
+  it('updates status after successful render', async () => {
     document.body.innerHTML = `
       <form id="render-form"></form>
       <textarea id="newick-input"></textarea>
       <div id="status"></div>
     `;
 
-    const form = document.getElementById("render-form") as HTMLFormElement;
-    const input = document.getElementById("newick-input") as HTMLTextAreaElement;
-    const status = document.getElementById("status") as HTMLElement;
+    const form = document.getElementById('render-form') as HTMLFormElement;
+    const input = document.getElementById('newick-input') as HTMLTextAreaElement;
+    const status = document.getElementById('status') as HTMLElement;
 
-    input.value = "(A,B)Root;";
+    input.value = '(A,B)Root;';
 
     const fakeWorkbench = makeFakeWorkbench({
-      nodes: [{ id: "root", x: 0, y: 0 }],
+      nodes: [{ id: 'root', x: 0, y: 0 }],
       edges: [],
       viewMeta: {
-        layout: "server",
+        layout: 'server',
         lodLevel: 0,
         lodTierCount: 3,
         sliceNodeCount: 1,
@@ -165,36 +192,36 @@ describe("uiShell", () => {
     shell.mount();
     await shell.renderCurrentInput();
 
-    expect(status.textContent).toContain("Rendered");
-    expect(status.textContent).toContain("slice 1 nodes");
+    expect(status.textContent).toContain('Rendered');
+    expect(status.textContent).toContain('slice 1 nodes');
     // Tier is 1-based: lodLevel 0 of 3 tiers reads "LoD tier 1/3", making a
     // semantic-zoom transition observable in the status bar.
-    expect(status.textContent).toContain("LoD tier 1/3");
-    expect(status.textContent).toContain("LoD zoom 4.00");
+    expect(status.textContent).toContain('LoD tier 1/3');
+    expect(status.textContent).toContain('LoD zoom 4.00');
     shell.unmount();
   });
 
-  it("warns in the status line when the layout is degraded", async () => {
+  it('warns in the status line when the layout is degraded', async () => {
     document.body.innerHTML = `
       <form id="render-form"></form>
       <textarea id="newick-input"></textarea>
       <div id="status"></div>
     `;
 
-    const form = document.getElementById("render-form") as HTMLFormElement;
-    const input = document.getElementById("newick-input") as HTMLTextAreaElement;
-    const status = document.getElementById("status") as HTMLElement;
+    const form = document.getElementById('render-form') as HTMLFormElement;
+    const input = document.getElementById('newick-input') as HTMLTextAreaElement;
+    const status = document.getElementById('status') as HTMLElement;
 
-    input.value = "(A,B)Root;";
+    input.value = '(A,B)Root;';
 
     const fakeWorkbench = makeFakeWorkbench({
-      nodes: [{ id: "root", x: 0, y: 0 }],
+      nodes: [{ id: 'root', x: 0, y: 0 }],
       edges: [],
       viewMeta: {
-        layout: "server",
+        layout: 'server',
         lodLevel: 0,
         sliceNodeCount: 1,
-        layoutStatus: "degraded",
+        layoutStatus: 'degraded',
       },
     });
 
@@ -212,33 +239,33 @@ describe("uiShell", () => {
 
     // Still reports the render, but appends the degraded-layout warning so a
     // legacy persisted layouts remain visibly marked for host applications.
-    expect(status.textContent).toContain("Rendered");
-    expect(status.textContent).toContain("earlier service version");
+    expect(status.textContent).toContain('Rendered');
+    expect(status.textContent).toContain('earlier service version');
     shell.unmount();
   });
 
-  it("surfaces prepare warnings in the rendered status line", async () => {
+  it('surfaces prepare warnings in the rendered status line', async () => {
     document.body.innerHTML = `
       <form id="render-form"></form>
       <textarea id="newick-input"></textarea>
       <div id="status"></div>
     `;
 
-    const form = document.getElementById("render-form") as HTMLFormElement;
-    const input = document.getElementById("newick-input") as HTMLTextAreaElement;
-    const status = document.getElementById("status") as HTMLElement;
+    const form = document.getElementById('render-form') as HTMLFormElement;
+    const input = document.getElementById('newick-input') as HTMLTextAreaElement;
+    const status = document.getElementById('status') as HTMLElement;
 
-    input.value = "(A,B)Root;";
+    input.value = '(A,B)Root;';
 
     const fakeWorkbench = makeFakeWorkbench({
-      nodes: [{ id: "root", x: 0, y: 0 }],
+      nodes: [{ id: 'root', x: 0, y: 0 }],
       edges: [],
       viewMeta: {
-        layout: "server",
+        layout: 'server',
         lodLevel: 0,
         sliceNodeCount: 1,
-        layoutStatus: "ready",
-        layoutWarnings: ["Newick input contains 761 disconnected components; kept as a forest."],
+        layoutStatus: 'ready',
+        layoutWarnings: ['Newick input contains 761 disconnected components; kept as a forest.'],
       },
     });
 
@@ -254,28 +281,28 @@ describe("uiShell", () => {
     shell.mount();
     await shell.renderCurrentInput();
 
-    expect(status.textContent).toContain("Rendered");
-    expect(status.textContent).toContain("761 disconnected components");
+    expect(status.textContent).toContain('Rendered');
+    expect(status.textContent).toContain('761 disconnected components');
     shell.unmount();
   });
 
-  it("shows failure status on empty Newick input", async () => {
+  it('shows failure status on empty Newick input', async () => {
     document.body.innerHTML = `
       <form id="render-form"></form>
       <textarea id="newick-input"></textarea>
       <div id="status"></div>
     `;
 
-    const form = document.getElementById("render-form") as HTMLFormElement;
-    const input = document.getElementById("newick-input") as HTMLTextAreaElement;
-    const status = document.getElementById("status") as HTMLElement;
+    const form = document.getElementById('render-form') as HTMLFormElement;
+    const input = document.getElementById('newick-input') as HTMLTextAreaElement;
+    const status = document.getElementById('status') as HTMLElement;
 
-    input.value = "   ";
+    input.value = '   ';
 
     const fakeWorkbench = makeFakeWorkbench({
       nodes: [],
       edges: [],
-      viewMeta: { layout: "force", lodLevel: 0 },
+      viewMeta: { layout: 'force', lodLevel: 0 },
     });
 
     const shell = uiShell({
@@ -290,12 +317,12 @@ describe("uiShell", () => {
     shell.mount();
     await shell.renderCurrentInput();
 
-    expect(status.textContent).toContain("Failed");
-    expect(fakeWorkbench.renderNewick).not.toHaveBeenCalled();
+    expect(status.textContent).toContain('Failed');
+    expect(fakeWorkbench.loadGraph).not.toHaveBeenCalled();
     shell.unmount();
   });
 
-  it("shows failure status on invalid ancillary JSON", async () => {
+  it('shows failure status on invalid ancillary JSON', async () => {
     document.body.innerHTML = `
       <form id="render-form"></form>
       <textarea id="newick-input"></textarea>
@@ -303,18 +330,18 @@ describe("uiShell", () => {
       <div id="status"></div>
     `;
 
-    const form = document.getElementById("render-form") as HTMLFormElement;
-    const input = document.getElementById("newick-input") as HTMLTextAreaElement;
-    const ancillary = document.getElementById("ancillary-input") as HTMLTextAreaElement;
-    const status = document.getElementById("status") as HTMLElement;
+    const form = document.getElementById('render-form') as HTMLFormElement;
+    const input = document.getElementById('newick-input') as HTMLTextAreaElement;
+    const ancillary = document.getElementById('ancillary-input') as HTMLTextAreaElement;
+    const status = document.getElementById('status') as HTMLElement;
 
-    input.value = "(A,B)Root;";
-    ancillary.value = "{";
+    input.value = '(A,B)Root;';
+    ancillary.value = '{';
 
     const fakeWorkbench = makeFakeWorkbench({
       nodes: [],
       edges: [],
-      viewMeta: { layout: "force", lodLevel: 0 },
+      viewMeta: { layout: 'force', lodLevel: 0 },
     });
 
     const shell = uiShell({
@@ -330,12 +357,12 @@ describe("uiShell", () => {
     shell.mount();
     await shell.renderCurrentInput();
 
-    expect(status.textContent).toContain("Failed");
-    expect(fakeWorkbench.renderNewick).not.toHaveBeenCalled();
+    expect(status.textContent).toContain('Failed');
+    expect(fakeWorkbench.loadGraph).not.toHaveBeenCalled();
     shell.unmount();
   });
 
-  it("forwards LoD controls to the workbench render request", async () => {
+  it('forwards LoD controls to the workbench render request', async () => {
     document.body.innerHTML = `
       <form id="render-form"></form>
       <textarea id="newick-input"></textarea>
@@ -343,18 +370,18 @@ describe("uiShell", () => {
       <div id="status"></div>
     `;
 
-    const form = document.getElementById("render-form") as HTMLFormElement;
-    const input = document.getElementById("newick-input") as HTMLTextAreaElement;
-    const maxNodesInput = document.getElementById("max-nodes") as HTMLInputElement;
-    const status = document.getElementById("status") as HTMLElement;
+    const form = document.getElementById('render-form') as HTMLFormElement;
+    const input = document.getElementById('newick-input') as HTMLTextAreaElement;
+    const maxNodesInput = document.getElementById('max-nodes') as HTMLInputElement;
+    const status = document.getElementById('status') as HTMLElement;
 
-    input.value = "(A,B)Root;";
-    maxNodesInput.value = "2400";
+    input.value = '(A,B)Root;';
+    maxNodesInput.value = '2400';
 
     const fakeWorkbench = makeFakeWorkbench({
-      nodes: [{ id: "root", x: 0, y: 0 }],
+      nodes: [{ id: 'root', x: 0, y: 0 }],
       edges: [],
-      viewMeta: { layout: "force", lodLevel: 1 },
+      viewMeta: { layout: 'force', lodLevel: 1 },
     });
 
     const shell = uiShell({
@@ -370,19 +397,18 @@ describe("uiShell", () => {
     shell.mount();
     await shell.renderCurrentInput();
 
-    expect(fakeWorkbench.renderNewick).toHaveBeenCalledWith(
-      "(A,B)Root;",
-      undefined,
+    expect(fakeWorkbench.loadGraph).toHaveBeenCalledWith(
+      { content: '(A,B)Root;', datasetName: undefined, format: 'newick' },
       expect.objectContaining({
         lod: expect.objectContaining({
           maxNodes: 2400,
         }),
-      }),
+      })
     );
     shell.unmount();
   });
 
-  it("forwards uploaded Newick and ancillary table files", async () => {
+  it('forwards uploaded Newick and ancillary table files', async () => {
     document.body.innerHTML = `
       <form id="render-form"></form>
       <textarea id="newick-input"></textarea>
@@ -396,24 +422,24 @@ describe("uiShell", () => {
       <div id="status"></div>
     `;
 
-    const form = document.getElementById("render-form") as HTMLFormElement;
-    const input = document.getElementById("newick-input") as HTMLTextAreaElement;
-    const newickFileInput = document.getElementById("newick-file") as HTMLInputElement;
-    const ancillaryFileInput = document.getElementById("ancillary-file") as HTMLInputElement;
-    const ancillaryJoinColumnInput = document.getElementById("ancillary-join-column") as HTMLInputElement;
-    const ancillaryFormatSelect = document.getElementById("ancillary-format") as HTMLSelectElement;
-    const status = document.getElementById("status") as HTMLElement;
+    const form = document.getElementById('render-form') as HTMLFormElement;
+    const input = document.getElementById('newick-input') as HTMLTextAreaElement;
+    const newickFileInput = document.getElementById('newick-file') as HTMLInputElement;
+    const ancillaryFileInput = document.getElementById('ancillary-file') as HTMLInputElement;
+    const ancillaryJoinColumnInput = document.getElementById('ancillary-join-column') as HTMLInputElement;
+    const ancillaryFormatSelect = document.getElementById('ancillary-format') as HTMLSelectElement;
+    const status = document.getElementById('status') as HTMLElement;
 
-    input.value = "(Ignored:1)Root;";
-    ancillaryJoinColumnInput.value = "isolate";
-    ancillaryFormatSelect.value = "tsv";
-    setInputFiles(newickFileInput, [new File(["(P09:0.1,P12:0.2)Root;"], "tree.nwk")]);
-    setInputFiles(ancillaryFileInput, [new File(["isolate\tcountry\nP09\tUnknown\n"], "isolates.tsv")]);
+    input.value = '(Ignored:1)Root;';
+    ancillaryJoinColumnInput.value = 'isolate';
+    ancillaryFormatSelect.value = 'tsv';
+    setInputFiles(newickFileInput, [new File(['(P09:0.1,P12:0.2)Root;'], 'tree.nwk')]);
+    setInputFiles(ancillaryFileInput, [new File(['isolate\tcountry\nP09\tUnknown\n'], 'isolates.tsv')]);
 
     const fakeWorkbench = makeFakeWorkbench({
-      nodes: [{ id: "p09", x: 0, y: 0 }],
+      nodes: [{ id: 'p09', x: 0, y: 0 }],
       edges: [],
-      viewMeta: { layout: "force", lodLevel: 0 },
+      viewMeta: { layout: 'force', lodLevel: 0 },
     });
 
     const shell = uiShell({
@@ -432,21 +458,20 @@ describe("uiShell", () => {
     shell.mount();
     await shell.renderCurrentInput();
 
-    expect(fakeWorkbench.renderNewick).toHaveBeenCalledWith(
-      "(P09:0.1,P12:0.2)Root;",
-      undefined,
+    expect(fakeWorkbench.loadGraph).toHaveBeenCalledWith(
+      { content: '(P09:0.1,P12:0.2)Root;', datasetName: undefined, format: 'newick' },
       expect.objectContaining({
         ancillaryData: {
-          content: "isolate\tcountry\nP09\tUnknown\n",
-          join_column: "isolate",
-          format: "tsv",
+          content: 'isolate\tcountry\nP09\tUnknown\n',
+          joinColumn: 'isolate',
+          format: 'tsv',
         },
-      }),
+      })
     );
     shell.unmount();
   });
 
-  it("forwards typing data with the typing_data source format", async () => {
+  it('forwards typing data with the typing_data source format', async () => {
     document.body.innerHTML = `
       <form id="render-form"></form>
       <textarea id="newick-input"></textarea>
@@ -459,20 +484,20 @@ describe("uiShell", () => {
       <div id="status"></div>
     `;
 
-    const form = document.getElementById("render-form") as HTMLFormElement;
-    const input = document.getElementById("newick-input") as HTMLTextAreaElement;
-    const newickFileInput = document.getElementById("newick-file") as HTMLInputElement;
-    const typingFileInput = document.getElementById("typing-file") as HTMLInputElement;
-    const sourceFormatSelect = document.getElementById("source-format") as HTMLSelectElement;
-    const status = document.getElementById("status") as HTMLElement;
+    const form = document.getElementById('render-form') as HTMLFormElement;
+    const input = document.getElementById('newick-input') as HTMLTextAreaElement;
+    const newickFileInput = document.getElementById('newick-file') as HTMLInputElement;
+    const typingFileInput = document.getElementById('typing-file') as HTMLInputElement;
+    const sourceFormatSelect = document.getElementById('source-format') as HTMLSelectElement;
+    const status = document.getElementById('status') as HTMLElement;
 
-    sourceFormatSelect.value = "typing_data";
-    setInputFiles(typingFileInput, [new File(["ST\tgene1\tgene2\n1\t1\t2\n"], "profiles.tsv")]);
+    sourceFormatSelect.value = 'typing_data';
+    setInputFiles(typingFileInput, [new File(['ST\tgene1\tgene2\n1\t1\t2\n'], 'profiles.tsv')]);
 
     const fakeWorkbench = makeFakeWorkbench({
-      nodes: [{ id: "1", x: 0, y: 0 }],
+      nodes: [{ id: '1', x: 0, y: 0 }],
       edges: [],
-      viewMeta: { layout: "force", lodLevel: 0 },
+      viewMeta: { layout: 'force', lodLevel: 0 },
     });
 
     const shell = uiShell({
@@ -490,15 +515,14 @@ describe("uiShell", () => {
     shell.mount();
     await shell.renderCurrentInput();
 
-    expect(fakeWorkbench.renderNewick).toHaveBeenCalledWith(
-      "ST\tgene1\tgene2\n1\t1\t2",
-      undefined,
-      expect.objectContaining({ sourceFormat: "typing_data" }),
+    expect(fakeWorkbench.loadGraph).toHaveBeenCalledWith(
+      { content: 'ST\tgene1\tgene2\n1\t1\t2', datasetName: undefined, format: 'typing_data' },
+      expect.objectContaining({})
     );
     shell.unmount();
   });
 
-  it("renders selected metadata field distributions in the wheel", async () => {
+  it('renders selected metadata field distributions in the wheel', async () => {
     document.body.innerHTML = `
       <form id="render-form"></form>
       <textarea id="newick-input"></textarea>
@@ -508,37 +532,37 @@ describe("uiShell", () => {
       <div id="status"></div>
     `;
 
-    const form = document.getElementById("render-form") as HTMLFormElement;
-    const input = document.getElementById("newick-input") as HTMLTextAreaElement;
-    const metadataPieFieldSelect = document.getElementById("metadata-pie-field") as HTMLSelectElement;
-    const ancillaryWheelContainer = document.getElementById("ancillary-wheel") as HTMLElement;
-    const showNodePiesInput = document.getElementById("show-node-pies") as HTMLInputElement;
-    const status = document.getElementById("status") as HTMLElement;
+    const form = document.getElementById('render-form') as HTMLFormElement;
+    const input = document.getElementById('newick-input') as HTMLTextAreaElement;
+    const ancillaryFieldSelect = document.getElementById('metadata-pie-field') as HTMLSelectElement;
+    const ancillaryWheelContainer = document.getElementById('ancillary-wheel') as HTMLElement;
+    const showNodePiesInput = document.getElementById('show-node-pies') as HTMLInputElement;
+    const status = document.getElementById('status') as HTMLElement;
 
-    input.value = "(A,B,C)Root;";
+    input.value = '(A,B,C)Root;';
     const fakeWorkbench = makeFakeWorkbench({
       nodes: [
         {
-          id: "a",
+          id: 'a',
           x: 0,
           y: 0,
-          attributes: { metadata: { country: "Portugal" } },
+          attributes: { annotations: decodeApiMetadata({ country: 'Portugal' }) },
         },
         {
-          id: "b",
+          id: 'b',
           x: 1,
           y: 1,
-          attributes: { metadata: { country: "Portugal" } },
+          attributes: { annotations: decodeApiMetadata({ country: 'Portugal' }) },
         },
         {
-          id: "c",
+          id: 'c',
           x: 2,
           y: 2,
-          attributes: { metadata: { country: "Canada" } },
+          attributes: { annotations: decodeApiMetadata({ country: 'Canada' }) },
         },
       ],
       edges: [],
-      viewMeta: { layout: "force", lodLevel: 0 },
+      viewMeta: { layout: 'force', lodLevel: 0 },
     });
 
     const shell = uiShell({
@@ -546,7 +570,7 @@ describe("uiShell", () => {
       elements: {
         form,
         newickInput: input,
-        metadataPieFieldSelect,
+        ancillaryFieldSelect,
         showNodePiesInput,
         ancillaryWheelContainer,
         status,
@@ -555,37 +579,37 @@ describe("uiShell", () => {
 
     shell.mount();
     await shell.renderCurrentInput();
-    metadataPieFieldSelect.value = "country";
-    metadataPieFieldSelect.dispatchEvent(new Event("change"));
+    ancillaryFieldSelect.value = 'country';
+    ancillaryFieldSelect.dispatchEvent(new Event('change'));
 
     expect(fakeWorkbench.updateVisualMapping).toHaveBeenCalledWith({
-      colorField: "country",
+      colorField: 'country',
       pie: {
         enabled: true,
-        fields: ["country"],
+        fields: ['country'],
       },
     });
-    expect([...metadataPieFieldSelect.options].map((option) => option.value)).toEqual(["", "country"]);
-    expect(ancillaryWheelContainer.textContent).toContain("Portugal");
-    expect(ancillaryWheelContainer.textContent).toContain("Canada");
+    expect([...ancillaryFieldSelect.options].map(option => option.value)).toEqual(['', 'country']);
+    expect(ancillaryWheelContainer.textContent).toContain('Portugal');
+    expect(ancillaryWheelContainer.textContent).toContain('Canada');
     showNodePiesInput.checked = false;
-    showNodePiesInput.dispatchEvent(new Event("change"));
+    showNodePiesInput.dispatchEvent(new Event('change'));
     expect(fakeWorkbench.updateVisualMapping).toHaveBeenLastCalledWith({
-      colorField: "country",
-      pie: { enabled: false, fields: ["country"] },
+      colorField: 'country',
+      pie: { enabled: false, fields: ['country'] },
     });
-    metadataPieFieldSelect.dispatchEvent(new Event("change"));
+    ancillaryFieldSelect.dispatchEvent(new Event('change'));
     expect(fakeWorkbench.updateVisualMapping).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        pie: { enabled: false, fields: ["country"] },
-      }),
+        pie: { enabled: false, fields: ['country'] },
+      })
     );
     showNodePiesInput.checked = true;
-    showNodePiesInput.dispatchEvent(new Event("change"));
+    showNodePiesInput.dispatchEvent(new Event('change'));
     expect(fakeWorkbench.updateVisualMapping).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        pie: { enabled: true, fields: ["country"] },
-      }),
+        pie: { enabled: true, fields: ['country'] },
+      })
     );
     shell.unmount();
   });
@@ -612,74 +636,74 @@ describe("uiShell", () => {
     const graph: PositionedGraph = {
       nodes: [
         {
-          id: "a",
+          id: 'a',
           x: 0,
           y: 0,
           attributes: {
-            metadata: {
-              country: "Portugal;Canada",
+            annotations: decodeApiMetadata({
+              country: 'Portugal;Canada',
               __category_count__country__value__Portugal: 3,
               __category_count__country__value__Canada: 1,
-            },
+            }),
           },
         },
         {
-          id: "b",
+          id: 'b',
           x: 1,
           y: 1,
           attributes: {
-            metadata: {
-              country: "Canada",
+            annotations: decodeApiMetadata({
+              country: 'Canada',
               __category_count__country__value__Canada: 2,
-            },
+            }),
           },
         },
       ],
       edges: [],
-      viewMeta: { layout: "force", lodLevel: 0 },
+      viewMeta: { layout: 'force', lodLevel: 0 },
     };
     const fakeWorkbench = makeFakeWorkbench(graph) as GraphWorkbench & {
       emitNodeClick: (nodeId: string) => void;
     };
-    const newickInput = document.getElementById("newick-input") as HTMLTextAreaElement;
-    newickInput.value = "(A,B)Root;";
-    const ancillaryModeSelect = document.getElementById("ancillary-mode") as HTMLSelectElement;
-    const ancillaryNodeSelect = document.getElementById("ancillary-node") as HTMLSelectElement;
-    const metadataPieFieldSelect = document.getElementById("metadata-pie-field") as HTMLSelectElement;
-    const ancillaryWheelContainer = document.getElementById("ancillary-wheel") as HTMLElement;
-    const ancillarySelectedNodeWheelContainer = document.getElementById("ancillary-selected-node-wheel") as HTMLElement;
+    const newickInput = document.getElementById('newick-input') as HTMLTextAreaElement;
+    newickInput.value = '(A,B)Root;';
+    const ancillaryModeSelect = document.getElementById('ancillary-mode') as HTMLSelectElement;
+    const ancillaryNodeSelect = document.getElementById('ancillary-node') as HTMLSelectElement;
+    const ancillaryFieldSelect = document.getElementById('metadata-pie-field') as HTMLSelectElement;
+    const ancillaryWheelContainer = document.getElementById('ancillary-wheel') as HTMLElement;
+    const ancillarySelectedNodeWheelContainer = document.getElementById('ancillary-selected-node-wheel') as HTMLElement;
 
     const shell = uiShell({
       workbench: fakeWorkbench,
       elements: {
-        form: document.getElementById("render-form") as HTMLFormElement,
+        form: document.getElementById('render-form') as HTMLFormElement,
         newickInput,
         ancillaryModeSelect,
         ancillaryNodeSelect,
-        metadataPieFieldSelect,
+        ancillaryFieldSelect,
         ancillaryWheelContainer,
         ancillarySelectedNodeWheelContainer,
-        status: document.getElementById("status") as HTMLElement,
+        status: document.getElementById('status') as HTMLElement,
       },
     });
 
     shell.mount();
     await shell.renderCurrentInput();
     // Choose the "country" field (PHYLOViZ charts a column only once selected).
-    metadataPieFieldSelect.value = "country";
-    metadataPieFieldSelect.dispatchEvent(new Event("change"));
-    fakeWorkbench.emitNodeClick("a");
+    ancillaryFieldSelect.value = 'country';
+    ancillaryFieldSelect.dispatchEvent(new Event('change'));
+    fakeWorkbench.emitNodeClick('a');
 
     // The overview wheel and its mode selector are left untouched by a click.
-    expect(ancillaryModeSelect.value).toBe("global");
+    expect(ancillaryModeSelect.value).toBe('global');
     // The clicked node's distribution appears in the dedicated second panel.
-    expect(ancillarySelectedNodeWheelContainer.textContent).toContain("Portugal");
-    expect(ancillarySelectedNodeWheelContainer.textContent).toContain("75.0%");
-    expect(ancillarySelectedNodeWheelContainer.textContent).toContain("Ancillary distribution across 1 node");
+    expect(ancillarySelectedNodeWheelContainer.textContent).toContain('Portugal');
+    expect(ancillarySelectedNodeWheelContainer.textContent).toContain('75.0%');
+    expect(ancillarySelectedNodeWheelContainer.textContent).toContain('Ancillary distribution across 1 node');
     shell.unmount();
   });
 
-  it("toggles multiple pie fields with normal option clicks", async () => {
+  it('toggles multiple pie fields with normal option clicks', async () => {
     document.body.innerHTML = `
       <form id="render-form"></form>
       <textarea id="newick-input"></textarea>
@@ -689,38 +713,38 @@ describe("uiShell", () => {
       <div id="status"></div>
     `;
 
-    const form = document.getElementById("render-form") as HTMLFormElement;
-    const input = document.getElementById("newick-input") as HTMLTextAreaElement;
-    const metadataPieFieldSelect = document.getElementById("metadata-pie-field") as HTMLSelectElement;
-    const ancillaryWheelContainer = document.getElementById("ancillary-wheel") as HTMLElement;
-    const paletteControlsContainer = document.getElementById("palette-controls") as HTMLElement;
-    const status = document.getElementById("status") as HTMLElement;
+    const form = document.getElementById('render-form') as HTMLFormElement;
+    const input = document.getElementById('newick-input') as HTMLTextAreaElement;
+    const ancillaryFieldSelect = document.getElementById('metadata-pie-field') as HTMLSelectElement;
+    const ancillaryWheelContainer = document.getElementById('ancillary-wheel') as HTMLElement;
+    const paletteControlsContainer = document.getElementById('palette-controls') as HTMLElement;
+    const status = document.getElementById('status') as HTMLElement;
 
-    input.value = "(A,B)Root;";
+    input.value = '(A,B)Root;';
     const fakeWorkbench = makeFakeWorkbench({
       nodes: [
         {
-          id: "a",
+          id: 'a',
           x: 0,
           y: 0,
-          attributes: { metadata: { country: "Portugal", source: "blood" } },
+          attributes: { annotations: decodeApiMetadata({ country: 'Portugal', source: 'blood' }) },
         },
         {
-          id: "b",
+          id: 'b',
           x: 1,
           y: 1,
-          attributes: { metadata: { country: "Canada", source: "csf" } },
+          attributes: { annotations: decodeApiMetadata({ country: 'Canada', source: 'csf' }) },
         },
       ],
       edges: [],
-      viewMeta: { layout: "force", lodLevel: 0 },
+      viewMeta: { layout: 'force', lodLevel: 0 },
     });
     const shell = uiShell({
       workbench: fakeWorkbench,
       elements: {
         form,
         newickInput: input,
-        metadataPieFieldSelect,
+        ancillaryFieldSelect,
         ancillaryWheelContainer,
         paletteControlsContainer,
         status,
@@ -729,28 +753,28 @@ describe("uiShell", () => {
 
     shell.mount();
     await shell.renderCurrentInput();
-    const countryOption = [...metadataPieFieldSelect.options].find(
-      (option) => option.value === "country",
+    const countryOption = [...ancillaryFieldSelect.options].find(
+      option => option.value === 'country'
     ) as HTMLOptionElement;
-    countryOption.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
-    const sourceOption = [...metadataPieFieldSelect.options].find(
-      (option) => option.value === "source",
+    countryOption.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+    const sourceOption = [...ancillaryFieldSelect.options].find(
+      option => option.value === 'source'
     ) as HTMLOptionElement;
-    sourceOption.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+    sourceOption.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
 
-    const selectedValues = [...metadataPieFieldSelect.selectedOptions].map((option) => option.value);
-    expect(selectedValues).toEqual(["country", "source"]);
+    const selectedValues = [...ancillaryFieldSelect.selectedOptions].map(option => option.value);
+    expect(selectedValues).toEqual(['country', 'source']);
     expect(fakeWorkbench.updateVisualMapping).toHaveBeenLastCalledWith({
-      colorField: "country",
+      colorField: 'country',
       pie: {
         enabled: true,
-        fields: ["country", "source"],
+        fields: ['country', 'source'],
       },
     });
     shell.unmount();
   });
 
-  it("forwards profile size controls to the visual mapping", async () => {
+  it('forwards profile size controls to the visual mapping', async () => {
     document.body.innerHTML = `
       <form id="render-form"></form>
       <textarea id="newick-input"></textarea>
@@ -762,21 +786,21 @@ describe("uiShell", () => {
       <div id="status"></div>
     `;
 
-    const form = document.getElementById("render-form") as HTMLFormElement;
-    const input = document.getElementById("newick-input") as HTMLTextAreaElement;
-    const metadataSizeFieldInput = document.getElementById("metadata-size-field") as HTMLInputElement;
-    const metadataSizeScaleSelect = document.getElementById("metadata-size-scale") as HTMLSelectElement;
-    const status = document.getElementById("status") as HTMLElement;
+    const form = document.getElementById('render-form') as HTMLFormElement;
+    const input = document.getElementById('newick-input') as HTMLTextAreaElement;
+    const ancillarySizeFieldInput = document.getElementById('metadata-size-field') as HTMLInputElement;
+    const ancillarySizeScaleSelect = document.getElementById('metadata-size-scale') as HTMLSelectElement;
+    const status = document.getElementById('status') as HTMLElement;
 
-    input.value = "(A,B)Root;";
+    input.value = '(A,B)Root;';
     const fakeWorkbench = makeFakeWorkbench();
     const shell = uiShell({
       workbench: fakeWorkbench,
       elements: {
         form,
         newickInput: input,
-        metadataSizeFieldInput,
-        metadataSizeScaleSelect,
+        ancillarySizeFieldInput,
+        ancillarySizeScaleSelect,
         status,
       },
     });
@@ -784,22 +808,21 @@ describe("uiShell", () => {
     shell.mount();
     await shell.renderCurrentInput();
 
-    expect(fakeWorkbench.renderNewick).toHaveBeenCalledWith(
-      "(A,B)Root;",
-      undefined,
+    expect(fakeWorkbench.loadGraph).toHaveBeenCalledWith(
+      { content: '(A,B)Root;', datasetName: undefined, format: 'newick' },
       expect.objectContaining({
         visualMapping: {
           size: {
-            field: "profile_count",
-            scale: "log",
+            field: 'profile_count',
+            scale: 'log',
           },
         },
-      }),
+      })
     );
     shell.unmount();
   });
 
-  it("forwards category color controls through the visual mapping", async () => {
+  it('forwards category color controls through the visual mapping', async () => {
     document.body.innerHTML = `
       <form id="render-form"></form>
       <textarea id="newick-input"></textarea>
@@ -810,45 +833,45 @@ describe("uiShell", () => {
       <div id="status"></div>
     `;
 
-    const form = document.getElementById("render-form") as HTMLFormElement;
-    const input = document.getElementById("newick-input") as HTMLTextAreaElement;
-    const metadataPieFieldSelect = document.getElementById("metadata-pie-field") as HTMLSelectElement;
-    const paletteControlsContainer = document.getElementById("palette-controls") as HTMLElement;
-    const paletteLoadInput = document.getElementById("palette-load-input") as HTMLInputElement;
-    const paletteSaveButton = document.getElementById("palette-save-button") as HTMLButtonElement;
-    const status = document.getElementById("status") as HTMLElement;
+    const form = document.getElementById('render-form') as HTMLFormElement;
+    const input = document.getElementById('newick-input') as HTMLTextAreaElement;
+    const ancillaryFieldSelect = document.getElementById('metadata-pie-field') as HTMLSelectElement;
+    const paletteControlsContainer = document.getElementById('palette-controls') as HTMLElement;
+    const paletteLoadInput = document.getElementById('palette-load-input') as HTMLInputElement;
+    const paletteSaveButton = document.getElementById('palette-save-button') as HTMLButtonElement;
+    const status = document.getElementById('status') as HTMLElement;
 
-    input.value = "(A,B)Root;";
+    input.value = '(A,B)Root;';
     const fakeWorkbench = makeFakeWorkbench({
       nodes: [
         {
-          id: "a",
+          id: 'a',
           x: 0,
           y: 0,
-          attributes: { metadata: { country: "Portugal" } },
+          attributes: { annotations: decodeApiMetadata({ country: 'Portugal' }) },
         },
         {
-          id: "b",
+          id: 'b',
           x: 1,
           y: 1,
-          attributes: { metadata: { country: "Canada" } },
+          attributes: { annotations: decodeApiMetadata({ country: 'Canada' }) },
         },
         {
-          id: "c",
+          id: 'c',
           x: 2,
           y: 2,
-          attributes: { metadata: { country: "Portugal" } },
+          attributes: { annotations: decodeApiMetadata({ country: 'Portugal' }) },
         },
       ],
       edges: [],
-      viewMeta: { layout: "force", lodLevel: 0 },
+      viewMeta: { layout: 'force', lodLevel: 0 },
     });
     const shell = uiShell({
       workbench: fakeWorkbench,
       elements: {
         form,
         newickInput: input,
-        metadataPieFieldSelect,
+        ancillaryFieldSelect,
         paletteControlsContainer,
         paletteLoadInput,
         paletteSaveButton,
@@ -858,64 +881,64 @@ describe("uiShell", () => {
 
     shell.mount();
     await shell.renderCurrentInput();
-    metadataPieFieldSelect.value = "country";
-    metadataPieFieldSelect.dispatchEvent(new Event("change"));
+    ancillaryFieldSelect.value = 'country';
+    ancillaryFieldSelect.dispatchEvent(new Event('change'));
 
     const portugalColor = paletteControlsContainer.querySelector<HTMLInputElement>("[data-category-color='Portugal']");
     expect(portugalColor).not.toBeNull();
-    portugalColor!.value = "#123456";
-    portugalColor!.dispatchEvent(new Event("input", { bubbles: true }));
+    portugalColor!.value = '#123456';
+    portugalColor!.dispatchEvent(new Event('input', { bubbles: true }));
 
     expect(fakeWorkbench.updateVisualMapping).toHaveBeenLastCalledWith(
       expect.objectContaining({
         pie: expect.objectContaining({
           enabled: true,
-          fields: ["country"],
+          fields: ['country'],
           categoryColors: expect.objectContaining({
-            Portugal: "#123456",
+            Portugal: '#123456',
           }),
         }),
-      }),
+      })
     );
 
-    setInputFiles(paletteLoadInput, [new File(["18,52,86\n171,205,239\n"], "colors.palette")]);
-    paletteLoadInput.dispatchEvent(new Event("change"));
+    setInputFiles(paletteLoadInput, [new File(['18,52,86\n171,205,239\n'], 'colors.palette')]);
+    paletteLoadInput.dispatchEvent(new Event('change'));
     await vi.waitFor(() => {
       expect(fakeWorkbench.updateVisualMapping).toHaveBeenLastCalledWith(
         expect.objectContaining({
           pie: expect.objectContaining({
             categoryColors: expect.objectContaining({
-              Portugal: "#123456",
-              Canada: "#abcdef",
+              Portugal: '#123456',
+              Canada: '#abcdef',
             }),
           }),
-        }),
+        })
       );
     });
 
     if (!URL.createObjectURL) {
-      Object.defineProperty(URL, "createObjectURL", {
+      Object.defineProperty(URL, 'createObjectURL', {
         configurable: true,
-        value: () => "blob:palette",
+        value: () => 'blob:palette',
       });
     }
     if (!URL.revokeObjectURL) {
-      Object.defineProperty(URL, "revokeObjectURL", {
+      Object.defineProperty(URL, 'revokeObjectURL', {
         configurable: true,
         value: () => undefined,
       });
     }
 
-    const createObjectUrl = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:palette");
-    const revokeObjectUrl = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
-    const clickAnchor = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+    const createObjectUrl = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:palette');
+    const revokeObjectUrl = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+    const clickAnchor = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
 
     paletteSaveButton.click();
 
     const savedBlob = createObjectUrl.mock.calls[0]?.[0] as Blob;
-    await expect(savedBlob.text()).resolves.toBe("18,52,86\n171,205,239");
+    await expect(savedBlob.text()).resolves.toBe('18,52,86\n171,205,239');
     expect(clickAnchor).toHaveBeenCalled();
-    expect(revokeObjectUrl).toHaveBeenCalledWith("blob:palette");
+    expect(revokeObjectUrl).toHaveBeenCalledWith('blob:palette');
 
     createObjectUrl.mockRestore();
     revokeObjectUrl.mockRestore();
@@ -923,7 +946,7 @@ describe("uiShell", () => {
     shell.unmount();
   });
 
-  it("forwards display option selector changes to the workbench", () => {
+  it('forwards display option selector changes to the workbench', () => {
     document.body.innerHTML = `
       <form id="render-form"></form>
       <textarea id="newick-input"></textarea>
@@ -935,10 +958,10 @@ describe("uiShell", () => {
       <div id="status"></div>
     `;
 
-    const form = document.getElementById("render-form") as HTMLFormElement;
-    const input = document.getElementById("newick-input") as HTMLTextAreaElement;
-    const displayOptionsSelect = document.getElementById("display-options") as HTMLSelectElement;
-    const status = document.getElementById("status") as HTMLElement;
+    const form = document.getElementById('render-form') as HTMLFormElement;
+    const input = document.getElementById('newick-input') as HTMLTextAreaElement;
+    const displayOptionsSelect = document.getElementById('display-options') as HTMLSelectElement;
+    const status = document.getElementById('status') as HTMLElement;
 
     const fakeWorkbench = makeFakeWorkbench();
     const shell = uiShell({
@@ -954,7 +977,7 @@ describe("uiShell", () => {
     shell.mount();
     displayOptionsSelect.options[1]!.selected = true;
     displayOptionsSelect.options[2]!.selected = true;
-    displayOptionsSelect.dispatchEvent(new Event("change"));
+    displayOptionsSelect.dispatchEvent(new Event('change'));
 
     expect(fakeWorkbench.updateDisplayOptions).toHaveBeenLastCalledWith({
       nodeLabels: true,
@@ -964,7 +987,7 @@ describe("uiShell", () => {
     shell.unmount();
   });
 
-  it("toggles display selector options independently on click", () => {
+  it('toggles display selector options independently on click', () => {
     document.body.innerHTML = `
       <form id="render-form"></form>
       <textarea id="newick-input"></textarea>
@@ -976,10 +999,10 @@ describe("uiShell", () => {
       <div id="status"></div>
     `;
 
-    const form = document.getElementById("render-form") as HTMLFormElement;
-    const input = document.getElementById("newick-input") as HTMLTextAreaElement;
-    const displayOptionsSelect = document.getElementById("display-options") as HTMLSelectElement;
-    const status = document.getElementById("status") as HTMLElement;
+    const form = document.getElementById('render-form') as HTMLFormElement;
+    const input = document.getElementById('newick-input') as HTMLTextAreaElement;
+    const displayOptionsSelect = document.getElementById('display-options') as HTMLSelectElement;
+    const status = document.getElementById('status') as HTMLElement;
 
     const fakeWorkbench = makeFakeWorkbench();
     const shell = uiShell({
@@ -993,8 +1016,8 @@ describe("uiShell", () => {
     });
 
     shell.mount();
-    displayOptionsSelect.options[1]!.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
-    displayOptionsSelect.options[2]!.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+    displayOptionsSelect.options[1]!.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+    displayOptionsSelect.options[2]!.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
 
     expect(displayOptionsSelect.options[0]!.selected).toBe(true);
     expect(displayOptionsSelect.options[1]!.selected).toBe(true);
@@ -1005,7 +1028,7 @@ describe("uiShell", () => {
       distanceWeightedEdges: true,
     });
 
-    displayOptionsSelect.options[1]!.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+    displayOptionsSelect.options[1]!.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
 
     expect(displayOptionsSelect.options[0]!.selected).toBe(true);
     expect(displayOptionsSelect.options[1]!.selected).toBe(false);
@@ -1019,7 +1042,7 @@ describe("uiShell", () => {
     shell.unmount();
   });
 
-  it("allows node labels to be disabled when no other display option is selected", () => {
+  it('allows node labels to be disabled when no other display option is selected', () => {
     document.body.innerHTML = `
       <form id="render-form"></form>
       <textarea id="newick-input"></textarea>
@@ -1031,20 +1054,20 @@ describe("uiShell", () => {
       <div id="status"></div>
     `;
 
-    const displayOptionsSelect = document.getElementById("display-options") as HTMLSelectElement;
+    const displayOptionsSelect = document.getElementById('display-options') as HTMLSelectElement;
     const workbench = makeFakeWorkbench();
     const shell = uiShell({
       workbench,
       elements: {
-        form: document.getElementById("render-form") as HTMLFormElement,
-        newickInput: document.getElementById("newick-input") as HTMLTextAreaElement,
+        form: document.getElementById('render-form') as HTMLFormElement,
+        newickInput: document.getElementById('newick-input') as HTMLTextAreaElement,
         displayOptionsSelect,
-        status: document.getElementById("status") as HTMLElement,
+        status: document.getElementById('status') as HTMLElement,
       },
     });
 
     shell.mount();
-    displayOptionsSelect.options[0]!.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+    displayOptionsSelect.options[0]!.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
 
     expect(displayOptionsSelect.options[0]!.selected).toBe(false);
     expect(workbench.updateDisplayOptions).toHaveBeenLastCalledWith({
@@ -1055,7 +1078,7 @@ describe("uiShell", () => {
     shell.unmount();
   });
 
-  it("toggles LoD playback controls for rendered LoD graphs", async () => {
+  it('toggles LoD playback controls for rendered LoD graphs', async () => {
     document.body.innerHTML = `
       <form id="render-form"></form>
       <textarea id="newick-input"></textarea>
@@ -1064,18 +1087,18 @@ describe("uiShell", () => {
       <div id="status"></div>
     `;
 
-    const form = document.getElementById("render-form") as HTMLFormElement;
-    const input = document.getElementById("newick-input") as HTMLTextAreaElement;
-    const lodPlayButton = document.getElementById("lod-play-button") as HTMLButtonElement;
-    const lodPauseButton = document.getElementById("lod-pause-button") as HTMLButtonElement;
-    const status = document.getElementById("status") as HTMLElement;
+    const form = document.getElementById('render-form') as HTMLFormElement;
+    const input = document.getElementById('newick-input') as HTMLTextAreaElement;
+    const lodPlayButton = document.getElementById('lod-play-button') as HTMLButtonElement;
+    const lodPauseButton = document.getElementById('lod-pause-button') as HTMLButtonElement;
+    const status = document.getElementById('status') as HTMLElement;
 
-    input.value = "(A,B)Root;";
+    input.value = '(A,B)Root;';
     const fakeWorkbench = makeFakeWorkbench({
-      nodes: [{ id: "root", x: 0, y: 0 }],
+      nodes: [{ id: 'root', x: 0, y: 0 }],
       edges: [],
       viewMeta: {
-        layout: "server",
+        layout: 'server',
         lodLevel: 1,
         sliceNodeCount: 1,
       },
@@ -1103,7 +1126,7 @@ describe("uiShell", () => {
     expect(fakeWorkbench.setLodRefreshPaused).toHaveBeenLastCalledWith(true);
     expect(lodPlayButton.disabled).toBe(false);
     expect(lodPauseButton.disabled).toBe(true);
-    expect(status.textContent).toContain("LoD paused");
+    expect(status.textContent).toContain('LoD paused');
 
     lodPlayButton.click();
     await Promise.resolve();
@@ -1115,7 +1138,7 @@ describe("uiShell", () => {
     shell.unmount();
   });
 
-  it("searches rendered datasets and focuses selected results", async () => {
+  it('searches rendered datasets and focuses selected results', async () => {
     document.body.innerHTML = `
       <form id="render-form"></form>
       <textarea id="newick-input"></textarea>
@@ -1133,20 +1156,20 @@ describe("uiShell", () => {
       <div id="status"></div>
     `;
 
-    const form = document.getElementById("render-form") as HTMLFormElement;
-    const input = document.getElementById("newick-input") as HTMLTextAreaElement;
-    const searchInput = document.getElementById("search-input") as HTMLInputElement;
-    const searchButton = document.getElementById("search-button") as HTMLButtonElement;
-    const searchResults = document.getElementById("search-results") as HTMLElement;
-    const ancillaryModeSelect = document.getElementById("ancillary-mode") as HTMLSelectElement;
-    const ancillaryNodeSelect = document.getElementById("ancillary-node") as HTMLSelectElement;
-    const metadataPieFieldSelect = document.getElementById("metadata-pie-field") as HTMLSelectElement;
-    const ancillaryWheelContainer = document.getElementById("ancillary-wheel") as HTMLElement;
-    const ancillarySelectedNodeWheelContainer = document.getElementById("ancillary-selected-node-wheel") as HTMLElement;
-    const status = document.getElementById("status") as HTMLElement;
+    const form = document.getElementById('render-form') as HTMLFormElement;
+    const input = document.getElementById('newick-input') as HTMLTextAreaElement;
+    const searchInput = document.getElementById('search-input') as HTMLInputElement;
+    const searchButton = document.getElementById('search-button') as HTMLButtonElement;
+    const searchResults = document.getElementById('search-results') as HTMLElement;
+    const ancillaryModeSelect = document.getElementById('ancillary-mode') as HTMLSelectElement;
+    const ancillaryNodeSelect = document.getElementById('ancillary-node') as HTMLSelectElement;
+    const ancillaryFieldSelect = document.getElementById('metadata-pie-field') as HTMLSelectElement;
+    const ancillaryWheelContainer = document.getElementById('ancillary-wheel') as HTMLElement;
+    const ancillarySelectedNodeWheelContainer = document.getElementById('ancillary-selected-node-wheel') as HTMLElement;
+    const status = document.getElementById('status') as HTMLElement;
 
-    input.value = "(A,B)Root;";
-    searchInput.value = "port";
+    input.value = '(A,B)Root;';
+    searchInput.value = 'port';
 
     // Node "a" carries a pre-aggregated country distribution as the server's
     // __category_count__ metadata keys; with the "country" field selected, its
@@ -1154,20 +1177,20 @@ describe("uiShell", () => {
     const fakeWorkbench = makeFakeWorkbench({
       nodes: [
         {
-          id: "a",
+          id: 'a',
           x: 0,
           y: 0,
           attributes: {
-            metadata: {
-              country: "Portugal;Canada",
+            annotations: decodeApiMetadata({
+              country: 'Portugal;Canada',
               __category_count__country__value__Portugal: 3,
               __category_count__country__value__Canada: 1,
-            },
+            }),
           },
         },
       ],
       edges: [],
-      viewMeta: { layout: "force", lodLevel: 0 },
+      viewMeta: { layout: 'force', lodLevel: 0 },
     });
 
     const shell = uiShell({
@@ -1180,7 +1203,7 @@ describe("uiShell", () => {
         searchResults,
         ancillaryModeSelect,
         ancillaryNodeSelect,
-        metadataPieFieldSelect,
+        ancillaryFieldSelect,
         ancillaryWheelContainer,
         ancillarySelectedNodeWheelContainer,
         status,
@@ -1191,38 +1214,38 @@ describe("uiShell", () => {
     searchButton.click();
     await Promise.resolve();
 
-    const resultButton = searchResults.querySelector(".search-result") as HTMLButtonElement;
+    const resultButton = searchResults.querySelector('.search-result') as HTMLButtonElement;
     expect(fakeWorkbench.searchNodes).toHaveBeenCalledWith({
-      query: "port",
+      query: 'port',
       limit: 25,
     });
-    expect(resultButton.textContent).toBe("a");
+    expect(resultButton.textContent).toBe('a');
 
     // Focusing renders the graph, which populates the pie-field options; select
     // the "country" column (PHYLOViZ charts a field only once chosen) and focus
     // again so the clicked node's wheel resolves to its country distribution.
     resultButton.click();
     await Promise.resolve();
-    metadataPieFieldSelect.value = "country";
-    metadataPieFieldSelect.dispatchEvent(new Event("change"));
+    ancillaryFieldSelect.value = 'country';
+    ancillaryFieldSelect.dispatchEvent(new Event('change'));
     resultButton.click();
     await Promise.resolve();
 
-    expect(fakeWorkbench.focusNode).toHaveBeenCalledWith("a", {
+    expect(fakeWorkbench.focusNode).toHaveBeenCalledWith('a', {
       x: 12,
       y: 34,
-      clusterId: "cluster-a",
+      clusterId: toClusterId('cluster-a'),
     });
     // Focusing a search result populates the selected-node panel, not the
     // overview wheel or its mode selector.
-    expect(ancillaryModeSelect.value).toBe("global");
-    expect(ancillarySelectedNodeWheelContainer.textContent).toContain("Portugal");
-    expect(ancillarySelectedNodeWheelContainer.textContent).toContain("75.0%");
-    expect(status.textContent).toBe("Focused a");
+    expect(ancillaryModeSelect.value).toBe('global');
+    expect(ancillarySelectedNodeWheelContainer.textContent).toContain('Portugal');
+    expect(ancillarySelectedNodeWheelContainer.textContent).toContain('75.0%');
+    expect(status.textContent).toBe('Focused a');
     shell.unmount();
   });
 
-  it("enables region-select mode via the toggle", () => {
+  it('enables region-select mode via the toggle', () => {
     document.body.innerHTML = `
       <form id="render-form"></form>
       <textarea id="newick-input"></textarea>
@@ -1231,11 +1254,11 @@ describe("uiShell", () => {
       <div id="status"></div>
     `;
 
-    const form = document.getElementById("render-form") as HTMLFormElement;
-    const input = document.getElementById("newick-input") as HTMLTextAreaElement;
-    const regionSelectToggle = document.getElementById("region-select-toggle") as HTMLButtonElement;
-    const regionSelectionPanel = document.getElementById("region-selection-panel") as HTMLElement;
-    const status = document.getElementById("status") as HTMLElement;
+    const form = document.getElementById('render-form') as HTMLFormElement;
+    const input = document.getElementById('newick-input') as HTMLTextAreaElement;
+    const regionSelectToggle = document.getElementById('region-select-toggle') as HTMLButtonElement;
+    const regionSelectionPanel = document.getElementById('region-selection-panel') as HTMLElement;
+    const status = document.getElementById('status') as HTMLElement;
 
     const fakeWorkbench = makeFakeWorkbench();
     const shell = uiShell({
@@ -1251,23 +1274,23 @@ describe("uiShell", () => {
 
     shell.mount();
     // Starts disabled with the empty prompt.
-    expect(regionSelectToggle.getAttribute("aria-pressed")).toBe("false");
-    expect(regionSelectionPanel.textContent).toContain("Shift+drag");
+    expect(regionSelectToggle.getAttribute('aria-pressed')).toBe('false');
+    expect(regionSelectionPanel.textContent).toContain('Shift+drag');
 
     regionSelectToggle.click();
     expect(fakeWorkbench.setRegionSelectModeEnabled).toHaveBeenLastCalledWith(true);
-    expect(regionSelectToggle.getAttribute("aria-pressed")).toBe("true");
+    expect(regionSelectToggle.getAttribute('aria-pressed')).toBe('true');
 
     // Toggling off disables the mode and clears any selection.
     regionSelectToggle.click();
     expect(fakeWorkbench.setRegionSelectModeEnabled).toHaveBeenLastCalledWith(false);
     expect(fakeWorkbench.clearRegionSelection).toHaveBeenCalled();
-    expect(regionSelectToggle.getAttribute("aria-pressed")).toBe("false");
+    expect(regionSelectToggle.getAttribute('aria-pressed')).toBe('false');
 
     shell.unmount();
   });
 
-  it("populates the region panel with aggregated metadata on selection", async () => {
+  it('populates the region panel with aggregated metadata on selection', async () => {
     document.body.innerHTML = `
       <form id="render-form"></form>
       <textarea id="newick-input"></textarea>
@@ -1276,11 +1299,11 @@ describe("uiShell", () => {
       <div id="status"></div>
     `;
 
-    const form = document.getElementById("render-form") as HTMLFormElement;
-    const input = document.getElementById("newick-input") as HTMLTextAreaElement;
-    const regionSelectToggle = document.getElementById("region-select-toggle") as HTMLButtonElement;
-    const regionSelectionPanel = document.getElementById("region-selection-panel") as HTMLElement;
-    const status = document.getElementById("status") as HTMLElement;
+    const form = document.getElementById('render-form') as HTMLFormElement;
+    const input = document.getElementById('newick-input') as HTMLTextAreaElement;
+    const regionSelectToggle = document.getElementById('region-select-toggle') as HTMLButtonElement;
+    const regionSelectionPanel = document.getElementById('region-selection-panel') as HTMLElement;
+    const status = document.getElementById('status') as HTMLElement;
 
     const fakeWorkbench = makeFakeWorkbench() as GraphWorkbench & {
       emitRegionSelected: (bounds: { xmin: number; xmax: number; ymin: number; ymax: number }) => void;
@@ -1304,7 +1327,7 @@ describe("uiShell", () => {
       ymax: 5,
     });
     await vi.waitFor(() => {
-      expect(regionSelectionPanel.textContent).toContain("2 nodes selected");
+      expect(regionSelectionPanel.textContent).toContain('2 nodes selected');
     });
 
     expect(fakeWorkbench.selectRegion).toHaveBeenCalledWith({
@@ -1314,32 +1337,32 @@ describe("uiShell", () => {
       ymax: 5,
     });
     // Server-aggregated field/value pairs are tabulated.
-    expect(regionSelectionPanel.textContent).toContain("country");
-    expect(regionSelectionPanel.textContent).toContain("Portugal");
-    expect(regionSelectionPanel.textContent).toContain("score");
-    expect(status.textContent).toBe("Region selected: 2 nodes");
+    expect(regionSelectionPanel.textContent).toContain('country');
+    expect(regionSelectionPanel.textContent).toContain('Portugal');
+    expect(regionSelectionPanel.textContent).toContain('score');
+    expect(status.textContent).toBe('Region selected: 2 nodes');
 
     shell.unmount();
   });
 });
 
 function setInputFiles(input: HTMLInputElement, files: File[]): void {
-  Object.defineProperty(input, "files", {
+  Object.defineProperty(input, 'files', {
     configurable: true,
     value: files,
   });
 }
 
-it("applies an uploaded table to the current tree without submitting the render form", async () => {
+it('applies an uploaded table to the current tree without submitting the render form', async () => {
   document.body.innerHTML = `<form></form><textarea>(A,B)Root;</textarea><input id="file" type="file" /><input id="join" value="id" /><button type="button"></button><div id="status"></div>`;
-  const form = document.querySelector("form")!;
-  const newickInput = document.querySelector("textarea")!;
-  const ancillaryFileInput = document.querySelector<HTMLInputElement>("#file")!;
-  const ancillaryJoinColumnInput = document.querySelector<HTMLInputElement>("#join")!;
-  const applyAncillaryButton = document.querySelector("button")!;
-  const status = document.querySelector<HTMLElement>("#status")!;
+  const form = document.querySelector('form')!;
+  const newickInput = document.querySelector('textarea')!;
+  const ancillaryFileInput = document.querySelector<HTMLInputElement>('#file')!;
+  const ancillaryJoinColumnInput = document.querySelector<HTMLInputElement>('#join')!;
+  const applyAncillaryButton = document.querySelector('button')!;
+  const status = document.querySelector<HTMLElement>('#status')!;
   const workbench = makeFakeWorkbench();
-  workbench.applyAncillaryData = vi.fn().mockResolvedValue({ matched_node_count: 2, warnings: [] });
+  workbench.applyAncillaryData = vi.fn().mockResolvedValue({ matchedNodeCount: 2, warnings: [] });
   const shell = uiShell({
     workbench,
     elements: { form, newickInput, ancillaryFileInput, ancillaryJoinColumnInput, applyAncillaryButton, status },
@@ -1348,40 +1371,126 @@ it("applies an uploaded table to the current tree without submitting the render 
   expect(applyAncillaryButton.disabled).toBe(true);
   await shell.renderCurrentInput();
   expect(applyAncillaryButton.disabled).toBe(false);
-  const content = "id,country\nA,PT\nB,CA";
-  setInputFiles(ancillaryFileInput, [new File([content], "metadata.csv")]);
+  const content = 'id,country\nA,PT\nB,CA';
+  setInputFiles(ancillaryFileInput, [new File([content], 'metadata.csv')]);
   applyAncillaryButton.click();
   expect(applyAncillaryButton.disabled).toBe(true);
-  await vi.waitFor(() => expect(status.textContent).toContain("Applied ancillary data to 2 nodes"));
-  expect(workbench.applyAncillaryData).toHaveBeenCalledWith({ content, join_column: "id", format: "csv" });
-  expect(workbench.renderNewick).toHaveBeenCalledTimes(1);
+  await vi.waitFor(() => expect(status.textContent).toContain('Applied ancillary data to 2 nodes'));
+  expect(workbench.applyAncillaryData).toHaveBeenCalledWith({ content, joinColumn: 'id', format: 'csv' });
+  expect(workbench.loadGraph).toHaveBeenCalledTimes(1);
   expect(applyAncillaryButton.disabled).toBe(false);
   shell.unmount();
 });
 
-it("enables arrangement-root selection and clears it for the next dataset", async () => {
+it('enables arrangement-root selection and clears it for the next dataset', async () => {
   const workbench = makeFakeWorkbench();
   workbench.setDragSelection = vi.fn();
-  const branchRootButton = document.createElement("button");
+  const branchRootButton = document.createElement('button');
   branchRootButton.disabled = true;
-  const input = document.createElement("textarea");
-  input.value = "(A,B)Root;";
+  const input = document.createElement('textarea');
+  input.value = '(A,B)Root;';
   const shell = uiShell({
     workbench,
     elements: {
-      form: document.createElement("form"),
+      form: document.createElement('form'),
       newickInput: input,
-      status: document.createElement("div"),
+      status: document.createElement('div'),
       branchRootButton,
     },
   });
   shell.mount();
   const select = vi.mocked(workbench.setNodeClickedHandler).mock.calls[0][0]!;
-  select({ nodeId: "a" });
+  select({ nodeId: 'a' });
   expect(branchRootButton.disabled).toBe(false);
   branchRootButton.click();
-  expect(workbench.setDragSelection).toHaveBeenCalledWith({ kind: "branch", rootId: "a" });
+  expect(workbench.setDragSelection).toHaveBeenCalledWith({ kind: 'branch', rootId: 'a' });
   await shell.renderCurrentInput();
   expect(branchRootButton.disabled).toBe(true);
   shell.unmount();
+});
+
+it('ignores an older source-file read after a newer input has loaded', async () => {
+  const workbench = makeFakeWorkbench();
+  const input = document.createElement('textarea');
+  const fileInput = document.createElement('input');
+  const pending = deferred<string>();
+  const file = new File(['old'], 'old.nwk');
+  vi.spyOn(file, 'text').mockReturnValue(pending.promise);
+  setInputFiles(fileInput, [file]);
+  const status = document.createElement('div');
+  const shell = uiShell({
+    workbench,
+    elements: { form: document.createElement('form'), newickInput: input, newickFileInput: fileInput, status },
+  });
+  shell.mount();
+  const first = shell.renderCurrentInput();
+  setInputFiles(fileInput, []);
+  input.value = '(NewA,NewB)NewRoot;';
+  await shell.renderCurrentInput();
+  const newestStatus = status.textContent;
+  pending.resolve('(OldA,OldB)OldRoot;');
+  await first;
+  expect(workbench.loadGraph).toHaveBeenCalledTimes(1);
+  expect(workbench.loadGraph).toHaveBeenCalledWith(
+    expect.objectContaining({ content: input.value }),
+    expect.anything()
+  );
+  expect(status.textContent).toBe(newestStatus);
+  shell.unmount();
+});
+
+it('ignores a pending file read and removes form handlers after unmount', async () => {
+  const workbench = makeFakeWorkbench();
+  const form = document.createElement('form');
+  const input = document.createElement('textarea');
+  const fileInput = document.createElement('input');
+  const status = document.createElement('div');
+  const pending = deferred<string>();
+  const file = new File(['old'], 'old.nwk');
+  vi.spyOn(file, 'text').mockReturnValue(pending.promise);
+  setInputFiles(fileInput, [file]);
+  const shell = uiShell({ workbench, elements: { form, newickInput: input, newickFileInput: fileInput, status } });
+  shell.mount();
+  const load = shell.renderCurrentInput();
+  shell.unmount();
+  const previousStatus = status.textContent;
+  pending.resolve('(A,B)Root;');
+  await load;
+  expect(workbench.loadGraph).not.toHaveBeenCalled();
+  expect(status.textContent).toBe(previousStatus);
+  setInputFiles(fileInput, []);
+  input.value = '(NewA,NewB)NewRoot;';
+  const submit = new Event('submit', { cancelable: true });
+  form.dispatchEvent(submit);
+  expect(submit.defaultPrevented).toBe(false);
+  expect(workbench.loadGraph).not.toHaveBeenCalled();
+});
+
+it('releases ancillary field handlers when the shell is unmounted', async () => {
+  const workbench = makeFakeWorkbench({
+    nodes: [{ id: 'a', x: 0, y: 0, attributes: { metadata: { country: 'Portugal' } } }],
+    edges: [],
+    viewMeta: { layout: 'server', lodLevel: 0 },
+  });
+  const input = document.createElement('textarea');
+  input.value = '(A,B)Root;';
+  const fields = document.createElement('select');
+  const shell = uiShell({
+    workbench,
+    elements: {
+      form: document.createElement('form'),
+      newickInput: input,
+      status: document.createElement('div'),
+      ancillaryFieldSelect: fields,
+    },
+  });
+  shell.mount();
+  await shell.renderCurrentInput();
+  fields.value = 'country';
+  fields.dispatchEvent(new Event('change'));
+  expect(workbench.updateVisualMapping).toHaveBeenCalledWith(expect.objectContaining({ colorField: 'country' }));
+  shell.unmount();
+  workbench.updateVisualMapping.mockClear();
+  fields.dispatchEvent(new Event('change'));
+  expect(workbench.updateVisualMapping).not.toHaveBeenCalled();
 });

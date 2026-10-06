@@ -1,4 +1,4 @@
-"""Deterministic raw-only reporting and audit for the MSAGLJS MDS study."""
+"""Deterministic raw-only reporting and audit for the ode MDS study."""
 
 from __future__ import annotations
 

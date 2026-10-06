@@ -1,8 +1,8 @@
-import { describe, expect, it, vi } from "vitest";
-import { expansionControls } from "../src/app/shell/controls/expansionControls";
-import type { GraphWorkbench } from "../src/app/workbench/graphWorkbench.types";
+import { describe, expect, it, vi } from 'vitest';
+import { expansionControls } from '../src/app/shell/controls/expansionControls';
+import type { GraphWorkbench } from '../src/app/workbench/graphWorkbench.types';
 
-describe("expansion controls", () => {
+describe('expansion controls', () => {
   it("preserves a checkbox's new value and surfaces partial results and errors", async () => {
     const state = {
       keepExpanded: false,
@@ -21,17 +21,22 @@ describe("expansion controls", () => {
       expandAll: vi.fn(async () => {
         state.partial = true;
         state.renderedNodeCount = 10;
-        return state;
+        return { ...state, status: 'partial' as const };
       }),
       collapseAll: vi.fn(async () => {
-        throw new Error("Network unavailable");
+        throw new Error('Network unavailable');
       }),
-    } as unknown as GraphWorkbench;
-    const keepExpanded = document.createElement("input");
-    keepExpanded.type = "checkbox";
-    const expandAll = document.createElement("button");
-    const collapseAll = document.createElement("button");
-    const feedback = document.createElement("p");
+      expandCluster: vi.fn(),
+      collapseCluster: vi.fn(),
+    } satisfies Pick<
+      GraphWorkbench,
+      'getExpansionState' | 'setKeepExpanded' | 'expandAll' | 'collapseAll' | 'expandCluster' | 'collapseCluster'
+    >;
+    const keepExpanded = document.createElement('input');
+    keepExpanded.type = 'checkbox';
+    const expandAll = document.createElement('button');
+    const collapseAll = document.createElement('button');
+    const feedback = document.createElement('p');
     const controls = expansionControls(workbench, { keepExpanded, expandAll, collapseAll, feedback });
     document.body.append(keepExpanded, expandAll, collapseAll, feedback);
     controls.mount();
@@ -43,11 +48,11 @@ describe("expansion controls", () => {
     expandAll.click();
     await Promise.resolve();
     await Promise.resolve();
-    expect(feedback.textContent).toContain("Partial result: 10 nodes shown (limit 10)");
+    expect(feedback.textContent).toContain('Partial result: 10 nodes shown (limit 10)');
     collapseAll.click();
     await Promise.resolve();
     await Promise.resolve();
-    expect(feedback.textContent).toContain("Network unavailable");
+    expect(feedback.textContent).toContain('Network unavailable');
     controls.dispose();
   });
 });

@@ -1,37 +1,38 @@
+import { isRecord } from '../../../validation/guards';
 export function parseCategoryColorPalette(rawInput: string, categoryOrder: string[]): Record<string, string> {
   const trimmedInput = rawInput.trim();
   if (!trimmedInput) {
     return {};
   }
 
-  if (trimmedInput.startsWith("{")) {
+  if (trimmedInput.startsWith('{')) {
     return parseNamedCategoryColorPalette(trimmedInput);
   }
 
-  const colorsByCategory: Record<string, string> = {};
+  const colorsByCategory = new Map<string, string>();
   trimmedInput
     .split(/\r?\n/)
-    .map((line) => line.trim())
+    .map(line => line.trim())
     .filter(Boolean)
     .forEach((line, index) => {
       const category = categoryOrder[index];
       const color = rgbLineToHex(line);
       if (category && color) {
-        colorsByCategory[category] = color;
+        colorsByCategory.set(category, color);
       }
     });
 
-  return colorsByCategory;
+  return Object.fromEntries(colorsByCategory);
 }
 
 export function serializeCategoryColorPalette(
   colorsByCategory: Record<string, string>,
-  categoryOrder: string[],
+  categoryOrder: string[]
 ): string {
   return categoryOrder
-    .map((category) => hexToRgbLine(colorsByCategory[category]))
+    .map(category => hexToRgbLine(colorsByCategory[category]))
     .filter((line): line is string => Boolean(line))
-    .join("\n");
+    .join('\n');
 }
 
 export function isHexColor(color: string): boolean {
@@ -40,32 +41,27 @@ export function isHexColor(color: string): boolean {
 
 function parseNamedCategoryColorPalette(rawInput: string): Record<string, string> {
   const parsed: unknown = JSON.parse(rawInput);
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    return {};
-  }
-
-  const record = parsed as Record<string, unknown>;
-  const source =
-    record.colors && typeof record.colors === "object" && !Array.isArray(record.colors)
-      ? (record.colors as Record<string, unknown>)
-      : record;
-  const colorsByCategory: Record<string, string> = {};
+  if (!isRecord(parsed)) return {};
+  const source = isRecord(parsed.colors) ? parsed.colors : parsed;
+  const colorsByCategory = new Map<string, string>();
   Object.entries(source).forEach(([category, color]) => {
-    if (typeof color === "string" && isHexColor(color)) {
-      colorsByCategory[category] = color;
+    if (typeof color === 'string' && isHexColor(color)) {
+      colorsByCategory.set(category, color);
     }
   });
 
-  return colorsByCategory;
+  return Object.fromEntries(colorsByCategory);
 }
 
 function rgbLineToHex(line: string): string | null {
-  const parts = line.split(",").map((part) => Number(part.trim()));
-  if (parts.length !== 3 || parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) {
+  const cells = line.split(',').map(part => part.trim());
+  if (cells.some(cell => cell === '')) return null;
+  const parts = cells.map(Number);
+  if (parts.length !== 3 || parts.some(part => !Number.isInteger(part) || part < 0 || part > 255)) {
     return null;
   }
 
-  return `#${parts.map((part) => part.toString(16).padStart(2, "0")).join("")}`;
+  return `#${parts.map(part => part.toString(16).padStart(2, '0')).join('')}`;
 }
 
 function hexToRgbLine(color: string | undefined): string | null {

@@ -1320,7 +1320,7 @@ def generate(root: Path, output: Path, *, replace: bool = False) -> list[Path]:
     manifest_path = output / "publication-artifacts.json"
     write_json(manifest_path, manifest)
     generated.append(manifest_path)
-    readme = "# Final publication artifacts\n\nGenerated only from the reconciled consolidated evidence. Reproduce with:\n\n```sh\nPYTHONPATH=eval/src .venv/bin/python -m phylo_lens_eval.publication_artifacts --replace\n```\n\nThe provenance sidecar beside every artifact records source checksums, transformations, caveats, and generated-file checksums. No raw evidence is modified by this renderer.\n"
+    readme = "# Final publication artifacts\n\nGenerated only from the reconciled consolidated evidence. Reproduce with:\n\n```sh\nPYTHONPATH=eval/src .venv/bin/python -m phylo_lens_eval.reporting.publication_artifacts --replace\n```\n\nThe provenance sidecar beside every artifact records source checksums, transformations, caveats, and generated-file checksums. No raw evidence is modified by this renderer.\n"
     readme_path = output / "README.md"
     write_text(readme_path, readme)
     generated.append(readme_path)

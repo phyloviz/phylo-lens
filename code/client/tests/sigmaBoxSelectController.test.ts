@@ -1,16 +1,16 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   BOX_SELECT_OVERLAY_CLASS,
   default as sigmaBoxSelectController,
-} from "../src/render/adapters/sigma/interaction/sigmaBoxSelectController";
-import type { SigmaViewportBounds } from "../src/render/adapters/sigma/viewport/graphViewport.types";
+} from '../src/render/adapters/sigma/interaction/sigmaBoxSelectController';
+import type { SigmaViewportBounds } from '../src/render/adapters/sigma/viewport/graphViewport.types';
 
 type Handler = (payload: unknown) => void;
 
 function makeFakeSigma() {
   const handlers = new Map<string, Handler>();
-  const settings = new Map<string, unknown>([["enableCameraPanning", true]]);
+  const settings = new Map<string, unknown>([['enableCameraPanning', true]]);
   const mouseCaptor = {
     on: (event: string, handler: Handler) => {
       handlers.set(event, handler);
@@ -42,11 +42,11 @@ function makeFakeSigma() {
   };
 }
 
-describe("SigmaBoxSelectController", () => {
-  it("converts a shift+drag box to normalized graph bounds", () => {
-    const container = document.createElement("div");
+describe('SigmaBoxSelectController', () => {
+  it('converts a shift+drag box to normalized graph bounds', () => {
+    const container = document.createElement('div');
     const rig = makeFakeSigma();
-    const onRegionSelected = vi.fn<[SigmaViewportBounds], void>();
+    const onRegionSelected = vi.fn<(bounds: SigmaViewportBounds) => void>();
 
     const controller = sigmaBoxSelectController({
       getSigma: () => rig.sigma as never,
@@ -56,18 +56,18 @@ describe("SigmaBoxSelectController", () => {
     });
     controller.bind();
 
-    rig.emit("mousedown", {
+    rig.emit('mousedown', {
       x: 40,
       y: 60,
       original: { shiftKey: true },
       preventSigmaDefault: () => {},
     });
     // Camera panning is suppressed while a box is being drawn.
-    expect(rig.getSetting("enableCameraPanning")).toBe(false);
+    expect(rig.getSetting('enableCameraPanning')).toBe(false);
     expect(container.querySelector(`.${BOX_SELECT_OVERLAY_CLASS}`)).not.toBeNull();
 
-    rig.emit("mousemovebody", { x: 10, y: 20, preventSigmaDefault: () => {} });
-    rig.emit("mouseup", { x: 10, y: 20, preventSigmaDefault: () => {} });
+    rig.emit('mousemovebody', { x: 10, y: 20, preventSigmaDefault: () => {} });
+    rig.emit('mouseup', { x: 10, y: 20, preventSigmaDefault: () => {} });
 
     expect(onRegionSelected).toHaveBeenCalledTimes(1);
     // start=(40,60)->(80,-60), end=(10,20)->(20,-20); min/max normalized.
@@ -79,13 +79,13 @@ describe("SigmaBoxSelectController", () => {
     });
     // Overlay removed and camera panning restored after release.
     expect(container.querySelector(`.${BOX_SELECT_OVERLAY_CLASS}`)).toBeNull();
-    expect(rig.getSetting("enableCameraPanning")).toBe(true);
+    expect(rig.getSetting('enableCameraPanning')).toBe(true);
   });
 
-  it("ignores a plain drag when region-select mode is off and Shift is absent", () => {
-    const container = document.createElement("div");
+  it('ignores a plain drag when region-select mode is off and Shift is absent', () => {
+    const container = document.createElement('div');
     const rig = makeFakeSigma();
-    const onRegionSelected = vi.fn<[SigmaViewportBounds], void>();
+    const onRegionSelected = vi.fn<(bounds: SigmaViewportBounds) => void>();
 
     const controller = sigmaBoxSelectController({
       getSigma: () => rig.sigma as never,
@@ -95,20 +95,20 @@ describe("SigmaBoxSelectController", () => {
     });
     controller.bind();
 
-    rig.emit("mousedown", { x: 40, y: 60, preventSigmaDefault: () => {} });
-    rig.emit("mousemovebody", { x: 10, y: 20, preventSigmaDefault: () => {} });
-    rig.emit("mouseup", { x: 10, y: 20, preventSigmaDefault: () => {} });
+    rig.emit('mousedown', { x: 40, y: 60, preventSigmaDefault: () => {} });
+    rig.emit('mousemovebody', { x: 10, y: 20, preventSigmaDefault: () => {} });
+    rig.emit('mouseup', { x: 10, y: 20, preventSigmaDefault: () => {} });
 
     expect(onRegionSelected).not.toHaveBeenCalled();
     expect(container.querySelector(`.${BOX_SELECT_OVERLAY_CLASS}`)).toBeNull();
     // Camera panning is left untouched when no box is drawn.
-    expect(rig.getSetting("enableCameraPanning")).toBe(true);
+    expect(rig.getSetting('enableCameraPanning')).toBe(true);
   });
 
-  it("draws a box on a plain drag once region-select mode is enabled", () => {
-    const container = document.createElement("div");
+  it('draws a box on a plain drag once region-select mode is enabled', () => {
+    const container = document.createElement('div');
     const rig = makeFakeSigma();
-    const onRegionSelected = vi.fn<[SigmaViewportBounds], void>();
+    const onRegionSelected = vi.fn<(bounds: SigmaViewportBounds) => void>();
 
     const controller = sigmaBoxSelectController({
       getSigma: () => rig.sigma as never,
@@ -118,17 +118,17 @@ describe("SigmaBoxSelectController", () => {
     });
     controller.bind();
 
-    rig.emit("mousedown", { x: 5, y: 5, preventSigmaDefault: () => {} });
-    rig.emit("mousemovebody", { x: 50, y: 50, preventSigmaDefault: () => {} });
-    rig.emit("mouseup", { x: 50, y: 50, preventSigmaDefault: () => {} });
+    rig.emit('mousedown', { x: 5, y: 5, preventSigmaDefault: () => {} });
+    rig.emit('mousemovebody', { x: 50, y: 50, preventSigmaDefault: () => {} });
+    rig.emit('mouseup', { x: 50, y: 50, preventSigmaDefault: () => {} });
 
     expect(onRegionSelected).toHaveBeenCalledTimes(1);
   });
 
-  it("treats a sub-threshold drag as a click and emits nothing", () => {
-    const container = document.createElement("div");
+  it('treats a sub-threshold drag as a click and emits nothing', () => {
+    const container = document.createElement('div');
     const rig = makeFakeSigma();
-    const onRegionSelected = vi.fn<[SigmaViewportBounds], void>();
+    const onRegionSelected = vi.fn<(bounds: SigmaViewportBounds) => void>();
 
     const controller = sigmaBoxSelectController({
       getSigma: () => rig.sigma as never,
@@ -138,15 +138,15 @@ describe("SigmaBoxSelectController", () => {
     });
     controller.bind();
 
-    rig.emit("mousedown", { x: 30, y: 30, preventSigmaDefault: () => {} });
-    rig.emit("mouseup", { x: 31, y: 31, preventSigmaDefault: () => {} });
+    rig.emit('mousedown', { x: 30, y: 30, preventSigmaDefault: () => {} });
+    rig.emit('mouseup', { x: 31, y: 31, preventSigmaDefault: () => {} });
 
     expect(onRegionSelected).not.toHaveBeenCalled();
     expect(container.querySelector(`.${BOX_SELECT_OVERLAY_CLASS}`)).toBeNull();
   });
 
-  it("detaches its captor handlers on unbind", () => {
-    const container = document.createElement("div");
+  it('detaches its captor handlers on unbind', () => {
+    const container = document.createElement('div');
     const rig = makeFakeSigma();
     const controller = sigmaBoxSelectController({
       getSigma: () => rig.sigma as never,
@@ -156,8 +156,8 @@ describe("SigmaBoxSelectController", () => {
     });
 
     controller.bind();
-    expect(rig.hasHandler("mousedown")).toBe(true);
+    expect(rig.hasHandler('mousedown')).toBe(true);
     controller.unbind();
-    expect(rig.hasHandler("mousedown")).toBe(false);
+    expect(rig.hasHandler('mousedown')).toBe(false);
   });
 });

@@ -1,4 +1,5 @@
-import { readNodeAncillaryValues } from "../../../../ancillary/ancillaryAccess";
+import { readNodeAncillaryValues } from '../../../../ancillary/ancillaryAccess';
+import type { AncillaryData } from '../../../../contracts/ancillary';
 export function areStringArraysEqual(left: readonly string[], right: readonly string[]): boolean {
   if (left.length !== right.length) {
     return false;
@@ -14,30 +15,30 @@ export function areStringArraysEqual(left: readonly string[], right: readonly st
 }
 
 export function toPositiveNumber(value: unknown): number {
-  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
     return 0;
   }
   return value;
 }
 
-export function firstAttributeValue(attributes: Record<string, unknown> | undefined, keys: readonly string[]): unknown {
+export function firstAttributeValue(
+  attributes: Readonly<Record<string, unknown>> | undefined,
+  keys: readonly string[]
+): unknown {
   if (!attributes) {
     return undefined;
   }
 
+  let ancillaryData: AncillaryData | undefined;
   for (const key of keys) {
     const direct = attributes[key];
     if (direct !== undefined && direct !== null) {
       return direct;
     }
 
-    const metadata = readNodeAncillaryValues(attributes);
-    if (metadata && typeof metadata === "object") {
-      const metadataValue = (metadata as Record<string, unknown>)[key];
-      if (metadataValue !== undefined && metadataValue !== null) {
-        return metadataValue;
-      }
-    }
+    ancillaryData ??= readNodeAncillaryValues(attributes);
+    const ancillaryValue = ancillaryData[key];
+    if (ancillaryValue !== undefined && ancillaryValue !== null) return ancillaryValue;
   }
 
   return undefined;
@@ -45,29 +46,29 @@ export function firstAttributeValue(attributes: Record<string, unknown> | undefi
 
 export function isTruthyAttribute(attributes: Record<string, unknown> | undefined, keys: readonly string[]): boolean {
   const value = firstAttributeValue(attributes, keys);
-  return value === true || value === 1 || normalizeRoleValue(value) === "true";
+  return value === true || value === 1 || normalizeRoleValue(value) === 'true';
 }
 
 export function normalizeRoleValue(value: unknown): string {
-  if (typeof value === "number" && Number.isFinite(value)) {
+  if (typeof value === 'number' && Number.isFinite(value)) {
     return String(value);
   }
-  if (typeof value !== "string") {
-    return "";
+  if (typeof value !== 'string') {
+    return '';
   }
 
   const normalized = value
     .trim()
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "_");
-  if (normalized === "sub_group_founder" || normalized === "sub_founder" || normalized === "subgroup") {
-    return "subgroup_founder";
+    .replace(/[^a-z0-9]+/g, '_');
+  if (normalized === 'sub_group_founder' || normalized === 'sub_founder' || normalized === 'subgroup') {
+    return 'subgroup_founder';
   }
-  if (normalized === "group_founder" || normalized === "founder") {
-    return "group_founder";
+  if (normalized === 'group_founder' || normalized === 'founder') {
+    return 'group_founder';
   }
-  if (normalized === "common_node") {
-    return "common";
+  if (normalized === 'common_node') {
+    return 'common';
   }
-  return normalized.replace(/^rule_0?/, "rule_");
+  return normalized.replace(/^rule_0?/, 'rule_');
 }

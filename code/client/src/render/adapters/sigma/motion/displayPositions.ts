@@ -1,14 +1,16 @@
-import type { PositionedGraph, PositionedNode } from "../../../../contracts/positioned";
+import type { PositionedGraph, PositionedNode } from '../../../../contracts/positioned';
+import type { Point } from '../../../../contracts/Point';
 
-export type Point = { x: number; y: number };
 type Entry = { server: Point; display: Point; anchor: Point; inherited: Point; cluster?: string };
 const zero = (): Point => ({ x: 0, y: 0 });
 const offset = (entry: Entry): Point => ({ x: entry.display.x - entry.server.x, y: entry.display.y - entry.server.y });
 
-/** Server coordinates never change. Query padding follows actual display displacement. */
+/** Server coordinates never change. Returned points are copies of privately owned coordinates.
+ * Query padding follows actual display displacement.
+ */
 export class DisplayPositions {
-  private entries = new Map<string, Entry>();
-  private proxies = new Map<string, string>();
+  private readonly entries = new Map<string, Entry>();
+  private readonly proxies = new Map<string, string>();
   private visible = new Set<string>();
   private margin = 0;
   private lodLevel: number | undefined;
@@ -22,7 +24,8 @@ export class DisplayPositions {
     this.lodLevel = undefined;
   }
   get(id: string): Point | undefined {
-    return this.entries.get(id)?.display;
+    const point = this.entries.get(id)?.display;
+    return point && { ...point };
   }
 
   set(id: string, point: Point): Point {
@@ -30,27 +33,32 @@ export class DisplayPositions {
     const bounded = this.constrain(id, point);
     if (entry) entry.display = bounded;
 
-    return bounded;
+    return { ...bounded };
   }
 
   reference(id: string): Point | undefined {
-    return this.entries.get(id)?.server;
+    const point = this.entries.get(id)?.server;
+    return point && { ...point };
   }
 
   anchor(id: string): Point | undefined {
-    return this.entries.get(id)?.anchor;
+    const point = this.entries.get(id)?.anchor;
+    return point && { ...point };
   }
 
   arrange(id: string, point: Point): Point {
     const display = this.set(id, point),
       entry = this.entries.get(id);
-    if (entry) entry.anchor = display;
+    if (entry) entry.anchor = { ...display };
     return display;
   }
 
   constrain(id: string, point: Point): Point {
-    const fallback = this.get(id) ?? this.reference(id) ?? { x: 0, y: 0 };
-    return { x: Number.isFinite(point.x) ? point.x : fallback.x, y: Number.isFinite(point.y) ? point.y : fallback.y };
+    const fallback = this.entries.get(id)?.display ?? { x: 0, y: 0 };
+    return {
+      x: Number.isFinite(point.x) ? point.x : fallback.x,
+      y: Number.isFinite(point.y) ? point.y : fallback.y,
+    };
   }
 
   translate(members: ReadonlyMap<string, Point>, delta: Point): Map<string, Point> {
@@ -81,7 +89,7 @@ export class DisplayPositions {
           minY: Math.min(b.minY, n.y),
           maxY: Math.max(b.maxY, n.y),
         }),
-        { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity },
+        { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity }
       );
       this.margin = Math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY, 1e-9) * 0.02;
     }
@@ -102,8 +110,8 @@ export class DisplayPositions {
       }
     }
 
-    const nodes = graph.nodes.map((node) => {
-      const cluster = typeof node.attributes?.cluster_id === "string" ? node.attributes.cluster_id : undefined;
+    const nodes = graph.nodes.map(node => {
+      const cluster = typeof node.attributes?.clusterId === 'string' ? node.attributes.clusterId : undefined;
       const proxyId = cluster ? this.proxies.get(cluster) : undefined;
       const parent = proxyId ? this.entries.get(proxyId) : undefined;
       const existing = this.entries.get(node.id);
@@ -115,10 +123,13 @@ export class DisplayPositions {
         const shift = offset(parent);
         const residual = existing ? offset(existing) : zero();
 
-        display = { x: node.x + residual.x - inherited.x + shift.x, y: node.y + residual.y - inherited.y + shift.y };
+        display = {
+          x: node.x + residual.x - inherited.x + shift.x,
+          y: node.y + residual.y - inherited.y + shift.y,
+        };
         inherited = shift;
-        origins.set(node.id, parent.display);
-      } else if (!previous.has(node.id) && node.attributes?.is_cluster_proxy === true && cluster) {
+        origins.set(node.id, { ...parent.display });
+      } else if (!previous.has(node.id) && node.attributes?.isClusterProxy === true && cluster) {
         const children = previousClusters.get(cluster) ?? [];
 
         if (children.length) {
@@ -129,7 +140,7 @@ export class DisplayPositions {
           };
           const baseline = { x: display.x - node.x, y: display.y - node.y };
 
-          children.forEach((child) => {
+          children.forEach(child => {
             child.inherited = baseline;
           });
 
@@ -144,17 +155,23 @@ export class DisplayPositions {
 
       const anchor = tierChanged ? display : (existing?.anchor ?? display);
       this.entries.delete(node.id);
-      this.entries.set(node.id, { server: { x: node.x, y: node.y }, display, anchor, inherited, cluster });
+      this.entries.set(node.id, {
+        server: { x: node.x, y: node.y },
+        display,
+        anchor: { x: anchor.x, y: anchor.y },
+        inherited,
+        cluster,
+      });
       display = this.set(node.id, display);
 
       return { ...node, ...display };
     });
 
     for (const node of graph.nodes)
-      if (node.attributes?.is_cluster_proxy === true && typeof node.attributes.cluster_id === "string")
-        this.proxies.set(node.attributes.cluster_id, node.id);
+      if (node.attributes?.isClusterProxy === true && typeof node.attributes.clusterId === 'string')
+        this.proxies.set(node.attributes.clusterId, node.id);
 
-    this.visible = new Set(graph.nodes.map((n) => n.id));
+    this.visible = new Set(graph.nodes.map(n => n.id));
     // Forget old tiers and bound off-screen history; visible nodes are never evicted.
     for (const id of this.entries.keys()) {
       if (!this.visible.has(id) && (tierChanged || this.entries.size > DisplayPositions.HISTORY_LIMIT))

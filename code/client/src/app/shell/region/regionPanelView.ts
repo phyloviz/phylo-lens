@@ -1,63 +1,67 @@
-import type { GraphAncillaryValue } from "../../../api/graphContracts";
-import { type AncillaryWheelStats, renderAncillaryWheel } from "../../../components/ancillaryWheel";
+import type { AncillaryData, AncillaryValue } from '../../../contracts/ancillary';
 
-export const REGION_PANEL_EMPTY_MESSAGE = "Shift+drag (or enable Select region) on the canvas to isolate an area.";
+import { type AncillaryDistribution } from '../../../ancillary/ancillaryDistribution';
+import { renderAncillaryWheel } from '../../../components/ancillary-wheel/AncillaryWheel';
+
+export const REGION_PANEL_EMPTY_MESSAGE = 'Shift+drag (or enable Select region) on the canvas to isolate an area.';
 
 export interface RegionPanelData {
   nodeCount: number;
   truncated: boolean;
-  aggregatedMetadata: Record<string, GraphAncillaryValue>;
-  wheelStats: AncillaryWheelStats | null;
+  aggregatedAncillaryData: AncillaryData;
+  ancillaryDistribution: AncillaryDistribution | null;
 }
 
-// Render the region-selection summary: a node-count header, a donut of the
-// selected set's ancillary distribution, and a table of the server-aggregated
-// metadata (mean for numeric fields, mode otherwise). Passing null resets the
-// panel to its empty prompt.
+/** Display selected nodes, their ancillary distribution and server-provided aggregate values.
+ * Passing null restores the selection prompt.
+ */
 export function renderRegionPanel(container: HTMLElement, data: RegionPanelData | null): void {
   if (!data) {
-    container.innerHTML = `<p class="ancillary-wheel-empty">${escapeHtml(REGION_PANEL_EMPTY_MESSAGE)}</p>`;
+    const message = document.createElement('p');
+    message.className = 'ancillary-wheel-empty';
+    message.textContent = REGION_PANEL_EMPTY_MESSAGE;
+    container.replaceChildren(message);
     return;
   }
 
-  const summary = document.createElement("p");
-  summary.className = "region-panel-summary";
-  const nodeLabel = data.nodeCount === 1 ? "node" : "nodes";
+  const summary = document.createElement('p');
+  summary.className = 'region-panel-summary';
+  const nodeLabel = data.nodeCount === 1 ? 'node' : 'nodes';
   summary.textContent = data.truncated
     ? `${data.nodeCount} ${nodeLabel} selected (truncated)`
     : `${data.nodeCount} ${nodeLabel} selected`;
 
-  const wheelHost = document.createElement("div");
-  renderAncillaryWheel(wheelHost, data.wheelStats, "No ancillary pie data for the selected region.");
+  const wheelHost = document.createElement('div');
+  renderAncillaryWheel(wheelHost, data.ancillaryDistribution, 'No ancillary pie data for the selected region.');
 
-  container.innerHTML = "";
+  container.innerHTML = '';
   container.appendChild(summary);
   container.appendChild(wheelHost);
-  container.appendChild(buildAggregateTable(data.aggregatedMetadata));
+  container.appendChild(buildAggregateTable(data.aggregatedAncillaryData));
 }
 
-function buildAggregateTable(aggregatedMetadata: Record<string, GraphAncillaryValue>): HTMLElement {
-  const entries = Object.entries(aggregatedMetadata).sort(([left], [right]) => left.localeCompare(right));
+function buildAggregateTable(aggregatedAncillaryData: AncillaryData): HTMLElement {
+  const entries = Object.entries(aggregatedAncillaryData).sort(([left], [right]) => left.localeCompare(right));
 
   if (entries.length === 0) {
-    const empty = document.createElement("p");
-    empty.className = "ancillary-wheel-empty";
-    empty.textContent = "No aggregated metadata for this region.";
+    const empty = document.createElement('p');
+    empty.className = 'ancillary-wheel-empty';
+    empty.textContent = 'No aggregated ancillary data for this region.';
     return empty;
   }
 
-  const table = document.createElement("table");
-  table.className = "region-aggregate-table";
+  const table = document.createElement('table');
+  table.className = 'region-aggregate-table';
 
-  const head = document.createElement("tr");
-  head.innerHTML = "<th>Field</th><th>Aggregate</th>";
+  const head = document.createElement('tr');
+  head.innerHTML = '<th>Field</th><th>Aggregate</th>';
   table.appendChild(head);
 
   entries.forEach(([field, value]) => {
-    const row = document.createElement("tr");
-    const fieldCell = document.createElement("td");
+    const row = document.createElement('tr');
+    const fieldCell = document.createElement('td');
     fieldCell.textContent = field;
-    const valueCell = document.createElement("td");
+    const valueCell = document.createElement('td');
     valueCell.textContent = formatAggregateValue(value);
     row.appendChild(fieldCell);
     row.appendChild(valueCell);
@@ -67,24 +71,15 @@ function buildAggregateTable(aggregatedMetadata: Record<string, GraphAncillaryVa
   return table;
 }
 
-function formatAggregateValue(value: GraphAncillaryValue): string {
+function formatAggregateValue(value: AncillaryValue): string {
   if (value === null) {
-    return "—";
+    return '—';
   }
-  if (typeof value === "number") {
+  if (typeof value === 'number') {
     return Number.isInteger(value) ? String(value) : value.toFixed(3);
   }
-  if (typeof value === "boolean") {
-    return value ? "true" : "false";
+  if (typeof value === 'boolean') {
+    return value ? 'true' : 'false';
   }
   return value;
-}
-
-function escapeHtml(input: string): string {
-  return input
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
 }

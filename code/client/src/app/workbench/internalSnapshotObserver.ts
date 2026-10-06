@@ -1,11 +1,11 @@
-import type { PositionedGraph } from "../../contracts/positioned";
-import type { GraphRenderer, RenderViewportSyncState } from "../../render/renderer.types";
+import type { PositionedGraph } from '../../contracts/positioned';
+import type { GraphRenderer, RenderViewportRequestState } from '../../render/renderer.types';
 
 // Internal diagnostics channel for evaluation tooling. This is deliberately not
 // exported from the package entry point and is not a supported library API.
-export const INTERNAL_SNAPSHOT_APPLIED_OBSERVER = Symbol.for("@phyloviz/phylo-lens.internal.snapshot-applied.v1");
+export const INTERNAL_SNAPSHOT_APPLIED_OBSERVER = Symbol.for('@phyloviz/phylo-lens.internal.snapshot-applied.v1');
 
-export type SnapshotApplicationReason = "initial_load" | "viewport_sync" | "cluster_expand" | "cluster_collapse";
+export type SnapshotApplicationReason = 'initial_load' | 'viewport_sync' | 'cluster_expand' | 'cluster_collapse';
 
 export interface SnapshotAggregateTarget {
   clusterId: string;
@@ -29,7 +29,7 @@ export interface SnapshotAppliedBoundary {
 export interface SnapshotAppliedDiagnostics {
   visibleAggregateTriangleCount: number;
   snapshotFingerprint: string;
-  viewport: RenderViewportSyncState | null;
+  viewport: RenderViewportRequestState | null;
   aggregateTargets: readonly SnapshotAggregateTarget[];
 }
 
@@ -37,7 +37,7 @@ export interface SnapshotAppliedDiagnostics {
 // records t3 immediately, then calls readDiagnostics for size-dependent data.
 export type SnapshotAppliedObserver = (
   boundary: SnapshotAppliedBoundary,
-  readDiagnostics: () => SnapshotAppliedDiagnostics | null,
+  readDiagnostics: () => SnapshotAppliedDiagnostics | null
 ) => void;
 
 type ObserverContainer = HTMLElement & {
@@ -47,7 +47,7 @@ type ObserverContainer = HTMLElement & {
 export function snapshotAppliedObserverForContainer(container: HTMLElement): SnapshotAppliedObserver | undefined {
   try {
     const observer = (container as ObserverContainer)[INTERNAL_SNAPSHOT_APPLIED_OBSERVER];
-    return typeof observer === "function" ? (observer as SnapshotAppliedObserver) : undefined;
+    return typeof observer === 'function' ? (observer as SnapshotAppliedObserver) : undefined;
   } catch {
     // Diagnostics discovery must never affect normal view construction.
     return undefined;
@@ -85,18 +85,18 @@ export function notifySnapshotApplied({
     visibleEdgeCount: graph.edges.length,
     visiblePrimitiveCount: graph.nodes.length + graph.edges.length,
   });
-  let diagnostics: Omit<SnapshotAppliedDiagnostics, "viewport"> | null | undefined;
+  let diagnostics: Omit<SnapshotAppliedDiagnostics, 'viewport'> | null | undefined;
 
   const readDiagnostics = (): SnapshotAppliedDiagnostics | null => {
     if (diagnostics === undefined) {
       try {
         const aggregateTargets = Object.freeze(
-          aggregateTargetDescriptors(graph, renderer.getInteractiveAggregateTargets?.() ?? []).map((target) =>
-            Object.freeze(target),
-          ),
+          aggregateTargetDescriptors(graph, renderer.getInteractiveAggregateTargets?.() ?? []).map(target =>
+            Object.freeze(target)
+          )
         );
         diagnostics = Object.freeze({
-          visibleAggregateTriangleCount: graph.nodes.filter((node) => node.attributes?.type === "triangle").length,
+          visibleAggregateTriangleCount: graph.nodes.filter(node => node.attributes?.type === 'triangle').length,
           snapshotFingerprint: snapshotFingerprint(graph),
           aggregateTargets,
         });
@@ -109,7 +109,7 @@ export function notifySnapshotApplied({
       diagnostics &&
       Object.freeze({
         ...diagnostics,
-        viewport: immutableViewport(renderer.getViewportSyncState?.() ?? null),
+        viewport: immutableViewport(renderer.getViewportState?.() ?? null),
       })
     );
   };
@@ -123,9 +123,9 @@ export function notifySnapshotApplied({
 
 function aggregateTargetDescriptors(
   graph: PositionedGraph,
-  targets: readonly Omit<SnapshotAggregateTarget, "structuralFingerprint">[],
+  targets: readonly Omit<SnapshotAggregateTarget, 'structuralFingerprint'>[]
 ): SnapshotAggregateTarget[] {
-  const targetIds = new Set(targets.map((target) => target.clusterId));
+  const targetIds = new Set(targets.map(target => target.clusterId));
   const incidentEdges = new Map<string, string[]>();
   for (const edge of graph.edges) {
     if (targetIds.has(edge.source)) {
@@ -135,16 +135,16 @@ function aggregateTargetDescriptors(
       incidentEdges.set(edge.target, [...(incidentEdges.get(edge.target) ?? []), edge.id]);
     }
   }
-  return targets.map((target) => ({
+  return targets.map(target => ({
     ...target,
     structuralFingerprint: fingerprint([
       `n:${target.clusterId}:${target.representedNodeCount}`,
-      ...(incidentEdges.get(target.clusterId) ?? []).sort().map((edge) => `e:${edge}`),
+      ...(incidentEdges.get(target.clusterId) ?? []).sort().map(edge => `e:${edge}`),
     ]),
   }));
 }
 
-function immutableViewport(viewport: RenderViewportSyncState | null): RenderViewportSyncState | null {
+function immutableViewport(viewport: RenderViewportRequestState | null): RenderViewportRequestState | null {
   if (!viewport) return null;
   return Object.freeze({
     bounds: Object.freeze({ ...viewport.bounds }),
@@ -154,8 +154,8 @@ function immutableViewport(viewport: RenderViewportSyncState | null): RenderView
 
 function snapshotFingerprint(graph: PositionedGraph): string {
   const identifiers = [
-    ...graph.nodes.map((node) => `n:${node.id}`).sort(),
-    ...graph.edges.map((edge) => `e:${edge.id}:${edge.source}:${edge.target}`).sort(),
+    ...graph.nodes.map(node => `n:${node.id}`).sort(),
+    ...graph.edges.map(edge => `e:${edge.id}:${edge.source}:${edge.target}`).sort(),
   ];
   return fingerprint(identifiers);
 }
@@ -168,5 +168,5 @@ function fingerprint(identifiers: readonly string[]): string {
       hash = Math.imul(hash, 0x01000193);
     }
   }
-  return `fnv1a32:${(hash >>> 0).toString(16).padStart(8, "0")}`;
+  return `fnv1a32:${(hash >>> 0).toString(16).padStart(8, '0')}`;
 }

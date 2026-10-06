@@ -1,31 +1,31 @@
-import { readTextFile, resolveAncillaryFormat, type AncillaryTableFormat } from "./fileInputs";
+import { readTextFile, resolveAncillaryFormat, type AncillaryTableFormat } from './fileInputs';
 
 /** Read one CSV/TSV record, including quoted delimiters and escaped quotes.
  * Auto detection follows the server: a tab on the first line selects TSV.
  */
 export function ancillaryHeaders(content: string, format: AncillaryTableFormat): string[] {
-  const text = content.replace(/^\uFEFF/, "").trim();
+  const text = content.replace(/^\uFEFF/, '').trim();
   if (!text) {
-    throw new Error("The ancillary table is empty.");
+    throw new Error('The ancillary table is empty.');
   }
 
-  const delimiter = format === "tsv" || (format === "auto" && text.split(/\r?\n/, 1)[0].includes("\t")) ? "\t" : ",";
+  const delimiter = format === 'tsv' || (format === 'auto' && text.split(/\r?\n/, 1)[0].includes('\t')) ? '\t' : ',';
   const headers: string[] = [];
-  let field = "";
+  let field = '';
   let quoted = false;
 
   for (let i = 0; i < text.length; i++) {
     const c = text[i];
-    if (c === '"' && (quoted || field === "")) {
+    if (c === '"' && (quoted || field === '')) {
       if (quoted && text[i + 1] === '"') {
         field += '"';
         i++;
       } else {
         quoted = !quoted;
       }
-    } else if (!quoted && (c === delimiter || c === "\n" || c === "\r")) {
+    } else if (!quoted && (c === delimiter || c === '\n' || c === '\r')) {
       headers.push(field.trim());
-      field = "";
+      field = '';
       if (c !== delimiter) break;
     } else {
       field += c;
@@ -36,9 +36,9 @@ export function ancillaryHeaders(content: string, format: AncillaryTableFormat):
     }
   }
 
-  if (quoted) throw new Error("The ancillary header contains an unclosed quote.");
-  if (!headers.length || headers.some((header) => !header)) throw new Error("Ancillary columns must have names.");
-  if (new Set(headers).size !== headers.length) throw new Error("Ancillary column names must be unique.");
+  if (quoted) throw new Error('The ancillary header contains an unclosed quote.');
+  if (!headers.length || headers.some(header => !header)) throw new Error('Ancillary columns must have names.');
+  if (new Set(headers).size !== headers.length) throw new Error('Ancillary column names must be unique.');
 
   return headers;
 }
@@ -61,9 +61,9 @@ export function ancillaryJoinColumnPicker(options: {
 
     const previous = select.value;
     const file = options.fileInput?.files?.[0];
-    const format = resolveAncillaryFormat(options.formatSelect?.value, file?.name ?? "");
+    const format = resolveAncillaryFormat(options.formatSelect?.value, file?.name ?? '');
 
-    select.replaceChildren(new Option(file ? "Reading columns…" : "Choose an ancillary table first", ""));
+    select.replaceChildren(new Option(file ? 'Reading columns…' : 'Choose an ancillary table first', ''));
     select.disabled = true;
 
     ready = (async () => {
@@ -75,15 +75,15 @@ export function ancillaryJoinColumnPicker(options: {
         }
 
         select.replaceChildren(
-          new Option("Choose the node ID column", ""),
-          ...headers.map((header) => new Option(header, header)),
+          new Option('Choose the node ID column', ''),
+          ...headers.map(header => new Option(header, header))
         );
-        select.value = headers.includes(previous) ? previous : headers.includes("isolate") ? "isolate" : "";
+        select.value = headers.includes(previous) ? previous : headers.includes('isolate') ? 'isolate' : '';
         select.disabled = false;
       } catch (error) {
         if (current !== revision) return;
-        select.replaceChildren(new Option("Could not read column names", ""));
-        options.onError(error instanceof Error ? error.message : "Could not read ancillary table.");
+        select.replaceChildren(new Option('Could not read column names', ''));
+        options.onError(error instanceof Error ? error.message : 'Could not read ancillary table.');
       }
     })();
 
@@ -92,7 +92,13 @@ export function ancillaryJoinColumnPicker(options: {
 
   return {
     refresh,
-    whenReady: () => ready,
+    async whenReady() {
+      let current: number;
+      do {
+        current = revision;
+        await ready;
+      } while (current !== revision);
+    },
     dispose: () => {
       revision++;
     },

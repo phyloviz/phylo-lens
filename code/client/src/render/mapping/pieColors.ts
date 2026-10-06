@@ -1,6 +1,6 @@
-import { distributionForFields, distributionFromAttributes } from "./pieDistribution";
-import { readNodeAncillaryValues } from "../../ancillary/ancillaryAccess";
-import { deriveColor, DEFAULT_COLOR_PALETTE } from "./colorMapping";
+import { distributionForFields, distributionFromAttributes } from './pieDistribution';
+import { readNodeAncillaryValues } from '../../ancillary/ancillaryAccess';
+import { deriveColor, DEFAULT_COLOR_PALETTE } from './colorMapping';
 import {
   PIE_ATTRIBUTE_PREFIX,
   PIE_GROUPING_ATTRIBUTE,
@@ -12,34 +12,32 @@ import {
   MAX_PIE_SLICE_KEYS,
   DEFAULT_PIE_PALETTE,
   type PieCategory,
-} from "./pieMapping.types";
+} from './pieMapping.types';
 
-export function detectPieSliceKeys(
-  nodes: Array<{ attributes?: Record<string, unknown> }>,
-  maxSliceKeys = MAX_PIE_SLICE_KEYS,
-): string[] {
+type PiePresentationNode = {
+  readonly attributes?: Readonly<Record<string, unknown>>;
+  readonly distribution?: readonly PieCategory[];
+  readonly grouping?: PieCategoryGrouping;
+};
+
+export function detectPieSliceKeys(nodes: readonly PiePresentationNode[], maxSliceKeys = MAX_PIE_SLICE_KEYS): string[] {
   const totalsByKey = new Map<string, number>();
-  nodes.forEach((node) => {
-    const attributes = node.attributes;
-    if (!attributes) {
-      return;
+  const addSlice = (key: string, value: unknown) => {
+    if (key !== PIE_OTHER_SLICE_KEY && typeof value === 'number' && Number.isFinite(value) && value > 0)
+      totalsByKey.set(key, (totalsByKey.get(key) ?? 0) + value);
+  };
+  for (const node of nodes) {
+    if (node.distribution) {
+      for (const slice of node.distribution) addSlice(slice.key, slice.value);
+    } else {
+      const attributes = node.attributes ?? {};
+      for (const key of Object.keys(attributes))
+        if (key.startsWith(PIE_ATTRIBUTE_PREFIX)) addSlice(key, attributes[key]);
     }
-
-    Object.keys(attributes).forEach((key) => {
-      if (!key.startsWith(PIE_ATTRIBUTE_PREFIX) || key === PIE_OTHER_SLICE_KEY) {
-        return;
-      }
-
-      const rawValue = attributes[key];
-      if (typeof rawValue === "number" && Number.isFinite(rawValue) && rawValue > 0) {
-        totalsByKey.set(key, (totalsByKey.get(key) ?? 0) + rawValue);
-      }
-    });
-  });
-
-  const grouping = nodes.find((node) => node.attributes?.[PIE_GROUPING_ATTRIBUTE])?.attributes?.[
-    PIE_GROUPING_ATTRIBUTE
-  ] as PieCategoryGrouping | undefined;
+  }
+  const source = nodes.find(node => node.grouping || node.attributes?.[PIE_GROUPING_ATTRIBUTE]);
+  const grouping =
+    source?.grouping ?? (source?.attributes?.[PIE_GROUPING_ATTRIBUTE] as PieCategoryGrouping | undefined);
   return selectPieSliceKeys(totalsByKey, grouping, maxSliceKeys);
 }
 
@@ -47,20 +45,20 @@ export function detectPieSliceKeys(
 export function selectPieSliceKeys(
   totals: ReadonlyMap<string, number>,
   grouping: PieCategoryGrouping = {},
-  capacity = MAX_PIE_SLICE_KEYS,
+  capacity = MAX_PIE_SLICE_KEYS
 ): string[] {
   const limit = Math.max(0, Math.min(MAX_PIE_SLICE_KEYS, Math.floor(capacity)));
   if (!limit) return [];
   const separate = Object.keys(grouping)
-    .filter((key) => grouping[key] === "separate")
+    .filter(key => grouping[key] === 'separate')
     .sort();
   const reserved = separate.slice(0, Math.max(0, limit - 1));
   const reservedSet = new Set(reserved);
   const automatic = [...totals.keys()]
-    .filter((key) => !grouping[key])
+    .filter(key => !grouping[key])
     .sort((a, b) => (totals.get(b) ?? 0) - (totals.get(a) ?? 0) || a.localeCompare(b));
   const hasGrouped = [...totals.keys()].some(
-    (key) => grouping[key] === "other" || (grouping[key] === "separate" && !reservedSet.has(key)),
+    key => grouping[key] === 'other' || (grouping[key] === 'separate' && !reservedSet.has(key))
   );
   const needsOther = hasGrouped || reserved.length + automatic.length > limit;
   const displayed = [...reserved, ...automatic.slice(0, Math.max(0, limit - reserved.length - Number(needsOther)))];
@@ -68,7 +66,7 @@ export function selectPieSliceKeys(
   return displayed.sort((a, b) => a.localeCompare(b));
 }
 
-export function buildPiePalette(count: number, requestedPalette?: string[]): string[] {
+export function buildPiePalette(count: number, requestedPalette?: readonly string[]): string[] {
   if (count <= 0) {
     return [];
   }
@@ -90,32 +88,32 @@ export function buildPiePalette(count: number, requestedPalette?: string[]): str
 }
 
 export function resolvePieSliceColors(
-  nodes: Array<{ attributes?: Record<string, unknown> }>,
+  nodes: readonly PiePresentationNode[],
   sliceKeys: readonly string[] = detectPieSliceKeys(nodes),
-  requestedPalette?: string[],
+  requestedPalette?: readonly string[],
   // Live per-category overrides from the shell controls, keyed by plain value
   // label (e.g. "Peru"). They are re-keyed to slice keys per field below and
   // take precedence over overrides baked onto the graph, so a colour edit is
   // reflected immediately by every consumer (wheel included).
-  requestedCategoryColors?: Record<string, string>,
+  requestedCategoryColors?: Readonly<Record<string, string>>
 ): Record<string, string> {
   const palette = requestedPalette?.length
     ? requestedPalette
     : (resolvePiePaletteFromNodes(nodes) ?? DEFAULT_COLOR_PALETTE);
   const overrides = collectPieCategoryColors(nodes);
   const categories = new Map(
-    nodes.flatMap((node) => {
-      const stored = distributionFromAttributes(node.attributes);
+    nodes.flatMap(node => {
+      const stored = node.distribution ?? distributionFromAttributes(node.attributes);
       const slices = stored.length
         ? stored
-        : Object.keys(readNodeAncillaryValues(node.attributes)).flatMap((field) =>
-            distributionForFields(node.attributes, [field]),
+        : Object.keys(readNodeAncillaryValues(node.attributes)).flatMap(field =>
+            distributionForFields(node.attributes, [field])
           );
-      return slices.map((slice) => [slice.key, slice] as const);
-    }),
+      return slices.map(slice => [slice.key, slice] as const);
+    })
   );
   return Object.fromEntries(
-    sliceKeys.map((key) => {
+    sliceKeys.map(key => {
       if (key === PIE_OTHER_SLICE_KEY) return [key, PIE_OTHER_SLICE_COLOR];
       const slice = categories.get(key);
       return [
@@ -123,38 +121,38 @@ export function resolvePieSliceColors(
         resolvePieCategoryColor(
           slice ?? { category: key },
           palette,
-          requestedCategoryColors?.[slice?.category ?? key] ?? overrides[key],
+          requestedCategoryColors?.[slice?.category ?? key] ?? overrides[key]
         ),
       ];
-    }),
+    })
   );
 }
 
 export function resolvePieCategoryColor(
-  slice: Pick<PieCategory, "category" | "missing">,
-  palette: string[],
-  override?: string,
+  slice: Pick<PieCategory, 'category' | 'missing'>,
+  palette: readonly string[],
+  override?: string
 ): string {
   return override && /^#[0-9a-fA-F]{6}$/.test(override)
     ? override
     : slice.missing
-      ? "#94a3b8"
+      ? '#94a3b8'
       : deriveColor(slice.category, palette);
 }
 
 export function collectPieCategoryColors(
-  nodes: Array<{ attributes?: Record<string, unknown> }>,
+  nodes: ReadonlyArray<{ readonly attributes?: Readonly<Record<string, unknown>> }>
 ): Record<string, string> {
   const colors: Record<string, string> = {};
 
-  nodes.forEach((node) => {
+  nodes.forEach(node => {
     const value = node.attributes?.[PIE_CATEGORY_COLORS_ATTRIBUTE];
-    if (!value || typeof value !== "object" || Array.isArray(value)) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
       return;
     }
 
     Object.entries(value).forEach(([key, color]) => {
-      if (typeof color === "string" && /^#[0-9a-fA-F]{6}$/.test(color)) {
+      if (typeof color === 'string' && /^#[0-9a-fA-F]{6}$/.test(color)) {
         colors[key] = color;
       }
     });
@@ -164,7 +162,7 @@ export function collectPieCategoryColors(
 }
 
 export function resolvePiePaletteFromNodes(
-  nodes: Array<{ attributes?: Record<string, unknown> }>,
+  nodes: ReadonlyArray<{ readonly attributes?: Readonly<Record<string, unknown>> }>
 ): string[] | undefined {
   for (const node of nodes) {
     const value = node.attributes?.[PIE_PALETTE_ATTRIBUTE];
@@ -173,7 +171,7 @@ export function resolvePiePaletteFromNodes(
     }
 
     const colors = value.filter(
-      (color): color is string => typeof color === "string" && /^#[0-9a-fA-F]{6}$/.test(color),
+      (color): color is string => typeof color === 'string' && /^#[0-9a-fA-F]{6}$/.test(color)
     );
     if (colors.length > 0) {
       return colors;
@@ -221,5 +219,5 @@ function hslToHex(hue: number, saturationPercent: number, lightnessPercent: numb
 function hexChannel(value: number): string {
   return Math.round(Math.min(1, Math.max(0, value)) * 255)
     .toString(16)
-    .padStart(2, "0");
+    .padStart(2, '0');
 }
