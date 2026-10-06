@@ -1,92 +1,92 @@
 import type { AncillarySummary } from '../../contracts/ancillary';
 import {
-    CATEGORY_COUNT_FIELD_PREFIX,
-    CATEGORY_COUNT_FIELD_SEPARATOR,
-    PIE_ATTRIBUTE_PREFIX,
-    PIE_FIELD_VALUE_SEPARATOR,
-    type CategoryCountEntry,
-    type AncillaryData,
+  CATEGORY_COUNT_FIELD_PREFIX,
+  CATEGORY_COUNT_FIELD_SEPARATOR,
+  PIE_ATTRIBUTE_PREFIX,
+  PIE_FIELD_VALUE_SEPARATOR,
+  type CategoryCountEntry,
+  type AncillaryData,
 } from './pieMapping.types';
 
 export function pieCategoricalAttributeKey(fieldKey: string, value: string): string {
-    return `${PIE_ATTRIBUTE_PREFIX}${safeAttributeToken(fieldKey)}${PIE_FIELD_VALUE_SEPARATOR}${safeAttributeToken(value)}`;
+  return `${PIE_ATTRIBUTE_PREFIX}${safeAttributeToken(fieldKey)}${PIE_FIELD_VALUE_SEPARATOR}${safeAttributeToken(value)}`;
 }
 
 export function categoryCountsForField(
-    metadata: AncillaryData,
-    fieldKey: string,
-    summary?: AncillarySummary
+  metadata: AncillaryData,
+  fieldKey: string,
+  summary?: AncillarySummary
 ): CategoryCountEntry[] {
-    if (summary)
-        return Object.entries(summary.categoryCounts[fieldKey] ?? {})
-            .map(([category, count]) => ({ fieldKey, category, count }))
-            .sort((left, right) => right.count - left.count || left.category.localeCompare(right.category));
-    return Object.entries(metadata)
-        .map(([key, value]) => parseCategoryCountMetadataEntry(key, value))
-        .filter((entry): entry is CategoryCountEntry => entry !== null && entry.fieldKey === fieldKey)
-        .sort((left, right) => right.count - left.count || left.category.localeCompare(right.category));
+  if (summary)
+    return Object.entries(summary.categoryCounts[fieldKey] ?? {})
+      .map(([category, count]) => ({ fieldKey, category, count }))
+      .sort((left, right) => right.count - left.count || left.category.localeCompare(right.category));
+  return Object.entries(metadata)
+    .map(([key, value]) => parseCategoryCountMetadataEntry(key, value))
+    .filter((entry): entry is CategoryCountEntry => entry !== null && entry.fieldKey === fieldKey)
+    .sort((left, right) => right.count - left.count || left.category.localeCompare(right.category));
 }
 
 export function isCategoryCountMetadataKey(key: string): boolean {
-    return parseCategoryCountMetadataKey(key) !== null;
+  return parseCategoryCountMetadataKey(key) !== null;
 }
 
 export function parseCategoryCountMetadataEntry(
-    key: string,
-    value: string | number | boolean | null
+  key: string,
+  value: string | number | boolean | null
 ): CategoryCountEntry | null {
-    const parsedKey = parseCategoryCountMetadataKey(key);
-    if (!parsedKey || typeof value !== 'number' || !Number.isFinite(value)) {
-        return null;
-    }
-    if (value <= 0) {
-        return null;
-    }
+  const parsedKey = parseCategoryCountMetadataKey(key);
+  if (!parsedKey || typeof value !== 'number' || !Number.isFinite(value)) {
+    return null;
+  }
+  if (value <= 0) {
+    return null;
+  }
 
-    return {
-        ...parsedKey,
-        count: value,
-    };
+  return {
+    ...parsedKey,
+    count: value,
+  };
 }
 
 function parseCategoryCountMetadataKey(key: string): Omit<CategoryCountEntry, 'count'> | null {
-    if (!key.startsWith(CATEGORY_COUNT_FIELD_PREFIX)) {
-        return null;
-    }
+  if (!key.startsWith(CATEGORY_COUNT_FIELD_PREFIX)) {
+    return null;
+  }
 
-    const withoutPrefix = key.slice(CATEGORY_COUNT_FIELD_PREFIX.length);
-    const separatorIndex = withoutPrefix.indexOf(CATEGORY_COUNT_FIELD_SEPARATOR);
-    if (separatorIndex < 0) {
-        return null;
-    }
+  const withoutPrefix = key.slice(CATEGORY_COUNT_FIELD_PREFIX.length);
+  const separatorIndex = withoutPrefix.indexOf(CATEGORY_COUNT_FIELD_SEPARATOR);
+  if (separatorIndex < 0) {
+    return null;
+  }
 
-    const encodedField = withoutPrefix.slice(0, separatorIndex);
-    const encodedCategory = withoutPrefix.slice(separatorIndex + CATEGORY_COUNT_FIELD_SEPARATOR.length);
+  const encodedField = withoutPrefix.slice(0, separatorIndex);
+  const encodedCategory = withoutPrefix.slice(separatorIndex + CATEGORY_COUNT_FIELD_SEPARATOR.length);
 
-    try {
-        return {
-            fieldKey: decodeURIComponent(encodedField),
-            category: decodeURIComponent(encodedCategory),
-        };
-    } catch {
-        return null;
-    }
+  try {
+    return {
+      fieldKey: decodeURIComponent(encodedField),
+      category: decodeURIComponent(encodedCategory),
+    };
+  } catch {
+    return null;
+  }
 }
 
 function safeAttributeToken(value: string): string {
-    const readableToken = value
-        .trim()
-        .replaceAll(/[^a-zA-Z0-9_-]+/g, '_')
-        .replaceAll(/^_+|_+$/g, '')
-        .slice(0, 48);
-    return `${readableToken || 'blank'}_${hashString(value)}`;
+  const readableToken = value
+    .trim()
+    .replaceAll(/[^a-zA-Z0-9_-]+/g, '_')
+    .replaceAll(/^_+|_+$/g, '')
+    .slice(0, 48);
+  return `${readableToken || 'blank'}_${hashString(value)}`;
 }
 
 function hashString(value: string): string {
-    let hash = 2166136261;
-    for (let index = 0; index < value.length; index += 1) {
-        hash ^= value.charCodeAt(index);
-        hash = Math.imul(hash, 16777619);
-    }
-    return (hash >>> 0).toString(36);
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
 }

@@ -1,6 +1,6 @@
-import { NodeCircleProgram } from "sigma/rendering";
-import type { NodeHoverDrawingFunction } from "sigma/rendering";
-import type { NodeDisplayData } from "sigma/types";
+import { NodeCircleProgram } from 'sigma/rendering';
+import type { NodeHoverDrawingFunction } from 'sigma/rendering';
+import type { NodeDisplayData } from 'sigma/types';
 
 const TRIANGLE_VERTEX_SHADER = /* glsl */ `
 attribute vec4 a_id;
@@ -58,7 +58,7 @@ export class TriangleNodeProgram extends NodeCircleProgram {
       ATTRIBUTES: [
         ...baseDefinition.ATTRIBUTES,
         {
-          name: "a_rotation",
+          name: 'a_rotation',
           size: 1,
           type: WebGLRenderingContext.FLOAT,
         },
@@ -80,8 +80,8 @@ export const drawTriangleNodeHover: NodeHoverDrawingFunction = (context, data) =
 
   context.save();
   context.shadowBlur = 8;
-  context.shadowColor = "#000";
-  context.fillStyle = "#fff";
+  context.shadowColor = '#000';
+  context.fillStyle = '#fff';
   trianglePath(context, data.x, data.y, data.size + 3, rotation);
   context.fill();
 
@@ -105,5 +105,5 @@ function trianglePath(context: CanvasRenderingContext2D, x: number, y: number, r
 
 function rotationOf(data: object): number {
   const rotation = (data as Record<string, unknown>).triangleRotation;
-  return typeof rotation === "number" && Number.isFinite(rotation) ? rotation : 0;
+  return typeof rotation === 'number' && Number.isFinite(rotation) ? rotation : 0;
 }

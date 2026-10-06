@@ -1,9 +1,9 @@
 declare const identifierKind: unique symbol;
 
-export type NodeId = string & { readonly [identifierKind]: "node" };
-export type ClusterId = string & { readonly [identifierKind]: "cluster" };
-export type DatasetId = string & { readonly [identifierKind]: "dataset" };
-export type LayoutVersion = string & { readonly [identifierKind]: "layout-version" };
+export type NodeId = string & { readonly [identifierKind]: 'node' };
+export type ClusterId = string & { readonly [identifierKind]: 'cluster' };
+export type DatasetId = string & { readonly [identifierKind]: 'dataset' };
+export type LayoutVersion = string & { readonly [identifierKind]: 'layout-version' };
 
 // Brands distinguish identifier roles; the backend defines their string format.
 export function toNodeId(value: string): NodeId {
@@ -27,5 +27,5 @@ export function toLayoutVersion(value: string): LayoutVersion {
 }
 
 function assertIdentifier(value: string): void {
-  if (typeof value !== "string") throw new TypeError("Graph identifiers must be strings.");
+  if (typeof value !== 'string') throw new TypeError('Graph identifiers must be strings.');
 }

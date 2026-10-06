@@ -1,6 +1,6 @@
-import { createNodeBorderProgram } from "@sigma/node-border";
-import { TriangleNodeProgram } from "../../programs/triangleNodeProgram";
-import { SIGMA_MAX_CAMERA_RATIO, SIGMA_MIN_CAMERA_RATIO, SIGMA_ZOOMING_RATIO } from "./camera/sigmaCamera";
+import { createNodeBorderProgram } from '@sigma/node-border';
+import { TriangleNodeProgram } from '../../programs/triangleNodeProgram';
+import { SIGMA_MAX_CAMERA_RATIO, SIGMA_MIN_CAMERA_RATIO, SIGMA_ZOOMING_RATIO } from './camera/sigmaCamera';
 import {
   SIGMA_DEFAULT_LABEL_COLOR,
   SIGMA_DEFAULT_LABEL_DENSITY,
@@ -9,9 +9,9 @@ import {
   SIGMA_DEFAULT_LABEL_SIZE,
   SIGMA_NODE_TYPE_BORDER,
   SIGMA_NODE_TYPE_TRIANGLE,
-} from "./sigmaRendering.constants";
-import { drawCenteredNodeLabel, drawDistanceEdgeLabel } from "./attributes/sigmaLabels";
-import type { SigmaNodeProgramClasses, SigmaRendererOptions } from "./sigmaRenderer.types";
+} from './sigmaRendering.constants';
+import { drawCenteredNodeLabel, drawDistanceEdgeLabel } from './attributes/sigmaLabels';
+import type { SigmaNodeProgramClasses, SigmaRendererOptions } from './sigmaRenderer.types';
 
 /** Shrink with positions on zoom-out; bound zoom-in marker growth to 1.5x. */
 export function zoomToGlyphSizeRatio(ratio: number): number {
@@ -20,7 +20,7 @@ export function zoomToGlyphSizeRatio(ratio: number): number {
 
 export function buildSigmaSettings(
   rendererOptions: SigmaRendererOptions,
-  nodeProgramClasses: SigmaNodeProgramClasses = {},
+  nodeProgramClasses: SigmaNodeProgramClasses = {}
 ): Record<string, unknown> {
   const nodeLabelsEnabled = rendererOptions.display?.nodeLabels !== false;
   return {
@@ -49,12 +49,12 @@ export function buildSigmaSettings(
         drawLabel: drawCenteredNodeLabel,
         borders: [
           {
-            size: { value: 4, mode: "pixels" },
-            color: { attribute: "borderColor" },
+            size: { value: 4, mode: 'pixels' },
+            color: { attribute: 'borderColor' },
           },
           {
             size: { fill: true },
-            color: { attribute: "color" },
+            color: { attribute: 'color' },
           },
         ],
       }),

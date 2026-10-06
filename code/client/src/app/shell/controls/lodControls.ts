@@ -1,4 +1,4 @@
-import type { PositionedGraph } from "../../../contracts/positioned";
+import type { PositionedGraph } from '../../../contracts/positioned';
 
 export function updateLodPlaybackControls({
   playButton,
@@ -13,17 +13,17 @@ export function updateLodPlaybackControls({
 }): void {
   if (playButton) {
     playButton.disabled = !lodAvailable || !paused;
-    playButton.setAttribute("aria-pressed", String(!paused));
+    playButton.setAttribute('aria-pressed', String(!paused));
   }
 
   if (pauseButton) {
     pauseButton.disabled = !lodAvailable || paused;
-    pauseButton.setAttribute("aria-pressed", String(paused));
+    pauseButton.setAttribute('aria-pressed', String(paused));
   }
 }
 
 export function isLodGraph(graph: PositionedGraph | null): boolean {
-  return typeof graph?.viewMeta.sliceNodeCount === "number";
+  return typeof graph?.viewMeta.sliceNodeCount === 'number';
 }
 
 export function parseMaxNodes(value: string | undefined): number | undefined {

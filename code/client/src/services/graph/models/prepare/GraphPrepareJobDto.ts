@@ -1,4 +1,4 @@
-import type { GraphPrepareJobStatus } from "../../../../contracts/graph/graphTypes";
+import type { GraphPrepareJobStatus } from '../../../../contracts/graph/graphTypes';
 
 export interface GraphPrepareJobDto {
   job_id: string;

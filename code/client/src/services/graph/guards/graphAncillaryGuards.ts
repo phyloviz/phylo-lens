@@ -1,5 +1,5 @@
-import type { GraphAncillaryResponseDto } from "../models/ancillary/GraphAncillaryResponseDto";
-import { isRecord, isString, isFiniteNumber, isArrayOf } from "../../../validation/guards";
+import type { GraphAncillaryResponseDto } from '../models/ancillary/GraphAncillaryResponseDto';
+import { isRecord, isString, isFiniteNumber, isArrayOf } from '../../../validation/guards';
 
 export function isGraphAncillaryResponseDto(value: unknown): value is GraphAncillaryResponseDto {
   return (

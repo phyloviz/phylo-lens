@@ -1,4 +1,4 @@
-import type { AncillaryDataInputDto } from "./AncillaryDataInputDto";
+import type { AncillaryDataInputDto } from './AncillaryDataInputDto';
 
 export interface GraphAncillaryRequestDto {
   dataset_id: string;

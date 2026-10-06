@@ -1,8 +1,8 @@
-import type { GraphLayoutStatus } from "../../../../contracts/graph/graphTypes";
-import type { GraphViewportNodeDto } from "./GraphViewportNodeDto";
-import type { GraphViewportEdgeDto } from "./GraphViewportEdgeDto";
-import type { GraphLayoutBoundsDto } from "./GraphLayoutBoundsDto";
-import type { AncillaryField } from "../../../../contracts/ancillary";
+import type { GraphLayoutStatus } from '../../../../contracts/graph/graphTypes';
+import type { GraphViewportNodeDto } from './GraphViewportNodeDto';
+import type { GraphViewportEdgeDto } from './GraphViewportEdgeDto';
+import type { GraphLayoutBoundsDto } from './GraphLayoutBoundsDto';
+import type { AncillaryField } from '../../../../contracts/ancillary';
 
 export interface GraphViewportResponseDto {
   dataset_id: string;

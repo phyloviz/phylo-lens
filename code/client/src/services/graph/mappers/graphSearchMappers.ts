@@ -1,8 +1,8 @@
-import { toClusterId, toDatasetId, toNodeId } from "../../../contracts/graph/graphIdentifiers";
-import type { GraphSearchRequest } from "../../../contracts/graph/search/GraphSearchRequest";
-import type { GraphSearchRequestDto } from "../models/search/GraphSearchRequestDto";
-import type { GraphSearchResponseDto } from "../models/search/GraphSearchResponseDto";
-import type { GraphSearchResult } from "../../../contracts/graph/search/GraphSearchResult";
+import { toClusterId, toDatasetId, toNodeId } from '../../../contracts/graph/graphIdentifiers';
+import type { GraphSearchRequest } from '../../../contracts/graph/search/GraphSearchRequest';
+import type { GraphSearchRequestDto } from '../models/search/GraphSearchRequestDto';
+import type { GraphSearchResponseDto } from '../models/search/GraphSearchResponseDto';
+import type { GraphSearchResult } from '../../../contracts/graph/search/GraphSearchResult';
 
 export function toGraphSearchRequestDto(request: GraphSearchRequest): GraphSearchRequestDto {
   return {
@@ -18,7 +18,7 @@ export function toGraphSearchResult(dto: GraphSearchResponseDto): GraphSearchRes
     datasetId: toDatasetId(dto.dataset_id),
     query: dto.query,
     totalCount: dto.total_count,
-    matches: dto.matches.map((match) => ({
+    matches: dto.matches.map(match => ({
       nodeId: toNodeId(match.node_id),
       score: match.score,
       matchedText: match.matched_text,

@@ -45,119 +45,119 @@ export const ERR_MISSING_STATUS = 'Missing status element.';
 export const ERR_MISSING_GRAPH_ROOT = 'Missing graph root element.';
 
 export default function bootstrapClientShell(baseUrl = ''): UiShell {
-    const form = getOptionalElement(ID_RENDER_FORM);
-    if (!(form instanceof HTMLFormElement)) throw new Error(ERR_MISSING_RENDER_FORM);
-    const newickInput = getTextArea(ID_NEWICK_INPUT);
-    if (!newickInput) throw new Error(ERR_MISSING_NEWICK_INPUT);
-    const elements = {
-        form,
-        newickInput,
-        status: requireElement(ID_STATUS, ERR_MISSING_STATUS),
-        graphRoot: requireElement(ID_GRAPH_ROOT, ERR_MISSING_GRAPH_ROOT),
+  const form = getOptionalElement(ID_RENDER_FORM);
+  if (!(form instanceof HTMLFormElement)) throw new Error(ERR_MISSING_RENDER_FORM);
+  const newickInput = getTextArea(ID_NEWICK_INPUT);
+  if (!newickInput) throw new Error(ERR_MISSING_NEWICK_INPUT);
+  const elements = {
+    form,
+    newickInput,
+    status: requireElement(ID_STATUS, ERR_MISSING_STATUS),
+    graphRoot: requireElement(ID_GRAPH_ROOT, ERR_MISSING_GRAPH_ROOT),
 
-        newickFileInput: getInput(ID_NEWICK_FILE_INPUT),
-        newickSourceControls: getOptionalElement(ID_NEWICK_SOURCE_CONTROLS),
-        sourceFormatSelect: getSelect(ID_SOURCE_FORMAT),
-        typingFileInput: getInput(ID_TYPING_FILE_INPUT),
-        typingSourceControls: getOptionalElement(ID_TYPING_SOURCE_CONTROLS),
-        datasetNameInput: getInput(ID_DATASET_NAME_INPUT),
+    newickFileInput: getInput(ID_NEWICK_FILE_INPUT),
+    newickSourceControls: getOptionalElement(ID_NEWICK_SOURCE_CONTROLS),
+    sourceFormatSelect: getSelect(ID_SOURCE_FORMAT),
+    typingFileInput: getInput(ID_TYPING_FILE_INPUT),
+    typingSourceControls: getOptionalElement(ID_TYPING_SOURCE_CONTROLS),
+    datasetNameInput: getInput(ID_DATASET_NAME_INPUT),
 
-        ancillaryInput: getTextArea(ID_ANCILLARY_INPUT),
-        ancillaryFileInput: getInput(ID_ANCILLARY_FILE_INPUT),
-        applyAncillaryButton: getButton('apply-ancillary-button'),
-        ancillaryJoinColumnInput: getSelect(ID_ANCILLARY_JOIN_COLUMN_INPUT) ?? getInput(ID_ANCILLARY_JOIN_COLUMN_INPUT),
-        ancillaryFormatSelect: getSelect(ID_ANCILLARY_FORMAT),
-        ancillaryWheelContainer: getOptionalElement(ID_ANCILLARY_WHEEL),
-        ancillarySelectedNodeWheelContainer: getOptionalElement(ID_ANCILLARY_SELECTED_NODE_WHEEL),
-        ancillaryModeSelect: getSelect(ID_ANCILLARY_MODE),
-        ancillaryNodeSelect: getSelect(ID_ANCILLARY_NODE),
+    ancillaryInput: getTextArea(ID_ANCILLARY_INPUT),
+    ancillaryFileInput: getInput(ID_ANCILLARY_FILE_INPUT),
+    applyAncillaryButton: getButton('apply-ancillary-button'),
+    ancillaryJoinColumnInput: getSelect(ID_ANCILLARY_JOIN_COLUMN_INPUT) ?? getInput(ID_ANCILLARY_JOIN_COLUMN_INPUT),
+    ancillaryFormatSelect: getSelect(ID_ANCILLARY_FORMAT),
+    ancillaryWheelContainer: getOptionalElement(ID_ANCILLARY_WHEEL),
+    ancillarySelectedNodeWheelContainer: getOptionalElement(ID_ANCILLARY_SELECTED_NODE_WHEEL),
+    ancillaryModeSelect: getSelect(ID_ANCILLARY_MODE),
+    ancillaryNodeSelect: getSelect(ID_ANCILLARY_NODE),
 
-        ancillaryFieldSelect: getSelect(ID_ANCILLARY_PIE_FIELD),
-        showNodePiesInput: getInput('show-node-pies'),
-        ancillarySizeFieldInput: getInput(ID_ANCILLARY_SIZE_FIELD),
-        ancillarySizeScaleSelect: getSelect(ID_ANCILLARY_SIZE_SCALE),
+    ancillaryFieldSelect: getSelect(ID_ANCILLARY_PIE_FIELD),
+    showNodePiesInput: getInput('show-node-pies'),
+    ancillarySizeFieldInput: getInput(ID_ANCILLARY_SIZE_FIELD),
+    ancillarySizeScaleSelect: getSelect(ID_ANCILLARY_SIZE_SCALE),
 
-        paletteControlsContainer: getOptionalElement(ID_PALETTE_CONTROLS),
-        paletteLoadButton: getButton(ID_PALETTE_LOAD_BUTTON),
-        paletteLoadInput: getInput(ID_PALETTE_LOAD_INPUT),
-        paletteSaveButton: getButton(ID_PALETTE_SAVE_BUTTON),
+    paletteControlsContainer: getOptionalElement(ID_PALETTE_CONTROLS),
+    paletteLoadButton: getButton(ID_PALETTE_LOAD_BUTTON),
+    paletteLoadInput: getInput(ID_PALETTE_LOAD_INPUT),
+    paletteSaveButton: getButton(ID_PALETTE_SAVE_BUTTON),
 
-        displayOptionsSelect: getSelect(ID_DISPLAY_OPTIONS),
-        motionInput: getInput('motion-enabled'),
-        branchRootButton: getButton('branch-root'),
-        singleDragButton: getButton('single-drag'),
-        resetLayoutButton: getButton('reset-layout'),
-        dragStatus: getOptionalElement('drag-status'),
-        edgeLabelPolicySelect: getSelect('edge-label-policy'),
-        exportScaleInput: getSelect('export-scale'),
-        exportLabelSizeInput: getInput('export-label-size'),
-        exportButton: getButton('export-png'),
-        expansion: {
-            expandSelected: getButton('expand-selected'),
-            collapseSelected: getButton('collapse-selected'),
-            expandAll: getButton('expand-all'),
-            collapseAll: getButton('collapse-all'),
-            keepExpanded: getInput('keep-expanded'),
-            feedback: getOptionalElement('expansion-feedback'),
-        },
-        lodPlayButton: getButton(ID_LOD_PLAY_BUTTON),
-        lodPauseButton: getButton(ID_LOD_PAUSE_BUTTON),
-        maxNodesInput: getInput(ID_MAX_NODES_INPUT),
+    displayOptionsSelect: getSelect(ID_DISPLAY_OPTIONS),
+    motionInput: getInput('motion-enabled'),
+    branchRootButton: getButton('branch-root'),
+    singleDragButton: getButton('single-drag'),
+    resetLayoutButton: getButton('reset-layout'),
+    dragStatus: getOptionalElement('drag-status'),
+    edgeLabelPolicySelect: getSelect('edge-label-policy'),
+    exportScaleInput: getSelect('export-scale'),
+    exportLabelSizeInput: getInput('export-label-size'),
+    exportButton: getButton('export-png'),
+    expansion: {
+      expandSelected: getButton('expand-selected'),
+      collapseSelected: getButton('collapse-selected'),
+      expandAll: getButton('expand-all'),
+      collapseAll: getButton('collapse-all'),
+      keepExpanded: getInput('keep-expanded'),
+      feedback: getOptionalElement('expansion-feedback'),
+    },
+    lodPlayButton: getButton(ID_LOD_PLAY_BUTTON),
+    lodPauseButton: getButton(ID_LOD_PAUSE_BUTTON),
+    maxNodesInput: getInput(ID_MAX_NODES_INPUT),
 
-        searchInput: getInput(ID_SEARCH_INPUT),
-        searchButton: getButton(ID_SEARCH_BUTTON),
-        searchResults: getOptionalElement(ID_SEARCH_RESULTS),
+    searchInput: getInput(ID_SEARCH_INPUT),
+    searchButton: getButton(ID_SEARCH_BUTTON),
+    searchResults: getOptionalElement(ID_SEARCH_RESULTS),
 
-        regionSelectToggle: getButton(ID_REGION_SELECT_TOGGLE),
-        regionSelectionPanel: getOptionalElement(ID_REGION_SELECTION_PANEL),
-    };
+    regionSelectToggle: getButton(ID_REGION_SELECT_TOGGLE),
+    regionSelectionPanel: getOptionalElement(ID_REGION_SELECTION_PANEL),
+  };
 
-    const graphClient = createGraphClient({ baseUrl });
-    const workbench = createGraphWorkbench({
-        graphClient,
-        rendererFactory: rendererFactory(),
-        rendererType: RendererType.Sigma,
-        renderContext: { container: elements.graphRoot },
-    });
+  const graphClient = createGraphClient({ baseUrl });
+  const workbench = createGraphWorkbench({
+    graphClient,
+    rendererFactory: rendererFactory(),
+    rendererType: RendererType.Sigma,
+    renderContext: { container: elements.graphRoot },
+  });
 
-    const shell = uiShell({
-        workbench,
-        elements,
-    });
+  const shell = uiShell({
+    workbench,
+    elements,
+  });
 
-    shell.mount();
+  shell.mount();
 
-    return shell;
+  return shell;
 }
 
 // Helpers
 
 function getButton(id: string): HTMLButtonElement | undefined {
-    const element = getOptionalElement(id);
-    return element instanceof HTMLButtonElement ? element : undefined;
+  const element = getOptionalElement(id);
+  return element instanceof HTMLButtonElement ? element : undefined;
 }
 
 function getInput(id: string): HTMLInputElement | undefined {
-    const element = getOptionalElement(id);
-    return element instanceof HTMLInputElement ? element : undefined;
+  const element = getOptionalElement(id);
+  return element instanceof HTMLInputElement ? element : undefined;
 }
 
 function getSelect(id: string): HTMLSelectElement | undefined {
-    const element = getOptionalElement(id);
-    return element instanceof HTMLSelectElement ? element : undefined;
+  const element = getOptionalElement(id);
+  return element instanceof HTMLSelectElement ? element : undefined;
 }
 
 function getOptionalElement(id: string): HTMLElement | undefined {
-    return document.getElementById(id) ?? undefined;
+  return document.getElementById(id) ?? undefined;
 }
 
 function getTextArea(id: string): HTMLTextAreaElement | undefined {
-    const element = getOptionalElement(id);
-    return element instanceof HTMLTextAreaElement ? element : undefined;
+  const element = getOptionalElement(id);
+  return element instanceof HTMLTextAreaElement ? element : undefined;
 }
 
 function requireElement(id: string, errorMessage: string): HTMLElement {
-    const element = getOptionalElement(id);
-    if (!element) throw new Error(errorMessage);
-    return element;
+  const element = getOptionalElement(id);
+  if (!element) throw new Error(errorMessage);
+  return element;
 }

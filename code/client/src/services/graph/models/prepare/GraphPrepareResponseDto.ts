@@ -1,4 +1,4 @@
-import type { GraphLayoutStatus } from "../../../../contracts/graph/graphTypes";
+import type { GraphLayoutStatus } from '../../../../contracts/graph/graphTypes';
 
 export interface GraphPrepareResponseDto {
   dataset_id: string;

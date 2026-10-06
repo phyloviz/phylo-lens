@@ -6,27 +6,27 @@ import type { GraphRegionResult } from '../../../contracts/graph/region/GraphReg
 import { toGraphViewportNode, toGraphViewportEdge } from './graphViewportMappers';
 
 export function toGraphRegionRequestDto(request: GraphRegionRequest): GraphRegionRequestDto {
-    return {
-        dataset_id: request.datasetId,
-        layout_version: request.layoutVersion,
-        xmin: request.xmin,
-        xmax: request.xmax,
-        ymin: request.ymin,
-        ymax: request.ymax,
-        max_nodes: request.maxNodes,
-    };
+  return {
+    dataset_id: request.datasetId,
+    layout_version: request.layoutVersion,
+    xmin: request.xmin,
+    xmax: request.xmax,
+    ymin: request.ymin,
+    ymax: request.ymax,
+    max_nodes: request.maxNodes,
+  };
 }
 
 export function toGraphRegionResult(dto: GraphRegionResponseDto): GraphRegionResult {
-    return {
-        datasetId: toDatasetId(dto.dataset_id),
-        layoutVersion: toLayoutVersion(dto.layout_version),
-        layoutStatus: dto.layout_status,
-        truncated: dto.truncated,
-        totalNodeCount: dto.total_node_count,
-        nodes: dto.nodes.map(toGraphViewportNode),
-        edges: dto.edges.map(toGraphViewportEdge),
-        ancillarySchema: dto.metadata_schema?.map(field => ({ ...field })),
-        aggregatedAncillaryData: { ...dto.aggregated_metadata },
-    };
+  return {
+    datasetId: toDatasetId(dto.dataset_id),
+    layoutVersion: toLayoutVersion(dto.layout_version),
+    layoutStatus: dto.layout_status,
+    truncated: dto.truncated,
+    totalNodeCount: dto.total_node_count,
+    nodes: dto.nodes.map(toGraphViewportNode),
+    edges: dto.edges.map(toGraphViewportEdge),
+    ancillarySchema: dto.metadata_schema?.map(field => ({ ...field })),
+    aggregatedAncillaryData: { ...dto.aggregated_metadata },
+  };
 }

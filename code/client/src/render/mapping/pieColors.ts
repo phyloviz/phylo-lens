@@ -2,222 +2,222 @@ import { distributionForFields, distributionFromAttributes } from './pieDistribu
 import { readNodeAncillaryValues } from '../../ancillary/ancillaryAccess';
 import { deriveColor, DEFAULT_COLOR_PALETTE } from './colorMapping';
 import {
-    PIE_ATTRIBUTE_PREFIX,
-    PIE_GROUPING_ATTRIBUTE,
-    type PieCategoryGrouping,
-    PIE_CATEGORY_COLORS_ATTRIBUTE,
-    PIE_OTHER_SLICE_COLOR,
-    PIE_OTHER_SLICE_KEY,
-    PIE_PALETTE_ATTRIBUTE,
-    MAX_PIE_SLICE_KEYS,
-    DEFAULT_PIE_PALETTE,
-    type PieCategory,
+  PIE_ATTRIBUTE_PREFIX,
+  PIE_GROUPING_ATTRIBUTE,
+  type PieCategoryGrouping,
+  PIE_CATEGORY_COLORS_ATTRIBUTE,
+  PIE_OTHER_SLICE_COLOR,
+  PIE_OTHER_SLICE_KEY,
+  PIE_PALETTE_ATTRIBUTE,
+  MAX_PIE_SLICE_KEYS,
+  DEFAULT_PIE_PALETTE,
+  type PieCategory,
 } from './pieMapping.types';
 
 type PiePresentationNode = {
-    readonly attributes?: Readonly<Record<string, unknown>>;
-    readonly distribution?: readonly PieCategory[];
-    readonly grouping?: PieCategoryGrouping;
+  readonly attributes?: Readonly<Record<string, unknown>>;
+  readonly distribution?: readonly PieCategory[];
+  readonly grouping?: PieCategoryGrouping;
 };
 
 export function detectPieSliceKeys(nodes: readonly PiePresentationNode[], maxSliceKeys = MAX_PIE_SLICE_KEYS): string[] {
-    const totalsByKey = new Map<string, number>();
-    const addSlice = (key: string, value: unknown) => {
-        if (key !== PIE_OTHER_SLICE_KEY && typeof value === 'number' && Number.isFinite(value) && value > 0)
-            totalsByKey.set(key, (totalsByKey.get(key) ?? 0) + value);
-    };
-    for (const node of nodes) {
-        if (node.distribution) {
-            for (const slice of node.distribution) addSlice(slice.key, slice.value);
-        } else {
-            const attributes = node.attributes ?? {};
-            for (const key of Object.keys(attributes))
-                if (key.startsWith(PIE_ATTRIBUTE_PREFIX)) addSlice(key, attributes[key]);
-        }
+  const totalsByKey = new Map<string, number>();
+  const addSlice = (key: string, value: unknown) => {
+    if (key !== PIE_OTHER_SLICE_KEY && typeof value === 'number' && Number.isFinite(value) && value > 0)
+      totalsByKey.set(key, (totalsByKey.get(key) ?? 0) + value);
+  };
+  for (const node of nodes) {
+    if (node.distribution) {
+      for (const slice of node.distribution) addSlice(slice.key, slice.value);
+    } else {
+      const attributes = node.attributes ?? {};
+      for (const key of Object.keys(attributes))
+        if (key.startsWith(PIE_ATTRIBUTE_PREFIX)) addSlice(key, attributes[key]);
     }
-    const source = nodes.find(node => node.grouping || node.attributes?.[PIE_GROUPING_ATTRIBUTE]);
-    const grouping =
-        source?.grouping ?? (source?.attributes?.[PIE_GROUPING_ATTRIBUTE] as PieCategoryGrouping | undefined);
-    return selectPieSliceKeys(totalsByKey, grouping, maxSliceKeys);
+  }
+  const source = nodes.find(node => node.grouping || node.attributes?.[PIE_GROUPING_ATTRIBUTE]);
+  const grouping =
+    source?.grouping ?? (source?.attributes?.[PIE_GROUPING_ATTRIBUTE] as PieCategoryGrouping | undefined);
+  return selectPieSliceKeys(totalsByKey, grouping, maxSliceKeys);
 }
 
 /** Separate choices reserve stable slots; automatic choices rank current-view counts. */
 export function selectPieSliceKeys(
-    totals: ReadonlyMap<string, number>,
-    grouping: PieCategoryGrouping = {},
-    capacity = MAX_PIE_SLICE_KEYS
+  totals: ReadonlyMap<string, number>,
+  grouping: PieCategoryGrouping = {},
+  capacity = MAX_PIE_SLICE_KEYS
 ): string[] {
-    const limit = Math.max(0, Math.min(MAX_PIE_SLICE_KEYS, Math.floor(capacity)));
-    if (!limit) return [];
-    const separate = Object.keys(grouping)
-        .filter(key => grouping[key] === 'separate')
-        .sort();
-    const reserved = separate.slice(0, Math.max(0, limit - 1));
-    const reservedSet = new Set(reserved);
-    const automatic = [...totals.keys()]
-        .filter(key => !grouping[key])
-        .sort((a, b) => (totals.get(b) ?? 0) - (totals.get(a) ?? 0) || a.localeCompare(b));
-    const hasGrouped = [...totals.keys()].some(
-        key => grouping[key] === 'other' || (grouping[key] === 'separate' && !reservedSet.has(key))
-    );
-    const needsOther = hasGrouped || reserved.length + automatic.length > limit;
-    const displayed = [...reserved, ...automatic.slice(0, Math.max(0, limit - reserved.length - Number(needsOther)))];
-    if (needsOther) displayed.push(PIE_OTHER_SLICE_KEY);
-    return displayed.sort((a, b) => a.localeCompare(b));
+  const limit = Math.max(0, Math.min(MAX_PIE_SLICE_KEYS, Math.floor(capacity)));
+  if (!limit) return [];
+  const separate = Object.keys(grouping)
+    .filter(key => grouping[key] === 'separate')
+    .sort();
+  const reserved = separate.slice(0, Math.max(0, limit - 1));
+  const reservedSet = new Set(reserved);
+  const automatic = [...totals.keys()]
+    .filter(key => !grouping[key])
+    .sort((a, b) => (totals.get(b) ?? 0) - (totals.get(a) ?? 0) || a.localeCompare(b));
+  const hasGrouped = [...totals.keys()].some(
+    key => grouping[key] === 'other' || (grouping[key] === 'separate' && !reservedSet.has(key))
+  );
+  const needsOther = hasGrouped || reserved.length + automatic.length > limit;
+  const displayed = [...reserved, ...automatic.slice(0, Math.max(0, limit - reserved.length - Number(needsOther)))];
+  if (needsOther) displayed.push(PIE_OTHER_SLICE_KEY);
+  return displayed.sort((a, b) => a.localeCompare(b));
 }
 
 export function buildPiePalette(count: number, requestedPalette?: readonly string[]): string[] {
-    if (count <= 0) {
-        return [];
+  if (count <= 0) {
+    return [];
+  }
+
+  const seed = requestedPalette && requestedPalette.length > 0 ? requestedPalette : DEFAULT_PIE_PALETTE;
+
+  const colors: string[] = [];
+  for (let index = 0; index < count; index += 1) {
+    if (index < seed.length) {
+      colors.push(seed[index] as string);
+      continue;
     }
 
-    const seed = requestedPalette && requestedPalette.length > 0 ? requestedPalette : DEFAULT_PIE_PALETTE;
+    const hue = (index * 137.508) % 360;
+    colors.push(hslToHex(hue, 70, 52));
+  }
 
-    const colors: string[] = [];
-    for (let index = 0; index < count; index += 1) {
-        if (index < seed.length) {
-            colors.push(seed[index] as string);
-            continue;
-        }
-
-        const hue = (index * 137.508) % 360;
-        colors.push(hslToHex(hue, 70, 52));
-    }
-
-    return colors;
+  return colors;
 }
 
 export function resolvePieSliceColors(
-    nodes: readonly PiePresentationNode[],
-    sliceKeys: readonly string[] = detectPieSliceKeys(nodes),
-    requestedPalette?: readonly string[],
-    // Live per-category overrides from the shell controls, keyed by plain value
-    // label (e.g. "Peru"). They are re-keyed to slice keys per field below and
-    // take precedence over overrides baked onto the graph, so a colour edit is
-    // reflected immediately by every consumer (wheel included).
-    requestedCategoryColors?: Readonly<Record<string, string>>
+  nodes: readonly PiePresentationNode[],
+  sliceKeys: readonly string[] = detectPieSliceKeys(nodes),
+  requestedPalette?: readonly string[],
+  // Live per-category overrides from the shell controls, keyed by plain value
+  // label (e.g. "Peru"). They are re-keyed to slice keys per field below and
+  // take precedence over overrides baked onto the graph, so a colour edit is
+  // reflected immediately by every consumer (wheel included).
+  requestedCategoryColors?: Readonly<Record<string, string>>
 ): Record<string, string> {
-    const palette = requestedPalette?.length
-        ? requestedPalette
-        : (resolvePiePaletteFromNodes(nodes) ?? DEFAULT_COLOR_PALETTE);
-    const overrides = collectPieCategoryColors(nodes);
-    const categories = new Map(
-        nodes.flatMap(node => {
-            const stored = node.distribution ?? distributionFromAttributes(node.attributes);
-            const slices = stored.length
-                ? stored
-                : Object.keys(readNodeAncillaryValues(node.attributes)).flatMap(field =>
-                      distributionForFields(node.attributes, [field])
-                  );
-            return slices.map(slice => [slice.key, slice] as const);
-        })
-    );
-    return Object.fromEntries(
-        sliceKeys.map(key => {
-            if (key === PIE_OTHER_SLICE_KEY) return [key, PIE_OTHER_SLICE_COLOR];
-            const slice = categories.get(key);
-            return [
-                key,
-                resolvePieCategoryColor(
-                    slice ?? { category: key },
-                    palette,
-                    requestedCategoryColors?.[slice?.category ?? key] ?? overrides[key]
-                ),
-            ];
-        })
-    );
+  const palette = requestedPalette?.length
+    ? requestedPalette
+    : (resolvePiePaletteFromNodes(nodes) ?? DEFAULT_COLOR_PALETTE);
+  const overrides = collectPieCategoryColors(nodes);
+  const categories = new Map(
+    nodes.flatMap(node => {
+      const stored = node.distribution ?? distributionFromAttributes(node.attributes);
+      const slices = stored.length
+        ? stored
+        : Object.keys(readNodeAncillaryValues(node.attributes)).flatMap(field =>
+            distributionForFields(node.attributes, [field])
+          );
+      return slices.map(slice => [slice.key, slice] as const);
+    })
+  );
+  return Object.fromEntries(
+    sliceKeys.map(key => {
+      if (key === PIE_OTHER_SLICE_KEY) return [key, PIE_OTHER_SLICE_COLOR];
+      const slice = categories.get(key);
+      return [
+        key,
+        resolvePieCategoryColor(
+          slice ?? { category: key },
+          palette,
+          requestedCategoryColors?.[slice?.category ?? key] ?? overrides[key]
+        ),
+      ];
+    })
+  );
 }
 
 export function resolvePieCategoryColor(
-    slice: Pick<PieCategory, 'category' | 'missing'>,
-    palette: readonly string[],
-    override?: string
+  slice: Pick<PieCategory, 'category' | 'missing'>,
+  palette: readonly string[],
+  override?: string
 ): string {
-    return override && /^#[0-9a-fA-F]{6}$/.test(override)
-        ? override
-        : slice.missing
-          ? '#94a3b8'
-          : deriveColor(slice.category, palette);
+  return override && /^#[0-9a-fA-F]{6}$/.test(override)
+    ? override
+    : slice.missing
+      ? '#94a3b8'
+      : deriveColor(slice.category, palette);
 }
 
 export function collectPieCategoryColors(
-    nodes: ReadonlyArray<{ readonly attributes?: Readonly<Record<string, unknown>> }>
+  nodes: ReadonlyArray<{ readonly attributes?: Readonly<Record<string, unknown>> }>
 ): Record<string, string> {
-    const colors: Record<string, string> = {};
+  const colors: Record<string, string> = {};
 
-    nodes.forEach(node => {
-        const value = node.attributes?.[PIE_CATEGORY_COLORS_ATTRIBUTE];
-        if (!value || typeof value !== 'object' || Array.isArray(value)) {
-            return;
-        }
+  nodes.forEach(node => {
+    const value = node.attributes?.[PIE_CATEGORY_COLORS_ATTRIBUTE];
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return;
+    }
 
-        Object.entries(value).forEach(([key, color]) => {
-            if (typeof color === 'string' && /^#[0-9a-fA-F]{6}$/.test(color)) {
-                colors[key] = color;
-            }
-        });
+    Object.entries(value).forEach(([key, color]) => {
+      if (typeof color === 'string' && /^#[0-9a-fA-F]{6}$/.test(color)) {
+        colors[key] = color;
+      }
     });
+  });
 
-    return colors;
+  return colors;
 }
 
 export function resolvePiePaletteFromNodes(
-    nodes: ReadonlyArray<{ readonly attributes?: Readonly<Record<string, unknown>> }>
+  nodes: ReadonlyArray<{ readonly attributes?: Readonly<Record<string, unknown>> }>
 ): string[] | undefined {
-    for (const node of nodes) {
-        const value = node.attributes?.[PIE_PALETTE_ATTRIBUTE];
-        if (!Array.isArray(value)) {
-            continue;
-        }
-
-        const colors = value.filter(
-            (color): color is string => typeof color === 'string' && /^#[0-9a-fA-F]{6}$/.test(color)
-        );
-        if (colors.length > 0) {
-            return colors;
-        }
+  for (const node of nodes) {
+    const value = node.attributes?.[PIE_PALETTE_ATTRIBUTE];
+    if (!Array.isArray(value)) {
+      continue;
     }
 
-    return undefined;
+    const colors = value.filter(
+      (color): color is string => typeof color === 'string' && /^#[0-9a-fA-F]{6}$/.test(color)
+    );
+    if (colors.length > 0) {
+      return colors;
+    }
+  }
+
+  return undefined;
 }
 
 function hslToHex(hue: number, saturationPercent: number, lightnessPercent: number): string {
-    const saturation = saturationPercent / 100;
-    const lightness = lightnessPercent / 100;
-    const chroma = (1 - Math.abs(2 * lightness - 1)) * saturation;
-    const huePrime = (((hue % 360) + 360) % 360) / 60;
-    const x = chroma * (1 - Math.abs((huePrime % 2) - 1));
+  const saturation = saturationPercent / 100;
+  const lightness = lightnessPercent / 100;
+  const chroma = (1 - Math.abs(2 * lightness - 1)) * saturation;
+  const huePrime = (((hue % 360) + 360) % 360) / 60;
+  const x = chroma * (1 - Math.abs((huePrime % 2) - 1));
 
-    let red = 0;
-    let green = 0;
-    let blue = 0;
+  let red = 0;
+  let green = 0;
+  let blue = 0;
 
-    if (huePrime < 1) {
-        red = chroma;
-        green = x;
-    } else if (huePrime < 2) {
-        red = x;
-        green = chroma;
-    } else if (huePrime < 3) {
-        green = chroma;
-        blue = x;
-    } else if (huePrime < 4) {
-        green = x;
-        blue = chroma;
-    } else if (huePrime < 5) {
-        red = x;
-        blue = chroma;
-    } else {
-        red = chroma;
-        blue = x;
-    }
+  if (huePrime < 1) {
+    red = chroma;
+    green = x;
+  } else if (huePrime < 2) {
+    red = x;
+    green = chroma;
+  } else if (huePrime < 3) {
+    green = chroma;
+    blue = x;
+  } else if (huePrime < 4) {
+    green = x;
+    blue = chroma;
+  } else if (huePrime < 5) {
+    red = x;
+    blue = chroma;
+  } else {
+    red = chroma;
+    blue = x;
+  }
 
-    const match = lightness - chroma / 2;
-    return `#${hexChannel(red + match)}${hexChannel(green + match)}${hexChannel(blue + match)}`;
+  const match = lightness - chroma / 2;
+  return `#${hexChannel(red + match)}${hexChannel(green + match)}${hexChannel(blue + match)}`;
 }
 
 function hexChannel(value: number): string {
-    return Math.round(Math.min(1, Math.max(0, value)) * 255)
-        .toString(16)
-        .padStart(2, '0');
+  return Math.round(Math.min(1, Math.max(0, value)) * 255)
+    .toString(16)
+    .padStart(2, '0');
 }

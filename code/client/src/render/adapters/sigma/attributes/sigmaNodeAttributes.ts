@@ -4,58 +4,58 @@ import { PIE_ATTRIBUTE_PREFIX, PIE_OTHER_SLICE_KEY } from '../../../mapping/pieM
 import { isTruthyAttribute, toPositiveNumber } from './sigmaAttributeUtils';
 import { deriveNodeLabel } from './sigmaLabels';
 import {
-    PHYLOVIZ_CLUSTER_COLOR,
-    PHYLOVIZ_NODE_SELECTED_COLOR,
-    SIGMA_DEFAULT_NODE_SIZE,
-    SIGMA_NODE_TYPE_DEFAULT,
-    SIGMA_NODE_TYPE_PIECHART,
-    SIGMA_NODE_TYPE_TRIANGLE,
+  PHYLOVIZ_CLUSTER_COLOR,
+  PHYLOVIZ_NODE_SELECTED_COLOR,
+  SIGMA_DEFAULT_NODE_SIZE,
+  SIGMA_NODE_TYPE_DEFAULT,
+  SIGMA_NODE_TYPE_PIECHART,
+  SIGMA_NODE_TYPE_TRIANGLE,
 } from '../sigmaRendering.constants';
 import { isUnionNode, UNION_NODE_COLOR, UNION_NODE_SIZE } from '../../../mapping/unionNodes';
 import type { SigmaRendererOptions } from '../sigmaRenderer.types';
 import { derivePhylovizNodeColor } from './sigmaStyle';
 
 export function addPositionedNode(
-    graph: Graph,
-    node: PositionedNode,
-    pieSliceKeys: readonly string[],
-    rendererOptions: SigmaRendererOptions,
-    triangleRotation = 0
+  graph: Graph,
+  node: PositionedNode,
+  pieSliceKeys: readonly string[],
+  rendererOptions: SigmaRendererOptions,
+  triangleRotation = 0
 ): void {
-    const unionNode = isUnionNode(node.id, node.attributes);
-    const pieAttributes: Record<string, number> = {};
-    const displayedPieKeys = new Set(pieSliceKeys.filter(key => key !== PIE_OTHER_SLICE_KEY));
-    pieSliceKeys.forEach(key => {
-        pieAttributes[key] = unionNode
-            ? 0
-            : key === PIE_OTHER_SLICE_KEY
-              ? deriveOtherPieValue(node.attributes, displayedPieKeys)
-              : toPositiveNumber(node.attributes?.[key]);
-    });
-    const hasPieData = Object.values(pieAttributes).some(value => value > 0);
-    const isClusterProxy = node.attributes?.isClusterProxy === true;
-    const nodeType = isClusterProxy
-        ? SIGMA_NODE_TYPE_TRIANGLE
-        : !unionNode && hasPieData && pieSliceKeys.length > 0
-          ? SIGMA_NODE_TYPE_PIECHART
-          : SIGMA_NODE_TYPE_DEFAULT;
-    const nodeSize = unionNode ? UNION_NODE_SIZE : (node.size ?? SIGMA_DEFAULT_NODE_SIZE);
+  const unionNode = isUnionNode(node.id, node.attributes);
+  const pieAttributes: Record<string, number> = {};
+  const displayedPieKeys = new Set(pieSliceKeys.filter(key => key !== PIE_OTHER_SLICE_KEY));
+  pieSliceKeys.forEach(key => {
+    pieAttributes[key] = unionNode
+      ? 0
+      : key === PIE_OTHER_SLICE_KEY
+        ? deriveOtherPieValue(node.attributes, displayedPieKeys)
+        : toPositiveNumber(node.attributes?.[key]);
+  });
+  const hasPieData = Object.values(pieAttributes).some(value => value > 0);
+  const isClusterProxy = node.attributes?.isClusterProxy === true;
+  const nodeType = isClusterProxy
+    ? SIGMA_NODE_TYPE_TRIANGLE
+    : !unionNode && hasPieData && pieSliceKeys.length > 0
+      ? SIGMA_NODE_TYPE_PIECHART
+      : SIGMA_NODE_TYPE_DEFAULT;
+  const nodeSize = unionNode ? UNION_NODE_SIZE : (node.size ?? SIGMA_DEFAULT_NODE_SIZE);
 
-    graph.addNode(node.id, {
-        x: node.x,
-        y: node.y,
-        size: nodeSize,
-        ...(node.attributes ?? {}),
-        ...pieAttributes,
-        type: nodeType,
-        color: derivePositionedNodeColor(node),
-        borderColor: undefined,
-        label:
-            rendererOptions.label?.enabled === false || rendererOptions.display?.nodeLabels === false
-                ? ''
-                : deriveNodeLabel(node.id, node.attributes),
-        triangleRotation,
-    });
+  graph.addNode(node.id, {
+    x: node.x,
+    y: node.y,
+    size: nodeSize,
+    ...(node.attributes ?? {}),
+    ...pieAttributes,
+    type: nodeType,
+    color: derivePositionedNodeColor(node),
+    borderColor: undefined,
+    label:
+      rendererOptions.label?.enabled === false || rendererOptions.display?.nodeLabels === false
+        ? ''
+        : deriveNodeLabel(node.id, node.attributes),
+    triangleRotation,
+  });
 }
 
 // Flip synced nodes to the piechart node type once the piechart program for
@@ -65,88 +65,88 @@ export function addPositionedNode(
 // slice key (plus the aggregated Others bucket) is present on each pie node so
 // the @sigma/node-piechart program can read them.
 export function applyPieChartNodeTypes(graph: Graph, sliceKeys: readonly string[]): void {
-    if (sliceKeys.length === 0) {
-        return;
-    }
+  if (sliceKeys.length === 0) {
+    return;
+  }
 
-    const displayedPieKeys = new Set(sliceKeys.filter(key => key !== PIE_OTHER_SLICE_KEY));
-    graph.forEachNode((nodeId, rawAttributes) => {
-        const attributes = rawAttributes as Record<string, unknown>;
-        const unionNode = isUnionNode(nodeId, attributes);
-        let hasPieData = false;
-        sliceKeys.forEach(key => {
-            const value = unionNode
-                ? 0
-                : key === PIE_OTHER_SLICE_KEY
-                  ? deriveOtherPieValue(attributes, displayedPieKeys)
-                  : toPositiveNumber(attributes[key]);
-            graph.setNodeAttribute(nodeId, key, value);
-            if (value > 0) {
-                hasPieData = true;
-            }
-        });
-
-        // A cluster proxy is an interaction affordance; it must stay a triangle so
-        // its tip continues to identify the edge that expands the cluster. Pies
-        // remain available for ordinary nodes only.
-        if (!unionNode && attributes.isClusterProxy !== true && hasPieData) {
-            graph.setNodeAttribute(nodeId, 'type', SIGMA_NODE_TYPE_PIECHART);
-        }
+  const displayedPieKeys = new Set(sliceKeys.filter(key => key !== PIE_OTHER_SLICE_KEY));
+  graph.forEachNode((nodeId, rawAttributes) => {
+    const attributes = rawAttributes as Record<string, unknown>;
+    const unionNode = isUnionNode(nodeId, attributes);
+    let hasPieData = false;
+    sliceKeys.forEach(key => {
+      const value = unionNode
+        ? 0
+        : key === PIE_OTHER_SLICE_KEY
+          ? deriveOtherPieValue(attributes, displayedPieKeys)
+          : toPositiveNumber(attributes[key]);
+      graph.setNodeAttribute(nodeId, key, value);
+      if (value > 0) {
+        hasPieData = true;
+      }
     });
+
+    // A cluster proxy is an interaction affordance; it must stay a triangle so
+    // its tip continues to identify the edge that expands the cluster. Pies
+    // remain available for ordinary nodes only.
+    if (!unionNode && attributes.isClusterProxy !== true && hasPieData) {
+      graph.setNodeAttribute(nodeId, 'type', SIGMA_NODE_TYPE_PIECHART);
+    }
+  });
 }
 
 function deriveOtherPieValue(attributes: Record<string, unknown> | undefined, displayedPieKeys: Set<string>): number {
-    if (!attributes) {
-        return 0;
+  if (!attributes) {
+    return 0;
+  }
+
+  return Object.entries(attributes).reduce((sum, [key, value]) => {
+    if (key === PIE_OTHER_SLICE_KEY || !key.startsWith(PIE_ATTRIBUTE_PREFIX) || displayedPieKeys.has(key)) {
+      return sum;
     }
 
-    return Object.entries(attributes).reduce((sum, [key, value]) => {
-        if (key === PIE_OTHER_SLICE_KEY || !key.startsWith(PIE_ATTRIBUTE_PREFIX) || displayedPieKeys.has(key)) {
-            return sum;
-        }
-
-        return sum + toPositiveNumber(value);
-    }, 0);
+    return sum + toPositiveNumber(value);
+  }, 0);
 }
 
 export function derivePositionedNodeColor(node: PositionedNode): string {
-    if (isUnionNode(node.id, node.attributes)) {
-        return UNION_NODE_COLOR;
-    }
+  if (isUnionNode(node.id, node.attributes)) {
+    return UNION_NODE_COLOR;
+  }
 
-    if (node.attributes?.isClusterProxy === true) {
-        return PHYLOVIZ_CLUSTER_COLOR;
-    }
+  if (node.attributes?.isClusterProxy === true) {
+    return PHYLOVIZ_CLUSTER_COLOR;
+  }
 
-    if (isTruthyAttribute(node.attributes, ['selected', 'is_selected'])) {
-        return PHYLOVIZ_NODE_SELECTED_COLOR;
-    }
+  if (isTruthyAttribute(node.attributes, ['selected', 'is_selected'])) {
+    return PHYLOVIZ_NODE_SELECTED_COLOR;
+  }
 
-    return derivePhylovizNodeColor(node.attributes);
+  return derivePhylovizNodeColor(node.attributes);
 }
 
 export function applyClusterTriangleRotations(graph: Graph, edges: readonly PositionedEdge[]): void {
-    edges.forEach(edge => {
-        if (!graph.hasNode(edge.source) || !graph.hasNode(edge.target)) {
-            return;
-        }
+  edges.forEach(edge => {
+    if (!graph.hasNode(edge.source) || !graph.hasNode(edge.target)) {
+      return;
+    }
 
-        const source = graph.getNodeAttributes(edge.source);
-        const target = graph.getNodeAttributes(edge.target);
+    const source = graph.getNodeAttributes(edge.source);
+    const target = graph.getNodeAttributes(edge.target);
 
-        if (source.isClusterProxy === true) {
-            graph.setNodeAttribute(
-                edge.source,
-                'triangleRotation',
-                Math.atan2(Number(target.y) - Number(source.y), Number(target.x) - Number(source.x))
-            );
-        }
-        if (target.isClusterProxy === true) {
-            graph.setNodeAttribute(
-                edge.target,
-                'triangleRotation',
-                Math.atan2(Number(source.y) - Number(target.y), Number(source.x) - Number(target.x))
-            );
-        }
-    });
+    if (source.isClusterProxy === true) {
+      graph.setNodeAttribute(
+        edge.source,
+        'triangleRotation',
+        Math.atan2(Number(target.y) - Number(source.y), Number(target.x) - Number(source.x))
+      );
+    }
+    if (target.isClusterProxy === true) {
+      graph.setNodeAttribute(
+        edge.target,
+        'triangleRotation',
+        Math.atan2(Number(source.y) - Number(target.y), Number(source.x) - Number(target.x))
+      );
+    }
+  });
 }

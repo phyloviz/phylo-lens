@@ -1,7 +1,7 @@
-import type { GraphLayoutBounds } from "../../../../contracts/graph/viewport/GraphLayoutBounds";
-import type Graph from "graphology";
-import type Sigma from "sigma";
-import { defaultCameraState, type SigmaCameraState, SIGMA_DEFAULT_CAMERA_ZOOM } from "./sigmaCamera";
+import type { GraphLayoutBounds } from '../../../../contracts/graph/viewport/GraphLayoutBounds';
+import type Graph from 'graphology';
+import type Sigma from 'sigma';
+import { defaultCameraState, type SigmaCameraState, SIGMA_DEFAULT_CAMERA_ZOOM } from './sigmaCamera';
 
 export function applyStableCameraBounds(sigma: Sigma | null, coordinateBounds: GraphLayoutBounds | null): void {
   if (!sigma) {
@@ -14,7 +14,7 @@ export function applyStableCameraBounds(sigma: Sigma | null, coordinateBounds: G
           x: [coordinateBounds.minX, coordinateBounds.maxX],
           y: [coordinateBounds.minY, coordinateBounds.maxY],
         }
-      : null,
+      : null
   );
 }
 
@@ -56,8 +56,8 @@ export function centerCameraOnGraphNode({
   }
 
   const attributes = graph.getNodeAttributes(nodeId) as Record<string, unknown>;
-  const nodeX = typeof attributes.x === "number" && Number.isFinite(attributes.x) ? attributes.x : null;
-  const nodeY = typeof attributes.y === "number" && Number.isFinite(attributes.y) ? attributes.y : null;
+  const nodeX = typeof attributes.x === 'number' && Number.isFinite(attributes.x) ? attributes.x : null;
+  const nodeY = typeof attributes.y === 'number' && Number.isFinite(attributes.y) ? attributes.y : null;
   if (nodeX === null || nodeY === null) {
     return false;
   }
@@ -111,7 +111,7 @@ export function centerCameraOnCoordinates({
     x: nextCenter.x,
     y: nextCenter.y,
     ratio:
-      typeof currentState.ratio === "number" && Number.isFinite(currentState.ratio)
+      typeof currentState.ratio === 'number' && Number.isFinite(currentState.ratio)
         ? currentState.ratio
         : SIGMA_DEFAULT_CAMERA_ZOOM,
   });

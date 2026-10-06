@@ -1,8 +1,8 @@
-import type { SourceFormat } from "../../../../contracts/models";
+import type { SourceFormat } from '../../../../contracts/models';
 
-import type { AncillaryField, AncillaryData } from "../../../../contracts/ancillary";
-import type { AncillaryDataInputDto } from "../ancillary/AncillaryDataInputDto";
-import type { SfdpOptions } from "../../../../contracts/graph/SfdpOptions";
+import type { AncillaryField, AncillaryData } from '../../../../contracts/ancillary';
+import type { AncillaryDataInputDto } from '../ancillary/AncillaryDataInputDto';
+import type { SfdpOptions } from '../../../../contracts/graph/SfdpOptions';
 
 export interface GraphPrepareRequestDto {
   format: SourceFormat;

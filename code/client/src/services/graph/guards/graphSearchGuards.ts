@@ -1,6 +1,6 @@
-import type { GraphSearchResponseDto } from "../models/search/GraphSearchResponseDto";
-import { isRecord, isString, isFiniteNumber, isArrayOf, isOptionalFiniteNumber } from "../../../validation/guards";
-import type { GraphSearchMatchDto } from "../models/search/GraphSearchMatchDto";
+import type { GraphSearchResponseDto } from '../models/search/GraphSearchResponseDto';
+import { isRecord, isString, isFiniteNumber, isArrayOf, isOptionalFiniteNumber } from '../../../validation/guards';
+import type { GraphSearchMatchDto } from '../models/search/GraphSearchMatchDto';
 
 export function isGraphSearchResponseDto(value: unknown): value is GraphSearchResponseDto {
   return (

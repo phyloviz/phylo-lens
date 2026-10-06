@@ -1,4 +1,4 @@
-import type { GraphSearchMatchDto } from "./GraphSearchMatchDto";
+import type { GraphSearchMatchDto } from './GraphSearchMatchDto';
 
 export interface GraphSearchResponseDto {
   dataset_id: string;

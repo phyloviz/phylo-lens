@@ -1,7 +1,7 @@
-import type { AncillaryData, NodeAnnotations } from "../contracts/ancillary";
+import type { AncillaryData, NodeAnnotations } from '../contracts/ancillary';
 
-const CATEGORY_PREFIX = "__category_count__";
-const CATEGORY_SEPARATOR = "__value__";
+const CATEGORY_PREFIX = '__category_count__';
+const CATEGORY_SEPARATOR = '__value__';
 
 /** Convert current API metadata and summary counts into node annotations. */
 export function decodeApiMetadata(metadata: AncillaryData = {}): NodeAnnotations {
@@ -9,7 +9,7 @@ export function decodeApiMetadata(metadata: AncillaryData = {}): NodeAnnotations
   const categoryCounts = new Map<string, Map<string, number>>();
   let isolateCount: number | undefined;
   for (const [key, value] of Object.entries(metadata)) {
-    if (key === "profile_count") {
+    if (key === 'profile_count') {
       if (isPositiveCount(value)) isolateCount = value;
     } else if (key.startsWith(CATEGORY_PREFIX)) {
       const encoded = key.slice(CATEGORY_PREFIX.length);
@@ -33,7 +33,7 @@ export function decodeApiMetadata(metadata: AncillaryData = {}): NodeAnnotations
     ancillarySummary: {
       values: categoryCounts.size || isolateCount !== undefined ? Object.fromEntries(ancillaryData) : {},
       categoryCounts: Object.fromEntries(
-        [...categoryCounts].map(([field, counts]) => [field, Object.fromEntries(counts)]),
+        [...categoryCounts].map(([field, counts]) => [field, Object.fromEntries(counts)])
       ),
     },
     profileSummary: { isolateCount },
@@ -41,5 +41,5 @@ export function decodeApiMetadata(metadata: AncillaryData = {}): NodeAnnotations
 }
 
 function isPositiveCount(value: unknown): value is number {
-  return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
+  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
 }

@@ -1,15 +1,15 @@
-import type { ServiceInformationDto } from "./models/service/ServiceInformationDto";
-import type { HttpClient } from "../httpClient";
-import { GRAPH_ROUTES } from "./graphRoutes";
+import type { ServiceInformationDto } from './models/service/ServiceInformationDto';
+import type { HttpClient } from '../httpClient';
+import { GRAPH_ROUTES } from './graphRoutes';
 import {
   PhyloLensServiceProtocolError,
   PhyloLensServiceUnavailableError,
   IncompatiblePhyloLensServiceError,
   ERR_PHYLO_LENS_SERVICE_UNAVAILABLE,
-} from "../serviceErrors";
-import { isServiceInformationDto } from "./guards/serviceInformationGuard";
+} from '../serviceErrors';
+import { isServiceInformationDto } from './guards/serviceInformationGuard';
 
-export const SUPPORTED_PHYLO_LENS_API_VERSION = "1";
+export const SUPPORTED_PHYLO_LENS_API_VERSION = '1';
 
 export async function checkAPIService(http: HttpClient): Promise<void> {
   let response: ServiceInformationDto;

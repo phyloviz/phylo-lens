@@ -3,5 +3,5 @@ export function getSelectedOptions(select: HTMLSelectElement | undefined): strin
     return [];
   }
 
-  return [...select.selectedOptions].map((option) => option.value).filter((value) => value.trim().length > 0);
+  return [...select.selectedOptions].map(option => option.value).filter(value => value.trim().length > 0);
 }

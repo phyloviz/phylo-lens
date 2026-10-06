@@ -1,6 +1,6 @@
-import type { GraphLayoutStatus } from "../../../../contracts/graph/graphTypes";
-import type { AncillaryData, AncillaryObservation } from "../../../../contracts/ancillary";
-import type { GraphIsolateDto } from "./GraphIsolateDto";
+import type { GraphLayoutStatus } from '../../../../contracts/graph/graphTypes';
+import type { AncillaryData, AncillaryObservation } from '../../../../contracts/ancillary';
+import type { GraphIsolateDto } from './GraphIsolateDto';
 
 export interface GraphViewportNodeDto {
   id: string;

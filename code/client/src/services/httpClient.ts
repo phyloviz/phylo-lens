@@ -1,12 +1,12 @@
-import { isRecord } from "../validation/guards";
+import { isRecord } from '../validation/guards';
 
-const HEADER_CONTENT_TYPE = "Content-Type";
+const HEADER_CONTENT_TYPE = 'Content-Type';
 
-const CONTENT_TYPE_JSON = "application/json";
+const CONTENT_TYPE_JSON = 'application/json';
 
-const ERR_HTTP_PREFIX = "HTTP error";
+const ERR_HTTP_PREFIX = 'HTTP error';
 
-const KEY_DETAIL = "detail";
+const KEY_DETAIL = 'detail';
 
 export interface HttpClientOptions {
   baseUrl: string;
@@ -38,13 +38,13 @@ export function createHttpClient({ baseUrl, fetchImpl = safeFetch }: HttpClientO
 
   function post<TRequest, TResponse>(path: string, body: TRequest): Promise<TResponse> {
     return request<TResponse>(path, {
-      method: "POST",
+      method: 'POST',
       body: JSON.stringify(body),
     });
   }
 
   function put<TRequest, TResponse>(path: string, body: TRequest): Promise<TResponse> {
-    return request<TResponse>(path, { method: "PUT", body: JSON.stringify(body) });
+    return request<TResponse>(path, { method: 'PUT', body: JSON.stringify(body) });
   }
 
   return {
@@ -57,12 +57,12 @@ export function createHttpClient({ baseUrl, fetchImpl = safeFetch }: HttpClientO
 export type HttpClient = ReturnType<typeof createHttpClient>;
 
 export function normalizeBaseUrl(baseUrl: string): string {
-  return baseUrl.replace(/\/+$/, "");
+  return baseUrl.replace(/\/+$/, '');
 }
 
 export function joinUrl(baseUrl: string, path: string): string {
   const normalizedBaseUrl = normalizeBaseUrl(baseUrl);
-  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
 
   return `${normalizedBaseUrl}${normalizedPath}`;
 }
@@ -88,7 +88,7 @@ function extractErrorDetail(payload: unknown): string | null {
 
   const detail = payload[KEY_DETAIL];
 
-  if (typeof detail === "string") {
+  if (typeof detail === 'string') {
     return detail;
   }
 
@@ -98,7 +98,7 @@ function extractErrorDetail(payload: unknown): string | null {
 
   const errors = detail.errors;
 
-  return Array.isArray(errors) && errors.every((error) => typeof error === "string") ? errors.join("; ") : null;
+  return Array.isArray(errors) && errors.every(error => typeof error === 'string') ? errors.join('; ') : null;
 }
 
 const safeFetch: typeof fetch = (...args) => globalThis.fetch(...args);

@@ -7,22 +7,22 @@ import type { GraphAncillaryResponseDto } from '../models/ancillary/GraphAncilla
 import type { GraphAncillaryResult } from '../../../contracts/graph/ancillary/GraphAncillaryResult';
 
 export function toAncillaryDataInputDto(input: AncillaryDataInput): AncillaryDataInputDto {
-    return { content: input.content, join_column: input.joinColumn, format: input.format };
+  return { content: input.content, join_column: input.joinColumn, format: input.format };
 }
 
 export function toGraphAncillaryRequestDto(request: GraphAncillaryRequest): GraphAncillaryRequestDto {
-    return {
-        dataset_id: request.datasetId,
-        layout_version: request.layoutVersion,
-        ancillary_data: toAncillaryDataInputDto(request.ancillaryData),
-    };
+  return {
+    dataset_id: request.datasetId,
+    layout_version: request.layoutVersion,
+    ancillary_data: toAncillaryDataInputDto(request.ancillaryData),
+  };
 }
 
 export function toGraphAncillaryResult(dto: GraphAncillaryResponseDto): GraphAncillaryResult {
-    return {
-        datasetId: toDatasetId(dto.dataset_id),
-        layoutVersion: toLayoutVersion(dto.layout_version),
-        matchedNodeCount: dto.matched_node_count,
-        warnings: [...dto.warnings],
-    };
+  return {
+    datasetId: toDatasetId(dto.dataset_id),
+    layoutVersion: toLayoutVersion(dto.layout_version),
+    matchedNodeCount: dto.matched_node_count,
+    warnings: [...dto.warnings],
+  };
 }

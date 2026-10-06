@@ -1,6 +1,6 @@
-import type { GraphPrepareJobStatus } from "../../../../contracts/graph/graphTypes";
-import type { GraphPrepareResponseDto } from "./GraphPrepareResponseDto";
-import type { GraphPrepareErrorDetailsDto } from "./GraphPrepareErrorDetailsDto";
+import type { GraphPrepareJobStatus } from '../../../../contracts/graph/graphTypes';
+import type { GraphPrepareResponseDto } from './GraphPrepareResponseDto';
+import type { GraphPrepareErrorDetailsDto } from './GraphPrepareErrorDetailsDto';
 
 export interface GraphPrepareStatusDto {
   job_id: string;
