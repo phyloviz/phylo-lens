@@ -13,11 +13,11 @@ import fastapi.routing
 from fastapi._compat import ModelField
 from phylo_lens_server.main import app as product_app
 from phylo_lens_server.pipeline import layout as preparation_layout
-from phylo_lens_server.pipeline import worker as preparation_worker
+from phylo_lens_server.services import preparation as preparation_service
 from phylo_lens_server.repository.layout.sqlite_layout_repository import (
-    PreparedLayoutStore,
+    SQLiteLayoutRepository,
 )
-from phylo_lens_server.services import graph_service
+from phylo_lens_server.http.graph import router as graph_router
 from starlette.responses import JSONResponse
 
 metrics = ContextVar("evaluation_request_metrics", default=None)
@@ -39,9 +39,9 @@ def timed(owner, name, label):
     setattr(owner, name, wrapper)
 
 
-timed(PreparedLayoutStore, "viewport_representation_counts", "query")
-timed(PreparedLayoutStore, "read_viewport", "query")
-timed(graph_service, "graph_viewport_response_from_result", "construction")
+timed(SQLiteLayoutRepository, "viewport_representation_counts", "query")
+timed(SQLiteLayoutRepository, "read_viewport", "query")
+timed(graph_router, "graph_viewport_response_from_result", "construction")
 timed(JSONResponse, "render", "json_encoding")
 timed(ModelField, "serialize_json", "json_serialization")
 original_serialize = fastapi.routing.serialize_response
@@ -141,15 +141,15 @@ def profile_function(owner, name, phase):
 
 
 if profile_path:
-    original_worker_init = preparation_worker.PreparedLayoutWorker.__init__
+    original_worker_init = preparation_service.PreparationService.__init__
 
     @wraps(original_worker_init)
     def profiled_init(self, *args, **kwargs):
         kwargs.setdefault("stage_factory", preparation_span)
         original_worker_init(self, *args, **kwargs)
 
-    preparation_worker.PreparedLayoutWorker.__init__ = profiled_init
-    profile_function(graph_service, "normalize_dataset", "input_normalization")
+    preparation_service.PreparationService.__init__ = profiled_init
+    profile_function(preparation_service, "ingest_dataset", "input_normalization")
     profile_function(
         preparation_layout,
         "graphviz_sfdp_positions",

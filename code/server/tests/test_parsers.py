@@ -147,7 +147,7 @@ def test_parse_newick_ignores_empty_children_from_trailing_commas() -> None:
     assert all(edge.distance is not None for edge in parsed.edges)
     # Trailing commas before ')' or ';' are a benign phylolib dialect quirk and
     # must not inflate the warning list (previously O(N) empty-child warnings).
-    assert parsed.warnings == []
+    assert parsed.warnings == ()
 
 
 def test_parse_newick_warns_on_genuine_empty_child() -> None:
@@ -167,7 +167,7 @@ def test_parse_newick_does_not_flag_meaningless_underscore_labels_as_explicit() 
     parsed = parse_newick("(4365:0.5,4601:0.5,)_:0.5;")
 
     assert parsed.explicit_node_ids == {"4365", "4601"}
-    assert parsed.warnings == []
+    assert parsed.warnings == ()
 
 
 def test_parse_newick_forest_single_tree_passes_through() -> None:

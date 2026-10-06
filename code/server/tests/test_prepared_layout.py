@@ -6,18 +6,32 @@ from concurrent.futures import Future
 import pytest
 from pydantic import ValidationError
 
-from phylo_lens_server.data.normalizer import NormalizeRequest, normalize_dataset
-from phylo_lens_server.domain.models import (
-    CanonicalDataset,
-    CanonicalEdge,
-    MetadataField,
-    MetadataType,
+from phylo_lens_server.domain.ancillary import AncillaryField, AncillaryType
+from phylo_lens_server.domain.identity import layout_version_for_dataset
+from phylo_lens_server.domain.legacy_metadata import (
+    decode_node_annotations,
+    encode_dataset_annotations,
+    is_summary_key,
 )
-from phylo_lens_server.pipeline.clustering import selected_depths
-from phylo_lens_server.pipeline.ingest import (
-    layout_version_for_dataset,
-    prepare_layout_artifacts,
+from phylo_lens_server.domain.models import Dataset, GraphEdge
+from phylo_lens_server.domain.preparation import (
+    PreparationSummary,
+    PreparedLayoutResult,
 )
+from phylo_lens_server.domain.sfdp import (
+    SfdpOptions,
+    SfdpOverlap,
+    SfdpQuadtree,
+    SfdpSmoothing,
+)
+from phylo_lens_server.domain.summaries import aggregate_cluster_metadata
+from phylo_lens_server.http.graph.schemas import NormalizeRequest
+from phylo_lens_server.jobs.executor import PrepareExecutor
+from phylo_lens_server.jobs.local import (
+    PrepareJobRegistry,
+    PrepareQueueFullError,
+)
+from phylo_lens_server.pipeline.ingestion import ingest_dataset
 from phylo_lens_server.pipeline.layout import (
     GRAPHVIZ_SFDP_COMMAND,
     GraphvizLayoutError,
@@ -27,29 +41,16 @@ from phylo_lens_server.pipeline.layout import (
     graphviz_sfdp_positions,
     parse_graphviz_plain_positions,
 )
-from phylo_lens_server.pipeline.models import PreparedLayoutResult
-from phylo_lens_server.pipeline.sfdp import (
-    SfdpOptions,
-    SfdpOverlap,
-    SfdpQuadtree,
-    SfdpSmoothing,
-)
-from phylo_lens_server.pipeline.worker import (
-    PreparedLayoutWorker,
+from phylo_lens_server.pipeline.lod import (
     compute_prepared_edges,
-)
-from phylo_lens_server.repository.jobs.local import (
-    PrepareJobRegistry,
-    PrepareQueueFullError,
-)
-from phylo_lens_server.repository.jobs.result_payload import prepare_result_payload
-from phylo_lens_server.repository.layout.metadata_reader import (
-    aggregate_cluster_metadata,
+    prepare_layout_artifacts,
+    selected_depths,
 )
 from phylo_lens_server.repository.layout.sqlite_layout_repository import (
-    PreparedLayoutStore,
+    SQLiteLayoutRepository,
 )
-from phylo_lens_server.services import graph_service
+from phylo_lens_server.services import preparation as graph_service
+from phylo_lens_server.services.preparation import PreparationService
 
 SFDP_AVAILABLE = shutil.which(GRAPHVIZ_SFDP_COMMAND) is not None
 EXPECTED_LAYOUT_STATUS = "ready"
@@ -68,13 +69,13 @@ def _boundary_edges(dataset, cluster):
     ]
 
 
-def _dataset() -> CanonicalDataset:
-    result = normalize_dataset(
+def _dataset() -> Dataset:
+    result = ingest_dataset(
         NormalizeRequest(
             format=FORMAT_NEWICK,
             dataset_name=DATASET_ID,
             content=WEIGHTED_TREE,
-        )
+        ).to_domain()
     )
     positions = {
         "a": (0.0, 0.0),
@@ -95,17 +96,17 @@ def _dataset() -> CanonicalDataset:
     )
 
 
-def _varied_chain_dataset(node_count: int) -> CanonicalDataset:
+def _varied_chain_dataset(node_count: int) -> Dataset:
     content = f"n{node_count - 1}"
     for index in range(node_count - 2, -1, -1):
         content = f"({content}:{index + 1})n{index}"
     content = f"{content};"
-    result = normalize_dataset(
+    result = ingest_dataset(
         NormalizeRequest(
             format=FORMAT_NEWICK,
             dataset_name=f"chain-{node_count}",
             content=content,
-        )
+        ).to_domain()
     )
     return result.dataset.model_copy(
         update={
@@ -122,7 +123,7 @@ def _varied_chain_dataset(node_count: int) -> CanonicalDataset:
     )
 
 
-def _branching_dataset() -> CanonicalDataset:
+def _branching_dataset() -> Dataset:
     branches = []
     for branch in range(6):
         chain = f"b{branch}_7"
@@ -130,12 +131,12 @@ def _branching_dataset() -> CanonicalDataset:
             chain = f"({chain}:{depth + 1})b{branch}_{depth}"
         branches.append(f"{chain}:1")
     content = f"({','.join(branches)})root;"
-    result = normalize_dataset(
+    result = ingest_dataset(
         NormalizeRequest(
             format=FORMAT_NEWICK,
             dataset_name="branching-tree",
             content=content,
-        )
+        ).to_domain()
     )
     return result.dataset
 
@@ -160,7 +161,7 @@ def test_prepare_layout_artifacts_builds_pendant_subtrees_with_attachment_nodes(
 
 def test_default_sfdp_options_emit_phylolens_defaults_in_dot() -> None:
     node_ids = ("a", "b")
-    edges = (CanonicalEdge(id="e1", source="a", target="b", distance=1.0),)
+    edges = (GraphEdge(id="e1", source="a", target="b", distance=1.0),)
 
     default_payload = graphviz_dot_payload(node_ids, edges)
 
@@ -176,7 +177,7 @@ def test_default_sfdp_options_emit_phylolens_defaults_in_dot() -> None:
 def test_sfdp_options_reach_generated_dot() -> None:
     payload = graphviz_dot_payload(
         ("a", "b"),
-        (CanonicalEdge(id="e1", source="a", target="b", distance=1.0),),
+        (GraphEdge(id="e1", source="a", target="b", distance=1.0),),
         SfdpOptions(
             k=0.75,
             repulsiveForce=2.0,
@@ -207,7 +208,7 @@ def test_prism_iterations_are_serialized_into_overlap(
 ) -> None:
     payload = graphviz_dot_payload(
         ("a", "b"),
-        (CanonicalEdge(id="e1", source="a", target="b", distance=1.0),),
+        (GraphEdge(id="e1", source="a", target="b", distance=1.0),),
         SfdpOptions(prismIterations=prism_iterations),
     )
 
@@ -217,7 +218,7 @@ def test_prism_iterations_are_serialized_into_overlap(
 def test_scale_overlap_uses_defaults_without_prism_attributes() -> None:
     payload = graphviz_dot_payload(
         ("a", "b"),
-        (CanonicalEdge(id="e1", source="a", target="b", distance=1.0),),
+        (GraphEdge(id="e1", source="a", target="b", distance=1.0),),
         SfdpOptions(overlap=SfdpOverlap.SCALE),
     )
 
@@ -372,8 +373,8 @@ def test_collapsed_clusters_are_never_intermediate_in_quotient_tree() -> None:
 
 
 def test_direct_newick_forest_keeps_component_roots_and_separate_branches() -> None:
-    dataset = normalize_dataset(
-        NormalizeRequest(format="newick", content="(a:1,b:1)r;(c:1,d:1)s;")
+    dataset = ingest_dataset(
+        NormalizeRequest(format="newick", content="(a:1,b:1)r;(c:1,d:1)s;").to_domain()
     ).dataset
     assert dataset.technical_roots == ("r", "s")
     artifacts = prepare_layout_artifacts(dataset)
@@ -496,18 +497,18 @@ def test_prepared_edges_project_original_edges_to_real_representative_ids() -> N
     assert all(edge.source != edge.target for edge in prepared_edges)
 
 
-def _multi_tier_dataset() -> CanonicalDataset:
+def _multi_tier_dataset() -> Dataset:
     """A long chain exercises several exposed hop-depth cuts."""
     content = "m999"
     for index in range(998, -1, -1):
         content = f"({content}:{(index % 7) + 1})m{index}"
     content = f"{content};"
-    normalized = normalize_dataset(
+    normalized = ingest_dataset(
         NormalizeRequest(
             format=FORMAT_NEWICK,
             dataset_name=DATASET_ID,
             content=content,
-        )
+        ).to_domain()
     ).dataset
     return normalized.model_copy(
         update={
@@ -527,8 +528,8 @@ def _multi_tier_dataset() -> CanonicalDataset:
 def test_intermediate_lod_levels_use_precomputed_hop_cuts(
     tmp_path,
 ) -> None:
-    store = PreparedLayoutStore(tmp_path)
-    worker = PreparedLayoutWorker(store)
+    store = SQLiteLayoutRepository(tmp_path)
+    worker = PreparationService(store)
     dataset = _multi_tier_dataset()
     result = worker.prepare_dataset(dataset)
     layout_version = result.artifacts.layout_version
@@ -610,7 +611,7 @@ def test_graphviz_sfdp_positions_applies_only_an_explicit_timeout(monkeypatch) -
 
     positions = graphviz_sfdp_positions(
         ("a", "b"),
-        (CanonicalEdge(id="e1", source="a", target="b", distance=1.0),),
+        (GraphEdge(id="e1", source="a", target="b", distance=1.0),),
     )
 
     assert positions == {"a": (0.0, 0.0), "b": (1.0, 0.0)}
@@ -640,7 +641,7 @@ def test_graphviz_sfdp_positions_has_no_default_timeout(monkeypatch) -> None:
 
     graphviz_sfdp_positions(
         ("a", "b"),
-        (CanonicalEdge(id="e1", source="a", target="b", distance=1.0),),
+        (GraphEdge(id="e1", source="a", target="b", distance=1.0),),
     )
 
     assert calls[0]["timeout"] is None
@@ -663,7 +664,7 @@ def test_graphviz_sfdp_positions_timeout_fails_layout_job(monkeypatch) -> None:
     with pytest.raises(GraphvizLayoutError) as error:
         graphviz_sfdp_positions(
             ("a", "b"),
-            (CanonicalEdge(id="e1", source="a", target="b", distance=1.0),),
+            (GraphEdge(id="e1", source="a", target="b", distance=1.0),),
         )
     assert error.value.diagnostics.timeout_seconds == 1
 
@@ -681,18 +682,18 @@ def test_graphviz_sfdp_nonzero_exit_fails_with_diagnostics(monkeypatch) -> None:
     with pytest.raises(GraphvizLayoutError) as error:
         graphviz_sfdp_positions(
             ("a", "b"),
-            (CanonicalEdge(id="e1", source="a", target="b", distance=1.0),),
+            (GraphEdge(id="e1", source="a", target="b", distance=1.0),),
         )
 
     assert error.value.diagnostics.exit_status == 17
     assert error.value.diagnostics.stderr == "sfdp diagnostic"
 
 
-def test_prepared_layout_worker_persists_ready_cluster_and_node_positions(
+def test_preparation_service_persists_ready_cluster_and_node_positions(
     tmp_path,
 ) -> None:
-    store = PreparedLayoutStore(tmp_path)
-    worker = PreparedLayoutWorker(store)
+    store = SQLiteLayoutRepository(tmp_path)
+    worker = PreparationService(store)
 
     result = worker.prepare_dataset(_dataset())
 
@@ -721,11 +722,11 @@ def test_prepared_layout_worker_persists_ready_cluster_and_node_positions(
     assert all(position.cluster_id for position in node_positions)
 
 
-def test_prepared_layout_worker_keeps_previous_ready_version_until_replaced(
+def test_preparation_service_keeps_previous_ready_version_until_replaced(
     tmp_path,
 ) -> None:
-    store = PreparedLayoutStore(tmp_path)
-    worker = PreparedLayoutWorker(store)
+    store = SQLiteLayoutRepository(tmp_path)
+    worker = PreparationService(store)
 
     first_dataset = _varied_chain_dataset(30).model_copy(
         update={"dataset_id": "replace-tree"}
@@ -756,7 +757,7 @@ def test_prepared_layout_worker_keeps_previous_ready_version_until_replaced(
 
 
 def test_latest_layout_version_ignores_refining_layouts(tmp_path) -> None:
-    store = PreparedLayoutStore(tmp_path)
+    store = SQLiteLayoutRepository(tmp_path)
     ready_artifacts = prepare_layout_artifacts(
         _varied_chain_dataset(5).model_copy(update={"dataset_id": "publish-tree"})
     )
@@ -787,9 +788,9 @@ def test_latest_layout_version_ignores_refining_layouts(tmp_path) -> None:
     )
 
 
-def test_prepared_layout_worker_can_run_on_background_thread(tmp_path) -> None:
-    store = PreparedLayoutStore(tmp_path)
-    worker = PreparedLayoutWorker(store)
+def test_prepare_executor_can_run_on_background_thread(tmp_path) -> None:
+    store = SQLiteLayoutRepository(tmp_path)
+    worker = PrepareExecutor(PreparationService(store))
 
     try:
         future = worker.submit_prepare_dataset(_dataset())
@@ -803,13 +804,13 @@ def test_prepared_layout_worker_can_run_on_background_thread(tmp_path) -> None:
 
 class RecordingPrepareWorker:
     def __init__(self) -> None:
-        self.submitted_datasets: list[CanonicalDataset] = []
+        self.submitted_datasets: list[Dataset] = []
         self.submitted_sfdp_options: list[SfdpOptions | None] = []
         self.futures: list[Future[PreparedLayoutResult]] = []
 
     def submit_prepare_dataset(
         self,
-        dataset: CanonicalDataset,
+        dataset: Dataset,
         *,
         sfdp_options: SfdpOptions | None = None,
     ) -> Future[PreparedLayoutResult]:
@@ -823,14 +824,14 @@ class RecordingPrepareWorker:
         pass
 
 
-def _prepared_result(dataset: CanonicalDataset) -> PreparedLayoutResult:
+def _prepared_result(dataset: Dataset) -> PreparedLayoutResult:
     return PreparedLayoutResult(artifacts=prepare_layout_artifacts(dataset))
 
 
 class ImmediatelyCompletedPrepareWorker:
     def submit_prepare_dataset(
         self,
-        dataset: CanonicalDataset,
+        dataset: Dataset,
         *,
         sfdp_options: SfdpOptions | None = None,
     ) -> Future[PreparedLayoutResult]:
@@ -852,7 +853,7 @@ class ImmediatelyCompletedPrepareWorker:
 class ImmediatelyFailedPrepareWorker:
     def submit_prepare_dataset(
         self,
-        dataset: CanonicalDataset,
+        dataset: Dataset,
         *,
         sfdp_options: SfdpOptions | None = None,
     ) -> Future[PreparedLayoutResult]:
@@ -916,12 +917,13 @@ def _run_immediate_future_registry_case(kind: str, queue) -> None:
             "result_retained": (
                 None
                 if snapshot_after_reservation is None
-                else snapshot_after_reservation.result is not None
+                else isinstance(snapshot_after_reservation.result, PreparedLayoutResult)
             ),
             "result_payload": (
                 None
                 if snapshot_after_reservation is None
-                else snapshot_after_reservation.result_payload
+                or snapshot_after_reservation.result is None
+                else snapshot_after_reservation.result.model_dump(mode="json")
             ),
             "error": (
                 None
@@ -1016,11 +1018,11 @@ def test_prepare_job_registry_drops_completed_future_result_after_payload_captur
     assert duplicate_job_id == job_id
     assert snapshot is not None
     assert snapshot.status == "ready"
-    assert snapshot.result is None
-    assert snapshot.result_payload == prepare_result_payload(
+    assert not isinstance(snapshot.result, PreparedLayoutResult)
+    assert snapshot.result.model_dump(mode="json") == PreparationSummary.from_result(
         _prepared_result(dataset),
         ("submitted warning",),
-    )
+    ).model_dump(mode="json")
     assert job_id not in registry._futures
 
 
@@ -1058,18 +1060,46 @@ def test_layout_version_changes_when_metadata_value_changes() -> None:
     dataset = _dataset()
     portugal = dataset.model_copy(
         update={
-            "metadata_schema": [
-                MetadataField(key="country", type=MetadataType.STRING),
-            ],
-            "metadata_by_node_id": {"a": {"country": "PT"}},
+            "ancillary_schema": tuple(
+                field
+                for field in [
+                    AncillaryField(key="country", type=AncillaryType.STRING),
+                ]
+                if not is_summary_key(field.key)
+            ),
+            "summary_schema": tuple(
+                field
+                for field in [
+                    AncillaryField(key="country", type=AncillaryType.STRING),
+                ]
+                if is_summary_key(field.key)
+            ),
+            "annotations_by_node_id": {
+                node_id: decode_node_annotations(values)
+                for node_id, values in ({"a": {"country": "PT"}}).items()
+            },
         }
     )
     spain = dataset.model_copy(
         update={
-            "metadata_schema": [
-                MetadataField(key="country", type=MetadataType.STRING),
-            ],
-            "metadata_by_node_id": {"a": {"country": "ES"}},
+            "ancillary_schema": tuple(
+                field
+                for field in [
+                    AncillaryField(key="country", type=AncillaryType.STRING),
+                ]
+                if not is_summary_key(field.key)
+            ),
+            "summary_schema": tuple(
+                field
+                for field in [
+                    AncillaryField(key="country", type=AncillaryType.STRING),
+                ]
+                if is_summary_key(field.key)
+            ),
+            "annotations_by_node_id": {
+                node_id: decode_node_annotations(values)
+                for node_id, values in ({"a": {"country": "ES"}}).items()
+            },
         }
     )
 
@@ -1079,19 +1109,50 @@ def test_layout_version_changes_when_metadata_value_changes() -> None:
 def test_layout_version_changes_when_metadata_field_is_added_or_removed() -> None:
     dataset = _dataset().model_copy(
         update={
-            "metadata_schema": [
-                MetadataField(key="country", type=MetadataType.STRING),
-            ],
-            "metadata_by_node_id": {"a": {"country": "PT"}},
+            "ancillary_schema": tuple(
+                field
+                for field in [
+                    AncillaryField(key="country", type=AncillaryType.STRING),
+                ]
+                if not is_summary_key(field.key)
+            ),
+            "summary_schema": tuple(
+                field
+                for field in [
+                    AncillaryField(key="country", type=AncillaryType.STRING),
+                ]
+                if is_summary_key(field.key)
+            ),
+            "annotations_by_node_id": {
+                node_id: decode_node_annotations(values)
+                for node_id, values in ({"a": {"country": "PT"}}).items()
+            },
         }
     )
     with_added_field = dataset.model_copy(
         update={
-            "metadata_schema": [
-                MetadataField(key="country", type=MetadataType.STRING),
-                MetadataField(key="source", type=MetadataType.STRING),
-            ],
-            "metadata_by_node_id": {"a": {"country": "PT", "source": "blood"}},
+            "ancillary_schema": tuple(
+                field
+                for field in [
+                    AncillaryField(key="country", type=AncillaryType.STRING),
+                    AncillaryField(key="source", type=AncillaryType.STRING),
+                ]
+                if not is_summary_key(field.key)
+            ),
+            "summary_schema": tuple(
+                field
+                for field in [
+                    AncillaryField(key="country", type=AncillaryType.STRING),
+                    AncillaryField(key="source", type=AncillaryType.STRING),
+                ]
+                if is_summary_key(field.key)
+            ),
+            "annotations_by_node_id": {
+                node_id: decode_node_annotations(values)
+                for node_id, values in (
+                    {"a": {"country": "PT", "source": "blood"}}
+                ).items()
+            },
         }
     )
 
@@ -1104,25 +1165,59 @@ def test_layout_version_is_stable_for_same_metadata_with_different_dict_order() 
     dataset = _dataset()
     first = dataset.model_copy(
         update={
-            "metadata_schema": [
-                MetadataField(key="source", type=MetadataType.STRING),
-                MetadataField(key="country", type=MetadataType.STRING),
-            ],
-            "metadata_by_node_id": {
-                "a": {"country": "PT", "source": "blood"},
-                "b": {"source": "csf", "country": "ES"},
+            "ancillary_schema": tuple(
+                field
+                for field in [
+                    AncillaryField(key="source", type=AncillaryType.STRING),
+                    AncillaryField(key="country", type=AncillaryType.STRING),
+                ]
+                if not is_summary_key(field.key)
+            ),
+            "summary_schema": tuple(
+                field
+                for field in [
+                    AncillaryField(key="source", type=AncillaryType.STRING),
+                    AncillaryField(key="country", type=AncillaryType.STRING),
+                ]
+                if is_summary_key(field.key)
+            ),
+            "annotations_by_node_id": {
+                node_id: decode_node_annotations(values)
+                for node_id, values in (
+                    {
+                        "a": {"country": "PT", "source": "blood"},
+                        "b": {"source": "csf", "country": "ES"},
+                    }
+                ).items()
             },
         }
     )
     second = dataset.model_copy(
         update={
-            "metadata_schema": [
-                MetadataField(key="country", type=MetadataType.STRING),
-                MetadataField(key="source", type=MetadataType.STRING),
-            ],
-            "metadata_by_node_id": {
-                "b": {"country": "ES", "source": "csf"},
-                "a": {"source": "blood", "country": "PT"},
+            "ancillary_schema": tuple(
+                field
+                for field in [
+                    AncillaryField(key="country", type=AncillaryType.STRING),
+                    AncillaryField(key="source", type=AncillaryType.STRING),
+                ]
+                if not is_summary_key(field.key)
+            ),
+            "summary_schema": tuple(
+                field
+                for field in [
+                    AncillaryField(key="country", type=AncillaryType.STRING),
+                    AncillaryField(key="source", type=AncillaryType.STRING),
+                ]
+                if is_summary_key(field.key)
+            ),
+            "annotations_by_node_id": {
+                node_id: decode_node_annotations(values)
+                for node_id, values in (
+                    {
+                        "b": {"country": "ES", "source": "csf"},
+                        "a": {"source": "blood", "country": "PT"},
+                    }
+                ).items()
             },
         }
     )
@@ -1139,8 +1234,8 @@ def test_layout_version_reuses_independently_normalized_identical_requests() -> 
         metadata_by_node_id={"a": {"country": "PT"}},
     )
 
-    first = normalize_dataset(request).dataset
-    second = normalize_dataset(request).dataset
+    first = ingest_dataset(request.to_domain()).dataset
+    second = ingest_dataset(request.to_domain()).dataset
 
     assert first.source.generated_at != second.source.generated_at
     assert layout_version_for_dataset(first) == layout_version_for_dataset(second)
@@ -1202,7 +1297,7 @@ def test_prepare_graph_job_reserves_capacity_before_normalization(monkeypatch) -
         normalized = True
         raise AssertionError("normalization should not run when capacity is full")
 
-    monkeypatch.setattr(graph_service, "normalize_dataset", fake_normalize)
+    monkeypatch.setattr(graph_service, "ingest_dataset", fake_normalize)
 
     with registry.reserve_capacity(), pytest.raises(PrepareQueueFullError):
         graph_service.prepare_graph_job(
@@ -1241,7 +1336,7 @@ def test_prepare_job_registry_allows_new_work_after_active_job_completes() -> No
 INTERNAL_COUNT_KEY = "__category_count__region__value__north"
 
 
-def _dataset_with_metadata() -> CanonicalDataset:
+def _dataset_with_metadata() -> Dataset:
     dataset = _dataset()
     metadata_by_node_id = {
         "a": {"region": "north", "score": 10, "flag": True, INTERNAL_COUNT_KEY: 2},
@@ -1252,13 +1347,30 @@ def _dataset_with_metadata() -> CanonicalDataset:
     }
     return dataset.model_copy(
         update={
-            "metadata_schema": [
-                MetadataField(key="region", type=MetadataType.STRING),
-                MetadataField(key="score", type=MetadataType.NUMBER),
-                MetadataField(key="flag", type=MetadataType.BOOLEAN),
-                MetadataField(key=INTERNAL_COUNT_KEY, type=MetadataType.NUMBER),
-            ],
-            "metadata_by_node_id": metadata_by_node_id,
+            "ancillary_schema": tuple(
+                field
+                for field in [
+                    AncillaryField(key="region", type=AncillaryType.STRING),
+                    AncillaryField(key="score", type=AncillaryType.NUMBER),
+                    AncillaryField(key="flag", type=AncillaryType.BOOLEAN),
+                    AncillaryField(key=INTERNAL_COUNT_KEY, type=AncillaryType.NUMBER),
+                ]
+                if not is_summary_key(field.key)
+            ),
+            "summary_schema": tuple(
+                field
+                for field in [
+                    AncillaryField(key="region", type=AncillaryType.STRING),
+                    AncillaryField(key="score", type=AncillaryType.NUMBER),
+                    AncillaryField(key="flag", type=AncillaryType.BOOLEAN),
+                    AncillaryField(key=INTERNAL_COUNT_KEY, type=AncillaryType.NUMBER),
+                ]
+                if is_summary_key(field.key)
+            ),
+            "annotations_by_node_id": {
+                node_id: decode_node_annotations(values)
+                for node_id, values in (metadata_by_node_id).items()
+            },
         }
     )
 
@@ -1296,8 +1408,8 @@ def test_aggregate_cluster_metadata_skips_null_only_and_breaks_ties_alphabetical
 
 
 def test_viewport_cluster_members_carry_public_node_metadata(tmp_path) -> None:
-    store = PreparedLayoutStore(tmp_path)
-    worker = PreparedLayoutWorker(store)
+    store = SQLiteLayoutRepository(tmp_path)
+    worker = PreparationService(store)
     result = worker.prepare_dataset(_dataset_with_metadata())
     branch_cluster = next(
         cluster
@@ -1331,8 +1443,8 @@ def test_viewport_cluster_members_carry_public_node_metadata(tmp_path) -> None:
 def test_viewport_cluster_members_prioritize_focused_node_when_limited(
     tmp_path,
 ) -> None:
-    store = PreparedLayoutStore(tmp_path)
-    worker = PreparedLayoutWorker(store)
+    store = SQLiteLayoutRepository(tmp_path)
+    worker = PreparationService(store)
     result = worker.prepare_dataset(_dataset_with_metadata())
     branch_cluster = next(
         cluster
@@ -1358,8 +1470,8 @@ def test_viewport_cluster_members_prioritize_focused_node_when_limited(
 def test_search_nodes_matches_node_id_and_metadata_across_whole_tree(
     tmp_path,
 ) -> None:
-    store = PreparedLayoutStore(tmp_path)
-    worker = PreparedLayoutWorker(store)
+    store = SQLiteLayoutRepository(tmp_path)
+    worker = PreparationService(store)
     result = worker.prepare_dataset(_dataset_with_metadata())
     version = result.artifacts.layout_version
 
@@ -1383,8 +1495,8 @@ def test_search_nodes_matches_node_id_and_metadata_across_whole_tree(
 
 
 def test_search_nodes_excludes_internal_keys_and_respects_limit(tmp_path) -> None:
-    store = PreparedLayoutStore(tmp_path)
-    worker = PreparedLayoutWorker(store)
+    store = SQLiteLayoutRepository(tmp_path)
+    worker = PreparationService(store)
     result = worker.prepare_dataset(_dataset_with_metadata())
     version = result.artifacts.layout_version
 
@@ -1413,8 +1525,8 @@ def test_viewport_expansion_reroutes_boundary_edges_to_neighbor_representatives(
     tmp_path,
 ) -> None:
     # At selected hop depth 0, {b,c,d,e} is attached to visible node a through one edge.
-    store = PreparedLayoutStore(tmp_path)
-    worker = PreparedLayoutWorker(store)
+    store = SQLiteLayoutRepository(tmp_path)
+    worker = PreparationService(store)
     result = worker.prepare_dataset(_dataset())
     branch_cluster = next(
         cluster
@@ -1462,8 +1574,8 @@ def test_viewport_expansion_reroutes_boundary_edges_to_neighbor_representatives(
 def test_truncated_expansion_only_shows_boundary_when_attachment_is_returned(
     tmp_path,
 ) -> None:
-    store = PreparedLayoutStore(tmp_path)
-    result = PreparedLayoutWorker(store).prepare_dataset(_dataset())
+    store = SQLiteLayoutRepository(tmp_path)
+    result = PreparationService(store).prepare_dataset(_dataset())
     cluster = next(
         item
         for item in result.artifacts.clusters
@@ -1490,7 +1602,7 @@ def test_truncated_expansion_only_shows_boundary_when_attachment_is_returned(
         )
 
 
-def _chain_dataset_with_metadata(node_count: int) -> CanonicalDataset:
+def _chain_dataset_with_metadata(node_count: int) -> Dataset:
     dataset = _varied_chain_dataset(node_count).model_copy(
         update={"dataset_id": DATASET_ID}
     )
@@ -1506,20 +1618,37 @@ def _chain_dataset_with_metadata(node_count: int) -> CanonicalDataset:
     }
     return dataset.model_copy(
         update={
-            "metadata_schema": [
-                MetadataField(key="region", type=MetadataType.STRING),
-                MetadataField(key="score", type=MetadataType.NUMBER),
-                MetadataField(key="flag", type=MetadataType.BOOLEAN),
-                MetadataField(key=INTERNAL_COUNT_KEY, type=MetadataType.NUMBER),
-            ],
-            "metadata_by_node_id": metadata_by_node_id,
+            "ancillary_schema": tuple(
+                field
+                for field in [
+                    AncillaryField(key="region", type=AncillaryType.STRING),
+                    AncillaryField(key="score", type=AncillaryType.NUMBER),
+                    AncillaryField(key="flag", type=AncillaryType.BOOLEAN),
+                    AncillaryField(key=INTERNAL_COUNT_KEY, type=AncillaryType.NUMBER),
+                ]
+                if not is_summary_key(field.key)
+            ),
+            "summary_schema": tuple(
+                field
+                for field in [
+                    AncillaryField(key="region", type=AncillaryType.STRING),
+                    AncillaryField(key="score", type=AncillaryType.NUMBER),
+                    AncillaryField(key="flag", type=AncillaryType.BOOLEAN),
+                    AncillaryField(key=INTERNAL_COUNT_KEY, type=AncillaryType.NUMBER),
+                ]
+                if is_summary_key(field.key)
+            ),
+            "annotations_by_node_id": {
+                node_id: decode_node_annotations(values)
+                for node_id, values in (metadata_by_node_id).items()
+            },
         }
     )
 
 
 def test_viewport_representatives_carry_cluster_metadata_aggregate(tmp_path) -> None:
-    store = PreparedLayoutStore(tmp_path)
-    worker = PreparedLayoutWorker(store)
+    store = SQLiteLayoutRepository(tmp_path)
+    worker = PreparationService(store)
     dataset = _chain_dataset_with_metadata(60)
     result = worker.prepare_dataset(dataset)
     members_by_cluster = {
@@ -1530,7 +1659,7 @@ def test_viewport_representatives_carry_cluster_metadata_aggregate(tmp_path) -> 
         node_id: {
             key: value for key, value in metadata.items() if key != INTERNAL_COUNT_KEY
         }
-        for node_id, metadata in dataset.metadata_by_node_id.items()
+        for node_id, metadata in encode_dataset_annotations(dataset).items()
     }
     public_schema = (("region", "string"), ("score", "number"), ("flag", "boolean"))
 
@@ -1559,8 +1688,8 @@ def test_viewport_representatives_carry_cluster_metadata_aggregate(tmp_path) -> 
 def test_detail_viewport_keeps_boundary_edges_and_offscreen_neighbors(
     tmp_path,
 ) -> None:
-    store = PreparedLayoutStore(tmp_path)
-    worker = PreparedLayoutWorker(store)
+    store = SQLiteLayoutRepository(tmp_path)
+    worker = PreparationService(store)
     result = worker.prepare_dataset(_dataset())
     layout_version = result.artifacts.layout_version
 
@@ -1615,8 +1744,8 @@ def test_detail_viewport_keeps_boundary_edges_and_offscreen_neighbors(
 def test_detail_viewport_keeps_boundary_edges_when_node_budget_is_saturated(
     tmp_path,
 ) -> None:
-    store = PreparedLayoutStore(tmp_path)
-    worker = PreparedLayoutWorker(store)
+    store = SQLiteLayoutRepository(tmp_path)
+    worker = PreparationService(store)
     result = worker.prepare_dataset(_dataset())
     layout_version = result.artifacts.layout_version
 
@@ -1665,8 +1794,8 @@ def test_read_region_returns_only_inside_nodes_and_internal_edges(
     # the single edge between them (an internal edge), while the edges leaving
     # the box (a-b, c-d, c-e) are dropped entirely — no boundary edges, no
     # off-screen neighbors surfaced (unlike read_viewport's detail path).
-    store = PreparedLayoutStore(tmp_path)
-    worker = PreparedLayoutWorker(store)
+    store = SQLiteLayoutRepository(tmp_path)
+    worker = PreparationService(store)
     result = worker.prepare_dataset(_dataset())
     layout_version = result.artifacts.layout_version
 
@@ -1706,8 +1835,8 @@ def test_read_region_returns_only_inside_nodes_and_internal_edges(
 
 
 def test_read_region_aggregates_selected_member_metadata(tmp_path) -> None:
-    store = PreparedLayoutStore(tmp_path)
-    worker = PreparedLayoutWorker(store)
+    store = SQLiteLayoutRepository(tmp_path)
+    worker = PreparationService(store)
     result = worker.prepare_dataset(_dataset_with_metadata())
     layout_version = result.artifacts.layout_version
 
@@ -1745,8 +1874,8 @@ def test_read_region_aggregates_selected_member_metadata(tmp_path) -> None:
 
 
 def test_read_region_empty_box_returns_empty(tmp_path) -> None:
-    store = PreparedLayoutStore(tmp_path)
-    worker = PreparedLayoutWorker(store)
+    store = SQLiteLayoutRepository(tmp_path)
+    worker = PreparationService(store)
     result = worker.prepare_dataset(_dataset())
     layout_version = result.artifacts.layout_version
 
@@ -1767,12 +1896,12 @@ def test_read_region_empty_box_returns_empty(tmp_path) -> None:
 
 
 def test_prepare_layout_preserves_missing_and_supplied_distances() -> None:
-    dataset = normalize_dataset(
+    dataset = ingest_dataset(
         NormalizeRequest(
             format=FORMAT_NEWICK,
             dataset_name="missing-distance",
             content="(a:2,b);",
-        )
+        ).to_domain()
     ).dataset
     artifacts = prepare_layout_artifacts(dataset)
     assert sorted(
@@ -1782,17 +1911,17 @@ def test_prepare_layout_preserves_missing_and_supplied_distances() -> None:
 
 
 def test_unweighted_newick_keeps_absent_distances_through_persistence(tmp_path) -> None:
-    dataset = normalize_dataset(
+    dataset = ingest_dataset(
         NormalizeRequest(
             format=FORMAT_NEWICK,
             dataset_name="unweighted-tree",
             content="(a,b)root;",
-        )
+        ).to_domain()
     ).dataset
     assert all(edge.distance is None for edge in dataset.edges)
 
-    store = PreparedLayoutStore(tmp_path)
-    result = PreparedLayoutWorker(store).prepare_dataset(dataset)
+    store = SQLiteLayoutRepository(tmp_path)
+    result = PreparationService(store).prepare_dataset(dataset)
     read = store.read_viewport(
         dataset_id=dataset.dataset_id,
         layout_version=result.artifacts.layout_version,

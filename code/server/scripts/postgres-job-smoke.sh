@@ -39,16 +39,20 @@ except ImportError as error:
         "Install it with: python -m pip install -e '.[postgres]'"
     ) from error
 
-from phylo_lens_server.data.normalizer import AncillaryDataRequest, NormalizeRequest, normalize_dataset
-from phylo_lens_server.cli.prepare_worker import run_postgres_prepare_worker
+from phylo_lens_server.domain.preparation import PrepareInput
+from phylo_lens_server.domain.models import SourceFormat
+from phylo_lens_server.domain.revisions import AncillaryTable, AncillaryUpdate
+from phylo_lens_server.pipeline.ingestion import ingest_dataset
+from phylo_lens_server.services.ancillary import apply_ancillary_data
+from phylo_lens_server.jobs.worker import run_postgres_prepare_worker
 from phylo_lens_server.repository.jobs.postgres import (
     DURABLE_STATUS_READY,
     PostgresPrepareJobStore,
 )
 from phylo_lens_server.repository.layout.postgres_layout_repository import (
-    PostgresPreparedLayoutStore,
+    PostgresLayoutRepository,
 )
-from phylo_lens_server.pipeline.worker import PreparedLayoutWorker
+from phylo_lens_server.services.preparation import PreparationService
 
 dsn = (
     f"postgresql://{os.environ['POSTGRES_USER']}:{os.environ['POSTGRES_PASSWORD']}"
@@ -68,19 +72,19 @@ else:
 job_store = PostgresPrepareJobStore(dsn)
 job_store.create_schema()
 
-normalized = normalize_dataset(
-    NormalizeRequest(
-        format="newick",
+normalized = ingest_dataset(
+    PrepareInput(
+        format=SourceFormat.NEWICK,
         dataset_name="postgres-smoke-tree",
         content="(((d:4)c:2)b:1)a;",
     )
 )
 job_id = job_store.submit(normalized.dataset, ("postgres smoke warning",))
 
-layout_store = PostgresPreparedLayoutStore(dsn)
+layout_store = PostgresLayoutRepository(dsn)
 run_postgres_prepare_worker(
     job_store=job_store,
-    layout_worker=PreparedLayoutWorker(layout_store),
+    layout_worker=PreparationService(layout_store),
     worker_id="postgres-smoke-worker",
     poll_interval_seconds=0.1,
     lease_seconds=30,
@@ -94,12 +98,12 @@ if snapshot.status != DURABLE_STATUS_READY:
     raise SystemExit(f"Postgres smoke job did not become ready: {snapshot}")
 if snapshot.result is None:
     raise SystemExit("Postgres smoke job is ready without a result payload.")
-if snapshot.result["dataset_id"] != "postgres-smoke-tree":
+if snapshot.result.dataset_id != "postgres-smoke-tree":
     raise SystemExit(f"Unexpected result payload: {snapshot.result}")
-if "postgres smoke warning" not in snapshot.result["warnings"]:
+if "postgres smoke warning" not in snapshot.result.warnings:
     raise SystemExit(f"Submit warning was not preserved: {snapshot.result}")
 
-layout_version = snapshot.result["layout_version"]
+layout_version = snapshot.result.layout_version
 viewport = layout_store.read_viewport(
     dataset_id="postgres-smoke-tree",
     layout_version=layout_version,
@@ -113,12 +117,12 @@ viewport = layout_store.read_viewport(
 if len(viewport.nodes) != 4 or len(viewport.edges) != 3:
     raise SystemExit(f"Unexpected viewport result: {viewport}")
 
-table = AncillaryDataRequest(
+table = AncillaryTable(
     content="id,country\nb,PT\nc,ES\n", join_column="id", format="csv",
 )
-revision, replacement = layout_store.apply_ancillary_data(
-    "postgres-smoke-tree", layout_version, table,
-)
+request = AncillaryUpdate("postgres-smoke-tree", layout_version, table)
+replacement = apply_ancillary_data(request, layout_store)
+revision = replacement.layout_version
 updated = layout_store.read_viewport(
     dataset_id="postgres-smoke-tree", layout_version=revision,
     xmin=None, xmax=None, ymin=None, ymax=None, max_nodes=50, lod_level=0,
@@ -126,8 +130,6 @@ updated = layout_store.read_viewport(
 assert replacement.matched_node_count == 2
 assert {(node.node_id, node.x, node.y) for node in updated.nodes} == {(node.node_id, node.x, node.y) for node in viewport.nodes}
 assert next(node for node in updated.nodes if node.node_id == "b").metadata["country"] == "PT"
-assert layout_store.apply_ancillary_data(
-    "postgres-smoke-tree", layout_version, table,
-)[0] == revision
+assert apply_ancillary_data(request, layout_store).layout_version == revision
 print("postgres job and ancillary revision smoke ok")
 PY

@@ -13,12 +13,12 @@ from itertools import combinations
 from math import hypot
 from time import perf_counter
 
-from phylo_lens_server.domain.models import CanonicalEdge
+from phylo_lens_server.domain.models import GraphEdge
 from phylo_lens_server.pipeline.layout import (
     graphviz_dot_payload,
     parse_graphviz_plain_positions,
 )
-from phylo_lens_server.pipeline.sfdp import SfdpOptions
+from phylo_lens_server.domain.sfdp import SfdpOptions
 
 
 def metrics(positions, edges):
@@ -62,7 +62,7 @@ def main():
     rows = []
     for tree, pairs in trees.items():
         edges = tuple(
-            CanonicalEdge(id=str(i), source=str(a), target=str(b), distance=1)
+            GraphEdge(id=str(i), source=str(a), target=str(b), distance=1)
             for i, (a, b) in enumerate(pairs)
         )
         nodes = tuple(

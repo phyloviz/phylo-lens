@@ -3,29 +3,32 @@ from __future__ import annotations
 from functools import lru_cache
 
 from phylo_lens_server.config import settings
-from phylo_lens_server.pipeline.worker import PreparedLayoutWorker
-from phylo_lens_server.repository.jobs.local import PrepareJobRegistry
+from phylo_lens_server.jobs.durable import DurablePrepareJobRegistry
+from phylo_lens_server.jobs.executor import PrepareExecutor
+from phylo_lens_server.jobs.local import PrepareJobRegistry
+from phylo_lens_server.jobs.models import PrepareJobs
+from phylo_lens_server.repository.interfaces import LayoutRepository
 from phylo_lens_server.repository.jobs.postgres import (
-    DurablePrepareJobRegistry,
     PostgresPrepareJobStore,
 )
 from phylo_lens_server.repository.layout.postgres_layout_repository import (
-    PostgresPreparedLayoutStore,
+    PostgresLayoutRepository,
 )
 from phylo_lens_server.repository.layout.sqlite_layout_repository import (
-    PreparedLayoutStore,
+    SQLiteLayoutRepository,
 )
+from phylo_lens_server.services.preparation import PreparationService
 
 
 @lru_cache(maxsize=1)
-def get_prepared_layout_store() -> PreparedLayoutStore | PostgresPreparedLayoutStore:
+def get_prepared_layout_store() -> LayoutRepository:
     if settings.prepare_job_backend() == settings.PREPARE_JOB_BACKEND_POSTGRES:
-        return PostgresPreparedLayoutStore(settings.postgres_dsn())
-    return PreparedLayoutStore(settings.prepared_layout_store_dir())
+        return PostgresLayoutRepository(settings.postgres_dsn())
+    return SQLiteLayoutRepository(settings.prepared_layout_store_dir())
 
 
 @lru_cache(maxsize=1)
-def get_prepare_job_registry() -> PrepareJobRegistry | DurablePrepareJobRegistry:
+def get_prepare_job_registry() -> PrepareJobs:
     backend = settings.prepare_job_backend()
     if backend == settings.PREPARE_JOB_BACKEND_POSTGRES:
         return DurablePrepareJobRegistry(
@@ -39,7 +42,7 @@ def get_prepare_job_registry() -> PrepareJobRegistry | DurablePrepareJobRegistry
             f"'{settings.PREPARE_JOB_BACKEND_POSTGRES}'."
         )
     return PrepareJobRegistry(
-        PreparedLayoutWorker(get_prepared_layout_store()),
+        PrepareExecutor(PreparationService(get_prepared_layout_store())),
         max_active_jobs=settings.max_active_prepare_jobs(),
     )
 

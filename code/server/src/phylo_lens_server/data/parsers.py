@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 LABEL_SLUG_REGEX = r"[^a-zA-Z0-9_]+"
 LABEL_SLUG_PATTERN = re.compile(LABEL_SLUG_REGEX)
@@ -50,13 +50,19 @@ class ParsedEdge:
     distance: float | None = None
 
 
-@dataclass
+@dataclass(frozen=True)
 class ParsedGraph:
-    nodes: list[str]
-    edges: list[ParsedEdge]
+    nodes: tuple[str, ...]
+    edges: tuple[ParsedEdge, ...]
     component_roots: tuple[str, ...]
-    warnings: list[str] = field(default_factory=list)
-    explicit_node_ids: set[str] = field(default_factory=set)
+    warnings: tuple[str, ...] = ()
+    explicit_node_ids: frozenset[str] = frozenset()
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "nodes", tuple(self.nodes))
+        object.__setattr__(self, "edges", tuple(self.edges))
+        object.__setattr__(self, "warnings", tuple(self.warnings))
+        object.__setattr__(self, "explicit_node_ids", frozenset(self.explicit_node_ids))
 
 
 @dataclass
@@ -419,8 +425,10 @@ def parse_newick_forest(content: str) -> ParsedGraph:
         return graphs[0]
 
     merged = _merge_parsed_forest(graphs)
-    merged.warnings.append(WARN_NEWICK_FOREST.format(count=len(graphs)))
-    return merged
+    return replace(
+        merged,
+        warnings=(*merged.warnings, WARN_NEWICK_FOREST.format(count=len(graphs))),
+    )
 
 
 def slugify_label(label: str) -> str:

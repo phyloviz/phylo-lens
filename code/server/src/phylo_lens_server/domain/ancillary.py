@@ -3,10 +3,13 @@
 from enum import StrEnum
 from typing import Annotated
 
-from pydantic import BaseModel, Field
+from pydantic import Field
+
+from .values import FrozenMapping, FrozenValue
 
 AncillaryValue = str | float | bool | None
 AncillaryData = dict[str, AncillaryValue]
+ReadonlyAncillaryData = FrozenMapping[str, AncillaryValue]
 PositiveCount = Annotated[int, Field(strict=True, ge=1)]
 
 
@@ -17,29 +20,31 @@ class AncillaryType(StrEnum):
     NULL = "null"
 
 
-class AncillaryField(BaseModel):
+class AncillaryField(FrozenValue):
     key: str = Field(min_length=1)
     type: AncillaryType
 
 
-class AncillarySummary(BaseModel):
-    values: AncillaryData = Field(default_factory=dict)
-    category_counts: dict[str, dict[str, PositiveCount]] = Field(default_factory=dict)
+class AncillarySummary(FrozenValue):
+    values: ReadonlyAncillaryData = Field(default_factory=dict)
+    category_counts: FrozenMapping[str, FrozenMapping[str, PositiveCount]] = Field(
+        default_factory=dict
+    )
 
 
-class ProfileSummary(BaseModel):
+class ProfileSummary(FrozenValue):
     # None means unavailable, not zero. LoD nodes sum the represented isolates.
     isolate_count: PositiveCount | None = None
 
 
-class NodeAnnotations(BaseModel):
-    ancillary_data: AncillaryData = Field(default_factory=dict)
+class NodeAnnotations(FrozenValue):
+    ancillary_data: ReadonlyAncillaryData = Field(default_factory=dict)
     ancillary_summary: AncillarySummary = Field(default_factory=AncillarySummary)
     profile_summary: ProfileSummary = Field(default_factory=ProfileSummary)
 
 
-class AncillaryObservation(BaseModel):
+class AncillaryObservation(FrozenValue):
     """One joint ancillary row shared by count represented isolates."""
 
-    values: AncillaryData = Field(default_factory=dict)
+    values: ReadonlyAncillaryData = Field(default_factory=dict)
     count: PositiveCount

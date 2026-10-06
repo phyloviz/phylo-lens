@@ -7,15 +7,16 @@ from pathlib import Path
 
 import pytest
 
-from phylo_lens_server.data.normalizer import NormalizeRequest, normalize_dataset
-from phylo_lens_server.pipeline.clustering import (
+from phylo_lens_server.http.graph.schemas import NormalizeRequest
+from phylo_lens_server.pipeline.ingestion import ingest_dataset
+from phylo_lens_server.pipeline.lod import (
     clusters_at_depth,
+    prepare_layout_artifacts,
     representation_counts,
     rooted_depths,
     selected_depths,
     tree_adjacency,
 )
-from phylo_lens_server.pipeline.ingest import prepare_layout_artifacts
 
 
 def assert_hierarchy(neighbors, depths, cuts):
@@ -123,12 +124,12 @@ def test_existing_real_newick_fixture():
     fixture = (
         Path(__file__).resolve().parents[3] / "examples/newick/phyloviz-spneumoniae.nwk"
     )
-    dataset = normalize_dataset(
+    dataset = ingest_dataset(
         NormalizeRequest(
             format="newick",
             dataset_name="real-lod-fixture",
             content=fixture.read_text(),
-        )
+        ).to_domain()
     ).dataset
     neighbors = tree_adjacency(dataset)
     depths = rooted_depths(neighbors, dataset.technical_roots)
@@ -144,23 +145,23 @@ def test_existing_real_newick_fixture():
 
 
 def test_real_fixture_preparation_and_unbounded_reads(tmp_path):
-    from phylo_lens_server.pipeline.worker import PreparedLayoutWorker
     from phylo_lens_server.repository.layout.sqlite_layout_repository import (
-        PreparedLayoutStore,
+        SQLiteLayoutRepository,
     )
+    from phylo_lens_server.services.preparation import PreparationService
 
     fixture = (
         Path(__file__).resolve().parents[3] / "examples/newick/phyloviz-spneumoniae.nwk"
     )
-    dataset = normalize_dataset(
+    dataset = ingest_dataset(
         NormalizeRequest(
             format="newick",
             dataset_name="real-prepared-fixture",
             content=fixture.read_text(),
-        )
+        ).to_domain()
     ).dataset
-    store = PreparedLayoutStore(tmp_path)
-    result = PreparedLayoutWorker(store).prepare_dataset(dataset)
+    store = SQLiteLayoutRepository(tmp_path)
+    result = PreparationService(store).prepare_dataset(dataset)
     depths = rooted_depths(tree_adjacency(dataset), dataset.technical_roots)
     cuts = selected_depths(depths)
     counts = representation_counts(depths)

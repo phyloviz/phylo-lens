@@ -1,7 +1,7 @@
 import sqlite3
 
+from phylo_lens_server.database.postgres import postgres_schema
 from phylo_lens_server.database.sqlite import initialize_schema
-from phylo_lens_server.repository.jobs.postgres import postgres_schema
 
 
 def test_sqlite_fresh_cluster_schema_has_only_lod_level(tmp_path) -> None:

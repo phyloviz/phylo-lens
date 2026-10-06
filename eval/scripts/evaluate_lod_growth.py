@@ -19,11 +19,11 @@ sys.path.insert(0, str(ROOT / "code/server/src"))
 
 
 from phylo_lens_server.data.parsers import parse_newick  # noqa: E402 - source-tree bootstrap
-from phylo_lens_server.pipeline.clustering import (  # noqa: E402 - source-tree bootstrap
+from phylo_lens_server.pipeline.lod import (
     clusters_at_depth,
     representation_counts,
     rooted_depths,
-)
+)  # noqa: E402 - source-tree bootstrap
 
 
 def legacy_selected_depths(max_depth: int) -> tuple[int, ...]:

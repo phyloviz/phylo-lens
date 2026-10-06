@@ -6,13 +6,14 @@ import subprocess
 
 import pytest
 
-from phylo_lens_server.data.normalizer import NormalizeRequest, normalize_dataset
-from phylo_lens_server.domain.models import CanonicalEdge
+from phylo_lens_server.domain.models import GraphEdge
+from phylo_lens_server.domain.sfdp import SfdpOptions
+from phylo_lens_server.http.graph.schemas import NormalizeRequest
+from phylo_lens_server.pipeline.ingestion import ingest_dataset
 from phylo_lens_server.pipeline.layout import (
     compute_global_node_positions,
     graphviz_sfdp_positions,
 )
-from phylo_lens_server.pipeline.sfdp import SfdpOptions
 
 
 def test_isolates_keep_their_ids_without_entering_spring_smoothing(monkeypatch):
@@ -32,8 +33,8 @@ def test_isolates_keep_their_ids_without_entering_spring_smoothing(monkeypatch):
     )
     monkeypatch.setattr("phylo_lens_server.pipeline.layout.subprocess.run", run)
     edges = (
-        CanonicalEdge(id="ab", source="a", target="b", distance=1.0),
-        CanonicalEdge(id="loop", source="solo", target="solo", distance=0.0),
+        GraphEdge(id="ab", source="a", target="b", distance=1.0),
+        GraphEdge(id="loop", source="solo", target="solo", distance=0.0),
     )
     positions = graphviz_sfdp_positions(("a", "b", "solo", "isolated"), edges)
 
@@ -69,12 +70,12 @@ def test_entirely_isolated_forest_needs_no_graphviz_and_has_stable_positions(
 def test_real_sfdp_preserves_mixed_newick_forest(smoothing):
     # A nontrivial tree, a pair, and two singleton components. The original
     # implementation aborts with status -6 on this input with spring smoothing.
-    dataset = normalize_dataset(
+    dataset = ingest_dataset(
         NormalizeRequest(
             format="newick",
             dataset_name="forest-regression",
             content="((a:1,b:1)c:1,d:1)root; (y:1)x; lonely; other;",
-        )
+        ).to_domain()
     ).dataset
     positions = compute_global_node_positions(dataset, SfdpOptions(smoothing=smoothing))
     assert set(positions) == {node.id for node in dataset.nodes}

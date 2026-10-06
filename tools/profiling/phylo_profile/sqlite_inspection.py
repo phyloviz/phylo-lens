@@ -1,16 +1,16 @@
 from __future__ import annotations
 
+import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
-import sqlite3
 from typing import Any
 
 from .paths import bootstrap_server_src
 
 bootstrap_server_src()
 
-from phylo_lens_server.repository.layout.sqlite_layout_repository import (  # noqa: E402
-    PreparedLayoutStore,
+from phylo_lens_server.repository.layout.sqlite_layout_repository import (
+    SQLiteLayoutRepository,
 )
 
 
@@ -23,7 +23,7 @@ class Bounds:
 
 
 def dataset_bounds(
-    store: PreparedLayoutStore,
+    store: SQLiteLayoutRepository,
     dataset_id: str,
     layout_version: str,
 ) -> Bounds:
@@ -69,30 +69,30 @@ def materialized_size_bytes(path: Path) -> int:
     return total
 
 
-def thresholds(
-    store: PreparedLayoutStore,
+def lod_levels(
+    store: SQLiteLayoutRepository,
     dataset_id: str,
     layout_version: str,
-) -> tuple[float, ...]:
+) -> tuple[int, ...]:
     with sqlite3.connect(store.path) as connection:
         rows = connection.execute(
             """
-            select distinct threshold
+            select distinct lod_level
             from prepared_clusters
-            where dataset_id = ? and layout_version = ? and threshold is not null
-            order by threshold desc
+            where dataset_id = ? and layout_version = ?
+            order by lod_level
             """,
             (dataset_id, layout_version),
         ).fetchall()
-    return tuple(float(row[0]) for row in rows)
+    return tuple(int(row[0]) for row in rows)
 
 
 def query_plan_events(
-    store: PreparedLayoutStore,
+    store: SQLiteLayoutRepository,
     *,
     dataset_id: str,
     layout_version: str,
-    threshold: float | None,
+    lod_level: int | None,
     bounds: Bounds,
     limit: int,
 ) -> list[tuple[str, list[str]]]:
@@ -126,7 +126,7 @@ def query_plan_events(
                 ),
             )
         )
-        if threshold is not None:
+        if lod_level is not None:
             plans.append(
                 (
                     "cluster_representatives_bounds",
@@ -137,7 +137,7 @@ def query_plan_events(
                         from prepared_clusters
                         where dataset_id = ?
                           and layout_version = ?
-                          and threshold = ?
+                          and lod_level = ?
                           and x is not null
                           and max_x >= ?
                           and min_x <= ?
@@ -149,7 +149,7 @@ def query_plan_events(
                         (
                             dataset_id,
                             layout_version,
-                            threshold,
+                            lod_level,
                             bounds.xmin,
                             bounds.xmax,
                             bounds.ymin,

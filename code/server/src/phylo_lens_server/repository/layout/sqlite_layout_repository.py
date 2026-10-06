@@ -1,27 +1,28 @@
 from __future__ import annotations
 
-from collections.abc import Callable
-from contextlib import AbstractContextManager, closing
+from collections.abc import Iterator
+from contextlib import closing, contextmanager
 from pathlib import Path
 
-from phylo_lens_server.data.normalizer import AncillaryDataRequest, AncillaryReplacement
+from phylo_lens_server.database.sql import LayoutSQL
 from phylo_lens_server.database.sqlite import (
     connect,
     database_path_for_root,
     initialize_schema,
 )
-from phylo_lens_server.pipeline.models import (
+from phylo_lens_server.domain.preparation import (
     ClusterLayout,
-    LayoutBounds,
-    LayoutStatus,
     NodeLayoutPosition,
-    PreparedEdge,
     PreparedLayoutArtifacts,
+    QuotientEdge,
+)
+from phylo_lens_server.domain.search import SearchReadResult
+from phylo_lens_server.domain.views import (
+    LayoutStatus,
     RegionReadResult,
-    SearchReadResult,
     ViewportReadResult,
 )
-from phylo_lens_server.repository.layout import ancillary_revision
+from phylo_lens_server.repository.layout import ancillary_revision, geometry_reader
 from phylo_lens_server.repository.layout.lod_reader import (
     read_viewport_representation_counts,
 )
@@ -29,7 +30,7 @@ from phylo_lens_server.repository.layout.lod_reader import (
 from . import node_search, region_reader, viewport_reader, writer
 
 
-class PreparedLayoutStore:
+class SQLiteLayoutRepository:
     """SQLite store for materialized layout artifacts consumed by a read API."""
 
     def __init__(self, root: Path | str) -> None:
@@ -39,148 +40,100 @@ class PreparedLayoutStore:
         self.path = self._database_path
         initialize_schema(self._database_path)
 
-    def apply_ancillary_data(
-        self, dataset_id: str, layout_version: str, request: AncillaryDataRequest
-    ) -> tuple[str, AncillaryReplacement]:
+    @contextmanager
+    def ancillary_revision(
+        self, dataset_id: str, layout_version: str
+    ) -> Iterator[ancillary_revision.AncillaryRevision]:
         with closing(connect(self._database_path)) as connection, connection:
             connection.execute("begin immediate")
-            return ancillary_revision.apply_replacement(
-                connection, dataset_id, layout_version, request, "?"
+            yield ancillary_revision.open_revision(
+                connection, dataset_id, layout_version, "?"
             )
 
     def clear_dataset(self, dataset_id: str) -> None:
-        writer.clear_dataset(self._database_path, dataset_id)
+        with self._connect() as connection:
+            writer.clear_dataset(LayoutSQL(connection, "sqlite"), dataset_id)
 
     def clear_layout_version(self, dataset_id: str, layout_version: str) -> None:
-        writer.clear_layout_version(
-            self._database_path,
-            dataset_id=dataset_id,
-            layout_version=layout_version,
-        )
+        with self._connect() as connection:
+            writer.clear_dataset(
+                LayoutSQL(connection, "sqlite"), dataset_id, layout_version
+            )
 
     def save_artifacts(
         self,
         artifacts: PreparedLayoutArtifacts,
         *,
-        status: str = "refining",
-        stage_factory: Callable[[str], AbstractContextManager[None]] | None = None,
+        status: LayoutStatus = "refining",
+        stage_factory: writer.StageFactory | None = None,
     ) -> None:
-        writer.save_artifacts(
-            self._database_path,
-            artifacts,
-            status=status,
-            stage_factory=stage_factory,
-        )
+        with self._connect() as connection:
+            writer.save_artifacts(
+                LayoutSQL(connection, "sqlite"),
+                artifacts,
+                status=status,
+                stage_factory=stage_factory,
+            )
 
     def save_layouts(
         self,
         cluster_layouts: tuple[ClusterLayout, ...],
         node_positions: tuple[NodeLayoutPosition, ...],
         *,
-        stage_factory: Callable[[str], AbstractContextManager[None]] | None = None,
+        stage_factory: writer.StageFactory | None = None,
     ) -> None:
-        writer.save_layouts(
-            self._database_path,
-            cluster_layouts,
-            node_positions,
-            stage_factory=stage_factory,
-        )
+        with self._connect() as connection:
+            writer.save_layouts(
+                LayoutSQL(connection, "sqlite"),
+                cluster_layouts,
+                node_positions,
+                stage_factory=stage_factory,
+            )
 
     def save_prepared_edges(
         self,
-        prepared_edges: tuple[PreparedEdge, ...],
+        prepared_edges: tuple[QuotientEdge, ...],
         *,
-        stage_factory: Callable[[str], AbstractContextManager[None]] | None = None,
+        stage_factory: writer.StageFactory | None = None,
     ) -> None:
-        writer.save_prepared_edges(
-            self._database_path,
-            prepared_edges,
-            stage_factory=stage_factory,
-        )
+        if not prepared_edges:
+            return
+        with self._connect() as connection:
+            writer.save_prepared_edges(
+                LayoutSQL(connection, "sqlite"),
+                prepared_edges,
+                stage_factory=stage_factory,
+            )
 
     def publish_layout_version(
-        self,
-        *,
-        dataset_id: str,
-        layout_version: str,
-        status: LayoutStatus,
+        self, *, dataset_id: str, layout_version: str, status: LayoutStatus
     ) -> None:
-        writer.publish_layout_version(
-            self._database_path,
-            dataset_id=dataset_id,
-            layout_version=layout_version,
-            status=status,
-        )
+        with self._connect() as connection:
+            writer.publish_layout_version(
+                LayoutSQL(connection, "sqlite"),
+                dataset_id=dataset_id,
+                layout_version=layout_version,
+                status=status,
+            )
 
     def load_cluster_layouts(
-        self,
-        dataset_id: str,
-        layout_version: str,
+        self, dataset_id: str, layout_version: str
     ) -> list[ClusterLayout]:
-        with connect(self._database_path) as connection:
-            rows = connection.execute(
-                """
-                select cluster_id, representative_node_id, member_count,
-                       x, y, radius, min_x, max_x, min_y, max_y, status
-                from prepared_clusters
-                where dataset_id = ? and layout_version = ? and x is not null
-                order by cluster_id
-                """,
-                (dataset_id, layout_version),
-            ).fetchall()
-
-        return [
-            ClusterLayout(
-                dataset_id=dataset_id,
-                layout_version=layout_version,
-                cluster_id=row["cluster_id"],
-                representative_node_id=row["representative_node_id"],
-                member_count=row["member_count"],
-                x=row["x"],
-                y=row["y"],
-                radius=row["radius"],
-                bounds=LayoutBounds(
-                    min_x=row["min_x"],
-                    max_x=row["max_x"],
-                    min_y=row["min_y"],
-                    max_y=row["max_y"],
-                ),
-                status=row["status"],
+        with self._connect() as connection:
+            return geometry_reader.load_cluster_layouts(
+                LayoutSQL(connection, "sqlite"), dataset_id, layout_version
             )
-            for row in rows
-        ]
 
     def load_node_positions(
-        self,
-        dataset_id: str,
-        layout_version: str,
+        self, dataset_id: str, layout_version: str
     ) -> list[NodeLayoutPosition]:
-        with connect(self._database_path) as connection:
-            rows = connection.execute(
-                """
-                select cluster_id, node_id, x, y, status
-                from node_positions
-                where dataset_id = ? and layout_version = ?
-                order by cluster_id, node_id
-                """,
-                (dataset_id, layout_version),
-            ).fetchall()
-
-        return [
-            NodeLayoutPosition(
-                dataset_id=dataset_id,
-                layout_version=layout_version,
-                cluster_id=row["cluster_id"],
-                node_id=row["node_id"],
-                x=row["x"],
-                y=row["y"],
-                status=row["status"],
+        with self._connect() as connection:
+            return geometry_reader.load_node_positions(
+                LayoutSQL(connection, "sqlite"), dataset_id, layout_version
             )
-            for row in rows
-        ]
 
     def latest_layout_version(self, dataset_id: str) -> str | None:
-        with connect(self._database_path) as connection:
+        with self._connect() as connection:
             row = connection.execute(
                 """
                 select layout_version
@@ -205,7 +158,7 @@ class PreparedLayoutStore:
         ymax: float | None,
         max_lod_level: int | None = None,
     ) -> dict[int, int]:
-        with connect(self._database_path) as connection:
+        with self._connect() as connection:
             return read_viewport_representation_counts(
                 connection,
                 dataset_id=dataset_id,
@@ -232,19 +185,20 @@ class PreparedLayoutStore:
         cluster_id: str | None = None,
         focus_node_id: str | None = None,
     ) -> ViewportReadResult:
-        return viewport_reader.read_viewport(
-            self._database_path,
-            dataset_id=dataset_id,
-            layout_version=layout_version,
-            xmin=xmin,
-            xmax=xmax,
-            ymin=ymin,
-            ymax=ymax,
-            max_nodes=max_nodes,
-            lod_level=lod_level,
-            cluster_id=cluster_id,
-            focus_node_id=focus_node_id,
-        )
+        with self._connect() as connection:
+            return viewport_reader.read_viewport(
+                LayoutSQL(connection, "sqlite"),
+                dataset_id=dataset_id,
+                layout_version=layout_version,
+                xmin=xmin,
+                xmax=xmax,
+                ymin=ymin,
+                ymax=ymax,
+                max_nodes=max_nodes,
+                lod_level=lod_level,
+                cluster_id=cluster_id,
+                focus_node_id=focus_node_id,
+            )
 
     def read_region(
         self,
@@ -257,16 +211,17 @@ class PreparedLayoutStore:
         ymax: float,
         max_nodes: int | None = None,
     ) -> RegionReadResult:
-        return region_reader.read_region(
-            connect(self._database_path),
-            dataset_id=dataset_id,
-            layout_version=layout_version,
-            xmin=xmin,
-            xmax=xmax,
-            ymin=ymin,
-            ymax=ymax,
-            max_nodes=max_nodes,
-        )
+        with self._connect() as connection:
+            return region_reader.read_region(
+                LayoutSQL(connection, "sqlite"),
+                dataset_id=dataset_id,
+                layout_version=layout_version,
+                xmin=xmin,
+                xmax=xmax,
+                ymin=ymin,
+                ymax=ymax,
+                max_nodes=max_nodes,
+            )
 
     def search_nodes(
         self,
@@ -276,10 +231,16 @@ class PreparedLayoutStore:
         query: str,
         limit: int,
     ) -> SearchReadResult:
-        return node_search.search_nodes(
-            self._database_path,
-            dataset_id=dataset_id,
-            layout_version=layout_version,
-            query=query,
-            limit=limit,
-        )
+        with self._connect() as connection:
+            return node_search.search_nodes(
+                connection,
+                dataset_id=dataset_id,
+                layout_version=layout_version,
+                query=query,
+                limit=limit,
+            )
+
+    @contextmanager
+    def _connect(self):
+        with closing(connect(self._database_path)) as connection, connection:
+            yield connection

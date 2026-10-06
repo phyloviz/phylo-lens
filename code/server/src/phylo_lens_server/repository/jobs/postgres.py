@@ -1,24 +1,24 @@
 from __future__ import annotations
 
-import hashlib
 import json
 import uuid
 from dataclasses import dataclass, field
-from typing import Any, Literal, Protocol
+from typing import Literal, Protocol
 
-from phylo_lens_server.database.schema_files import read_schema_sql
-from phylo_lens_server.domain.models import CanonicalDataset
-from phylo_lens_server.pipeline.ingest import layout_version_for_dataset
-from phylo_lens_server.pipeline.sfdp import SfdpOptions, resolve_sfdp_options
-from phylo_lens_server.repository.jobs.local import (
+from phylo_lens_server.database import postgres
+from phylo_lens_server.domain.ancillary import AncillaryField
+from phylo_lens_server.domain.identity import layout_version_for_dataset
+from phylo_lens_server.domain.legacy_metadata import (
+    decode_node_annotations,
+    is_summary_key,
+)
+from phylo_lens_server.domain.models import Dataset
+from phylo_lens_server.domain.preparation import PreparationSummary
+from phylo_lens_server.domain.sfdp import SfdpOptions, resolve_sfdp_options
+from phylo_lens_server.jobs.models import (
     ERR_PREPARE_QUEUE_FULL,
-    JOB_STATUS_FAILED,
-    JOB_STATUS_PENDING,
-    JOB_STATUS_READY,
-    PrepareJobSnapshot,
+    FailureDetails,
     PrepareQueueFullError,
-    deserialize_failure,
-    serialize_failure,
 )
 
 DurablePrepareJobStatus = Literal[
@@ -47,13 +47,7 @@ ACTIVE_DURABLE_STATUSES = (
 
 DEFAULT_LEASE_SECONDS = 300
 ERR_DURABLE_JOB_INSERT_CONFLICT = "Prepare job insert conflicted unexpectedly."
-POSTGRES_SCHEMA_VERSION = "rooted-hop-schema-v2"
 POSTGRES_SUBMIT_ADVISORY_LOCK_KEY = (2_024_072_1, 11_031_337)
-POSTGRES_SCHEMA_VERSION_TABLE = "phylo_lens_schema_version"
-ERR_POSTGRES_SCHEMA_NOT_CURRENT = (
-    "Postgres schema is not current. Run "
-    "'phylo-lens-init-postgres' before starting API replicas or workers."
-)
 
 
 @dataclass(frozen=True)
@@ -64,24 +58,17 @@ class DurablePrepareJob:
     status: DurablePrepareJobStatus
     warnings: tuple[str, ...] = ()
     error: str | None = None
-    error_details: dict[str, Any] | None = None
-    result: dict[str, Any] | None = None
+    error_details: FailureDetails | None = None
+    result: PreparationSummary | None = None
     worker_id: str | None = None
 
 
 @dataclass(frozen=True)
 class ClaimedPrepareJob:
     job_id: str
-    dataset: CanonicalDataset
+    dataset: Dataset
     warnings: tuple[str, ...]
     sfdp_options: SfdpOptions = field(default_factory=SfdpOptions)
-
-
-@dataclass(frozen=True)
-class PostgresSchema:
-    version: str
-    checksum: str
-    sql: str
 
 
 class DurablePrepareJobStore(Protocol):
@@ -91,7 +78,7 @@ class DurablePrepareJobStore(Protocol):
 
     def submit(
         self,
-        dataset: CanonicalDataset,
+        dataset: Dataset,
         warnings: tuple[str, ...] = (),
         *,
         sfdp_options: SfdpOptions | None = None,
@@ -118,7 +105,7 @@ class DurablePrepareJobStore(Protocol):
         *,
         job_id: str,
         worker_id: str,
-        result: dict[str, Any],
+        result: PreparationSummary,
     ) -> bool: ...
 
     def mark_failed(
@@ -127,7 +114,7 @@ class DurablePrepareJobStore(Protocol):
         job_id: str,
         worker_id: str,
         error: str,
-        error_details: dict[str, Any] | None = None,
+        error_details: FailureDetails | None = None,
     ) -> bool: ...
 
     def snapshot(self, job_id: str) -> DurablePrepareJob | None: ...
@@ -140,39 +127,14 @@ class PostgresPrepareJobStore:
         self._dsn = dsn
 
     def create_schema(self) -> None:
-        with self._connect() as connection, connection.transaction():
-            _ensure_schema_version_table(connection)
-            schema = postgres_schema()
-            applied_checksum = _read_schema_checksum(connection, schema.version)
-            if applied_checksum == schema.checksum:
-                return
-            if applied_checksum is not None:
-                raise RuntimeError(
-                    f"Postgres schema checksum mismatch for {schema.version}."
-                )
-            for statement in sql_statements(schema.sql):
-                connection.execute(statement)
-            connection.execute(
-                f"""
-                    insert into {POSTGRES_SCHEMA_VERSION_TABLE}(
-                        version, checksum
-                    ) values (%s, %s)
-                    """,
-                (schema.version, schema.checksum),
-            )
+        postgres.create_schema(self._dsn)
 
     def assert_schema_current(self) -> None:
-        with self._connect() as connection:
-            if not _schema_version_table_exists(connection):
-                raise RuntimeError(ERR_POSTGRES_SCHEMA_NOT_CURRENT)
-            schema = postgres_schema()
-            applied_checksum = _read_schema_checksum(connection, schema.version)
-            if applied_checksum != schema.checksum:
-                raise RuntimeError(ERR_POSTGRES_SCHEMA_NOT_CURRENT)
+        postgres.assert_schema_current(self._dsn)
 
     def submit(
         self,
-        dataset: CanonicalDataset,
+        dataset: Dataset,
         warnings: tuple[str, ...] = (),
         *,
         sfdp_options: SfdpOptions | None = None,
@@ -275,7 +237,7 @@ class PostgresPrepareJobStore:
             return None
         return ClaimedPrepareJob(
             job_id=row["job_id"],
-            dataset=CanonicalDataset.model_validate(
+            dataset=decode_dataset_payload(
                 row["dataset_payload"].get("dataset", row["dataset_payload"])
             ),
             warnings=tuple(row["warnings"] or ()),
@@ -311,7 +273,7 @@ class PostgresPrepareJobStore:
         *,
         job_id: str,
         worker_id: str,
-        result: dict[str, Any],
+        result: PreparationSummary,
     ) -> bool:
         with self._connect() as connection:
             row = connection.execute(
@@ -328,7 +290,7 @@ class PostgresPrepareJobStore:
                 """,
                 (
                     DURABLE_STATUS_READY,
-                    json.dumps(result),
+                    result.model_dump_json(),
                     job_id,
                     worker_id,
                     DURABLE_STATUS_RUNNING,
@@ -342,7 +304,7 @@ class PostgresPrepareJobStore:
         job_id: str,
         worker_id: str,
         error: str,
-        error_details: dict[str, Any] | None = None,
+        error_details: FailureDetails | None = None,
     ) -> bool:
         with self._connect() as connection:
             row = connection.execute(
@@ -380,71 +342,10 @@ class PostgresPrepareJobStore:
         return None if row is None else durable_prepare_job_from_row(row)
 
     def _connect(self):
-        psycopg = import_psycopg()
-        return psycopg.connect(
-            self._dsn,
-            row_factory=psycopg.rows.dict_row,
-        )
+        return postgres.connect(self._dsn)
 
 
-class DurablePrepareJobRegistry:
-    """Route-facing adapter over a durable prepare-job store."""
-
-    def __init__(
-        self,
-        store: DurablePrepareJobStore,
-        *,
-        max_active_jobs: int | None = None,
-    ) -> None:
-        validate_max_active_jobs(max_active_jobs)
-        self._store = store
-        self._max_active_jobs = max_active_jobs
-        self._store.assert_schema_current()
-
-    def submit(
-        self,
-        dataset: CanonicalDataset,
-        warnings: tuple[str, ...] = (),
-        *,
-        sfdp_options: SfdpOptions | None = None,
-    ) -> str:
-        return self._store.submit(
-            dataset,
-            warnings,
-            sfdp_options=sfdp_options,
-            max_active_jobs=self._max_active_jobs,
-        )
-
-    def snapshot(self, job_id: str) -> PrepareJobSnapshot | None:
-        job = self._store.snapshot(job_id)
-        if job is None:
-            return None
-        if job.status in (DURABLE_STATUS_QUEUED, DURABLE_STATUS_RUNNING):
-            return PrepareJobSnapshot(
-                job_id=job.job_id,
-                status=JOB_STATUS_PENDING,
-                warnings=job.warnings,
-            )
-        if job.status == DURABLE_STATUS_READY:
-            return PrepareJobSnapshot(
-                job_id=job.job_id,
-                status=JOB_STATUS_READY,
-                result_payload=job.result,
-                warnings=job.warnings,
-            )
-        return PrepareJobSnapshot(
-            job_id=job.job_id,
-            status=JOB_STATUS_FAILED,
-            error=job.error or f"Prepare job ended with status '{job.status}'.",
-            error_details=job.error_details,
-            warnings=job.warnings,
-        )
-
-    def shutdown(self) -> None:
-        pass
-
-
-def durable_prepare_job_from_row(row: dict[str, Any]) -> DurablePrepareJob:
+def durable_prepare_job_from_row(row: dict[str, object]) -> DurablePrepareJob:
     error, error_details = deserialize_failure(row["error"])
     return DurablePrepareJob(
         job_id=row["job_id"],
@@ -454,7 +355,9 @@ def durable_prepare_job_from_row(row: dict[str, Any]) -> DurablePrepareJob:
         warnings=tuple(row["warnings"] or ()),
         error=error,
         error_details=error_details,
-        result=row["result"],
+        result=PreparationSummary.model_validate(row["result"])
+        if row["result"] is not None
+        else None,
         worker_id=row["worker_id"],
     )
 
@@ -511,79 +414,70 @@ def _is_at_active_job_limit(connection, max_active_jobs: int | None) -> bool:
     return row["active_count"] >= max_active_jobs
 
 
-def import_psycopg():
+def serialize_failure(error: str, details: FailureDetails | None) -> str:
+    """Persist structured diagnostics in legacy text-only durable job storage."""
+    if details is None:
+        return error
+    return json.dumps({"message": error, "details": dict(details)}, sort_keys=True)
+
+
+def deserialize_failure(error: str | None) -> tuple[str | None, FailureDetails | None]:
+    if not error:
+        return error, None
     try:
-        import psycopg
-        import psycopg.rows
-    except ImportError as error:  # pragma: no cover - depends on optional extra
-        raise RuntimeError(
-            "Postgres prepare jobs require the 'postgres' extra: "
-            "pip install 'phylo-lens-server[postgres]'."
-        ) from error
-    return psycopg
+        payload = json.loads(error)
+    except json.JSONDecodeError:
+        return error, None
+    if not isinstance(payload, dict) or not isinstance(payload.get("message"), str):
+        return error, None
+    details = payload.get("details")
+    return payload["message"], details if isinstance(details, dict) else None
 
 
-POSTGRES_CREATE_SCHEMA_SQL = read_schema_sql("postgres")
-
-
-def postgres_create_schema_statements() -> tuple[str, ...]:
-    return sql_statements(POSTGRES_CREATE_SCHEMA_SQL)
-
-
-def postgres_schema() -> PostgresSchema:
-    return PostgresSchema(
-        version=POSTGRES_SCHEMA_VERSION,
-        checksum=hashlib.sha256(POSTGRES_CREATE_SCHEMA_SQL.encode("utf-8")).hexdigest(),
-        sql=POSTGRES_CREATE_SCHEMA_SQL,
-    )
-
-
-def sql_statements(sql: str) -> tuple[str, ...]:
-    statements: list[str] = []
-    start = 0
-    index = 0
-    in_dollar_quote = False
-    while index < len(sql):
-        if sql.startswith("$$", index):
-            in_dollar_quote = not in_dollar_quote
-            index += 2
-            continue
-        if sql[index] == ";" and not in_dollar_quote:
-            statement = sql[start:index].strip()
-            if statement:
-                statements.append(statement)
-            start = index + 1
-        index += 1
-
-    tail = sql[start:].strip()
-    if tail:
-        statements.append(tail)
-    return tuple(statements)
-
-
-def _ensure_schema_version_table(connection) -> None:
-    connection.execute(
-        f"""
-        create table if not exists {POSTGRES_SCHEMA_VERSION_TABLE}(
-            version text primary key,
-            checksum text not null,
-            applied_at timestamptz not null default now()
+def decode_dataset_payload(payload: dict[str, object]) -> Dataset:
+    """Accept historical durable dataset JSON without supporting old Python constructors."""
+    values = dict(payload)
+    if "metadata_by_node_id" in values:
+        if "annotations_by_node_id" in values:
+            raise ValueError(
+                "Supply annotations_by_node_id or legacy metadata_by_node_id, not both."
+            )
+        values["annotations_by_node_id"] = {
+            key: decode_node_annotations(value)
+            for key, value in values.pop("metadata_by_node_id").items()
+        }
+    if "metadata_schema" in values:
+        if "ancillary_schema" in values or "summary_schema" in values:
+            raise ValueError(
+                "Supply ancillary_schema or legacy metadata_schema, not both."
+            )
+        fields = tuple(
+            AncillaryField.model_validate(value)
+            for value in values.pop("metadata_schema")
         )
-        """
-    )
-
-
-def _schema_version_table_exists(connection) -> bool:
-    row = connection.execute(
-        "select to_regclass(%s) as schema_version_table",
-        (POSTGRES_SCHEMA_VERSION_TABLE,),
-    ).fetchone()
-    return row is not None and row["schema_version_table"] is not None
-
-
-def _read_schema_checksum(connection, version: str) -> str | None:
-    row = connection.execute(
-        f"select checksum from {POSTGRES_SCHEMA_VERSION_TABLE} where version = %s",
-        (version,),
-    ).fetchone()
-    return None if row is None else row["checksum"]
+        values["ancillary_schema"] = tuple(
+            field for field in fields if not is_summary_key(field.key)
+        )
+        values["summary_schema"] = tuple(
+            field for field in fields if is_summary_key(field.key)
+        )
+    if "isolates_by_node_id" in values:
+        values["isolates_by_node_id"] = {
+            key: [
+                (
+                    {
+                        **{
+                            name: value
+                            for name, value in isolate.items()
+                            if name != "metadata"
+                        },
+                        "ancillary_data": isolate["metadata"],
+                    }
+                    if "metadata" in isolate
+                    else isolate
+                )
+                for isolate in isolates
+            ]
+            for key, isolates in values["isolates_by_node_id"].items()
+        }
+    return Dataset.model_validate(values)

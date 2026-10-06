@@ -1,15 +1,15 @@
 from __future__ import annotations
 
 import json
-import sqlite3
-from collections import Counter
-from collections.abc import Iterable
 from dataclasses import replace
 
-from phylo_lens_server.domain.metadata_keys import is_internal_metadata_key
-from phylo_lens_server.pipeline.models import (
-    LayoutStatus,
-    MetadataSchemaField,
+from phylo_lens_server.database.sql import LayoutSQL
+from phylo_lens_server.domain.summaries import (
+    MetadataMap,
+    aggregate_cluster_metadata_by_node_ids,
+)
+from phylo_lens_server.domain.views import (
+    AncillaryField,
     ViewportNode,
 )
 from phylo_lens_server.repository.layout.ancillary_distribution import (
@@ -17,94 +17,9 @@ from phylo_lens_server.repository.layout.ancillary_distribution import (
 )
 from phylo_lens_server.repository.layout.isolate_membership import load_isolates
 
-MetadataValue = str | float | bool | None
-MetadataMap = dict[str, MetadataValue]
-
-
-def aggregate_layout_status(statuses: set[LayoutStatus]) -> LayoutStatus:
-    if not statuses:
-        return "pending"
-    if "failed" in statuses:
-        return "failed"
-    if "degraded" in statuses:
-        return "degraded"
-    if statuses == {"ready"}:
-        return "ready"
-    return "refining"
-
-
-def aggregate_cluster_metadata(
-    member_metadata: list[MetadataMap],
-    schema: tuple[tuple[str, str], ...],
-) -> MetadataMap:
-    aggregate: MetadataMap = {}
-    for key, field_type in schema:
-        value = aggregate_metadata_values(
-            field_type,
-            (
-                metadata[key]
-                for metadata in member_metadata
-                if metadata.get(key) is not None
-            ),
-        )
-        if value is not None:
-            aggregate[key] = value
-    return aggregate
-
-
-def aggregate_render_metadata(
-    member_metadata: list[MetadataMap],
-    schema: tuple[tuple[str, str], ...],
-) -> MetadataMap:
-    """Aggregate public fields and generated render-only count fields."""
-    aggregate = aggregate_cluster_metadata(member_metadata, schema)
-    aggregate.update(sum_internal_count_metadata(member_metadata))
-    return aggregate
-
-
-def sum_internal_count_metadata(member_metadata: list[MetadataMap]) -> MetadataMap:
-    totals: dict[str, float] = {}
-    for metadata in member_metadata:
-        for key, value in metadata.items():
-            if not is_internal_metadata_key(key):
-                continue
-            if not isinstance(value, (int, float)) or isinstance(value, bool):
-                continue
-            totals[key] = totals.get(key, 0.0) + float(value)
-
-    return {
-        key: int(value) if value.is_integer() else value
-        for key, value in sorted(totals.items())
-        if value > 0
-    }
-
-
-def aggregate_metadata_values(
-    field_type: str,
-    values: Iterable[MetadataValue],
-) -> MetadataValue:
-    if field_type == "number":
-        numeric = [
-            value
-            for value in values
-            if isinstance(value, (int, float)) and not isinstance(value, bool)
-        ]
-        if not numeric:
-            return None
-        return sum(numeric) / len(numeric)
-
-    counts = Counter(value for value in values if value is not None)
-    if not counts:
-        return None
-    best_count = max(counts.values())
-    return min(
-        (value for value, count in counts.items() if count == best_count),
-        key=str,
-    )
-
 
 def load_metadata_rows(
-    connection: sqlite3.Connection,
+    connection: LayoutSQL,
     *,
     table: str,
     key_column: str,
@@ -114,26 +29,26 @@ def load_metadata_rows(
 ) -> dict[str, MetadataMap]:
     if not keys:
         return {}
-    placeholders = ",".join("?" for _ in keys)
+    predicate, parameters = connection.membership(key_column, keys)
     rows = connection.execute(
         f"""
         select {key_column} as row_key, metadata_json
         from {table}
         where dataset_id = ?
           and layout_version = ?
-          and {key_column} in ({placeholders})
+          and {predicate}
         """,
-        (dataset_id, layout_version, *sorted(keys)),
+        (dataset_id, layout_version, *parameters),
     ).fetchall()
     return {row["row_key"]: json.loads(row["metadata_json"]) for row in rows}
 
 
 def load_metadata_schema(
-    connection: sqlite3.Connection,
+    connection: LayoutSQL,
     *,
     dataset_id: str,
     layout_version: str,
-) -> tuple[MetadataSchemaField, ...]:
+) -> tuple[AncillaryField, ...]:
     rows = connection.execute(
         """
         select field_key, field_type
@@ -144,13 +59,12 @@ def load_metadata_schema(
         (dataset_id, layout_version),
     ).fetchall()
     return tuple(
-        MetadataSchemaField(key=row["field_key"], type=row["field_type"])
-        for row in rows
+        AncillaryField(key=row["field_key"], type=row["field_type"]) for row in rows
     )
 
 
 def attach_node_metadata(
-    connection: sqlite3.Connection,
+    connection: LayoutSQL,
     *,
     dataset_id: str,
     layout_version: str,
@@ -208,7 +122,7 @@ def attach_node_metadata(
 
 
 def load_cluster_metadata(
-    connection: sqlite3.Connection,
+    connection: LayoutSQL,
     *,
     dataset_id: str,
     layout_version: str,
@@ -244,7 +158,7 @@ def load_cluster_metadata(
 
 
 def compute_cluster_metadata(
-    connection: sqlite3.Connection,
+    connection: LayoutSQL,
     *,
     dataset_id: str,
     layout_version: str,
@@ -297,7 +211,7 @@ def compute_cluster_metadata(
 
 
 def load_cluster_members(
-    connection: sqlite3.Connection,
+    connection: LayoutSQL,
     *,
     dataset_id: str,
     layout_version: str,
@@ -305,17 +219,17 @@ def load_cluster_members(
 ) -> dict[str, tuple[str, ...]]:
     if not cluster_ids:
         return {}
-    placeholders = ",".join("?" for _ in cluster_ids)
+    predicate, parameters = connection.membership("cluster_id", cluster_ids)
     rows = connection.execute(
         f"""
         select cluster_id, node_id
         from cluster_members
         where dataset_id = ?
           and layout_version = ?
-          and cluster_id in ({placeholders})
+          and {predicate}
         order by cluster_id, node_id
         """,
-        (dataset_id, layout_version, *sorted(cluster_ids)),
+        (dataset_id, layout_version, *parameters),
     ).fetchall()
     members: dict[str, list[str]] = {}
     for row in rows:
@@ -323,19 +237,8 @@ def load_cluster_members(
     return {cluster_id: tuple(node_ids) for cluster_id, node_ids in members.items()}
 
 
-def aggregate_cluster_metadata_by_node_ids(
-    member_node_ids: tuple[str, ...],
-    metadata_by_node: dict[str, MetadataMap],
-    schema: tuple[tuple[str, str], ...],
-) -> MetadataMap:
-    return aggregate_render_metadata(
-        [metadata_by_node.get(node_id, {}) for node_id in member_node_ids],
-        schema,
-    )
-
-
 def cache_cluster_metadata(
-    connection: sqlite3.Connection,
+    connection: LayoutSQL,
     *,
     dataset_id: str,
     layout_version: str,

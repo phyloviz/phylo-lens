@@ -12,9 +12,10 @@ from phylo_lens_server.http.graph.schemas import GraphAncillaryRequest
 from phylo_lens_server.main import app
 from phylo_lens_server.repository.layout import ancillary_revision
 from phylo_lens_server.repository.layout.sqlite_layout_repository import (
-    PreparedLayoutStore,
+    SQLiteLayoutRepository,
 )
-from phylo_lens_server.services import graph_service
+from phylo_lens_server.services import ancillary as ancillary_service
+from phylo_lens_server.services import preparation as graph_service
 
 DATASET = "tree"
 SOURCE = "original"
@@ -23,7 +24,7 @@ TABLE = "id,country,age\nA,Portugal,10\nA,Canada,10\nB,Portugal,30\nmissing,Spai
 
 @pytest.fixture
 def store(tmp_path):
-    store = PreparedLayoutStore(tmp_path)
+    store = SQLiteLayoutRepository(tmp_path)
     with connect(store.path) as db:
         db.execute(
             "insert into datasets(dataset_id, layout_version, status) values (?, ?, 'ready')",
@@ -67,7 +68,7 @@ def client(store, monkeypatch):
     def forbidden(*args, **kwargs):
         pytest.fail("Ancillary update must not start graph preparation")
 
-    monkeypatch.setattr(graph_service, "normalize_dataset", forbidden)
+    monkeypatch.setattr(graph_service, "ingest_dataset", forbidden)
     monkeypatch.setattr(graph_service, "prepare_graph_job", forbidden)
     app.dependency_overrides[get_prepared_layout_store] = lambda: store
     with TestClient(app, raise_server_exceptions=False) as client:
@@ -214,10 +215,18 @@ def test_failure_rolls_back_geometry_copy(client, store, monkeypatch):
 
 def test_concurrent_identical_updates_publish_one_version(store):
     payload = GraphAncillaryRequest.model_validate(request())
+    from phylo_lens_server.domain.revisions import AncillaryTable, AncillaryUpdate
+
+    payload = AncillaryUpdate(
+        payload.dataset_id,
+        payload.layout_version,
+        AncillaryTable(**payload.ancillary_data.model_dump()),
+    )
     with ThreadPoolExecutor(max_workers=2) as pool:
         results = list(
             pool.map(
-                lambda _: graph_service.apply_ancillary_data(payload, store), range(2)
+                lambda _: ancillary_service.apply_ancillary_data(payload, store),
+                range(2),
             )
         )
     assert results[0].layout_version == results[1].layout_version

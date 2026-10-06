@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-import inspect
-from pathlib import Path
 import tempfile
+from dataclasses import dataclass
+from pathlib import Path
 
 from .datasets import synthetic_tree_dataset
 from .metrics import MetricRecorder
@@ -12,25 +11,23 @@ from .serialization import result_to_json_bytes
 from .sqlite_inspection import (
     centered_bounds,
     dataset_bounds,
+    lod_levels,
     materialized_size_bytes,
     query_plan_events,
-    thresholds,
 )
 
 bootstrap_server_src()
 
-from phylo_lens_server.pipeline.ingest import prepare_layout_artifacts  # noqa: E402
-from phylo_lens_server.pipeline.layout import compute_prepared_layouts  # noqa: E402
-from phylo_lens_server.repository.layout.sqlite_layout_repository import (  # noqa: E402
-    PreparedLayoutStore,
+from phylo_lens_server.pipeline.layout import compute_prepared_layouts
+from phylo_lens_server.pipeline.lod import (
+    compute_prepared_edges,
+    prepare_layout_artifacts,
 )
-from phylo_lens_server.pipeline.worker import compute_prepared_edges  # noqa: E402
-
+from phylo_lens_server.repository.layout.sqlite_layout_repository import (
+    SQLiteLayoutRepository,
+)
 
 DEFAULT_SEARCH_LIMIT = 25
-LAYOUT_ACCEPTS_MAXITER = "maxiter" in inspect.signature(
-    compute_prepared_layouts
-).parameters
 
 
 @dataclass(frozen=True)
@@ -53,7 +50,7 @@ def run_one_dataset(
     size: int,
 ) -> None:
     with tempfile.TemporaryDirectory(prefix="phylo-lens-profile-") as temp_dir:
-        store = PreparedLayoutStore(Path(temp_dir) / "store")
+        store = SQLiteLayoutRepository(Path(temp_dir) / "store")
 
         with recorder.stage("generate_dataset"):
             dataset = synthetic_tree_dataset(
@@ -68,7 +65,7 @@ def run_one_dataset(
             dataset_id=dataset.dataset_id,
             actual_nodes=len(dataset.nodes),
             actual_edges=len(dataset.edges),
-            metadata_fields=len(dataset.metadata_schema),
+            metadata_fields=len(dataset.ancillary_schema),
         )
 
         with recorder.stage("prepare_lod_artifacts"):
@@ -81,13 +78,7 @@ def run_one_dataset(
             "compute_layout",
             layout_maxiter=config.layout_maxiter,
         ):
-            if LAYOUT_ACCEPTS_MAXITER:
-                cluster_layouts, node_positions = compute_prepared_layouts(
-                    artifacts,
-                    maxiter=config.layout_maxiter,
-                )
-            else:
-                cluster_layouts, node_positions = compute_prepared_layouts(artifacts)
+            cluster_layouts, node_positions = compute_prepared_layouts(artifacts)
 
         with recorder.stage("persist_artifacts"):
             store.save_artifacts(
@@ -111,12 +102,12 @@ def run_one_dataset(
 
         layout_version = artifacts.layout_version
         full_bounds = dataset_bounds(store, dataset.dataset_id, layout_version)
-        tier_thresholds = thresholds(store, dataset.dataset_id, layout_version)
+        tier_levels = lod_levels(store, dataset.dataset_id, layout_version)
         recorder.emit(
             "summary",
             dataset_id=dataset.dataset_id,
             layout_version=layout_version,
-            lod_tier_count=len(tier_thresholds),
+            lod_tier_count=len(tier_levels),
             clusters=len(artifacts.clusters),
             prepared_edges=len(prepared_edges),
             node_positions=len(node_positions),
@@ -129,7 +120,7 @@ def run_one_dataset(
             store=store,
             dataset_id=dataset.dataset_id,
             layout_version=layout_version,
-            tier_thresholds=tier_thresholds,
+            tier_levels=tier_levels,
             viewport_fractions=config.viewport_fractions,
             max_nodes=config.max_nodes,
             full_bounds=full_bounds,
@@ -139,7 +130,7 @@ def run_one_dataset(
             store=store,
             dataset_id=dataset.dataset_id,
             layout_version=layout_version,
-            tier_count=len(tier_thresholds),
+            tier_count=len(tier_levels),
             full_bounds=full_bounds,
             config=config,
         )
@@ -163,21 +154,21 @@ def run_one_dataset(
 def emit_query_plans(
     recorder: MetricRecorder,
     *,
-    store: PreparedLayoutStore,
+    store: SQLiteLayoutRepository,
     dataset_id: str,
     layout_version: str,
-    tier_thresholds: tuple[float, ...],
+    tier_levels: tuple[int, ...],
     viewport_fractions: tuple[float, ...],
     max_nodes: int,
     full_bounds,
 ) -> None:
     plan_bounds = centered_bounds(full_bounds, viewport_fractions[0])
-    plan_threshold = tier_thresholds[0] if tier_thresholds else None
+    plan_level = tier_levels[0] if tier_levels else None
     for query_name, details in query_plan_events(
         store,
         dataset_id=dataset_id,
         layout_version=layout_version,
-        threshold=plan_threshold,
+        lod_level=plan_level,
         bounds=plan_bounds,
         limit=max_nodes,
     ):
@@ -187,7 +178,7 @@ def emit_query_plans(
 def profile_viewports(
     recorder: MetricRecorder,
     *,
-    store: PreparedLayoutStore,
+    store: SQLiteLayoutRepository,
     dataset_id: str,
     layout_version: str,
     tier_count: int,
@@ -232,7 +223,7 @@ def profile_viewports(
 def profile_region(
     recorder: MetricRecorder,
     *,
-    store: PreparedLayoutStore,
+    store: SQLiteLayoutRepository,
     dataset_id: str,
     layout_version: str,
     full_bounds,
@@ -268,7 +259,7 @@ def profile_region(
 def profile_search(
     recorder: MetricRecorder,
     *,
-    store: PreparedLayoutStore,
+    store: SQLiteLayoutRepository,
     dataset_id: str,
     layout_version: str,
     query: str,

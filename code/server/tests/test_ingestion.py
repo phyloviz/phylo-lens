@@ -3,8 +3,10 @@ from pathlib import Path
 import pytest
 
 from phylo_lens_server.data import phylolib
-from phylo_lens_server.data.normalizer import NormalizeRequest, normalize_dataset
 from phylo_lens_server.data.parsers import ParseError
+from phylo_lens_server.domain.legacy_metadata import encode_dataset_annotations
+from phylo_lens_server.http.graph.schemas import NormalizeRequest
+from phylo_lens_server.pipeline.ingestion import ingest_dataset
 
 FORMAT_NEWICK = "newick"
 FORMAT_TYPING_DATA = "typing_data"
@@ -14,7 +16,7 @@ DATASET_DETERMINISTIC = "tree-deterministic"
 NEWICK_DETERMINISTIC_CONTENT = "((A,B)X,(C,D)Y)Root;"
 
 
-def test_normalize_newick_is_deterministic() -> None:
+def test_ingest_newick_is_deterministic() -> None:
     """Confirm normalization results are stable across repeated identical inputs."""
     request = NormalizeRequest(
         format=FORMAT_NEWICK,
@@ -22,8 +24,8 @@ def test_normalize_newick_is_deterministic() -> None:
         content=NEWICK_DETERMINISTIC_CONTENT,
     )
 
-    first = normalize_dataset(request)
-    second = normalize_dataset(request)
+    first = ingest_dataset(request.to_domain())
+    second = ingest_dataset(request.to_domain())
 
     assert [n.id for n in first.dataset.nodes] == [n.id for n in second.dataset.nodes]
     assert [(e.id, e.source, e.target) for e in first.dataset.edges] == [
@@ -31,14 +33,14 @@ def test_normalize_newick_is_deterministic() -> None:
     ]
 
 
-def test_normalize_newick_preserves_edge_distances() -> None:
+def test_ingest_newick_preserves_edge_distances() -> None:
     """Confirm Newick branch lengths are emitted as canonical edge distances."""
-    result = normalize_dataset(
+    result = ingest_dataset(
         NormalizeRequest(
             format=FORMAT_NEWICK,
             dataset_name=DATASET_DETERMINISTIC,
             content="(A:0.10,(B:0.20,C:0.30)N:0.40)R:0.50;",
-        )
+        ).to_domain()
     )
 
     assert [
@@ -51,14 +53,14 @@ def test_normalize_newick_preserves_edge_distances() -> None:
     ]
 
 
-def test_normalize_clamps_negative_newick_branch_lengths() -> None:
+def test_ingest_clamps_negative_newick_branch_lengths() -> None:
     """Confirm RapidNJ-style negative branch lengths stay prepare-compatible."""
-    result = normalize_dataset(
+    result = ingest_dataset(
         NormalizeRequest(
             format=FORMAT_NEWICK,
             dataset_name=DATASET_DETERMINISTIC,
             content="(A:-0.001,B:0.20)R:0;",
-        )
+        ).to_domain()
     )
 
     assert [
@@ -70,9 +72,9 @@ def test_normalize_clamps_negative_newick_branch_lengths() -> None:
     assert "clamped" in result.warnings[0]
 
 
-def test_normalize_newick_joins_tsv_ancillary_data_by_leaf_label() -> None:
+def test_ingest_newick_joins_tsv_ancillary_data_by_leaf_label() -> None:
     """Confirm user-supplied tabular metadata is compiled onto canonical node ids."""
-    result = normalize_dataset(
+    result = ingest_dataset(
         NormalizeRequest(
             format=FORMAT_NEWICK,
             dataset_name=DATASET_DETERMINISTIC,
@@ -86,11 +88,11 @@ def test_normalize_newick_joins_tsv_ancillary_data_by_leaf_label() -> None:
                     "P12\tCanada\thuman stool\t12\n"
                 ),
             },
-        )
+        ).to_domain()
     )
 
     assert {
-        key: result.dataset.metadata_by_node_id["p09"][key]
+        key: encode_dataset_annotations(result.dataset)["p09"][key]
         for key in ("country", "source", "penner", "profile_count")
     } == {
         "country": "Unknown",
@@ -98,20 +100,20 @@ def test_normalize_newick_joins_tsv_ancillary_data_by_leaf_label() -> None:
         "penner": 9,
         "profile_count": 1,
     }
-    assert result.dataset.metadata_by_node_id["p12"]["source"] == "human stool"
-    schema = {field.key: field.type for field in result.dataset.metadata_schema}
+    assert encode_dataset_annotations(result.dataset)["p12"]["source"] == "human stool"
+    schema = {field.key: field.type for field in result.dataset.ancillary_schema}
     assert {key: schema[key] for key in ("country", "source", "penner")} == {
         "country": "string",
         "source": "string",
         "penner": "number",
     }
     assert "profile_count" not in schema
-    assert result.warnings == []
+    assert result.warnings == ()
 
 
-def test_normalize_newick_joins_ancillary_data_by_labeled_internal_node() -> None:
+def test_ingest_newick_joins_ancillary_data_by_labeled_internal_node() -> None:
     """Confirm PHYLOViZ-style Newick joins include all explicit node labels."""
-    result = normalize_dataset(
+    result = ingest_dataset(
         NormalizeRequest(
             format=FORMAT_NEWICK,
             dataset_name=DATASET_DETERMINISTIC,
@@ -126,20 +128,20 @@ def test_normalize_newick_joins_ancillary_data_by_labeled_internal_node() -> Non
                     "ST5\tSpain\t1\n"
                 ),
             },
-        )
+        ).to_domain()
     )
 
-    assert result.dataset.metadata_by_node_id["st1"]["count"] == 2
-    assert result.dataset.metadata_by_node_id["st4"]["country"] == "Portugal"
-    assert result.dataset.metadata_by_node_id["st5"]["country"] == "Spain"
+    assert encode_dataset_annotations(result.dataset)["st1"]["count"] == 2
+    assert encode_dataset_annotations(result.dataset)["st4"]["country"] == "Portugal"
+    assert encode_dataset_annotations(result.dataset)["st5"]["country"] == "Spain"
     assert (
         "Ancillary data did not include rows for 2 joinable nodes." in result.warnings
     )
 
 
-def test_normalize_ancillary_data_aggregates_multiple_rows_per_node() -> None:
+def test_ingest_ancillary_data_aggregates_multiple_rows_per_node() -> None:
     """Confirm isolate rows sharing one ST produce profile counts and distributions."""
-    result = normalize_dataset(
+    result = ingest_dataset(
         NormalizeRequest(
             format=FORMAT_NEWICK,
             dataset_name=DATASET_DETERMINISTIC,
@@ -155,10 +157,10 @@ def test_normalize_ancillary_data_aggregates_multiple_rows_per_node() -> None:
                     "ST2\tCanada\tblood\n"
                 ),
             },
-        )
+        ).to_domain()
     )
 
-    st1_metadata = result.dataset.metadata_by_node_id["st1"]
+    st1_metadata = encode_dataset_annotations(result.dataset)["st1"]
     assert st1_metadata["profile_count"] == 3
     assert st1_metadata["country"] == "Portugal;Spain"
     assert st1_metadata["source"] == "blood;csf"
@@ -166,18 +168,18 @@ def test_normalize_ancillary_data_aggregates_multiple_rows_per_node() -> None:
     assert st1_metadata["__category_count__country__value__Spain"] == 1
     assert st1_metadata["__category_count__source__value__blood"] == 2
     assert st1_metadata["__category_count__source__value__csf"] == 1
-    assert result.dataset.ancillary_rows_by_node_id["st1"] == [
+    assert result.dataset.ancillary_rows_by_node_id["st1"] == (
         {"country": "Portugal", "source": "blood"},
         {"country": "Portugal", "source": "blood"},
         {"country": "Spain", "source": "csf"},
-    ]
-    assert result.warnings == []
+    )
+    assert result.warnings == ()
 
 
-def test_normalize_ancillary_data_merges_per_field_and_preserves_explicit_metadata() -> (
+def test_ingest_ancillary_data_merges_per_field_and_preserves_explicit_metadata() -> (
     None
 ):
-    result = normalize_dataset(
+    result = ingest_dataset(
         NormalizeRequest(
             format=FORMAT_NEWICK,
             dataset_name=DATASET_DETERMINISTIC,
@@ -194,10 +196,10 @@ def test_normalize_ancillary_data_merges_per_field_and_preserves_explicit_metada
                 "join_column": "ST",
                 "content": "ST\tcountry\tsource\nST1\tAncillary Spain\tblood\n",
             },
-        )
+        ).to_domain()
     )
 
-    assert result.dataset.metadata_by_node_id["st1"] == {
+    assert encode_dataset_annotations(result.dataset)["st1"] == {
         "country": "Explicit Portugal",
         "host": "human",
         "source": "blood",
@@ -207,9 +209,9 @@ def test_normalize_ancillary_data_merges_per_field_and_preserves_explicit_metada
     }
 
 
-def test_normalize_hides_derived_fields_from_public_schema() -> None:
+def test_ingest_hides_derived_fields_from_public_schema() -> None:
     """Confirm generated metadata values do not leak into public schema fields."""
-    result = normalize_dataset(
+    result = ingest_dataset(
         NormalizeRequest(
             format=FORMAT_NEWICK,
             dataset_name=DATASET_DETERMINISTIC,
@@ -220,19 +222,19 @@ def test_normalize_hides_derived_fields_from_public_schema() -> None:
                 "join_column": "ST",
                 "content": ("ST\tcountry\nST1\tPortugal\nST1\tSpain\nST2\tCanada\n"),
             },
-        )
+        ).to_domain()
     )
 
-    schema = {field.key: field.type for field in result.dataset.metadata_schema}
+    schema = {field.key: field.type for field in result.dataset.ancillary_schema}
     assert schema["country"] == "string"
     assert "profile_count" not in schema
     assert "__category_count__country__value__Portugal" not in schema
-    assert result.dataset.metadata_by_node_id["st1"]["profile_count"] == 2
+    assert encode_dataset_annotations(result.dataset)["st1"]["profile_count"] == 2
 
 
-def test_normalize_can_expose_internal_schema_for_prepare_pipeline() -> None:
+def test_ingest_can_include_summary_schema_for_prepare_pipeline() -> None:
     """Confirm internal callers can still validate generated metadata keys."""
-    result = normalize_dataset(
+    result = ingest_dataset(
         NormalizeRequest(
             format=FORMAT_NEWICK,
             dataset_name=DATASET_DETERMINISTIC,
@@ -243,19 +245,22 @@ def test_normalize_can_expose_internal_schema_for_prepare_pipeline() -> None:
                 "join_column": "ST",
                 "content": "ST\tcountry\nST1\tPortugal\nST2\tCanada\n",
             },
-        ),
-        expose_internal_schema=True,
+        ).to_domain(),
+        include_summary_schema=True,
     )
 
-    schema = {field.key: field.type for field in result.dataset.metadata_schema}
+    schema = {
+        field.key: field.type
+        for field in (*result.dataset.ancillary_schema, *result.dataset.summary_schema)
+    }
     assert schema["profile_count"] == "number"
     assert schema["__category_count__country__value__Portugal"] == "number"
 
 
-def test_normalize_rejects_reserved_ancillary_column_names() -> None:
+def test_ingest_rejects_reserved_ancillary_column_names() -> None:
     """Confirm uploaded tables cannot overwrite generated implementation fields."""
     with pytest.raises(ParseError, match="profile_count"):
-        normalize_dataset(
+        ingest_dataset(
             NormalizeRequest(
                 format=FORMAT_NEWICK,
                 dataset_name=DATASET_DETERMINISTIC,
@@ -265,14 +270,14 @@ def test_normalize_rejects_reserved_ancillary_column_names() -> None:
                     "join_column": "ST",
                     "content": "ST\tprofile_count\nST1\t999\n",
                 },
-            )
+            ).to_domain()
         )
 
 
-def test_normalize_rejects_reserved_category_count_columns() -> None:
+def test_ingest_rejects_reserved_category_count_columns() -> None:
     """Confirm encoded category-count backing fields are not user-addressable."""
     with pytest.raises(ParseError, match="__category_count__country__value__PT"):
-        normalize_dataset(
+        ingest_dataset(
             NormalizeRequest(
                 format=FORMAT_NEWICK,
                 dataset_name=DATASET_DETERMINISTIC,
@@ -282,27 +287,27 @@ def test_normalize_rejects_reserved_category_count_columns() -> None:
                     "join_column": "ST",
                     "content": "ST\t__category_count__country__value__PT\nST1\t999\n",
                 },
-            )
+            ).to_domain()
         )
 
 
-def test_normalize_rejects_reserved_direct_metadata_keys() -> None:
+def test_ingest_rejects_reserved_direct_metadata_keys() -> None:
     """Confirm JSON metadata cannot address generated implementation fields."""
     with pytest.raises(ParseError, match="profile_count"):
-        normalize_dataset(
+        ingest_dataset(
             NormalizeRequest(
                 format=FORMAT_NEWICK,
                 dataset_name=DATASET_DETERMINISTIC,
                 content="(ST1:0.1,ST2:0.2);",
                 metadata_schema=[{"key": "profile_count", "type": "number"}],
                 metadata_by_node_id={"st1": {"profile_count": 999}},
-            )
+            ).to_domain()
         )
 
 
-def test_normalize_ancillary_data_respects_declared_string_field_types() -> None:
+def test_ingest_ancillary_data_respects_declared_string_field_types() -> None:
     """Confirm numeric-looking ancillary fields stay strings when declared as strings."""
-    result = normalize_dataset(
+    result = ingest_dataset(
         NormalizeRequest(
             format=FORMAT_NEWICK,
             dataset_name=DATASET_DETERMINISTIC,
@@ -320,24 +325,24 @@ def test_normalize_ancillary_data_respects_declared_string_field_types() -> None
                     "id\tyear\tsender\tcurator\n3157\t1991\t42\t7\n2475\t2004\t42\t8\n"
                 ),
             },
-        )
+        ).to_domain()
     )
 
-    node_metadata = result.dataset.metadata_by_node_id["3157"]
+    node_metadata = encode_dataset_annotations(result.dataset)["3157"]
     assert node_metadata["year"] == "1991"
     assert node_metadata["sender"] == "42"
     assert node_metadata["curator"] == "7"
     assert node_metadata["profile_count"] == 1
-    schema = {field.key: field.type for field in result.dataset.metadata_schema}
+    schema = {field.key: field.type for field in result.dataset.ancillary_schema}
     assert schema["year"] == "string"
     assert schema["sender"] == "string"
     assert schema["id"] == "string"
     assert schema["curator"] == "string"
 
 
-def test_normalize_direct_metadata_respects_declared_string_field_types() -> None:
+def test_ingest_direct_metadata_respects_declared_string_field_types() -> None:
     """Confirm direct metadata payloads honor declared string scalar fields."""
-    result = normalize_dataset(
+    result = ingest_dataset(
         NormalizeRequest(
             format=FORMAT_NEWICK,
             dataset_name=DATASET_DETERMINISTIC,
@@ -352,10 +357,10 @@ def test_normalize_direct_metadata_respects_declared_string_field_types() -> Non
                 "3157": {"year": 1991, "sender": 42, "id": 3157, "curator": 7},
                 "2475": {"year": 2004, "sender": 43, "id": 2475, "curator": 8},
             },
-        )
+        ).to_domain()
     )
 
-    node_metadata = result.dataset.metadata_by_node_id["3157"]
+    node_metadata = encode_dataset_annotations(result.dataset)["3157"]
     assert node_metadata == {
         "year": "1991",
         "sender": "42",
@@ -364,9 +369,9 @@ def test_normalize_direct_metadata_respects_declared_string_field_types() -> Non
     }
 
 
-def test_normalize_final_metadata_respects_merged_schema_types() -> None:
+def test_ingest_final_metadata_respects_merged_schema_types() -> None:
     """Confirm final schema coercion catches values from every metadata source."""
-    result = normalize_dataset(
+    result = ingest_dataset(
         NormalizeRequest(
             format=FORMAT_NEWICK,
             dataset_name=DATASET_DETERMINISTIC,
@@ -384,18 +389,18 @@ def test_normalize_final_metadata_respects_merged_schema_types() -> None:
                 "join_column": "id",
                 "content": ("id\tyear\tsender\tcurator\n2475\t2004\t43\t8\n"),
             },
-        )
+        ).to_domain()
     )
 
-    assert result.dataset.metadata_by_node_id["3157"]["year"] == "1991"
-    assert result.dataset.metadata_by_node_id["3157"]["sender"] == "42"
-    assert result.dataset.metadata_by_node_id["2475"]["year"] == "2004"
-    assert result.dataset.metadata_by_node_id["2475"]["sender"] == "43"
+    assert encode_dataset_annotations(result.dataset)["3157"]["year"] == "1991"
+    assert encode_dataset_annotations(result.dataset)["3157"]["sender"] == "42"
+    assert encode_dataset_annotations(result.dataset)["2475"]["year"] == "2004"
+    assert encode_dataset_annotations(result.dataset)["2475"]["sender"] == "43"
 
 
-def test_normalize_newick_does_not_join_generated_union_node_ids() -> None:
+def test_ingest_newick_does_not_join_generated_union_node_ids() -> None:
     """Confirm generated union-node ids are not treated as user identifiers."""
-    result = normalize_dataset(
+    result = ingest_dataset(
         NormalizeRequest(
             format=FORMAT_NEWICK,
             dataset_name=DATASET_DETERMINISTIC,
@@ -405,19 +410,19 @@ def test_normalize_newick_does_not_join_generated_union_node_ids() -> None:
                 "join_column": "id",
                 "content": ("id\tcountry\nA\tPortugal\nunion_2\tSpain\nRoot\tFrance\n"),
             },
-        )
+        ).to_domain()
     )
 
-    assert set(result.dataset.metadata_by_node_id) == {"a", "root"}
+    assert set(encode_dataset_annotations(result.dataset)) == {"a", "root"}
     assert "Ancillary row 3 with id='union_2' did not match a node." in result.warnings
     assert (
         "Ancillary data did not include rows for 2 joinable nodes." in result.warnings
     )
 
 
-def test_normalize_single_unlabeled_newick_does_not_join_generated_id() -> None:
+def test_ingest_single_unlabeled_newick_does_not_join_generated_id() -> None:
     """Confirm no-edge Newick joins still require explicit source labels."""
-    result = normalize_dataset(
+    result = ingest_dataset(
         NormalizeRequest(
             format=FORMAT_NEWICK,
             dataset_name=DATASET_DETERMINISTIC,
@@ -427,16 +432,16 @@ def test_normalize_single_unlabeled_newick_does_not_join_generated_id() -> None:
                 "join_column": "id",
                 "content": "id\tcountry\nunion_1\tPortugal\n",
             },
-        )
+        ).to_domain()
     )
 
-    assert result.dataset.metadata_by_node_id == {}
+    assert encode_dataset_annotations(result.dataset) == {}
     assert "did not match a node" in result.warnings[0]
 
 
-def test_normalize_newick_warns_for_unmatched_ancillary_rows() -> None:
+def test_ingest_newick_warns_for_unmatched_ancillary_rows() -> None:
     """Confirm table rows that cannot join are reported without breaking ingest."""
-    result = normalize_dataset(
+    result = ingest_dataset(
         NormalizeRequest(
             format=FORMAT_NEWICK,
             dataset_name=DATASET_DETERMINISTIC,
@@ -445,17 +450,17 @@ def test_normalize_newick_warns_for_unmatched_ancillary_rows() -> None:
                 "join_column": "isolate",
                 "content": "isolate,country\nP09,Unknown\nPX,Unknown\n",
             },
-        )
+        ).to_domain()
     )
 
-    assert list(result.dataset.metadata_by_node_id) == ["p09"]
+    assert list(encode_dataset_annotations(result.dataset)) == ["p09"]
     assert "did not match a node" in result.warnings[0]
     assert "did not include rows for 2 joinable nodes" in result.warnings[1]
 
 
-def test_normalize_ancillary_data_allows_blank_cells_in_typed_columns() -> None:
+def test_ingest_ancillary_data_allows_blank_cells_in_typed_columns() -> None:
     """Confirm sparse real-world metadata tables can keep null cells."""
-    result = normalize_dataset(
+    result = ingest_dataset(
         NormalizeRequest(
             format=FORMAT_NEWICK,
             dataset_name=DATASET_DETERMINISTIC,
@@ -469,11 +474,11 @@ def test_normalize_ancillary_data_allows_blank_cells_in_typed_columns() -> None:
                     "2475\tManchester\t\tATCC\n"
                 ),
             },
-        )
+        ).to_domain()
     )
 
     assert {
-        key: result.dataset.metadata_by_node_id["3157"][key]
+        key: encode_dataset_annotations(result.dataset)["3157"][key]
         for key in ("region", "year", "aliases", "profile_count")
     } == {
         "region": None,
@@ -482,7 +487,7 @@ def test_normalize_ancillary_data_allows_blank_cells_in_typed_columns() -> None:
         "profile_count": 1,
     }
     assert {
-        key: result.dataset.metadata_by_node_id["2475"][key]
+        key: encode_dataset_annotations(result.dataset)["2475"][key]
         for key in ("region", "year", "aliases", "profile_count")
     } == {
         "region": "Manchester",
@@ -490,7 +495,7 @@ def test_normalize_ancillary_data_allows_blank_cells_in_typed_columns() -> None:
         "aliases": "ATCC",
         "profile_count": 1,
     }
-    schema = {field.key: field.type for field in result.dataset.metadata_schema}
+    schema = {field.key: field.type for field in result.dataset.ancillary_schema}
     assert {key: schema[key] for key in ("aliases", "region", "year")} == {
         "aliases": "string",
         "region": "string",
@@ -530,15 +535,16 @@ def test_typing_data_maps_phylolib_graph_into_pipeline(monkeypatch) -> None:
         )
 
     monkeypatch.setattr(
-        "phylo_lens_server.data.normalizer.typing_profiles_to_rooted_tree", fake_convert
+        "phylo_lens_server.pipeline.ingestion.typing_profiles_to_rooted_tree",
+        fake_convert,
     )
 
-    result = normalize_dataset(
+    result = ingest_dataset(
         NormalizeRequest(
             format=FORMAT_TYPING_DATA,
             dataset_name="typing-dataset",
             content=TYPING_PROFILES,
-        )
+        ).to_domain()
     )
 
     assert calls == [
@@ -550,12 +556,12 @@ def test_typing_data_maps_phylolib_graph_into_pipeline(monkeypatch) -> None:
     assert result.dataset.technical_roots == ("a",)
     assert result.dataset.source.rooting_strategy == "goeburst-lv-v1"
     assert len(result.dataset.nodes) == len(
-        normalize_dataset(
+        ingest_dataset(
             NormalizeRequest(
                 format=FORMAT_NEWICK,
                 dataset_name="ref",
                 content=TYPING_NEWICK,
-            )
+            ).to_domain()
         ).dataset.nodes
     )
 
@@ -565,12 +571,12 @@ def test_typing_data_runtime_missing_raises_parse_error(monkeypatch) -> None:
     monkeypatch.delenv(phylolib.ENV_PHYLOLIB_JAR, raising=False)
 
     with pytest.raises(ParseError) as excinfo:
-        normalize_dataset(
+        ingest_dataset(
             NormalizeRequest(
                 format=FORMAT_TYPING_DATA,
                 dataset_name="typing-dataset",
                 content=TYPING_PROFILES,
-            )
+            ).to_domain()
         )
 
     assert "PhyloLib" in str(excinfo.value)

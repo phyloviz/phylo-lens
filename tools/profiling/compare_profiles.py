@@ -2,8 +2,8 @@
 from __future__ import annotations
 
 import argparse
-from pathlib import Path
 import sys
+from pathlib import Path
 
 from phylo_profile.comparison import (
     aggregate,
@@ -42,10 +42,13 @@ def main() -> None:
             status = "removed"
         else:
             status = "ok"
-            if args.fail_ratio is not None and ratio is not None:
-                if ratio > args.fail_ratio:
-                    status = "regressed"
-                    failed = True
+            if (
+                args.fail_ratio is not None
+                and ratio is not None
+                and ratio > args.fail_ratio
+            ):
+                status = "regressed"
+                failed = True
 
         ratio_text = "-" if ratio is None else f"{ratio:.3f}"
         before_ms = "-" if before is None else f"{before.median_ms:.3f}"
@@ -63,4 +66,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

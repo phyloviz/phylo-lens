@@ -1,15 +1,15 @@
 import pytest
 from pydantic import ValidationError
 
-from phylo_lens_server.data.normalizer import NormalizeRequest, normalize_dataset
 from phylo_lens_server.domain.ancillary import AncillarySummary, ProfileSummary
+from phylo_lens_server.domain.identity import layout_version_for_dataset
 from phylo_lens_server.domain.legacy_metadata import (
     decode_node_annotations,
     encode_node_annotations,
 )
-from phylo_lens_server.domain.models import CanonicalDataset, Isolate
-from phylo_lens_server.http.graph.schemas import GraphViewportNode
-from phylo_lens_server.pipeline.ingest import layout_version_for_dataset
+from phylo_lens_server.domain.models import Dataset, Isolate
+from phylo_lens_server.http.graph.schemas import GraphViewportNode, NormalizeRequest
+from phylo_lens_server.pipeline.ingestion import ingest_dataset
 
 
 def test_legacy_annotations_round_trip_without_mixing_user_and_generated_fields():
@@ -62,17 +62,21 @@ def test_new_and_deprecated_request_names_normalize_identically():
     common = {"format": "newick", "content": "(a:1,b:2)root;"}
     values = {"a": {"country": "PT"}}
     fields = [{"key": "country", "type": "string"}]
-    current = normalize_dataset(
-        NormalizeRequest(**common, ancillary_schema=fields, ancillary_by_node_id=values)
+    current = ingest_dataset(
+        NormalizeRequest(
+            **common, ancillary_schema=fields, ancillary_by_node_id=values
+        ).to_domain()
     ).dataset
-    legacy = normalize_dataset(
-        NormalizeRequest(**common, metadata_schema=fields, metadata_by_node_id=values)
+    legacy = ingest_dataset(
+        NormalizeRequest(
+            **common, metadata_schema=fields, metadata_by_node_id=values
+        ).to_domain()
     ).dataset
     assert current.annotations_by_node_id == legacy.annotations_by_node_id
     assert current.ancillary_schema == legacy.ancillary_schema
     assert layout_version_for_dataset(current) == layout_version_for_dataset(legacy)
     assert (
-        CanonicalDataset.model_validate(current.model_dump()).annotations_by_node_id
+        Dataset.model_validate(current.model_dump()).annotations_by_node_id
         == current.annotations_by_node_id
     )
     with pytest.raises(ValidationError, match="not both"):

@@ -1,21 +1,21 @@
-from phylo_lens_server.data.normalizer import NormalizeRequest, normalize_dataset
-from phylo_lens_server.http.graph.schemas import GraphPrepareResponse
-from phylo_lens_server.pipeline.ingest import prepare_layout_artifacts
-from phylo_lens_server.pipeline.models import (
+from phylo_lens_server.domain.preparation import (
+    PreparationSummary,
     PreparedCluster,
     PreparedLayoutArtifacts,
     PreparedLayoutResult,
 )
-from phylo_lens_server.repository.jobs.result_payload import prepare_result_payload
+from phylo_lens_server.http.graph.schemas import GraphPrepareResponse, NormalizeRequest
+from phylo_lens_server.pipeline.ingestion import ingest_dataset
+from phylo_lens_server.pipeline.lod import prepare_layout_artifacts
 
 
 def _dataset(dataset_name: str = "payload-tree"):
-    return normalize_dataset(
+    return ingest_dataset(
         NormalizeRequest(
             format="newick",
             dataset_name=dataset_name,
             content="((a:1,b:2)c:3,d:4)root;",
-        )
+        ).to_domain()
     ).dataset
 
 
@@ -52,7 +52,7 @@ def _cluster(cluster_id: str, lod_level: int) -> PreparedCluster:
 def test_prepare_result_payload_matches_prepare_response_shape() -> None:
     result = _result()
 
-    payload = prepare_result_payload(result, ())
+    payload = PreparationSummary.from_result(result, ()).model_dump(mode="json")
 
     response = GraphPrepareResponse.model_validate(payload)
     assert response.dataset_id == "payload-tree"
@@ -64,13 +64,15 @@ def test_prepare_result_payload_matches_prepare_response_shape() -> None:
 
 
 def test_prepare_result_payload_combines_submit_warnings() -> None:
-    payload = prepare_result_payload(_result(), ("submitted warning",))
+    payload = PreparationSummary.from_result(
+        _result(), ("submitted warning",)
+    ).model_dump(mode="json")
 
     assert payload["warnings"] == ["submitted warning"]
 
 
 def test_prepare_result_payload_counts_distinct_lod_levels() -> None:
-    payload = prepare_result_payload(
+    payload = PreparationSummary.from_result(
         _result(
             clusters=(
                 _cluster("c1", 0),
@@ -80,14 +82,16 @@ def test_prepare_result_payload_counts_distinct_lod_levels() -> None:
             )
         ),
         (),
-    )
+    ).model_dump(mode="json")
 
     assert payload["cluster_count"] == 4
     assert payload["lod_tier_count"] == 2
 
 
 def test_prepare_result_payload_preserves_minimum_lod_tier_count() -> None:
-    payload = prepare_result_payload(_result(clusters=()), ())
+    payload = PreparationSummary.from_result(_result(clusters=()), ()).model_dump(
+        mode="json"
+    )
 
     assert payload["cluster_count"] == 0
     assert payload["lod_tier_count"] == 1

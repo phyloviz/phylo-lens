@@ -1,3 +1,5 @@
+from phylo_lens_server.domain.views import ViewportQuery
+
 """Viewport selection uses complete prepared tiers, never arbitrary subsets."""
 
 from pathlib import Path
@@ -5,18 +7,18 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from phylo_lens_server.data.normalizer import NormalizeRequest, normalize_dataset
 from phylo_lens_server.database.sqlite import connect
-from phylo_lens_server.http.graph.schemas import GraphViewportQuery
-from phylo_lens_server.pipeline.worker import PreparedLayoutWorker
+from phylo_lens_server.domain.views import select_viewport_lod_level
+from phylo_lens_server.http.graph.schemas import GraphViewportQuery, NormalizeRequest
+from phylo_lens_server.pipeline.ingestion import ingest_dataset
 from phylo_lens_server.repository.layout.lod_reader import (
     read_viewport_representation_counts,
 )
 from phylo_lens_server.repository.layout.sqlite_layout_repository import (
-    PreparedLayoutStore,
+    SQLiteLayoutRepository,
 )
-from phylo_lens_server.services.graph_service import read_graph_viewport
-from phylo_lens_server.services.viewport_lod import select_viewport_lod_level
+from phylo_lens_server.services.graph_reads import read_graph_viewport
+from phylo_lens_server.services.preparation import PreparationService
 
 
 def test_semantic_zoom_is_preference_and_spare_capacity_refines_early():
@@ -50,13 +52,13 @@ def real_prepared(tmp_path_factory):
     fixture = (
         Path(__file__).resolve().parents[3] / "examples/newick/phyloviz-spneumoniae.nwk"
     )
-    dataset = normalize_dataset(
+    dataset = ingest_dataset(
         NormalizeRequest(
             format="newick", dataset_name="viewport-real", content=fixture.read_text()
-        )
+        ).to_domain()
     ).dataset
-    store = PreparedLayoutStore(tmp_path_factory.mktemp("viewport-real"))
-    result = PreparedLayoutWorker(store).prepare_dataset(dataset)
+    store = SQLiteLayoutRepository(tmp_path_factory.mktemp("viewport-real"))
+    result = PreparationService(store).prepare_dataset(dataset)
     return store, result
 
 
@@ -76,7 +78,7 @@ def test_real_regions_choose_different_effective_levels_at_same_zoom(real_prepar
         "ymin": min(p.y for p in positions) - 1,
         "ymax": max(p.y for p in positions) + 1,
     }
-    dense = read_graph_viewport(GraphViewportQuery(**common, **dense_bounds), store)
+    dense = read_graph_viewport(ViewportQuery(**common, **dense_bounds), store)
     assert dense.lod_level == 2
     assert len(dense.nodes) == 15
     leaf_ids = {node.id for node in result.artifacts.dataset.nodes} - {
@@ -89,12 +91,12 @@ def test_real_regions_choose_different_effective_levels_at_same_zoom(real_prepar
         "ymin": leaf.y - 1e-7,
         "ymax": leaf.y + 1e-7,
     }
-    sparse = read_graph_viewport(GraphViewportQuery(**common, **sparse_bounds), store)
+    sparse = read_graph_viewport(ViewportQuery(**common, **sparse_bounds), store)
     assert sparse.lod_level == 7
     assert len(sparse.nodes) == 2  # leaf and its boundary neighbor
     assert not sparse.truncated and not dense.truncated
     assert all(n.member_count == 1 for n in sparse.nodes)
-    ids = {n.id for n in sparse.nodes}
+    ids = {n.node_id for n in sparse.nodes}
     assert all(e.source in ids and e.target in ids for e in sparse.edges)
     # Prefetch bounds do not determine the effective tier: use visible bounds.
     padded = read_graph_viewport(

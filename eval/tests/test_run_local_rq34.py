@@ -1,32 +1,35 @@
 """Local structural evidence must detect corrupt persisted partitions/edges."""
 
+from phylo_lens_server.domain.models import SourceFormat
+
 import sqlite3
 
 import pytest
-from phylo_lens_server.data.normalizer import NormalizeRequest, normalize_dataset
-from phylo_lens_server.pipeline.clustering import (
+from phylo_lens_server.domain.preparation import PrepareInput
+from phylo_lens_server.pipeline.ingestion import ingest_dataset
+from phylo_lens_server.pipeline.lod import (
     rooted_depths,
     selected_depths,
     tree_adjacency,
 )
-from phylo_lens_server.pipeline.worker import PreparedLayoutWorker
+from phylo_lens_server.services.preparation import PreparationService
 from phylo_lens_server.repository.layout.sqlite_layout_repository import (
-    PreparedLayoutStore,
+    SQLiteLayoutRepository,
 )
 from run_local_rq34 import validate_rq3
 
 
 @pytest.fixture
 def prepared(tmp_path):
-    dataset = normalize_dataset(
-        NormalizeRequest(
-            format="newick",
+    dataset = ingest_dataset(
+        PrepareInput(
+            format=SourceFormat("newick"),
             dataset_name="local-validation",
             content="(((a,b)c,d)e,(f,g)h)root;",
         )
     ).dataset
-    store = PreparedLayoutStore(tmp_path)
-    result = PreparedLayoutWorker(store).prepare_dataset(dataset)
+    store = SQLiteLayoutRepository(tmp_path)
+    result = PreparationService(store).prepare_dataset(dataset)
     cuts = selected_depths(
         rooted_depths(tree_adjacency(dataset), dataset.technical_roots)
     )

@@ -4,7 +4,7 @@ import json
 from collections import Counter
 
 from phylo_lens_server.domain.ancillary import AncillaryObservation
-from phylo_lens_server.domain.metadata_keys import is_internal_metadata_key
+from phylo_lens_server.domain.legacy_metadata import is_summary_key
 
 
 def load_cluster_distributions(
@@ -34,7 +34,7 @@ def load_cluster_distributions(
         data = {
             key: value
             for key, value in json.loads(row["data"]).items()
-            if not is_internal_metadata_key(key)
+            if not is_summary_key(key)
         }
         key = json.dumps(data, sort_keys=True, ensure_ascii=False)
         counts.setdefault(row["cluster_id"], Counter())[key] += row["frequency"]

@@ -9,7 +9,7 @@ from evaluate_lod_growth import (
     select_depths_by_representation_growth,
     validate_cuts,
 )
-from phylo_lens_server.pipeline.clustering import rooted_depths
+from phylo_lens_server.pipeline.lod import rooted_depths
 
 
 @pytest.mark.parametrize("policy", ["threshold", "nearest"])

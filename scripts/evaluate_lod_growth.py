@@ -18,7 +18,7 @@ sys.path.insert(0, str(ROOT / "code/server/src"))
 import itertools
 
 from phylo_lens_server.data.parsers import parse_newick
-from phylo_lens_server.pipeline.clustering import (
+from phylo_lens_server.pipeline.lod import (
     clusters_at_depth,
     representation_counts,
     rooted_depths,

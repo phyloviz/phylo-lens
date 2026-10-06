@@ -1,127 +1,52 @@
 from __future__ import annotations
 
 import json
-import sqlite3
 from collections.abc import Callable, Iterable, Iterator
 from contextlib import AbstractContextManager, nullcontext
-from typing import Any
 
-from phylo_lens_server.database.sqlite import connect, table_exists
-from phylo_lens_server.domain.metadata_keys import is_internal_metadata_key
-from phylo_lens_server.pipeline.models import (
+from phylo_lens_server.database.sql import LayoutSQL
+from phylo_lens_server.database.sqlite import table_exists
+from phylo_lens_server.domain.legacy_metadata import (
+    encode_dataset_annotations,
+    is_summary_key,
+)
+from phylo_lens_server.domain.preparation import (
     ClusterLayout,
     NodeLayoutPosition,
-    PreparedEdge,
     PreparedLayoutArtifacts,
+    QuotientEdge,
 )
-from phylo_lens_server.repository.layout.metadata_reader import (
-    aggregate_cluster_metadata_by_node_ids,
-)
+from phylo_lens_server.domain.summaries import aggregate_cluster_metadata_by_node_ids
+from phylo_lens_server.domain.views import LayoutStatus
 
-SQLRow = tuple[Any, ...]
+SQLRow = tuple[object, ...]
 StageFactory = Callable[[str], AbstractContextManager[None]]
-BulkExecutor = Callable[[Any, str, Iterable[SQLRow]], int]
 
 BULK_INSERT_BATCH_SIZE = 5_000
 PRECOMPUTED_CLUSTER_METADATA_TIERS = 3
 
 
-def clear_dataset(
-    database_path,
-    dataset_id: str,
-) -> None:
-    with connect(database_path) as connection:
-        for table in (
-            "node_positions",
-            "prepared_edges",
-            "graph_edges",
-            "cluster_members",
-            "prepared_clusters",
-            "datasets",
-            "node_metadata",
-            "profile_isolates",
-            "cluster_metadata",
-            "metadata_schema",
-        ):
-            if not table_exists(connection, table):
-                continue
-            connection.execute(
-                f"delete from {table} where dataset_id = ?",
-                (dataset_id,),
-            )
-
-
-def clear_layout_version(
-    database_path,
-    *,
-    dataset_id: str,
-    layout_version: str,
-) -> None:
-    with connect(database_path) as connection:
-        for table in (
-            "node_positions",
-            "prepared_edges",
-            "graph_edges",
-            "cluster_members",
-            "prepared_clusters",
-            "datasets",
-            "node_metadata",
-            "profile_isolates",
-            "cluster_metadata",
-            "metadata_schema",
-        ):
-            if not table_exists(connection, table):
-                continue
-            connection.execute(
-                f"delete from {table} where dataset_id = ? and layout_version = ?",
-                (dataset_id, layout_version),
-            )
-
-
 def save_artifacts(
-    database_path,
+    connection: LayoutSQL,
     artifacts: PreparedLayoutArtifacts,
     *,
-    status: str = "refining",
+    status: LayoutStatus = "refining",
     stage_factory: StageFactory | None = None,
-) -> None:
-    with connect(database_path) as connection:
-        save_artifacts_to_connection(
-            connection,
-            artifacts,
-            status=status,
-            stage_factory=stage_factory,
-            execute_many=execute_many_chunked,
-        )
-
-
-def save_artifacts_to_connection(
-    connection,
-    artifacts: PreparedLayoutArtifacts,
-    *,
-    status: str = "refining",
-    stage_factory: StageFactory | None = None,
-    placeholder: str = "?",
-    execute_many: BulkExecutor,
 ) -> None:
     with _stage(stage_factory, "persist_artifacts.datasets"):
         connection.execute(
-            _sql(
-                """
+            """
                 insert into datasets(dataset_id, layout_version, status)
                 values (?, ?, ?)
                 on conflict(dataset_id, layout_version) do update set
                     status = excluded.status
                 """,
-                placeholder,
-            ),
             (artifacts.dataset.dataset_id, artifacts.layout_version, status),
         )
     with _stage(stage_factory, "persist_artifacts.prepared_clusters"):
-        execute_many(
+        execute_many_chunked(
             connection,
-            _sql(
-                """
+            """
                 insert into prepared_clusters(
                     dataset_id, layout_version, cluster_id, lod_level,
                     representative_node_id, member_count, status
@@ -133,30 +58,24 @@ def save_artifacts_to_connection(
                     member_count = excluded.member_count,
                     status = excluded.status
                 """,
-                placeholder,
-            ),
             prepared_cluster_rows(artifacts),
         )
     with _stage(stage_factory, "persist_artifacts.cluster_members"):
-        execute_many(
+        execute_many_chunked(
             connection,
-            _sql(
-                """
+            """
                 insert into cluster_members(
                     dataset_id, layout_version, cluster_id, node_id
                 )
                 values (?, ?, ?, ?)
                 on conflict do nothing
                 """,
-                placeholder,
-            ),
             cluster_member_rows(artifacts),
         )
     with _stage(stage_factory, "persist_artifacts.graph_edges"):
-        execute_many(
+        execute_many_chunked(
             connection,
-            _sql(
-                """
+            """
                 insert into graph_edges(
                     dataset_id, layout_version, edge_id,
                     source_node_id, target_node_id, distance
@@ -167,37 +86,30 @@ def save_artifacts_to_connection(
                     target_node_id = excluded.target_node_id,
                     distance = excluded.distance
                 """,
-                placeholder,
-            ),
             graph_edge_rows(artifacts),
         )
-    execute_many(
+    execute_many_chunked(
         connection,
-        _sql(
-            """insert into profile_isolates(dataset_id, layout_version, node_id, isolate_id, metadata_json)
+        """insert into profile_isolates(dataset_id, layout_version, node_id, isolate_id, metadata_json)
             values (?, ?, ?, ?, ?)
             on conflict(dataset_id, layout_version, isolate_id) do update set
                 node_id = excluded.node_id, metadata_json = excluded.metadata_json""",
-            placeholder,
-        ),
         (
             (
                 artifacts.dataset.dataset_id,
                 artifacts.layout_version,
                 node_id,
                 isolate.id,
-                json.dumps(isolate.ancillary_data),
+                json.dumps(dict(isolate.ancillary_data)),
             )
             for node_id, isolates in artifacts.dataset.isolates_by_node_id.items()
             for isolate in isolates
         ),
     )
-    _persist_metadata_to_connection(
+    _persist_annotations(
         connection,
         artifacts,
         stage_factory=stage_factory,
-        placeholder=placeholder,
-        execute_many=execute_many,
     )
 
 
@@ -210,13 +122,8 @@ def _stage(
     return stage_factory(name)
 
 
-def _sql(statement: str, placeholder: str) -> str:
-    """Render shared qmark SQL for the backend's parameter style."""
-    return statement if placeholder == "?" else statement.replace("?", placeholder)
-
-
 def execute_many_chunked(
-    connection: sqlite3.Connection,
+    connection: LayoutSQL,
     sql: str,
     rows: Iterable[SQLRow],
     *,
@@ -273,13 +180,11 @@ def graph_edge_rows(artifacts: PreparedLayoutArtifacts) -> Iterator[SQLRow]:
         )
 
 
-def _persist_metadata_to_connection(
-    connection,
+def _persist_annotations(
+    connection: LayoutSQL,
     artifacts: PreparedLayoutArtifacts,
     *,
     stage_factory: StageFactory | None = None,
-    placeholder: str = "?",
-    execute_many: BulkExecutor,
 ) -> None:
     dataset_id = artifacts.dataset.dataset_id
     layout_version = artifacts.layout_version
@@ -289,10 +194,9 @@ def _persist_metadata_to_connection(
     public_keys = {key for key, _ in public_fields}
 
     with _stage(stage_factory, "persist_artifacts.metadata_schema"):
-        execute_many(
+        execute_many_chunked(
             connection,
-            _sql(
-                """
+            """
             insert into metadata_schema(
                 dataset_id, layout_version, field_key, field_type
             )
@@ -300,15 +204,13 @@ def _persist_metadata_to_connection(
             on conflict(dataset_id, layout_version, field_key) do update set
                 field_type = excluded.field_type
                 """,
-                placeholder,
-            ),
             [
                 (dataset_id, layout_version, key, field_type)
                 for key, field_type in public_fields
             ],
         )
 
-    metadata_by_node = artifacts.dataset.metadata_by_node_id
+    metadata_by_node = encode_dataset_annotations(artifacts.dataset)
     with _stage(stage_factory, "persist_artifacts.render_metadata"):
         render_metadata_by_node = render_metadata_by_node_map(
             metadata_by_node,
@@ -320,10 +222,9 @@ def _persist_metadata_to_connection(
             for node_id, metadata in render_metadata_by_node.items()
         }
     with _stage(stage_factory, "persist_artifacts.node_metadata"):
-        execute_many(
+        execute_many_chunked(
             connection,
-            _sql(
-                """
+            """
             insert into node_metadata(
                 dataset_id, layout_version, node_id, metadata_json
             )
@@ -331,8 +232,6 @@ def _persist_metadata_to_connection(
             on conflict(dataset_id, layout_version, node_id) do update set
                 metadata_json = excluded.metadata_json
                     """,
-                placeholder,
-            ),
             node_metadata_rows(
                 dataset_id,
                 layout_version,
@@ -340,10 +239,9 @@ def _persist_metadata_to_connection(
             ),
         )
     with _stage(stage_factory, "persist_artifacts.cluster_metadata"):
-        execute_many(
+        execute_many_chunked(
             connection,
-            _sql(
-                """
+            """
             insert into cluster_metadata(
                 dataset_id, layout_version, cluster_id, metadata_json
             )
@@ -351,8 +249,6 @@ def _persist_metadata_to_connection(
             on conflict(dataset_id, layout_version, cluster_id) do update set
                 metadata_json = excluded.metadata_json
                     """,
-                placeholder,
-            ),
             cluster_metadata_rows(
                 artifacts,
                 render_metadata_by_node,
@@ -370,7 +266,7 @@ def render_metadata_by_node_map(
         node_id: {
             key: value
             for key, value in metadata.items()
-            if key in public_keys or is_internal_metadata_key(key)
+            if key in public_keys or is_summary_key(key)
         }
         for node_id, metadata in metadata_by_node.items()
     }
@@ -414,36 +310,16 @@ def cluster_metadata_rows(
 
 
 def save_layouts(
-    database_path,
+    connection: LayoutSQL,
     cluster_layouts: tuple[ClusterLayout, ...],
     node_positions: tuple[NodeLayoutPosition, ...],
     *,
     stage_factory: StageFactory | None = None,
-) -> None:
-    with connect(database_path) as connection:
-        save_layouts_to_connection(
-            connection,
-            cluster_layouts,
-            node_positions,
-            stage_factory=stage_factory,
-            execute_many=execute_many_chunked,
-        )
-
-
-def save_layouts_to_connection(
-    connection,
-    cluster_layouts: tuple[ClusterLayout, ...],
-    node_positions: tuple[NodeLayoutPosition, ...],
-    *,
-    stage_factory: StageFactory | None = None,
-    placeholder: str = "?",
-    execute_many: BulkExecutor,
 ) -> None:
     with _stage(stage_factory, "persist_layouts.prepared_clusters"):
-        execute_many(
+        execute_many_chunked(
             connection,
-            _sql(
-                """
+            """
                 update prepared_clusters set
                     representative_node_id = ?,
                     member_count = ?,
@@ -457,36 +333,28 @@ def save_layouts_to_connection(
                     status = ?
                 where dataset_id = ? and layout_version = ? and cluster_id = ?
                 """,
-                placeholder,
-            ),
             cluster_layout_rows(cluster_layouts),
         )
     if node_positions:
         first_position = node_positions[0]
         with _stage(stage_factory, "persist_layouts.node_positions.clear_existing"):
             connection.execute(
-                _sql(
-                    """
+                """
                     delete from node_positions
                     where dataset_id = ? and layout_version = ?
                     """,
-                    placeholder,
-                ),
                 (first_position.dataset_id, first_position.layout_version),
             )
     with _stage(stage_factory, "persist_layouts.node_positions.rows"):
-        execute_many(
+        execute_many_chunked(
             connection,
-            _sql(
-                """
+            """
                 insert into node_positions(
                     dataset_id, layout_version, cluster_id, node_id,
                     x, y, status
                 )
                 values (?, ?, ?, ?, ?, ?, ?)
                 """,
-                placeholder,
-            ),
             node_position_rows(cluster_layouts, node_positions),
         )
 
@@ -546,49 +414,26 @@ def node_position_row(position: NodeLayoutPosition) -> SQLRow:
 
 
 def save_prepared_edges(
-    database_path,
-    prepared_edges: tuple[PreparedEdge, ...],
+    connection: LayoutSQL,
+    prepared_edges: tuple[QuotientEdge, ...],
     *,
     stage_factory: StageFactory | None = None,
-) -> None:
-    if not prepared_edges:
-        return
-    with connect(database_path) as connection:
-        save_prepared_edges_to_connection(
-            connection,
-            prepared_edges,
-            stage_factory=stage_factory,
-            execute_many=execute_many_chunked,
-        )
-
-
-def save_prepared_edges_to_connection(
-    connection,
-    prepared_edges: tuple[PreparedEdge, ...],
-    *,
-    stage_factory: StageFactory | None = None,
-    placeholder: str = "?",
-    execute_many: BulkExecutor,
 ) -> None:
     if not prepared_edges:
         return
     first = prepared_edges[0]
     with _stage(stage_factory, "persist_prepared_edges.clear_existing"):
         connection.execute(
-            _sql(
-                """
+            """
                 delete from prepared_edges
                 where dataset_id = ? and layout_version = ?
                 """,
-                placeholder,
-            ),
             (first.dataset_id, first.layout_version),
         )
     with _stage(stage_factory, "persist_prepared_edges.rows"):
-        execute_many(
+        execute_many_chunked(
             connection,
-            _sql(
-                """
+            """
                 insert into prepared_edges(
                     dataset_id, layout_version, lod_level, edge_id,
                     source_node_id, target_node_id, distance
@@ -600,13 +445,11 @@ def save_prepared_edges_to_connection(
                     target_node_id = excluded.target_node_id,
                     distance = excluded.distance
                 """,
-                placeholder,
-            ),
             prepared_edge_rows(prepared_edges),
         )
 
 
-def prepared_edge_rows(prepared_edges: tuple[PreparedEdge, ...]) -> Iterator[SQLRow]:
+def prepared_edge_rows(prepared_edges: tuple[QuotientEdge, ...]) -> Iterator[SQLRow]:
     for edge in prepared_edges:
         yield (
             edge.dataset_id,
@@ -619,19 +462,49 @@ def prepared_edge_rows(prepared_edges: tuple[PreparedEdge, ...]) -> Iterator[SQL
         )
 
 
-def publish_layout_version(
-    database_path,
-    *,
-    dataset_id: str,
-    layout_version: str,
-    status: str,
+LAYOUT_TABLES = (
+    "node_positions",
+    "prepared_edges",
+    "graph_edges",
+    "cluster_members",
+    "prepared_clusters",
+    "datasets",
+    "node_metadata",
+    "profile_isolates",
+    "cluster_metadata",
+    "metadata_schema",
+)
+
+
+def clear_dataset(
+    connection: LayoutSQL, dataset_id: str, layout_version: str | None = None
 ) -> None:
-    with connect(database_path) as connection:
-        connection.execute(
-            """
-            update datasets
-            set status = ?, updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now')
-            where dataset_id = ? and layout_version = ?
-            """,
-            (status, dataset_id, layout_version),
+    for table in LAYOUT_TABLES:
+        if connection.backend == "sqlite" and not table_exists(
+            connection.connection, table
+        ):
+            continue
+        suffix = " and layout_version = ?" if layout_version is not None else ""
+        parameters = (
+            (dataset_id, layout_version)
+            if layout_version is not None
+            else (dataset_id,)
         )
+        connection.execute(
+            f"delete from {table} where dataset_id = ?{suffix}", parameters
+        )
+
+
+def publish_layout_version(
+    connection: LayoutSQL, *, dataset_id: str, layout_version: str, status: LayoutStatus
+) -> None:
+    # PostgreSQL's existing trigger touches updated_at; SQLite uses this expression.
+    touch = (
+        ", updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now')"
+        if connection.backend == "sqlite"
+        else ""
+    )
+    connection.execute(
+        f"update datasets set status = ?{touch} where dataset_id = ? and layout_version = ?",
+        (status, dataset_id, layout_version),
+    )

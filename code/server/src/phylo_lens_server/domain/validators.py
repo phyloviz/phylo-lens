@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from phylo_lens_server.domain.models import (
-    CanonicalDataset,
+    Dataset,
     DomainValidationError,
 )
 
@@ -19,23 +19,23 @@ ERR_ANCILLARY_ROWS_UNKNOWN_NODE_TEMPLATE = (
 ERR_METADATA_UNKNOWN_KEY_TEMPLATE = (
     "Metadata key '{key}' is not declared in metadata schema."
 )
-ERR_METADATA_TYPE_TEMPLATE = (
+ERR_ANCILLARY_TYPE_TEMPLATE = (
     "Metadata key '{key}' for node '{node_id}' does not match type "
     "'{expected_type}' (actual type '{actual_type}', value '{value}')."
 )
 
-METADATA_TYPE_NULL = "null"
-METADATA_TYPE_BOOLEAN = "boolean"
-METADATA_TYPE_STRING = "string"
-METADATA_TYPE_NUMBER = "number"
+ANCILLARY_TYPE_NULL = "null"
+ANCILLARY_TYPE_BOOLEAN = "boolean"
+ANCILLARY_TYPE_STRING = "string"
+ANCILLARY_TYPE_NUMBER = "number"
 
 
-def validate_canonical_dataset(
-    dataset: CanonicalDataset,
+def validate_dataset(
+    dataset: Dataset,
     *,
     allow_self_loops: bool = False,
 ) -> None:
-    """Enforce canonical graph and metadata invariants before downstream processing."""
+    """Enforce graph and ancillary annotation invariants before preparation."""
     errors: list[str] = []
 
     node_ids = [node.id for node in dataset.nodes]
@@ -86,7 +86,7 @@ def validate_canonical_dataset(
             expected_type = schema_keys[key]
             if not _value_matches_type(value, expected_type):
                 errors.append(
-                    ERR_METADATA_TYPE_TEMPLATE.format(
+                    ERR_ANCILLARY_TYPE_TEMPLATE.format(
                         key=key,
                         node_id=node_id,
                         expected_type=expected_type,
@@ -106,15 +106,15 @@ def validate_canonical_dataset(
 
 
 def _value_matches_type(value: str | float | bool | None, expected_type: str) -> bool:
-    """Check whether a metadata value matches a declared canonical metadata type."""
+    """Check an ancillary value against its declared scalar type."""
     if value is None:
         return True
-    if expected_type == METADATA_TYPE_NULL:
+    if expected_type == ANCILLARY_TYPE_NULL:
         return value is None
-    if expected_type == METADATA_TYPE_BOOLEAN:
+    if expected_type == ANCILLARY_TYPE_BOOLEAN:
         return isinstance(value, bool)
-    if expected_type == METADATA_TYPE_STRING:
+    if expected_type == ANCILLARY_TYPE_STRING:
         return isinstance(value, str)
-    if expected_type == METADATA_TYPE_NUMBER:
+    if expected_type == ANCILLARY_TYPE_NUMBER:
         return isinstance(value, (int, float)) and not isinstance(value, bool)
     return False

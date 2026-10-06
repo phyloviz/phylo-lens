@@ -1,14 +1,16 @@
 import pytest
 
-from phylo_lens_server.data.normalizer import NormalizeRequest, normalize_dataset
 from phylo_lens_server.data.parsers import ParseError, parse_newick
 from phylo_lens_server.data.phylolib import RootedTypingTree
 from phylo_lens_server.data.typing_profiles import collapse_profile_graph
-from phylo_lens_server.pipeline.ingest import layout_version_for_dataset
-from phylo_lens_server.pipeline.worker import PreparedLayoutWorker
+from phylo_lens_server.domain.identity import layout_version_for_dataset
+from phylo_lens_server.domain.legacy_metadata import encode_dataset_annotations
+from phylo_lens_server.http.graph.schemas import NormalizeRequest
+from phylo_lens_server.pipeline.ingestion import ingest_dataset
 from phylo_lens_server.repository.layout.sqlite_layout_repository import (
-    PreparedLayoutStore,
+    SQLiteLayoutRepository,
 )
+from phylo_lens_server.services.preparation import PreparationService
 
 PROFILES = "ID\tL1\tL2\nA/01\t1\t2\nB.02\t1\t2\nC\t2\t3\n"
 ANCILLARY = (
@@ -25,10 +27,10 @@ def grouped_dataset(monkeypatch, **kwargs):
         )
 
     monkeypatch.setattr(
-        "phylo_lens_server.data.normalizer.typing_profiles_to_rooted_tree", convert
+        "phylo_lens_server.pipeline.ingestion.typing_profiles_to_rooted_tree", convert
     )
-    return normalize_dataset(
-        NormalizeRequest(format="typing_data", content=PROFILES, **kwargs)
+    return ingest_dataset(
+        NormalizeRequest(format="typing_data", content=PROFILES, **kwargs).to_domain()
     ).dataset
 
 
@@ -39,20 +41,21 @@ def test_profile_membership_and_counts_without_ancillary(monkeypatch):
         ("a_01", "c", 2)
     ]
     assert [i.id for i in dataset.isolates_by_node_id["a_01"]] == ["A/01", "B.02"]
-    assert dataset.metadata_by_node_id["a_01"]["profile_count"] == 2
-    assert dataset.metadata_by_node_id["c"]["profile_count"] == 1
-    assert not any(field.key == "profile_count" for field in dataset.metadata_schema)
+    assert encode_dataset_annotations(dataset)["a_01"]["profile_count"] == 2
+    assert encode_dataset_annotations(dataset)["c"]["profile_count"] == 1
+    assert not any(field.key == "profile_count" for field in dataset.ancillary_schema)
 
 
 def test_grouped_metadata_preserves_rows_and_counts(monkeypatch):
     dataset = grouped_dataset(
         monkeypatch, ancillary_data={"content": ANCILLARY, "join_column": "ID"}
     )
-    metadata = dataset.metadata_by_node_id["a_01"]
+    metadata = encode_dataset_annotations(dataset)["a_01"]
     assert metadata["__category_count__country__value__Portugal"] == 1
     assert metadata["__category_count__country__value__Spain"] == 1
     assert [
-        isolate.metadata["year"] for isolate in dataset.isolates_by_node_id["a_01"]
+        isolate.ancillary_data["year"]
+        for isolate in dataset.isolates_by_node_id["a_01"]
     ] == [2020, 2021]
     assert len(dataset.ancillary_rows_by_node_id["a_01"]) == 2
 
@@ -65,8 +68,8 @@ def test_missing_ancillary_does_not_reduce_profile_frequency(monkeypatch):
             "join_column": "ID",
         },
     )
-    assert dataset.metadata_by_node_id["a_01"]["profile_count"] == 2
-    assert dataset.isolates_by_node_id["a_01"][1].metadata == {}
+    assert encode_dataset_annotations(dataset)["a_01"]["profile_count"] == 2
+    assert dataset.isolates_by_node_id["a_01"][1].ancillary_data == {}
 
 
 def test_direct_metadata_overrides_only_its_isolate(monkeypatch):
@@ -75,13 +78,15 @@ def test_direct_metadata_overrides_only_its_isolate(monkeypatch):
         ancillary_data={"content": ANCILLARY, "join_column": "ID"},
         metadata_by_node_id={"B.02": {"country": "France"}},
     )
-    assert [i.metadata["country"] for i in dataset.isolates_by_node_id["a_01"]] == [
+    assert [
+        i.ancillary_data["country"] for i in dataset.isolates_by_node_id["a_01"]
+    ] == [
         "Portugal",
         "France",
     ]
     assert (
         "__category_count__country__value__Spain"
-        not in dataset.metadata_by_node_id["a_01"]
+        not in encode_dataset_annotations(dataset)["a_01"]
     )
 
 
@@ -91,12 +96,14 @@ def test_identical_profiles_and_single_isolate_need_no_java(monkeypatch):
         lambda *_: pytest.fail("No algorithm needed for one unique profile"),
     )
     for rows in ["A\t1\n", "A\t1\nB\t1\n"]:
-        dataset = normalize_dataset(
-            NormalizeRequest(format="typing_data", content="ID\tL1\n" + rows)
+        dataset = ingest_dataset(
+            NormalizeRequest(
+                format="typing_data", content="ID\tL1\n" + rows
+            ).to_domain()
         ).dataset
         assert len(dataset.nodes) == 1
         assert not dataset.edges
-        assert dataset.metadata_by_node_id["a"]["profile_count"] == len(
+        assert encode_dataset_annotations(dataset)["a"]["profile_count"] == len(
             rows.splitlines()
         )
 
@@ -106,17 +113,22 @@ def test_identical_profiles_and_single_isolate_need_no_java(monkeypatch):
 )
 def test_ambiguous_identifiers_are_rejected(ids):
     with pytest.raises(ParseError):
-        normalize_dataset(
+        ingest_dataset(
             NormalizeRequest(
                 format="typing_data", content=f"ID\tL1\n{ids[0]}\t1\n{ids[1]}\t2\n"
-            )
+            ).to_domain()
         )
 
 
 def test_original_membership_changes_layout_fingerprint(monkeypatch):
     dataset = grouped_dataset(monkeypatch)
-    changed = dataset.model_copy(deep=True)
-    changed.isolates_by_node_id["a_01"][1].id = "different-original-id"
+    membership = dict(dataset.isolates_by_node_id)
+    first, second = membership["a_01"]
+    membership["a_01"] = (
+        first,
+        second.model_copy(update={"id": "different-original-id"}),
+    )
+    changed = dataset.model_copy(update={"isolates_by_node_id": membership})
     assert layout_version_for_dataset(dataset) != layout_version_for_dataset(changed)
 
 
@@ -124,10 +136,10 @@ def test_membership_survives_storage_search_and_viewport(monkeypatch, tmp_path):
     dataset = grouped_dataset(
         monkeypatch, ancillary_data={"content": ANCILLARY, "join_column": "ID"}
     )
-    store = PreparedLayoutStore(tmp_path)
-    result = PreparedLayoutWorker(store).prepare_dataset(dataset)
+    store = SQLiteLayoutRepository(tmp_path)
+    result = PreparationService(store).prepare_dataset(dataset)
     version = result.artifacts.layout_version
-    store = PreparedLayoutStore(tmp_path)  # No in-memory normalization state.
+    store = SQLiteLayoutRepository(tmp_path)  # No in-memory normalization state.
     match = store.search_nodes(
         dataset_id=dataset.dataset_id, layout_version=version, query="B.02", limit=10
     )
@@ -150,7 +162,7 @@ def test_membership_survives_storage_search_and_viewport(monkeypatch, tmp_path):
     assert node.member_count == 1  # One biological profile, not an LoD cluster.
     assert [i.id for i in node.isolates] == ["A/01", "B.02"]
     assert node.metadata["profile_count"] == 2
-    assert node.isolates[1].metadata["country"] == "Spain"
+    assert node.isolates[1].ancillary_data["country"] == "Spain"
     store.clear_dataset(dataset.dataset_id)
     assert not store.search_nodes(
         dataset_id=dataset.dataset_id, layout_version=version, query="B.02", limit=10
@@ -163,24 +175,25 @@ def test_declared_numeric_metadata_keeps_individual_values(monkeypatch):
         ancillary_data={"content": ANCILLARY, "join_column": "ID"},
         metadata_schema=[{"key": "year", "type": "number"}],
     )
-    assert dataset.metadata_by_node_id["a_01"]["year"] == 2020.5
+    assert encode_dataset_annotations(dataset)["a_01"]["year"] == 2020.5
     assert [
-        isolate.metadata["year"] for isolate in dataset.isolates_by_node_id["a_01"]
+        isolate.ancillary_data["year"]
+        for isolate in dataset.isolates_by_node_id["a_01"]
     ] == [2020, 2021]
 
 
 def test_original_identifiers_match_literally_after_reopening_store(tmp_path):
     ids = ["00123", "A/01", "B.02", "C D", "E%F", "G_H", "Straße"]
-    dataset = normalize_dataset(
+    dataset = ingest_dataset(
         NormalizeRequest(
             format="typing_data",
             content="ID\tL1\n" + "".join(f"{identifier}\t1\n" for identifier in ids),
-        )
+        ).to_domain()
     ).dataset
-    prepared = PreparedLayoutWorker(PreparedLayoutStore(tmp_path)).prepare_dataset(
+    prepared = PreparationService(SQLiteLayoutRepository(tmp_path)).prepare_dataset(
         dataset
     )
-    store = PreparedLayoutStore(tmp_path)
+    store = SQLiteLayoutRepository(tmp_path)
     scope = {
         "dataset_id": dataset.dataset_id,
         "layout_version": prepared.artifacts.layout_version,

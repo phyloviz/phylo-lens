@@ -1,14 +1,17 @@
-from phylo_lens_server.domain.ancillary import NodeAnnotations
+from phylo_lens_server.domain.ancillary import AncillaryField, NodeAnnotations
+from phylo_lens_server.domain.legacy_metadata import (
+    decode_node_annotations,
+    is_summary_key,
+)
 from phylo_lens_server.domain.models import (
     NEWICK_ROOTING_STRATEGY,
-    CanonicalDataset,
-    CanonicalEdge,
-    CanonicalNode,
+    Dataset,
     DatasetSource,
     DomainValidationError,
-    MetadataField,
+    GraphEdge,
+    GraphNode,
 )
-from phylo_lens_server.domain.validators import validate_canonical_dataset
+from phylo_lens_server.domain.validators import validate_dataset
 
 DATASET_ID = "test"
 NODE_A = "a"
@@ -30,17 +33,33 @@ ERR_FRAGMENT_MISSING_TARGET = "missing target node"
 ERR_FRAGMENT_TYPE_MISMATCH = "does not match type"
 
 
-def _dataset() -> CanonicalDataset:
+def _dataset() -> Dataset:
     """Build a reusable valid canonical dataset fixture for validator tests."""
-    return CanonicalDataset(
+    return Dataset(
         dataset_id=DATASET_ID,
-        nodes=[CanonicalNode(id=NODE_A), CanonicalNode(id=NODE_B)],
-        edges=[CanonicalEdge(id=EDGE_ID_A_B, source=NODE_A, target=NODE_B)],
+        nodes=[GraphNode(id=NODE_A), GraphNode(id=NODE_B)],
+        edges=[GraphEdge(id=EDGE_ID_A_B, source=NODE_A, target=NODE_B)],
         technical_roots=(NODE_A,),
-        metadata_schema=[
-            MetadataField(key=METADATA_KEY_REGION, type=METADATA_TYPE_STRING)
-        ],
-        metadata_by_node_id={NODE_A: {METADATA_KEY_REGION: METADATA_VALUE_REGION}},
+        ancillary_schema=tuple(
+            field
+            for field in [
+                AncillaryField(key=METADATA_KEY_REGION, type=METADATA_TYPE_STRING)
+            ]
+            if not is_summary_key(field.key)
+        ),
+        summary_schema=tuple(
+            field
+            for field in [
+                AncillaryField(key=METADATA_KEY_REGION, type=METADATA_TYPE_STRING)
+            ]
+            if is_summary_key(field.key)
+        ),
+        annotations_by_node_id={
+            node_id: decode_node_annotations(values)
+            for node_id, values in (
+                {NODE_A: {METADATA_KEY_REGION: METADATA_VALUE_REGION}}
+            ).items()
+        },
         source=DatasetSource(
             format=FORMAT_NEWICK,
             generated_at=GENERATED_AT,
@@ -49,33 +68,45 @@ def _dataset() -> CanonicalDataset:
     )
 
 
-def test_validate_canonical_dataset_accepts_valid_input() -> None:
+def test_validate_dataset_accepts_valid_input() -> None:
     """Ensure valid canonical datasets pass invariant checks."""
-    validate_canonical_dataset(_dataset())
+    validate_dataset(_dataset())
 
 
-def test_validate_canonical_dataset_rejects_missing_node_reference() -> None:
+def test_validate_dataset_rejects_missing_node_reference() -> None:
     """Ensure edges cannot reference target nodes missing from the dataset."""
     dataset = _dataset()
-    dataset.edges.append(CanonicalEdge(id=EDGE_ID_A_X, source=NODE_A, target=NODE_X))
+    dataset = dataset.model_copy(
+        update={
+            "edges": (
+                *dataset.edges,
+                GraphEdge(id=EDGE_ID_A_X, source=NODE_A, target=NODE_X),
+            )
+        }
+    )
 
     try:
-        validate_canonical_dataset(dataset)
+        validate_dataset(dataset)
     except DomainValidationError as err:
         assert ERR_FRAGMENT_MISSING_TARGET in "; ".join(err.errors).lower()
     else:
         raise AssertionError(ERR_EXPECTED_EXCEPTION)
 
 
-def test_validate_canonical_dataset_rejects_schema_mismatch() -> None:
+def test_validate_dataset_rejects_schema_mismatch() -> None:
     """Ensure metadata value types must match declared metadata schema types."""
     dataset = _dataset()
-    dataset.annotations_by_node_id[NODE_B] = NodeAnnotations(
-        ancillary_data={METADATA_KEY_REGION: 10}
+    dataset = dataset.model_copy(
+        update={
+            "annotations_by_node_id": {
+                **dataset.annotations_by_node_id,
+                NODE_B: NodeAnnotations(ancillary_data={METADATA_KEY_REGION: 10}),
+            }
+        }
     )
 
     try:
-        validate_canonical_dataset(dataset)
+        validate_dataset(dataset)
     except DomainValidationError as err:
         assert ERR_FRAGMENT_TYPE_MISMATCH in "; ".join(err.errors)
     else:

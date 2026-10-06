@@ -10,16 +10,19 @@ Output: one versioned observation JSON. Limitations: process-tree RSS is sampled
 
 from __future__ import annotations
 
+from phylo_lens_server.domain.models import SourceFormat
+
 import argparse
 import json
 import time
 from contextlib import AbstractContextManager
 from pathlib import Path
 
-from phylo_lens_server.data.normalizer import NormalizeRequest, normalize_dataset
-from phylo_lens_server.pipeline.worker import PreparedLayoutWorker
+from phylo_lens_server.domain.preparation import PrepareInput
+from phylo_lens_server.pipeline.ingestion import ingest_dataset
+from phylo_lens_server.services.preparation import PreparationService
 from phylo_lens_server.repository.layout.sqlite_layout_repository import (
-    PreparedLayoutStore,
+    SQLiteLayoutRepository,
 )
 
 from .. import SCHEMA_VERSION
@@ -52,20 +55,20 @@ def main() -> None:
     stages: dict[str, float] = {}
     started = time.perf_counter()
     try:
-        normalized = normalize_dataset(
-            NormalizeRequest(
-                format=request["dataset_format"],
+        normalized = ingest_dataset(
+            PrepareInput(
+                format=SourceFormat(request["dataset_format"]),
                 dataset_name=request["dataset_id"],
                 content=input_path.read_text(encoding="utf-8"),
             ),
-            expose_internal_schema=True,
+            include_summary_schema=True,
         )
         stages["parsing"] = normalized.stats.ingest_ms / 1000
         stages["normalization"] = normalized.stats.normalize_ms / 1000
         dataset = normalized.dataset
         count_warnings = _declared_count_warnings(request, dataset)
-        worker = PreparedLayoutWorker(
-            PreparedLayoutStore(persistence_dir),
+        worker = PreparationService(
+            SQLiteLayoutRepository(persistence_dir),
             stage_factory=lambda name: StageTimer(stages, name),
         )
         result = worker.prepare_dataset(dataset)
@@ -89,7 +92,7 @@ def main() -> None:
             ),
             "cluster_count": len(result.artifacts.clusters),
             "layout_status": result.layout_status,
-            "warnings": normalized.warnings + count_warnings,
+            "warnings": [*normalized.warnings, *count_warnings],
             "exit_status": 0,
             "error": None,
             "peak_rss_bytes": None,

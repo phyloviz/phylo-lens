@@ -16,16 +16,16 @@ from pathlib import Path
 from typing import Any
 
 from phylo_lens_server.domain.models import (
-    CanonicalDataset,
-    CanonicalEdge,
-    CanonicalNode,
+    Dataset,
+    GraphEdge,
+    GraphNode,
     DatasetSource,
     NEWICK_ROOTING_STRATEGY,
     SourceFormat,
 )
-from phylo_lens_server.pipeline.worker import PreparedLayoutWorker
+from phylo_lens_server.services.preparation import PreparationService
 from phylo_lens_server.repository.layout.sqlite_layout_repository import (
-    PreparedLayoutStore,
+    SQLiteLayoutRepository,
 )
 
 from .. import SCHEMA_VERSION
@@ -159,23 +159,23 @@ def run(args: argparse.Namespace) -> Path:
     return run_dir
 
 
-def synthetic_dataset(config: dict[str, Any]) -> CanonicalDataset:
+def synthetic_dataset(config: dict[str, Any]) -> Dataset:
     count, seed = config["node_count"], config["seed"]
     if not isinstance(count, int) or count < 8 or not isinstance(seed, int):
         raise ValueError(
             "RQ3 synthetic dataset requires a deterministic size and seed."
         )
-    nodes = [CanonicalNode(id=f"n-{index}") for index in range(count)]
-    edges: list[CanonicalEdge] = []
+    nodes = [GraphNode(id=f"n-{index}") for index in range(count)]
+    edges: list[GraphEdge] = []
     for index in range(count - 1):
         edges.append(
-            CanonicalEdge(
+            GraphEdge(
                 id=f"e-{index}",
                 source=f"n-{index}",
                 target=f"n-{index + 1}",
             )
         )
-    return CanonicalDataset(
+    return Dataset(
         dataset_id=config["id"],
         nodes=nodes,
         edges=edges,
@@ -193,7 +193,7 @@ def _run_pair(
     root: Path,
     run_dir: Path,
     experiment: dict,
-    dataset: CanonicalDataset,
+    dataset: Dataset,
     dataset_checksum: str,
     camera: dict,
     index: int,
@@ -205,8 +205,8 @@ def _run_pair(
         / camera["id"]
         / f"{'warmup' if warmup else 'measured'}-{index + 1:03d}"
     )
-    store = PreparedLayoutStore(pair_dir / "prepared-layout")
-    prepared = PreparedLayoutWorker(store).prepare_dataset(dataset)
+    store = SQLiteLayoutRepository(pair_dir / "prepared-layout")
+    prepared = PreparationService(store).prepare_dataset(dataset)
     request, lod_response, full_response = paired_responses(
         store, prepared.artifacts.layout_version, dataset.dataset_id, camera
     )
@@ -279,7 +279,7 @@ def _run_pair(
 
 
 def paired_responses(
-    store: PreparedLayoutStore, layout_version: str, dataset_id: str, camera: dict
+    store: SQLiteLayoutRepository, layout_version: str, dataset_id: str, camera: dict
 ) -> tuple[dict, dict, dict]:
     initial = store.read_viewport(
         dataset_id=dataset_id,
