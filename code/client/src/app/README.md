@@ -14,6 +14,15 @@ need a UI framework.
 - `components/` (outside this folder) renders reusable views from prepared data.
 - `ancillary/` (outside this folder) calculates distributions and available fields.
 
+Arrangement, display and PNG export controls register and remove their own
+listeners. The shell passes node selections and graph-load information to them.
+An export can finish during a new graph load without replacing its status.
+After unmount, a pending export result is ignored.
+
+Viewport expansion calculates the combined graph and partial-expansion status
+without changing stored state. The coordinator applies the result and keeps
+request counters, timers and cancellation local to its lifecycle.
+
 ## State and ownership
 
 The workbench lifecycle is `idle`, `preparing`, `loadingViewport`, `ready` or
@@ -61,6 +70,11 @@ Use explicit application models for operations and results. JSON, JavaScript
 exceptions and extensible renderer attributes enter as untrusted values; check
 or convert them at that boundary. Stored failures and error callbacks use
 `Error`. DOM event names determine their listener types.
+
+`contracts/Point.ts` defines readonly two-dimensional coordinates shared by graph
+nodes, dragging, camera conversions and motion inputs. Each operation defines
+whether those coordinates use graph units or pixels. Simulation particles remain
+mutable inside the simulation.
 
 ## Terminology
 

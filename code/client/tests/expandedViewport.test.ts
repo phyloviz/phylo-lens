@@ -1,68 +1,95 @@
 import { describe, expect, it } from 'vitest';
-import { composeExpandedViewport } from '../src/app/workbench/viewport/expandedViewport';
+import {
+  composeExpandedViewport,
+  composeViewportExpansion,
+  isIncompleteExpansion,
+} from '../src/app/workbench/viewport/expandedViewport';
 import type { PositionedGraph } from '../src/contracts/positioned';
+import { viewportNode, viewportResult } from './fixtures/graph';
+import { freezeInput } from './helpers/state';
 
 const graph = (nodes: PositionedGraph['nodes'], edges: PositionedGraph['edges'] = []): PositionedGraph => ({
-    nodes,
-    edges,
-    viewMeta: { layout: 'server', lodLevel: 2 },
+  nodes,
+  edges,
+  viewMeta: { layout: 'server', lodLevel: 2 },
 });
 
 describe('expanded viewport composition', () => {
-    it('keeps all representations when no caller budget is supplied', () => {
-        const nodes = Array.from({ length: 6001 }, (_, i) => ({ id: String(i), x: i, y: 0 }));
-        const result = composeExpandedViewport(graph(nodes.slice(0, 3000)), [graph(nodes.slice(3000))], undefined);
-        expect(result.graph.nodes).toHaveLength(6001);
-        expect(result.partial).toBe(false);
-    });
+  it('distinguishes a truncated base view from an incomplete cluster expansion without changing either', () => {
+    const representative = viewportNode('proxy', { isRepresentative: true, memberCount: 2 });
+    const base = freezeInput(viewportResult({ nodes: [representative], truncated: true, totalNodeCount: 1000 }));
+    const patch = freezeInput(
+      viewportResult({
+        nodes: [
+          viewportNode('a', { clusterId: representative.clusterId }),
+          viewportNode('b', { clusterId: representative.clusterId }),
+        ],
+        totalNodeCount: 2,
+      })
+    );
+    const result = composeViewportExpansion(base, [patch], undefined, 10);
+    expect(isIncompleteExpansion(patch)).toBe(false);
+    expect(result.partial).toBe(true);
+    expect(result.exceedsNodeLimit).toBe(false);
+    expect(result.graph.nodes.map(node => node.id)).toEqual(['a', 'b']);
+    expect(base.nodes).toEqual([representative]);
+    expect(patch.nodes).toHaveLength(2);
+  });
 
-    it("never replaces a detailed member with another patch's boundary representative", () => {
-        const proxy = { id: 'a', x: 0, y: 0, attributes: { isClusterProxy: true } };
-        const member = { id: 'a', x: 4, y: 5, attributes: { isClusterProxy: false } };
-        const result = composeExpandedViewport(graph([proxy]), [graph([member]), graph([proxy])], 10);
-        expect(result.graph.nodes).toEqual([member]);
-        expect(result.graph.viewMeta.lodLevel).toBe(2);
-    });
+  it('keeps all representations when no caller budget is supplied', () => {
+    const nodes = Array.from({ length: 6001 }, (_, i) => ({ id: String(i), x: i, y: 0 }));
+    const result = composeExpandedViewport(graph(nodes.slice(0, 3000)), [graph(nodes.slice(3000))], undefined);
+    expect(result.graph.nodes).toHaveLength(6001);
+    expect(result.partial).toBe(false);
+  });
 
-    it('caps the combined graph and removes edges with omitted endpoints', () => {
-        const base = graph([{ id: 'a', x: 0, y: 0 }]);
-        const patch = graph(
-            [
-                { id: 'b', x: 1, y: 1 },
-                { id: 'c', x: 2, y: 2 },
-            ],
-            [
-                { id: 'ab', source: 'a', target: 'b' },
-                { id: 'bc', source: 'b', target: 'c' },
-            ]
-        );
-        const result = composeExpandedViewport(base, [patch], 2);
-        expect(result.partial).toBe(true);
-        expect(result.graph.nodes.map(node => node.id)).toEqual(['a', 'b']);
-        expect(result.graph.edges.map(edge => edge.id)).toEqual(['ab']);
-        expect(base.nodes).toHaveLength(1);
-        expect(patch.nodes).toHaveLength(2);
-    });
+  it("never replaces a detailed member with another patch's boundary representative", () => {
+    const proxy = { id: 'a', x: 0, y: 0, attributes: { isClusterProxy: true } };
+    const member = { id: 'a', x: 4, y: 5, attributes: { isClusterProxy: false } };
+    const result = composeExpandedViewport(graph([proxy]), [graph([member]), graph([proxy])], 10);
+    expect(result.graph.nodes).toEqual([member]);
+    expect(result.graph.viewMeta.lodLevel).toBe(2);
+  });
 
-    it("replaces a quotient edge with the expanded branch's boundary edge", () => {
-        const base = graph(
-            [
-                { id: 'b', x: 0, y: 0 },
-                { id: 'c', x: 1, y: 0, attributes: { isClusterProxy: true, clusterId: 'branch' } },
-            ],
-            [{ id: 'quotient', source: 'b', target: 'c' }]
-        );
-        const patch = graph(
-            [
-                { id: 'c', x: 1, y: 0, attributes: { isClusterProxy: false, clusterId: 'branch' } },
-                { id: 'd', x: 2, y: 0, attributes: { isClusterProxy: false, clusterId: 'branch' } },
-            ],
-            [
-                { id: 'internal', source: 'c', target: 'd' },
-                { id: 'boundary', source: 'c', target: 'b', attributes: { isMeta: true } },
-            ]
-        );
-        const result = composeExpandedViewport(base, [patch], 10);
-        expect(result.graph.edges.map(edge => edge.id)).toEqual(['internal', 'boundary']);
-    });
+  it('caps the combined graph and removes edges with omitted endpoints', () => {
+    const base = graph([{ id: 'a', x: 0, y: 0 }]);
+    const patch = graph(
+      [
+        { id: 'b', x: 1, y: 1 },
+        { id: 'c', x: 2, y: 2 },
+      ],
+      [
+        { id: 'ab', source: 'a', target: 'b' },
+        { id: 'bc', source: 'b', target: 'c' },
+      ]
+    );
+    const result = composeExpandedViewport(base, [patch], 2);
+    expect(result.partial).toBe(true);
+    expect(result.graph.nodes.map(node => node.id)).toEqual(['a', 'b']);
+    expect(result.graph.edges.map(edge => edge.id)).toEqual(['ab']);
+    expect(base.nodes).toHaveLength(1);
+    expect(patch.nodes).toHaveLength(2);
+  });
+
+  it("replaces a quotient edge with the expanded branch's boundary edge", () => {
+    const base = graph(
+      [
+        { id: 'b', x: 0, y: 0 },
+        { id: 'c', x: 1, y: 0, attributes: { isClusterProxy: true, clusterId: 'branch' } },
+      ],
+      [{ id: 'quotient', source: 'b', target: 'c' }]
+    );
+    const patch = graph(
+      [
+        { id: 'c', x: 1, y: 0, attributes: { isClusterProxy: false, clusterId: 'branch' } },
+        { id: 'd', x: 2, y: 0, attributes: { isClusterProxy: false, clusterId: 'branch' } },
+      ],
+      [
+        { id: 'internal', source: 'c', target: 'd' },
+        { id: 'boundary', source: 'c', target: 'b', attributes: { isMeta: true } },
+      ]
+    );
+    const result = composeExpandedViewport(base, [patch], 10);
+    expect(result.graph.edges.map(edge => edge.id)).toEqual(['internal', 'boundary']);
+  });
 });
