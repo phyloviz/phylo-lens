@@ -1,3 +1,4 @@
+import type { Point } from '../../../contracts/Point';
 import type { PositionedGraph } from '../../../contracts/positioned';
 import {
   type GraphRenderer,
@@ -15,7 +16,7 @@ export default function () {
   let container: HTMLElement | null = null;
   let lastGraph: PositionedGraph | null = null;
   let lastCenteredNodeId: string | null = null;
-  let lastCenteredCoordinates: { x: number; y: number } | null = null;
+  let lastCenteredCoordinates: Point | null = null;
   let lastFocusedNodeId: string | null = null;
   let viewChangeHandler: ((state: RenderViewportState) => void) | null = null;
   let nodeClickHandler: ((state: RenderNodeClickState) => void) | null = null;
@@ -138,7 +139,7 @@ export default function () {
     return lastCenteredNodeId;
   }
 
-  function getLastCenteredCoordinates(): { x: number; y: number } | null {
+  function getLastCenteredCoordinates(): Point | null {
     return lastCenteredCoordinates;
   }
 

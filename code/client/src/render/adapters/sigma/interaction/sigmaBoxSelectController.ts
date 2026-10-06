@@ -1,13 +1,12 @@
-import type Sigma from "sigma";
+import type { Point } from '../../../../contracts/Point';
+import type Sigma from 'sigma';
 
-import type { RenderViewportBounds } from "../../../renderer.types";
+import type { RenderViewportBounds } from '../../../renderer.types';
 
 // MouseCoords as emitted by Sigma's mouse captor: viewport pixel position plus
 // the originating DOM event (for the Shift modifier) and the pan-suppression
 // hook. Modeled narrowly so tests can supply plain objects.
-type MouseCaptorPayload = {
-  x: number;
-  y: number;
+type MouseCaptorPayload = Point & {
   original?: { shiftKey?: boolean };
   preventSigmaDefault?: () => void;
 };
@@ -29,12 +28,10 @@ interface SigmaBoxSelectControllerOptions {
   suppressNodeClicksFor?: (durationMs: number) => void;
 }
 
-export const BOX_SELECT_OVERLAY_CLASS = "sigma-box-select-overlay";
+export const BOX_SELECT_OVERLAY_CLASS = 'sigma-box-select-overlay';
 // A drag shorter than this (in viewport pixels) is treated as a click, not a
 // box, so a stray shift-click does not fire an empty region selection.
 const MIN_BOX_DRAG_PX = 3;
-
-type Point = { x: number; y: number };
 
 // Draws a rectangular selection overlay over the Sigma canvas and, on release,
 // converts the two corners to graph-space bounds for a region read. Only active
@@ -64,19 +61,19 @@ export default function (options: SigmaBoxSelectControllerOptions) {
 
   function bind(): void {
     const captor = mouseCaptor();
-    captor?.off?.("mousedown", boundMouseDown);
-    captor?.on?.("mousedown", boundMouseDown);
-    captor?.off?.("mousemovebody", boundMouseMove);
-    captor?.on?.("mousemovebody", boundMouseMove);
-    captor?.off?.("mouseup", boundMouseUp);
-    captor?.on?.("mouseup", boundMouseUp);
+    captor?.off?.('mousedown', boundMouseDown);
+    captor?.on?.('mousedown', boundMouseDown);
+    captor?.off?.('mousemovebody', boundMouseMove);
+    captor?.on?.('mousemovebody', boundMouseMove);
+    captor?.off?.('mouseup', boundMouseUp);
+    captor?.on?.('mouseup', boundMouseUp);
   }
 
   function unbind(): void {
     const captor = mouseCaptor();
-    captor?.off?.("mousedown", boundMouseDown);
-    captor?.off?.("mousemovebody", boundMouseMove);
-    captor?.off?.("mouseup", boundMouseUp);
+    captor?.off?.('mousedown', boundMouseDown);
+    captor?.off?.('mousemovebody', boundMouseMove);
+    captor?.off?.('mouseup', boundMouseUp);
     teardownBox();
   }
 
@@ -101,13 +98,13 @@ export default function (options: SigmaBoxSelectControllerOptions) {
 
     options.onStart?.();
     startPoint = { x: payload.x, y: payload.y };
-    previousCameraPanningEnabled = sigma.getSetting?.("enableCameraPanning") as boolean | null;
-    sigma.setSetting?.("enableCameraPanning", false);
+    previousCameraPanningEnabled = sigma.getSetting?.('enableCameraPanning') as boolean | null;
+    sigma.setSetting?.('enableCameraPanning', false);
 
-    overlay = document.createElement("div");
+    overlay = document.createElement('div');
     overlay.className = BOX_SELECT_OVERLAY_CLASS;
-    overlay.style.position = "absolute";
-    overlay.style.pointerEvents = "none";
+    overlay.style.position = 'absolute';
+    overlay.style.pointerEvents = 'none';
     applyOverlayRect(startPoint, startPoint);
     container.appendChild(overlay);
     payload.preventSigmaDefault?.();
@@ -168,8 +165,8 @@ export default function (options: SigmaBoxSelectControllerOptions) {
 
   function teardownBox(): void {
     const sigma = options.getSigma();
-    if (typeof previousCameraPanningEnabled === "boolean") {
-      sigma?.setSetting?.("enableCameraPanning", previousCameraPanningEnabled);
+    if (typeof previousCameraPanningEnabled === 'boolean') {
+      sigma?.setSetting?.('enableCameraPanning', previousCameraPanningEnabled);
     }
     previousCameraPanningEnabled = null;
     const active = startPoint !== null;

@@ -3,7 +3,8 @@ import Sigma from 'sigma';
 
 import { isClusterRepresentative } from '../../mapping/clusterNodes';
 import type { GraphLayoutBounds } from '../../../contracts/graph/viewport/GraphLayoutBounds';
-import { DisplayPositions, type Point } from './motion/displayPositions';
+import { DisplayPositions } from './motion/displayPositions';
+import type { Point } from '../../../contracts/Point';
 import type { DragSelection } from '../../renderer.types';
 import { exportSigmaPublication } from './sigmaPublicationExport';
 import type { SigmaNodeEventPayload } from 'sigma/types';

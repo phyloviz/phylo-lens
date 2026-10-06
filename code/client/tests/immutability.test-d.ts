@@ -2,7 +2,7 @@
 import type { PositionedGraph } from '../src/contracts/positioned';
 import type { GraphClient } from '../src/contracts/graph/GraphClient';
 import type { VisualMappingOptions } from '../src/render/mapping/visualMapping';
-import type { Point } from '../src/render/adapters/sigma/motion/displayPositions';
+import type { Point } from '../src/contracts/Point';
 import type { AncillaryFilterState } from '../src/ancillary/ancillaryTypes';
 
 declare const graph: PositionedGraph;

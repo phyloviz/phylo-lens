@@ -1,4 +1,5 @@
 import type { GraphNodeAttributes, PositionedGraph } from '../contracts/positioned';
+import type { Point } from '../contracts/Point';
 
 export const RendererType = {
   Sigma: 'sigma',
@@ -12,9 +13,7 @@ export interface RenderContext {
 }
 
 export interface RenderViewportState {
-  readonly viewport: {
-    readonly x: number;
-    readonly y: number;
+  readonly viewport: Point & {
     readonly width: number;
     readonly height: number;
   };

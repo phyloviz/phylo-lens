@@ -1,7 +1,8 @@
 import type Graph from 'graphology';
 import type Sigma from 'sigma';
 import type { PositionedGraph } from '../../../../contracts/positioned';
-import type { DisplayPositions, Point } from './displayPositions';
+import type { DisplayPositions } from './displayPositions';
+import type { Point } from '../../../../contracts/Point';
 import type createSigmaForceMotion from './sigmaForceMotion';
 import { isString } from '../../../../validation/guards';
 

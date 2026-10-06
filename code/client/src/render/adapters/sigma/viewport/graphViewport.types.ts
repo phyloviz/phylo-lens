@@ -1,4 +1,5 @@
-import type Sigma from "sigma";
+import type { Point } from '../../../../contracts/Point';
+import type Sigma from 'sigma';
 
 export interface SigmaViewportBounds {
   xmin: number;
@@ -8,15 +9,15 @@ export interface SigmaViewportBounds {
 }
 
 export type SigmaCameraLike = {
-  on?: (event: "updated", handler: () => void) => void;
-  off?: (event: "updated", handler: () => void) => void;
+  on?: (event: 'updated', handler: () => void) => void;
+  off?: (event: 'updated', handler: () => void) => void;
   getState?: () => { x?: number; y?: number; ratio?: number; angle?: number };
   animatedReset?: (options?: { duration?: number }) => void;
   animate?: (state: { x: number; y: number; ratio: number }, options?: { duration?: number }) => void;
   ratio?: number;
 };
 
-export type SigmaNodeEvent = "clickNode" | "doubleClickNode";
+export type SigmaNodeEvent = 'clickNode' | 'doubleClickNode';
 
 export type SigmaViewportLike = Sigma & {
   on?: (event: SigmaNodeEvent, handler: (payload: { node?: string; event?: { node?: string } }) => void) => void;
@@ -24,12 +25,12 @@ export type SigmaViewportLike = Sigma & {
   getCamera: () => SigmaCameraLike;
   getDimensions?: () => { width: number; height: number };
   getContainer?: () => HTMLElement;
-  viewportToGraph: (point: { x: number; y: number }) => { x: number; y: number };
-  viewportToFramedGraph: (point: { x: number; y: number }) => { x: number; y: number };
+  viewportToGraph: (point: Point) => Point;
+  viewportToFramedGraph: (point: Point) => Point;
   graphToViewport: (
-    point: { x: number; y: number },
-    options?: { cameraState?: { x: number; y: number; ratio: number; angle: number } },
-  ) => { x: number; y: number };
+    point: Point,
+    options?: { cameraState?: { x: number; y: number; ratio: number; angle: number } }
+  ) => Point;
   refresh?: () => void;
   scheduleRender?: () => void;
 };

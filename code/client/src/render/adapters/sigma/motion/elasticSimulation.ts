@@ -1,178 +1,177 @@
 import { forceCollide, forceLink, forceSimulation, forceX, forceY, type SimulationNodeDatum } from 'd3-force';
+import type { Point } from '../../../../contracts/Point';
 
 export type MotionSettings = {
-    readonly linkStrength?: number;
-    readonly anchorStrength?: number;
-    readonly velocityDecay?: number;
-    readonly alphaDecay?: number;
-    /** Radius relative to the median edge length. Zero keeps collision handling disabled. */
-    readonly collisionRadius?: number;
-    readonly collisionStrength?: number;
-    readonly collisionIterations?: number;
+  readonly linkStrength?: number;
+  readonly anchorStrength?: number;
+  readonly velocityDecay?: number;
+  readonly alphaDecay?: number;
+  /** Radius relative to the median edge length. Zero keeps collision handling disabled. */
+  readonly collisionRadius?: number;
+  readonly collisionStrength?: number;
+  readonly collisionIterations?: number;
 };
 
-export type MotionNode = {
-    readonly id: string;
-    readonly x: number;
-    readonly y: number;
-    readonly referenceX: number;
-    readonly referenceY: number;
-    readonly anchorX: number;
-    readonly anchorY: number;
-    readonly size?: number;
-    /** Actual glyph radius plus clearance, converted to prepared graph coordinates. */
-    readonly collisionRadius?: number;
+export type MotionNode = Point & {
+  readonly id: string;
+  readonly referenceX: number;
+  readonly referenceY: number;
+  readonly anchorX: number;
+  readonly anchorY: number;
+  readonly size?: number;
+  /** Actual glyph radius plus clearance, converted to prepared graph coordinates. */
+  readonly collisionRadius?: number;
 };
 
 export type MotionGraph = {
-    readonly nodes: readonly MotionNode[];
-    readonly links: ReadonlyArray<{ readonly source: string; readonly target: string }>;
+  readonly nodes: readonly MotionNode[];
+  readonly links: ReadonlyArray<{ readonly source: string; readonly target: string }>;
 };
 
-export type MotionPoint = { readonly id: string; readonly x: number; readonly y: number };
+export type MotionPoint = Point & { readonly id: string };
 
 interface Particle extends SimulationNodeDatum {
-    id: string;
-    x: number;
-    y: number;
-    anchorX: number;
-    anchorY: number;
-    size: number;
-    collisionRadius: number;
+  id: string;
+  x: number;
+  y: number;
+  anchorX: number;
+  anchorY: number;
+  size: number;
+  collisionRadius: number;
 }
 
 export const DEFAULT_MOTION_SETTINGS = Object.freeze({
-    linkStrength: 0.35,
-    anchorStrength: 0.06,
-    velocityDecay: 0.5,
-    alphaDecay: 0.03,
-    collisionRadius: 0.15,
-    collisionStrength: 1,
-    collisionIterations: 2,
+  linkStrength: 0.35,
+  anchorStrength: 0.06,
+  velocityDecay: 0.5,
+  alphaDecay: 0.03,
+  collisionRadius: 0.15,
+  collisionStrength: 1,
+  collisionIterations: 2,
 });
 /** Elastic refinement, not another global layout. No charge or origin gravity:
  * the prepared arrangement is an equilibrium until the user edits it. Normalize
  * by geometric edge length so Graphviz units do not tune the physics.
  */
 export function createElasticSimulation(graph: MotionGraph, options: MotionSettings = {}) {
-    const settings = { ...DEFAULT_MOTION_SETTINGS, ...options };
+  const settings = { ...DEFAULT_MOTION_SETTINGS, ...options };
 
-    const in01 = (v: number) => Number.isFinite(v) && v >= 0 && v <= 1;
+  const in01 = (v: number) => Number.isFinite(v) && v >= 0 && v <= 1;
 
-    const validators = {
-        linkStrength: in01,
-        anchorStrength: in01,
-        velocityDecay: in01,
-        alphaDecay: (v: number) => Number.isFinite(v) && v > 0,
-        collisionRadius: (v: number) => Number.isFinite(v) && v >= 0,
-        collisionStrength: in01,
-        collisionIterations: (v: number) => Number.isInteger(v) && v >= 1,
-    };
+  const validators = {
+    linkStrength: in01,
+    anchorStrength: in01,
+    velocityDecay: in01,
+    alphaDecay: (v: number) => Number.isFinite(v) && v > 0,
+    collisionRadius: (v: number) => Number.isFinite(v) && v >= 0,
+    collisionStrength: in01,
+    collisionIterations: (v: number) => Number.isInteger(v) && v >= 1,
+  };
 
-    if (!Object.entries(validators).every(([key, validate]) => validate(settings[key as keyof typeof settings]))) {
-        throw new Error('Invalid motion setting');
-    }
+  if (!Object.entries(validators).every(([key, validate]) => validate(settings[key as keyof typeof settings]))) {
+    throw new Error('Invalid motion setting');
+  }
 
-    const references = new Map(graph.nodes.map(n => [n.id, n]));
-    const lengths = graph.links.map(link => {
-        const a = references.get(link.source)!;
-        const b = references.get(link.target)!;
+  const references = new Map(graph.nodes.map(n => [n.id, n]));
+  const lengths = graph.links.map(link => {
+    const a = references.get(link.source)!;
+    const b = references.get(link.target)!;
 
-        return Math.hypot(a.referenceX - b.referenceX, a.referenceY - b.referenceY);
-    });
+    return Math.hypot(a.referenceX - b.referenceX, a.referenceY - b.referenceY);
+  });
 
-    const positive = lengths.filter(length => length > 0 && Number.isFinite(length)).sort((a, b) => a - b);
-    const unit = positive[Math.floor(positive.length / 2)] ?? 1;
-    const origin = { x: graph.nodes[0]?.x ?? 0, y: graph.nodes[0]?.y ?? 0 };
+  const positive = lengths.filter(length => length > 0 && Number.isFinite(length)).sort((a, b) => a - b);
+  const unit = positive[Math.floor(positive.length / 2)] ?? 1;
+  const origin = { x: graph.nodes[0]?.x ?? 0, y: graph.nodes[0]?.y ?? 0 };
 
-    const sizes = graph.nodes
-        .map(node => node.size)
-        .filter((size): size is number => typeof size === 'number' && Number.isFinite(size) && size > 0)
-        .sort((a, b) => a - b);
+  const sizes = graph.nodes
+    .map(node => node.size)
+    .filter((size): size is number => typeof size === 'number' && Number.isFinite(size) && size > 0)
+    .sort((a, b) => a - b);
 
-    const medianSize =
-        sizes.length === 0
-            ? 1
-            : sizes.length % 2 === 1
-              ? sizes[Math.floor(sizes.length / 2)]
-              : (sizes[sizes.length / 2 - 1] + sizes[sizes.length / 2]) / 2;
+  const medianSize =
+    sizes.length === 0
+      ? 1
+      : sizes.length % 2 === 1
+        ? sizes[Math.floor(sizes.length / 2)]
+        : (sizes[sizes.length / 2 - 1] + sizes[sizes.length / 2]) / 2;
 
-    const nodes: Particle[] = graph.nodes.map(n => ({
-        id: n.id,
-        x: (n.x - origin.x) / unit,
-        y: (n.y - origin.y) / unit,
-        anchorX: (n.anchorX - origin.x) / unit,
-        anchorY: (n.anchorY - origin.y) / unit,
-        collisionRadius:
-            typeof n.collisionRadius === 'number' && Number.isFinite(n.collisionRadius) && n.collisionRadius >= 0
-                ? n.collisionRadius / unit
-                : settings.collisionRadius * ((n.size ?? medianSize) / medianSize),
-        size: typeof n.size === 'number' && Number.isFinite(n.size) && n.size > 0 ? n.size : medianSize,
-    }));
+  const nodes: Particle[] = graph.nodes.map(n => ({
+    id: n.id,
+    x: (n.x - origin.x) / unit,
+    y: (n.y - origin.y) / unit,
+    anchorX: (n.anchorX - origin.x) / unit,
+    anchorY: (n.anchorY - origin.y) / unit,
+    collisionRadius:
+      typeof n.collisionRadius === 'number' && Number.isFinite(n.collisionRadius) && n.collisionRadius >= 0
+        ? n.collisionRadius / unit
+        : settings.collisionRadius * ((n.size ?? medianSize) / medianSize),
+    size: typeof n.size === 'number' && Number.isFinite(n.size) && n.size > 0 ? n.size : medianSize,
+  }));
 
-    const byId = new Map(nodes.map(n => [n.id, n]));
-    const xForce = forceX<Particle>(n => n.anchorX).strength(settings.anchorStrength);
-    const yForce = forceY<Particle>(n => n.anchorY).strength(settings.anchorStrength);
-    const links = graph.links.map((link, i) => ({ ...link, distance: lengths[i] / unit }));
+  const byId = new Map(nodes.map(n => [n.id, n]));
+  const xForce = forceX<Particle>(n => n.anchorX).strength(settings.anchorStrength);
+  const yForce = forceY<Particle>(n => n.anchorY).strength(settings.anchorStrength);
+  const links = graph.links.map((link, i) => ({ ...link, distance: lengths[i] / unit }));
 
-    const simulation = forceSimulation(nodes)
-        .stop()
-        .velocityDecay(settings.velocityDecay)
-        .alphaDecay(settings.alphaDecay)
-        .force(
-            'links',
-            forceLink<Particle, (typeof links)[number]>(links)
-                .id(n => n.id)
-                .distance(link => link.distance)
-                .strength(settings.linkStrength)
-                .iterations(2)
-        )
-        .force('anchorX', xForce)
-        .force('anchorY', yForce);
+  const simulation = forceSimulation(nodes)
+    .stop()
+    .velocityDecay(settings.velocityDecay)
+    .alphaDecay(settings.alphaDecay)
+    .force(
+      'links',
+      forceLink<Particle, (typeof links)[number]>(links)
+        .id(n => n.id)
+        .distance(link => link.distance)
+        .strength(settings.linkStrength)
+        .iterations(2)
+    )
+    .force('anchorX', xForce)
+    .force('anchorY', yForce);
 
-    if (settings.collisionRadius > 0) {
-        simulation.force(
-            'collide',
-            forceCollide<Particle>(node => node.collisionRadius)
-                .strength(settings.collisionStrength)
-                .iterations(settings.collisionIterations)
-        );
-    }
+  if (settings.collisionRadius > 0) {
+    simulation.force(
+      'collide',
+      forceCollide<Particle>(node => node.collisionRadius)
+        .strength(settings.collisionStrength)
+        .iterations(settings.collisionIterations)
+    );
+  }
 
-    let pinned = false;
+  let pinned = false;
 
-    return {
-        pin(points: readonly MotionPoint[], released: readonly MotionPoint[] = []) {
-            for (const n of nodes) {
-                n.fx = null;
-                n.fy = null;
-            }
+  return {
+    pin(points: readonly MotionPoint[], released: readonly MotionPoint[] = []) {
+      for (const n of nodes) {
+        n.fx = null;
+        n.fy = null;
+      }
 
-            for (const point of released) {
-                const n = byId.get(point.id);
-                if (!n) continue;
-                n.x = n.anchorX = (point.x - origin.x) / unit;
-                n.y = n.anchorY = (point.y - origin.y) / unit;
-                n.vx = n.vy = 0;
-            }
+      for (const point of released) {
+        const n = byId.get(point.id);
+        if (!n) continue;
+        n.x = n.anchorX = (point.x - origin.x) / unit;
+        n.y = n.anchorY = (point.y - origin.y) / unit;
+        n.vx = n.vy = 0;
+      }
 
-            for (const point of points) {
-                const n = byId.get(point.id);
-                if (!n) continue;
-                n.x = n.fx = (point.x - origin.x) / unit;
-                n.y = n.fy = (point.y - origin.y) / unit;
-                n.vx = n.vy = 0;
-            }
+      for (const point of points) {
+        const n = byId.get(point.id);
+        if (!n) continue;
+        n.x = n.fx = (point.x - origin.x) / unit;
+        n.y = n.fy = (point.y - origin.y) / unit;
+        n.vx = n.vy = 0;
+      }
 
-            xForce.x(n => n.anchorX);
-            yForce.y(n => n.anchorY);
-            pinned = points.length > 0;
-            simulation.alphaTarget(pinned ? 0.25 : 0).alpha(Math.max(simulation.alpha(), 0.35));
-        },
-        tick(iterations = 1) {
-            simulation.tick(iterations);
-        },
-        settled: () => !pinned && simulation.alpha() < simulation.alphaMin(),
-        positions: () => new Float64Array(nodes.flatMap(n => [origin.x + n.x * unit, origin.y + n.y * unit])),
-    };
+      xForce.x(n => n.anchorX);
+      yForce.y(n => n.anchorY);
+      pinned = points.length > 0;
+      simulation.alphaTarget(pinned ? 0.25 : 0).alpha(Math.max(simulation.alpha(), 0.35));
+    },
+    tick(iterations = 1) {
+      simulation.tick(iterations);
+    },
+    settled: () => !pinned && simulation.alpha() < simulation.alphaMin(),
+    positions: () => new Float64Array(nodes.flatMap(n => [origin.x + n.x * unit, origin.y + n.y * unit])),
+  };
 }
