@@ -142,8 +142,10 @@ artifacts, and rebuilding the same source can resolve different upstream package
 A retry must publish the originally tested artifacts.
 
 If the original run was superseded or artifacts expired, **Actions → Release → Run
-workflow**, on **main**, accepts an existing `vX.Y.Z` tag. The workflow verifies
-that the tag belongs to main and validates its exact commit again. If newly built
+workflow**, on **main**, accepts an existing `vX.Y.Z` tag **only while it is still the current main
+commit**. This keeps npm provenance bound to the actual source commit; once main
+advances, rerun the original release run or prepare a new patch instead. The
+workflow validates that exact commit again. If newly built
 artifacts differ from a version already published, recovery stops safely. Prepare
 a new patch release instead of overwriting the old version. Manual recovery is
 for releases created with this pipeline; legacy tags lack its helpers/artifacts.

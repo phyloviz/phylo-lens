@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Existing vX.Y.Z tag to recover (prefer rerunning failed jobs in the original run)
+        description: Existing vX.Y.Z tag at current main (otherwise rerun the original release or prepare a patch)
         required: true
         type: string
 
@@ -51,6 +51,12 @@ jobs:
             python -c 'import os, sys; sys.path.insert(0, "scripts"); from release_version import tag_version; tag_version(os.environ["INPUT_TAG"])'
             sha=$(git rev-parse --verify "refs/tags/$INPUT_TAG^{commit}")
             git merge-base --is-ancestor "$sha" origin/main
+            # npm provenance binds to the workflow event's source commit.
+            # The original run keeps its source identity even after main advances.
+            if [ "$sha" != "$GITHUB_SHA" ]; then
+              echo "Tag differs from this run's main commit. Rerun failed jobs in the original release run, or prepare a new patch, to preserve correct npm provenance." >&2
+              exit 1
+            fi
             git checkout --detach "$sha"
             version=$(python scripts/check-release-version.py "$INPUT_TAG")
             tag="$INPUT_TAG"
