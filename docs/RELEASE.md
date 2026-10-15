@@ -109,6 +109,8 @@ Before the first coordinated release:
 - Confirm GHCR grants this repository package write access. The existing setup
   already published previous versions using its repository token.
 
+CI and release runners use explicit Ubuntu 24.04 labels (including native ARM64),
+so an ubuntu-latest migration cannot silently change the validation environment.
 All third-party actions are pinned to immutable commit hashes. Dependabot proposes
 weekly action updates as reviewable PRs. Release builds do not reuse dependency or
 Docker build caches, and artifact downloads fail if digest verification fails.

@@ -37,7 +37,7 @@ jobs:
       contents: read
       pull-requests: read
     name: Detect changes
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
       version: ${{ steps.version.outputs.version }}
@@ -117,7 +117,7 @@ jobs:
     name: Client validation
     needs: changes
     if: inputs.release || github.event_name == 'workflow_dispatch' || needs.changes.outputs.client == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     defaults:
       run:
@@ -185,7 +185,7 @@ jobs:
     name: Server validation
     needs: changes
     if: inputs.release || github.event_name == 'workflow_dispatch' || needs.changes.outputs.server == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     defaults:
       run:
@@ -227,7 +227,7 @@ jobs:
     needs: changes
     # Release client validation already tests the exact publication tarball.
     if: ${{ !inputs.release && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.package_fixture == 'true') }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - name: Checkout
@@ -253,7 +253,7 @@ jobs:
     name: Evaluation smokes (RQ2-RQ4)
     needs: changes
     if: inputs.release || github.event_name == 'workflow_dispatch' || needs.changes.outputs.rq2_eval == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - name: Checkout
@@ -328,7 +328,7 @@ jobs:
         include:
           - platform: linux/amd64
             suffix: amd64
-            runner: ubuntu-latest
+            runner: ubuntu-24.04
           - platform: linux/arm64
             suffix: arm64
             runner: ubuntu-24.04-arm
