@@ -4,14 +4,23 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export npm_config_cache="${npm_config_cache:-${TMPDIR:-/tmp}/phylo-lens-npm-cache}"
 
-cd "$REPO_ROOT/code/client"
-npm ci
-npm run build:lib
-
 PACK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/phylo-lens-package.XXXXXX")"
 FIXTURE_DIR="$(mktemp -d "${TMPDIR:-/tmp}/phylo-lens-packed-consumer.XXXXXX")"
 trap 'rm -rf "$PACK_DIR" "$FIXTURE_DIR"' EXIT
-TARBALL_NAME="$(npm pack --pack-destination "$PACK_DIR" --json | node -p 'JSON.parse(require("node:fs").readFileSync(0, "utf8"))[0].filename')"
+if [ "$#" -gt 0 ]; then
+  TARBALL_PATH="$1"
+  if [ ! -f "$TARBALL_PATH" ]; then
+    echo "Package tarball does not exist: $TARBALL_PATH" >&2
+    exit 1
+  fi
+  TARBALL_PATH="$(cd "$(dirname "$TARBALL_PATH")" && pwd)/$(basename "$TARBALL_PATH")"
+else
+  cd "$REPO_ROOT/code/client"
+  npm ci
+  npm run build:lib
+  TARBALL_NAME="$(npm pack --ignore-scripts --pack-destination "$PACK_DIR" --json | node -p 'JSON.parse(require("node:fs").readFileSync(0, "utf8"))[0].filename')"
+  TARBALL_PATH="$PACK_DIR/$TARBALL_NAME"
+fi
 cp -R "$REPO_ROOT/examples/public-library-host/." "$FIXTURE_DIR"
 
 # Compile current ancillary contracts from the tarball, not repository sources.
@@ -31,6 +40,6 @@ export const current: PhyloLensLoadOptions = {
 TS
 
 cd "$FIXTURE_DIR"
-npm install --package-lock-only --ignore-scripts "$PACK_DIR/$TARBALL_NAME"
+npm install --package-lock-only --ignore-scripts "$TARBALL_PATH"
 npm ci
 npm run build

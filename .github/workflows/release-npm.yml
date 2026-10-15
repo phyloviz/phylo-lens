@@ -1,89 +1,219 @@
-name: Release npm package
+# Keep this filename: npm Trusted Publishing identifies the calling workflow.
+name: Release
 
 on:
   push:
-    tags:
-      - "v*.*.*"
+    branches: [main]
+    paths: [VERSION]
   workflow_dispatch:
     inputs:
       tag:
-        description: "Release tag to validate and publish, for example v0.1.0"
+        description: Existing vX.Y.Z tag to recover (prefer rerunning failed jobs in the original run)
         required: true
         type: string
 
-concurrency:
-  group: release-npm-${{ github.ref }}
-  cancel-in-progress: false
-
 permissions:
   contents: read
-  id-token: write
+
+# Serialize all versions so retries cannot race publication or move aliases backwards.
+concurrency:
+  group: release-production
+  cancel-in-progress: false
 
 jobs:
-  publish:
-    name: Publish @phyloviz/phylo-lens
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    environment: npm-production
-    defaults:
-      run:
-        working-directory: code/client
+  resolve:
+    name: Resolve immutable release commit
+    if: github.repository == 'phyloviz/phylo-lens' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      ready: ${{ steps.resolve.outputs.ready }}
+      sha: ${{ steps.resolve.outputs.sha }}
+      version: ${{ steps.resolve.outputs.version }}
+      tag: ${{ steps.resolve.outputs.tag }}
     steps:
-      - name: Resolve release tag
-        id: release
-        working-directory: .
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            tag="${{ inputs.tag }}"
-          else
-            tag="${GITHUB_REF_NAME}"
-          fi
-          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
-          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
-
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          ref: ${{ steps.release.outputs.tag }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Setup Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+      - name: Resolve and validate
+        id: resolve
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
+            python -c 'import os, sys; sys.path.insert(0, "scripts"); from release_version import tag_version; tag_version(os.environ["INPUT_TAG"])'
+            sha=$(git rev-parse --verify "refs/tags/$INPUT_TAG^{commit}")
+            git merge-base --is-ancestor "$sha" origin/main
+            git checkout --detach "$sha"
+            version=$(python scripts/check-release-version.py "$INPUT_TAG")
+            tag="$INPUT_TAG"
+          else
+            version=$(python scripts/check-release-version.py)
+            # Installing this pipeline introduces VERSION without publishing an old release.
+            if ! previous=$(git show "$BEFORE:VERSION" 2>/dev/null); then
+              echo "Initial VERSION registration; no publication." >> "$GITHUB_STEP_SUMMARY"
+              echo "ready=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            if [ "$previous" = "$version" ]; then
+              echo "ready=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            PREVIOUS="$previous" VERSION="$version" python -c 'import os, sys; sys.path.insert(0, "scripts"); from release_version import parse_version; assert parse_version(os.environ["VERSION"]) > parse_version(os.environ["PREVIOUS"]), "Release must increase VERSION"'
+            sha="$GITHUB_SHA"
+            tag="v$version"
+          fi
+          python scripts/release_npm.py latest "$version"
+          test -s RELEASE_NOTES.md
+          printf 'ready=true\nsha=%s\nversion=%s\ntag=%s\n' "$sha" "$version" "$tag" >> "$GITHUB_OUTPUT"
 
-      - name: Validate monorepo release version
-        working-directory: .
-        run: python scripts/check-release-version.py "${{ steps.release.outputs.tag }}"
+  validate:
+    name: Validate release
+    needs: resolve
+    if: needs.resolve.outputs.ready == 'true'
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+      pull-requests: read
+    with:
+      ref: ${{ needs.resolve.outputs.sha }}
+      release: true
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
+  tag:
+    name: Reserve immutable release tag
+    needs: [resolve, validate]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout validated commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ needs.resolve.outputs.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Create tag or verify retry
+        env:
+          TAG: ${{ needs.resolve.outputs.tag }}
+          SHA: ${{ needs.resolve.outputs.sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if git show-ref --verify --quiet "refs/tags/$TAG"; then
+            test "$(git rev-parse "refs/tags/$TAG^{commit}")" = "$SHA"
+          else
+            gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/$TAG" -f sha="$SHA"
+          fi
+
+  publish-npm:
+    name: Publish tested npm package
+    needs: [resolve, tag]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: npm-production
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout publication helpers
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ needs.resolve.outputs.sha }}
+          persist-credentials: false
+      - name: Setup Node.js for OIDC publishing
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 24
           registry-url: https://registry.npmjs.org
-          cache: npm
-          cache-dependency-path: code/client/package-lock.json
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Verify npm version is not published
-        run: |
-          if npm view "@phyloviz/phylo-lens@${{ steps.release.outputs.version }}" version >/dev/null 2>&1; then
-            echo "@phyloviz/phylo-lens@${{ steps.release.outputs.version }} already exists on npm."
-            exit 1
-          fi
-
-      - name: Check formatting
-        run: npm run format:check
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Test
-        run: npm test
-
-      - name: Build library
-        run: npm run build:lib
-
-      - name: Inspect npm package contents
-        run: npm pack --dry-run
-
-      - name: Publish package
-        run: npm publish --access public
+          package-manager-cache: false
+      - name: Download tested package
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: npm-package
+          path: .release/npm
+      - name: Publish with OIDC and verify package integrity
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          VERSION: ${{ needs.resolve.outputs.version }}
+        run: python3 scripts/release_npm.py publish "$VERSION" .release/npm/phylo-lens.tgz
+
+  publish-service:
+    name: Publish tested service images
+    needs: [resolve, tag]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: ghcr-production
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout publication helpers
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ needs.resolve.outputs.sha }}
+          persist-credentials: false
+      - name: Download tested images
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: service-*
+          path: .release
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+      - name: Login to GHCR
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Publish exact tested images and verify both platforms
+        env:
+          VERSION: ${{ needs.resolve.outputs.version }}
+          SHA: ${{ needs.resolve.outputs.sha }}
+        run: python3 scripts/release_service.py publish "$VERSION" "$SHA" .release
+
+  announce:
+    name: Verify and announce complete release
+    needs: [resolve, publish-npm, publish-service]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: ghcr-production
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - name: Checkout release notes and helpers
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ needs.resolve.outputs.sha }}
+          persist-credentials: false
+      - name: Download tested artifacts
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          path: .release
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+      - name: Login to GHCR
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Verify npm and promote verified service manifest
+        env:
+          VERSION: ${{ needs.resolve.outputs.version }}
+          SHA: ${{ needs.resolve.outputs.sha }}
+        run: |
+          python3 scripts/release_npm.py verify "$VERSION" .release/npm-package/phylo-lens.tgz
+          python3 scripts/release_npm.py latest "$VERSION"
+          python3 scripts/release_service.py promote "$VERSION" "$SHA" .release
+      - name: Publish GitHub release after both registries are verified
+        env:
+          TAG: ${{ needs.resolve.outputs.tag }}
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/release_github.py "$TAG"

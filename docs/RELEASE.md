@@ -1,278 +1,137 @@
-# CI and release process
+# Releasing PhyloLens
 
-PhyloLens uses one implementation version for the monorepo. A tag named
-`vX.Y.Z` releases:
+Use **Actions → Prepare release → Run workflow** on `main`, choose `patch`,
+`minor`, or `major`, and review the generated release PR. Edit `RELEASE_NOTES.md`
+in that PR if needed. **Merge after CI passes** to start publication automatically.
+There is no need to edit package versions, create tags, or publish a GitHub release
+by hand. Preparing a PR does not publish anything.
 
-- `@phyloviz/phylo-lens@X.Y.Z`;
-- `ghcr.io/phyloviz/phylo-lens-service:X.Y.Z`;
-- Python service version `X.Y.Z`.
+`VERSION` is the release authority. The preparation script updates the npm package,
+its two lockfile version fields, Python package, service fallback, Docker default,
+and Compose image together. The API contract version remains independent.
+Existing stable tags are reserved, including failed releases: with `VERSION=0.2.2`
+and the failed public tag `v0.2.3`, the next patch is `0.2.4`.
 
-The HTTP API contract has an independent version, currently `1`. Compatible
-implementation releases do not increment the API version.
+## What happens after merging
 
-## Continuous integration
+The coordinated **Release** workflow keeps the filename `release-npm.yml` to
+preserve the existing npm Trusted Publishing identity. The old independent
+service publication workflow has been removed.
 
-`.github/workflows/ci.yml` runs for pull requests to `main`, pushes to `main`,
-and manual dispatch. A path-filter job selects the required validation jobs.
+1. Resolve an exact commit on `main` and validate every version declaration.
+2. Call the same CI workflow used by PRs, with every check enabled: client
+   formatting/lint/tests/build, server validation, evaluation smokes, packed-package
+   consumer, and native AMD64 and ARM64 container builds and smoke tests.
+3. Pack the library once and build an external consumer against that exact
+   tarball. Check production npm dependencies for high/critical advisories.
+4. Save both smoke-tested container images and the npm tarball as immutable
+   workflow artifacts. No publication credentials are available to these jobs.
+5. Create the release tag, or verify that a retry's tag still identifies the
+   validated commit. Never move a tag.
+6. Publish the saved npm tarball through OIDC and the saved container images using
+   `GITHUB_TOKEN`. These jobs install no application dependencies or rebuild code.
+7. Verify npm's SHA-512 package integrity and the exact Docker image configuration
+   digests for both platforms. Assemble the multi-platform image from immutable
+   manifest digests.
+8. After both publications succeed, promote the Docker aliases and publish the
+   GitHub release with the reviewed notes.
 
-### Client validation
+Both registries are independent: an interruption can still leave one artifact
+published. The workflow does not claim a complete GitHub release until both are
+verified. Versioned Docker tags (`X.Y.Z`, `X.Y.Z-amd64`, `X.Y.Z-arm64`) must never
+be overwritten with different images. Floating aliases are `latest`, `X.Y`, and
+`X`. Older recovery runs cannot move aliases backwards.
 
-Runs from `code/client`:
+All release versions share a non-cancelling concurrency group. Keep one release
+PR open at a time and finish or recover its release before preparing another.
+GitHub may replace a queued pending run if several releases are started together;
+recover a superseded release explicitly if necessary.
 
-```text
-npm ci
-npm run format:check
-npm run lint
-npm test
-npm run build
-npm run build:lib
-```
+## CI and safe rehearsal
 
-### Server validation
+Normal PR CI retains path filtering. Version consistency and release safeguard
+tests always run inside the already-required **Detect changes** job. A version
+failure therefore blocks merging under the existing main ruleset. Workflow, script, or VERSION changes select all affected checks.
+The final **CI required** check fails if any selected check fails or is cancelled.
+Existing check names remain compatible with the current main ruleset.
 
-Runs from `code/server` with Python 3.12:
-
-```text
-python -m pip install -e '.[test,dev]'
-ruff check src tests
-ruff format --check src tests
-pytest -q
-```
-
-The Ruff version is pinned in `code/server/pyproject.toml`. The pre-commit Ruff
-hooks use the same version. CI should print the installed version when debugging
-a toolchain mismatch.
-
-### Packed-package consumer
-
-The package-consumer job validates the artifact that would be published, not a
-source-directory import:
-
-1. build the library;
-2. run `npm pack`;
-3. install the generated tarball in `examples/public-library-host`;
-4. build the external host.
-
-### Docker service validation
-
-Docker validation is a two-entry matrix:
-
-- `linux/amd64`;
-- `linux/arm64`.
-
-Each platform is built as a separate single-platform image with `load: true` and
-then passed to the complete container smoke test. ARM64 uses QEMU on the
-GitHub-hosted AMD64 runner.
-
-The smoke test verifies:
-
-- container health;
-- Newick prepare and viewport flow;
-- typing-data/PhyloLib prepare and viewport flow;
-- Graphviz `sfdp`;
-- Java runtime;
-- bundled JAR checksum;
-- PhyloLib CLI startup;
-- PostgreSQL driver import.
-
-Path filtering avoids Docker builds for unrelated changes. Manual dispatch runs
-all checks.
-
-## Supported container platforms
-
-The published service image supports:
-
-```text
-linux/amd64
-linux/arm64
-```
-
-`code/server/Dockerfile` is the canonical source for the pinned multi-platform
-PhyloLib manifest digest. `code/server/phylolib.jar.sha256` is the canonical
-expected checksum of the bundled JAR. The container smoke script reads and
-verifies that checksum.
-
-Do not copy the digest or checksum into additional documents. Mutable values
-should have one executable source of truth.
-
-## Version preparation
-
-Before releasing `X.Y.Z`:
-
-1. set `code/client/package.json` to `X.Y.Z`;
-2. set `code/server/pyproject.toml` to `X.Y.Z`;
-3. leave API version `1` unchanged unless the wire contract becomes
-   incompatible;
-4. update user-facing release notes;
-5. run the full validation commands below.
-
-Validate version coordination:
+Use **Actions → CI → Run workflow**, select the branch, and enable **release** to
+rehearse all release validation and retain the exact artifacts. This workflow has
+no registry publication credentials and never publishes. The same can be run with:
 
 ```bash
-python scripts/check-release-version.py vX.Y.Z
+gh workflow run ci.yml --ref YOUR_BRANCH -f release=true
 ```
 
-The script verifies the tag form and the client/server implementation versions.
-It reports the independent API contract version but does not require it to equal
-`X.Y.Z`.
-
-## Local release validation
-
-### Server
+Local release tooling checks require Python 3.12+:
 
 ```bash
-cd code/server
-python -m pip install -e '.[test,dev]'
-ruff check src tests
-ruff format --check src tests
-pytest -q
+python -m unittest discover -s scripts/tests -v
+python scripts/check-release-version.py
 ```
 
-### Client and package artifact
+For local version preparation, fetch tags first, then run:
 
 ```bash
-cd code/client
-npm ci
-npm run format:check
-npm run lint
-npm test
-npm run build
-npm run build:lib
-npm pack --dry-run
-
-cd ../../
-./scripts/packed-package-consumer-smoke.sh
+git fetch origin --tags
+python scripts/release_version.py prepare patch
 ```
 
-### Service image
+The command changes files only. The GitHub preparation workflow additionally
+creates release notes, commits the edits, opens a PR, and explicitly dispatches CI.
+This avoids relying on workflow runs being triggered by bot-created pushes.
 
-```bash
-cd code/server
+## One-time repository and npm setup
 
-DOCKER_PLATFORM=linux/amd64 \
-IMAGE_NAME=phylo-lens-service:local-amd64 \
-CONTAINER_NAME=phylo-lens-service-smoke-amd64 \
-./scripts/container-smoke.sh
+Before the first coordinated release:
 
-DOCKER_PLATFORM=linux/arm64 \
-IMAGE_NAME=phylo-lens-service:local-arm64 \
-CONTAINER_NAME=phylo-lens-service-smoke-arm64 \
-./scripts/container-smoke.sh
-```
+- In GitHub Actions settings, allow Actions to create pull requests. This is
+  already enabled for this repository. Prefer a **read-only default token**;
+  workflows grant write access only to the jobs that need it.
+- Keep the `npm-production` and `ghcr-production` environments. Restrict their
+  deployment branches to **main only**. Publication runs on main even though its
+  source is an immutable tag/commit. Add reviewers if the team wants a separate
+  approval after the release PR review.
+- Add **CI required** as a required main status check. The current individual
+  required checks can remain, or be replaced after the new check has run once.
+- Protect `v*` tags against deletion and force updates with a tag ruleset.
+- On npm, verify the trusted publisher for `@phyloviz/phylo-lens`: organization
+  `phyloviz`, repository `phylo-lens`, workflow **release-npm.yml** (filename only),
+  environment **npm-production**, with direct `npm publish` allowed. The workflow
+  needs no `NPM_TOKEN`; remove obsolete tokens after the first successful OIDC
+  publication. npm CLI 11.5.1+ and Node 22.14+ are required; the workflow uses Node 24.
+- Confirm GHCR grants this repository package write access. The existing setup
+  already published previous versions using its repository token.
 
-On an AMD64 host, ARM64 execution requires QEMU/binfmt support.
+All third-party actions are pinned to immutable commit hashes. Dependabot proposes
+weekly action updates as reviewable PRs. Release builds do not reuse dependency or
+Docker build caches, and artifact downloads fail if digest verification fails.
 
-## Creating the release
+Official references: [npm Trusted Publishing](https://docs.npmjs.com/trusted-publishers/),
+[GitHub workflow triggering](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow),
+and [Docker artifact sharing](https://docs.docker.com/build/ci/github-actions/share-image-jobs/).
 
-Create an annotated or lightweight tag only after `main` is green:
+## Recovery
 
-```bash
-git tag vX.Y.Z
-git push origin vX.Y.Z
-```
+Open the original **Release** run and choose **Re-run failed jobs**. Successful
+validation jobs retain their exact artifacts for **seven days**. npm publication
+is skipped only when the existing package has identical integrity; Docker
+publication is skipped only when both image identities match. Authentication,
+network, throttling, and registry errors fail the workflow instead of being
+interpreted as an absent version.
 
-The tag triggers the npm and service workflows independently. Release workflows
-use non-cancelling concurrency groups so a later run cannot cancel publication in
-progress.
+Do not use **Re-run all jobs** to recover a partial publication: that rebuilds
+artifacts, and rebuilding the same source can resolve different upstream packages.
+A retry must publish the originally tested artifacts.
 
-## npm publication
+If the original run was superseded or artifacts expired, **Actions → Release → Run
+workflow**, on **main**, accepts an existing `vX.Y.Z` tag. The workflow verifies
+that the tag belongs to main and validates its exact commit again. If newly built
+artifacts differ from a version already published, recovery stops safely. Prepare
+a new patch release instead of overwriting the old version. Manual recovery is
+for releases created with this pipeline; legacy tags lack its helpers/artifacts.
 
-`.github/workflows/release-npm.yml` publishes the public package through npm
-Trusted Publishing and OIDC.
-
-Required one-time npm configuration:
-
-| Setting | Value |
-| --- | --- |
-| Package | `@phyloviz/phylo-lens` |
-| GitHub repository | `phyloviz/phylo-lens` |
-| Workflow | `.github/workflows/release-npm.yml` |
-| GitHub environment | `npm-production` |
-
-The workflow:
-
-1. validates the tag and monorepo versions;
-2. installs dependencies reproducibly;
-3. rejects a version already present on npm;
-4. runs client validation;
-5. builds and inspects the tarball;
-6. publishes with public access and provenance.
-
-No long-lived npm write token is required.
-
-## GHCR publication
-
-`.github/workflows/release-service.yml` publishes:
-
-```text
-ghcr.io/phyloviz/phylo-lens-service
-```
-
-It authenticates with `GITHUB_TOKEN` and `packages: write`.
-
-For `vX.Y.Z`, the workflow produces:
-
-- `X.Y.Z`;
-- `X.Y`;
-- `X`;
-- `latest`.
-
-Publication order:
-
-1. build and smoke-test `linux/amd64`;
-2. build and smoke-test `linux/arm64`;
-3. log in to GHCR;
-4. build and push one multi-platform manifest for both architectures.
-
-No public image is pushed before both validation builds pass. The final
-multi-platform build uses `push: true`; it is not loaded into the runner's local
-Docker image store.
-
-OCI labels record the repository source and commit revision. Use the
-`ghcr-production` environment for repository-level approval or policy controls.
-
-## GitHub Release
-
-Create one GitHub Release after both publication workflows succeed. Include:
-
-- release version;
-- npm package identifier;
-- Docker image identifier;
-- API contract version;
-- notable changes and compatibility notes;
-- minimal installation examples.
-
-Do not announce both artifacts as available until both have been verified in
-their registries.
-
-## Partial-release recovery
-
-### npm succeeded, service failed
-
-Fix the service workflow and rerun it for the same tag. Do not republish npm.
-
-### service succeeded, npm failed before publication
-
-Fix Trusted Publishing or package validation and rerun only the npm workflow.
-
-### npm reports the version already exists
-
-Verify the published package. npm versions are immutable; do not attempt to
-replace the same version. Complete the missing service publication or issue a new
-patch release.
-
-### incorrect artifact published
-
-Create a corrected patch version. Do not rewrite an existing tag or mutate a
-published package/image version.
-
-## Repository settings required
-
-Before the first public release, confirm:
-
-- GitHub Actions are enabled;
-- workflow permissions allow GHCR publication;
-- `npm-production` and `ghcr-production` environments exist when referenced;
-- npm Trusted Publishing targets the exact repository and workflow path;
-- the GHCR package inherits or grants the required repository access;
-- branch and tag protection rules do not block the intended release actor.
+If a release code fix is needed, fix main and prepare a new patch. Never delete,
+move, or reuse `v0.2.3`; it remains the record of the failed manual release.
+Introducing VERSION when this pipeline first merges does not republish `0.2.2`.
+The first release starts only when a subsequent release PR increases VERSION.

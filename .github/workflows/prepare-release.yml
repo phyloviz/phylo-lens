@@ -1,0 +1,81 @@
+name: Prepare release
+
+on:
+  workflow_dispatch:
+    inputs:
+      increment:
+        description: Version increment (existing tags, including failed releases, are reserved)
+        type: choice
+        required: true
+        default: patch
+        options: [patch, minor, major]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: prepare-release
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    if: github.repository == 'phyloviz/phylo-lens' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Setup Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+      - name: Prepare coordinated versions and release notes
+        id: version
+        env:
+          INCREMENT: ${{ inputs.increment }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          open=$(gh pr list --base main --state open --json headRefName --jq '[.[] | select(.headRefName | startswith("codex/release-v"))] | length')
+          if [ "$open" != 0 ]; then
+            echo "Review or close the existing release PR before preparing another release." >&2
+            exit 1
+          fi
+          previous=$(python scripts/check-release-version.py)
+          version=$(python scripts/release_version.py prepare "$INCREMENT")
+          gh api --method POST "repos/$GITHUB_REPOSITORY/releases/generate-notes" \
+            -f tag_name="v$version" -f target_commitish=main -f previous_tag_name="v$previous" \
+            --jq .body > RELEASE_NOTES.md
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Open release PR and start CI
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          branch="codex/release-v$VERSION"
+          git switch -c "$branch"
+          git add VERSION RELEASE_NOTES.md code/client/package.json code/client/package-lock.json \
+            code/server/pyproject.toml code/server/src/phylo_lens_server/utils/versions.py \
+            code/server/Dockerfile code/server/compose.yaml
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+            commit -m "chore: prepare v$VERSION"
+          gh auth setup-git
+          git push origin "$branch"
+          {
+            echo "Prepare PhyloLens v$VERSION with coordinated npm, service, Docker and Compose versions."
+            echo
+            echo "Review RELEASE_NOTES.md and merge after CI passes. Merging starts the coordinated release workflow."
+            echo
+            cat RELEASE_NOTES.md
+          } > "$RUNNER_TEMP/release-pr.md"
+          url=$(gh pr create --base main --head "$branch" --title "Release v$VERSION" --body-file "$RUNNER_TEMP/release-pr.md")
+          # Token-created pushes do not start CI automatically. Dispatch it explicitly.
+          gh workflow run ci.yml --ref "$branch"
+          echo "Release PR: $url" >> "$GITHUB_STEP_SUMMARY"
