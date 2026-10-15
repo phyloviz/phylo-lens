@@ -55,7 +55,9 @@ def verify_index(index: dict, expected: dict[str, str]) -> None:
         )
 
 
-def publish(version: str, sha: str, artifacts: Path) -> None:
+def publish(
+    version: str, sha: str, artifacts: Path, *, verify_only: bool = False
+) -> None:
     expected = {}
     for arch in ARCHITECTURES:
         directory = artifacts / f"service-{arch}"
@@ -69,7 +71,7 @@ def publish(version: str, sha: str, artifacts: Path) -> None:
                 "Image artifact does not belong to this release commit/platform"
             )
         expected[arch] = metadata["config"]
-    existing = manifest(f"{IMAGE}:{version}")
+    existing = None if verify_only else manifest(f"{IMAGE}:{version}")
     if existing is not None:
         verify_index(existing, expected)
         print("Service version already published and verified")
@@ -92,6 +94,8 @@ def publish(version: str, sha: str, artifacts: Path) -> None:
             or labels.get("org.opencontainers.image.version") != version
         ):
             raise ValueError("Saved image has incorrect release labels")
+        if verify_only:
+            continue
         ref = f"{IMAGE}:{version}-{arch}"
         remote = manifest(ref)
         if remote is None:
@@ -113,6 +117,9 @@ def publish(version: str, sha: str, artifacts: Path) -> None:
         if not digest.startswith("sha256:"):
             raise ValueError("Registry did not return a manifest digest")
         refs.append(f"{IMAGE}@{digest}")
+    if verify_only:
+        print("Verified saved image identities for both platforms")
+        return
     subprocess.run(
         [
             "docker",
@@ -130,13 +137,15 @@ def publish(version: str, sha: str, artifacts: Path) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("publish", "promote"))
+    parser.add_argument("command", choices=("publish", "promote", "verify"))
     parser.add_argument("version")
     parser.add_argument("sha")
     parser.add_argument("artifacts", type=Path)
     args = parser.parse_args()
     parse_version(args.version)
-    publish(args.version, args.sha, args.artifacts)
+    publish(
+        args.version, args.sha, args.artifacts, verify_only=args.command == "verify"
+    )
     if args.command == "promote":
         major, minor, _ = parse_version(args.version)
         source = f"{IMAGE}:{args.version}"

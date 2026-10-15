@@ -67,7 +67,7 @@ def require_latest(version: str) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("publish", "verify", "latest"))
+    parser.add_argument("command", choices=("publish", "verify", "latest", "inspect"))
     parser.add_argument("version")
     parser.add_argument("tarball", type=Path, nargs="?")
     args = parser.parse_args()
@@ -78,6 +78,9 @@ def main() -> None:
     if args.tarball is None:
         parser.error("tarball is required")
     integrity = package_info(args.tarball, args.version)
+    if args.command == "inspect":
+        print(integrity)
+        return
     if args.command == "publish" and not verify(args.version, integrity):
         require_latest(args.version)
         subprocess.run(

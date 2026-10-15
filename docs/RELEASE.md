@@ -25,7 +25,9 @@ service publication workflow has been removed.
 3. Pack the library once and build an external consumer against that exact
    tarball. Check production npm dependencies for high/critical advisories.
 4. Save both smoke-tested container images and the npm tarball as immutable
-   workflow artifacts. No publication credentials are available to these jobs.
+   workflow artifacts. Download them again and reload both saved images to verify
+   the artifact handoff and image identities. No publication credentials are
+   available to these jobs.
 5. Create the release tag, or verify that a retry's tag still identifies the
    validated commit. Never move a tag.
 6. Publish the saved npm tarball through OIDC and the saved container images using
@@ -83,6 +85,10 @@ This avoids relying on workflow runs being triggered by bot-created pushes.
 
 ## One-time repository and npm setup
 
+GitHub protections applied on 16 October 2026: read-only default Actions tokens,
+main-only production environments, required **CI required** status on main, and
+protection against release tag deletion and updates. Keep these protections enabled.
+
 Before the first coordinated release:
 
 - In GitHub Actions settings, allow Actions to create pull requests. This is
@@ -92,8 +98,8 @@ Before the first coordinated release:
   deployment branches to **main only**. Publication runs on main even though its
   source is an immutable tag/commit. Add reviewers if the team wants a separate
   approval after the release PR review.
-- Add **CI required** as a required main status check. The current individual
-  required checks can remain, or be replaced after the new check has run once.
+- Keep **CI required** as a required main status check. It is already enabled.
+  Existing individual required checks remain in place.
 - Protect `v*` tags against deletion and force updates with a tag ruleset.
 - On npm, verify the trusted publisher for `@phyloviz/phylo-lens`: organization
   `phyloviz`, repository `phylo-lens`, workflow **release-npm.yml** (filename only),

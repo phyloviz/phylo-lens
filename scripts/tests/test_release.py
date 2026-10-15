@@ -319,6 +319,23 @@ class ServiceTests(unittest.TestCase):
                 self.assertEqual(len(pushes), 2)
                 release_service.publish("0.2.4", "commit", artifacts)
                 self.assertEqual(len(pushes), 2)
+                with (
+                    patch.object(
+                        release_service,
+                        "manifest",
+                        side_effect=AssertionError(
+                            "Rehearsal must not read registries"
+                        ),
+                    ),
+                    patch.object(
+                        release_service.subprocess,
+                        "run",
+                        side_effect=AssertionError("Rehearsal must not publish"),
+                    ),
+                ):
+                    release_service.publish(
+                        "0.2.4", "commit", artifacts, verify_only=True
+                    )
 
 
 class AnnouncementTests(unittest.TestCase):
