@@ -158,6 +158,15 @@ def test_tiny_headless_paired_smoke(tmp_path: Path) -> None:
         json.loads(line) for line in (run_dir / "pairs.jsonl").read_text().splitlines()
     ]
     assert pairs and all(pair["semantic_equivalence"]["valid"] for pair in pairs)
-    assert all(
-        pair["conditions"]["full_detail"]["status"] == "success" for pair in pairs
-    )
+    failures = [
+        pair["conditions"]["full_detail"]
+        for pair in pairs
+        if pair["conditions"]["full_detail"]["status"] != "success"
+    ]
+    diagnostics = {
+        condition["observation_path"]: json.loads(
+            Path(condition["observation_path"]).read_text()
+        )
+        for condition in failures
+    }
+    assert not failures, diagnostics

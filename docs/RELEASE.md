@@ -119,6 +119,15 @@ Official references: [npm Trusted Publishing](https://docs.npmjs.com/trusted-pub
 [GitHub workflow triggering](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow),
 and [Docker artifact sharing](https://docs.docker.com/build/ci/github-actions/share-image-jobs/).
 
+## Evaluation failure diagnostics
+
+During validation, the existing RQ3 headless paired smoke failed intermittently in
+one run while the same source passed other CI/rehearsal runs. Its pass criteria
+remain unchanged. CI now preserves failed evaluation test directories (browser
+logs, observations and screenshots) for seven days, and the smoke assertion prints
+the failing observation. A recurrence blocks release and can be investigated from
+the `evaluation-failure-*` artifact; it is not automatically retried or ignored.
+
 ## Recovery
 
 Open the original **Release** run and choose **Re-run failed jobs**. Successful

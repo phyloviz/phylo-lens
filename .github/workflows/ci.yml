@@ -314,7 +314,16 @@ jobs:
           python -m pip install -e 'code/server[test]'
           python -m pip install -e 'eval[test,dev]'
           (cd eval && python -m ruff check src tests && python -m ruff format --check src tests)
-          PYTHONPATH=eval/src:code/server/src python -m pytest -q eval/tests
+          PYTHONPATH=eval/src:code/server/src python -m pytest -q eval/tests --basetemp="$RUNNER_TEMP/phylo-lens-eval-tests"
+
+      - name: Preserve evaluation failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: evaluation-failure-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/phylo-lens-eval-tests/
+          if-no-files-found: ignore
+          retention-days: 7
 
   docker-service:
     name: Docker service validation (${{ matrix.suffix }})
