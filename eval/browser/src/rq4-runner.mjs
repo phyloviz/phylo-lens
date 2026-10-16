@@ -1,8 +1,9 @@
 /* Real-server RQ4 browser child. stdout contains one structured result only. */
 import { createServer } from "node:http";
-import { readFile, writeFile, mkdir } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
 import { chromium } from "@playwright/test";
+import { writeResultAndEmit } from "./diagnostics.mjs";
 
 const [controlPath, resultPath] = process.argv.slice(2);
 let browser;
@@ -300,9 +301,7 @@ async function run(control) {
 try {
   const control = JSON.parse(await readFile(controlPath, "utf8"));
   const result = await run(control);
-  await mkdir(dirname(resultPath), { recursive: true });
-  await writeFile(resultPath, JSON.stringify(result, null, 2));
-  process.stdout.write(`${JSON.stringify(result)}\n`);
+  await writeResultAndEmit(resultPath, result);
 } catch (error) {
   const result = {
     status: "failure",
@@ -312,11 +311,7 @@ try {
     error: String(error),
     ...progress,
   };
-  if (resultPath) {
-    await mkdir(dirname(resultPath), { recursive: true });
-    await writeFile(resultPath, JSON.stringify(result, null, 2));
-  }
-  process.stdout.write(`${JSON.stringify(result)}\n`);
+  await writeResultAndEmit(resultPath, result);
 } finally {
   collectingOperationNetwork = false;
   await Promise.allSettled([

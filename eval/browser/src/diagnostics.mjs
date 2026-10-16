@@ -59,3 +59,18 @@ export async function atomicWriteJson(path, payload) {
 }
 import { mkdir, rename, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
+
+export async function writeResultAndEmit(
+  path,
+  value,
+  { persist = writeFile, emit = (record) => process.stdout.write(record) } = {},
+) {
+  // Diagnostics contain Playwright-owned objects that can change during I/O.
+  // Serialize before yielding and publish that same immutable record twice.
+  const record = `${JSON.stringify(value)}\n`;
+  if (path) {
+    await mkdir(dirname(path), { recursive: true });
+    await persist(path, record);
+  }
+  emit(record);
+}

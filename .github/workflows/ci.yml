@@ -8,20 +8,39 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      release:
+        description: Rehearse full release validation and retain artifacts (never publishes)
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      ref:
+        description: Exact commit to validate
+        type: string
+        required: true
+      release:
+        description: Run every check and retain the tested publication artifacts
+        type: boolean
+        default: false
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.workflow }}-${{ github.ref }}-${{ inputs.release && github.run_id || 'regular' }}
+  cancel-in-progress: ${{ !inputs.release }}
 
 permissions:
   contents: read
 
 jobs:
   changes:
+    permissions:
+      contents: read
+      pull-requests: read
     name: Detect changes
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
+      version: ${{ steps.version.outputs.version }}
       client: ${{ steps.filter.outputs.client }}
       server: ${{ steps.filter.outputs.server }}
       package_fixture: ${{ steps.filter.outputs.package_fixture }}
@@ -29,17 +48,34 @@ jobs:
       rq2_eval: ${{ steps.filter.outputs.rq2_eval }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          persist-credentials: false
+      - name: Setup Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+      - name: Test release safeguards
+        run: python -m unittest discover -s scripts/tests -v
+      - name: Check all version declarations
+        id: version
+        run: |
+          version=$(python scripts/check-release-version.py)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Detect changed paths
+        if: ${{ !inputs.release && github.event_name != 'workflow_dispatch' }}
         id: filter
-        uses: dorny/paths-filter@v4
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4
         with:
           filters: |
             client:
               - 'code/client/**'
               - 'docs/CLIENT_RENDERING.md'
-              - '.github/workflows/ci.yml'
+              - '.github/workflows/**'
+              - 'scripts/**'
+              - 'VERSION'
             server:
               - 'code/server/src/**'
               - 'code/server/sql/**'
@@ -47,11 +83,15 @@ jobs:
               - 'code/server/pyproject.toml'
               - 'docs/API_REFERENCE.md'
               - 'docs/SERVER_PIPELINE.md'
-              - '.github/workflows/ci.yml'
+              - '.github/workflows/**'
+              - 'scripts/**'
+              - 'VERSION'
             package_fixture:
               - 'code/client/**'
               - 'examples/public-library-host/**'
-              - '.github/workflows/ci.yml'
+              - '.github/workflows/**'
+              - 'scripts/**'
+              - 'VERSION'
             docker:
               - 'code/server/Dockerfile'
               - 'code/server/.dockerignore'
@@ -61,36 +101,48 @@ jobs:
               - 'code/server/sql/**'
               - 'code/server/src/**'
               - 'code/server/pyproject.toml'
-              - '.github/workflows/ci.yml'
+              - '.github/workflows/**'
+              - 'scripts/**'
+              - 'VERSION'
             rq2_eval:
               - 'eval/**'
               - 'code/client/**'
               - 'code/server/src/**'
               - 'code/server/pyproject.toml'
-              - '.github/workflows/ci.yml'
+              - '.github/workflows/**'
+              - 'scripts/**'
+              - 'VERSION'
 
   client:
     name: Client validation
     needs: changes
-    if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.client == 'true'
-    runs-on: ubuntu-latest
+    if: inputs.release || github.event_name == 'workflow_dispatch' || needs.changes.outputs.client == 'true'
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     defaults:
       run:
         working-directory: code/client
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          persist-credentials: false
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 24
-          cache: npm
+          package-manager-cache: false
+          cache: ${{ !inputs.release && 'npm' || '' }}
           cache-dependency-path: code/client/package-lock.json
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Check production dependency advisories
+        if: inputs.release
+        run: npm audit --omit=dev --audit-level=high
 
       - name: Check formatting
         run: npm run format:check
@@ -107,18 +159,43 @@ jobs:
       - name: Build library
         run: npm run build:lib
 
+      - name: Pack the artifact for publication
+        if: inputs.release
+        run: |
+          mkdir -p ../../.release/npm
+          npm pack --ignore-scripts --pack-destination ../../.release/npm
+          mv ../../.release/npm/*.tgz ../../.release/npm/phylo-lens.tgz
+
+      - name: Test the exact tarball in an external consumer
+        if: inputs.release
+        working-directory: .
+        run: ./scripts/packed-package-consumer-smoke.sh "$PWD/.release/npm/phylo-lens.tgz"
+
+      - name: Retain tested npm package
+        if: inputs.release
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: npm-package
+          path: .release/npm/phylo-lens.tgz
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 7
+
   server:
     name: Server validation
     needs: changes
-    if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.server == 'true'
-    runs-on: ubuntu-latest
+    if: inputs.release || github.event_name == 'workflow_dispatch' || needs.changes.outputs.server == 'true'
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     defaults:
       run:
         working-directory: code/server
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          persist-credentials: false
 
       - name: Install Graphviz for native layout tests
         run: |
@@ -126,10 +203,10 @@ jobs:
           sudo apt-get install --yes graphviz
 
       - name: Setup Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: "3.12"
-          cache: pip
+          cache: ${{ !inputs.release && 'pip' || '' }}
           cache-dependency-path: code/server/pyproject.toml
 
       - name: Install dependencies
@@ -148,18 +225,23 @@ jobs:
   packed-package-consumer:
     name: Packed-package consumer
     needs: changes
-    if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.package_fixture == 'true'
-    runs-on: ubuntu-latest
+    # Release client validation already tests the exact publication tarball.
+    if: ${{ !inputs.release && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.package_fixture == 'true') }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          persist-credentials: false
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 24
-          cache: npm
+          package-manager-cache: false
+          cache: ${{ !inputs.release && 'npm' || '' }}
           cache-dependency-path: |
             code/client/package-lock.json
             examples/public-library-host/package-lock.json
@@ -170,14 +252,16 @@ jobs:
   rq2-evaluation:
     name: Evaluation smokes (RQ2-RQ4)
     needs: changes
-    if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.rq2_eval == 'true'
-    runs-on: ubuntu-latest
+    if: inputs.release || github.event_name == 'workflow_dispatch' || needs.changes.outputs.rq2_eval == 'true'
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           fetch-depth: 0
+          ref: ${{ inputs.ref || github.sha }}
+          persist-credentials: false
 
       - name: Install Graphviz for native evaluation smokes
         run: |
@@ -185,10 +269,11 @@ jobs:
           sudo apt-get install --yes graphviz
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 24
-          cache: npm
+          package-manager-cache: false
+          cache: ${{ !inputs.release && 'npm' || '' }}
           cache-dependency-path: |
             code/client/package-lock.json
             eval/browser/package-lock.json
@@ -211,10 +296,10 @@ jobs:
           npm run build
 
       - name: Setup Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: "3.12"
-          cache: pip
+          cache: ${{ !inputs.release && 'pip' || '' }}
           cache-dependency-path: |
             code/server/pyproject.toml
             eval/pyproject.toml
@@ -229,12 +314,21 @@ jobs:
           python -m pip install -e 'code/server[test]'
           python -m pip install -e 'eval[test,dev]'
           (cd eval && python -m ruff check src tests && python -m ruff format --check src tests)
-          PYTHONPATH=eval/src:code/server/src python -m pytest -q eval/tests
+          PYTHONPATH=eval/src:code/server/src python -m pytest -q eval/tests --basetemp="$RUNNER_TEMP/phylo-lens-eval-tests"
+
+      - name: Preserve evaluation failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: evaluation-failure-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/phylo-lens-eval-tests/
+          if-no-files-found: ignore
+          retention-days: 7
 
   docker-service:
     name: Docker service validation (${{ matrix.suffix }})
     needs: changes
-    if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.docker == 'true'
+    if: inputs.release || github.event_name == 'workflow_dispatch' || needs.changes.outputs.docker == 'true'
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
     strategy:
@@ -243,26 +337,33 @@ jobs:
         include:
           - platform: linux/amd64
             suffix: amd64
-            runner: ubuntu-latest
+            runner: ubuntu-24.04
           - platform: linux/arm64
             suffix: arm64
             runner: ubuntu-24.04-arm
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          persist-credentials: false
 
       - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@v4
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
 
       - name: Build service image
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
           context: code/server
           load: true
           platforms: ${{ matrix.platform }}
           tags: phylo-lens-service:ci-${{ matrix.suffix }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          build-args: VERSION=${{ needs.changes.outputs.version }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/phyloviz/phylo-lens
+            org.opencontainers.image.revision=${{ inputs.ref || github.sha }}
+          cache-from: ${{ !inputs.release && format('type=gha,scope=service-{0}', matrix.suffix) || '' }}
+          cache-to: ${{ !inputs.release && format('type=gha,mode=max,scope=service-{0}', matrix.suffix) || '' }}
 
       - name: Smoke test service image
         working-directory: code/server
@@ -271,3 +372,66 @@ jobs:
           IMAGE_NAME: phylo-lens-service:ci-${{ matrix.suffix }}
           SKIP_BUILD: "1"
         run: ./scripts/container-smoke.sh
+
+      - name: Save the smoke-tested image
+        if: inputs.release
+        env:
+          ARCH: ${{ matrix.suffix }}
+          RELEASE_SHA: ${{ inputs.ref || github.sha }}
+          VERSION: ${{ needs.changes.outputs.version }}
+        run: |
+          mkdir -p .release/service
+          docker save "phylo-lens-service:ci-$ARCH" | gzip -1 > .release/service/image.tar.gz
+          docker image inspect "phylo-lens-service:ci-$ARCH" | jq --arg sha "$RELEASE_SHA" --arg version "$VERSION" --arg arch "$ARCH" \
+            '.[0] | {config: .Id, sha: $sha, version: $version, architecture: $arch}' > .release/service/image.json
+
+      - name: Retain tested image
+        if: inputs.release
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: service-${{ matrix.suffix }}
+          path: .release/service/
+          if-no-files-found: error
+          include-hidden-files: true
+          compression-level: 0
+          retention-days: 7
+
+  required:
+    name: CI required
+    if: always()
+    needs: [changes, client, server, packed-package-consumer, rq2-evaluation, docker-service]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Require every selected check to pass
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          echo "$RESULTS" | jq -e 'all(.[]; .result == "success" or .result == "skipped")'
+
+      - name: Checkout artifact verification helpers
+        if: inputs.release
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          persist-credentials: false
+      - name: Retrieve tested images (exclude Docker build records)
+        if: inputs.release
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: service-*
+          path: .release
+      - name: Retrieve tested npm package
+        if: inputs.release
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: npm-package
+          path: .release/npm-package
+      - name: Verify the publication artifact handoff without registry credentials
+        if: inputs.release
+        env:
+          VERSION: ${{ needs.changes.outputs.version }}
+          SHA: ${{ inputs.ref || github.sha }}
+        run: |
+          python3 scripts/release_npm.py inspect "$VERSION" .release/npm-package/phylo-lens.tgz
+          python3 scripts/release_service.py verify "$VERSION" "$SHA" .release

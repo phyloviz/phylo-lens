@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtemp, readFile, readdir } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -8,6 +8,7 @@ import {
   classifyFailure,
   closeAll,
   withTimeout,
+  writeResultAndEmit,
 } from "../src/diagnostics.mjs";
 
 test("render-stage timeout has the stable render timeout classification", async () => {
@@ -65,4 +66,31 @@ test("runtime state is atomically published as JSON", async () => {
     (await readdir(directory)).some((name) => name.endsWith(".tmp")),
     false,
   );
+});
+
+test("result file and stdout keep the same snapshot when request timing completes during persistence", async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), "rq2-result-snapshot-"));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const path = join(directory, "browser-result.json");
+  const timing = { responseEnd: -1 };
+  const result = {
+    status: "success",
+    diagnostics: { responses: [{ timing }] },
+  };
+  let stdout = "";
+  await writeResultAndEmit(path, result, {
+    persist: async (destination, record) => {
+      // Playwright updates the live timing object while filesystem I/O yields.
+      timing.responseEnd = 6.135;
+      await writeFile(destination, record);
+    },
+    emit: (record) => {
+      stdout += record;
+    },
+  });
+  const saved = JSON.parse(await readFile(path, "utf8"));
+  assert.equal(timing.responseEnd, 6.135);
+  assert.deepEqual(JSON.parse(stdout), saved);
+  assert.equal(saved.diagnostics.responses[0].timing.responseEnd, -1);
+  assert.equal(stdout.trim().split("\n").length, 1);
 });

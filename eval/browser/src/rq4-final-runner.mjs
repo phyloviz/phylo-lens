@@ -1,9 +1,10 @@
 /* Final RQ4 browser child.  It writes one complete result before shutdown. */
 import { createServer } from "node:http";
-import { readFile, writeFile, mkdir } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
 import { createRequire } from "node:module";
 import { chromium } from "@playwright/test";
+import { writeResultAndEmit } from "./diagnostics.mjs";
 
 const require = createRequire(import.meta.url);
 const playwrightVersion = require("@playwright/test/package.json").version;
@@ -517,9 +518,7 @@ async function run(control) {
 
 try {
   const result = await run(JSON.parse(await readFile(controlPath, "utf8")));
-  await mkdir(dirname(resultPath), { recursive: true });
-  await writeFile(resultPath, JSON.stringify(result, null, 2));
-  process.stdout.write(`${JSON.stringify(result)}\n`);
+  await writeResultAndEmit(resultPath, result);
 } catch (error) {
   const result = {
     status: "failure",
@@ -529,11 +528,7 @@ try {
     error: String(error),
     ...progress,
   };
-  if (resultPath) {
-    await mkdir(dirname(resultPath), { recursive: true });
-    await writeFile(resultPath, JSON.stringify(result, null, 2));
-  }
-  process.stdout.write(`${JSON.stringify(result)}\n`);
+  await writeResultAndEmit(resultPath, result);
 } finally {
   collectResponses = false;
   await Promise.allSettled([

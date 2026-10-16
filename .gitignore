@@ -51,3 +51,6 @@ pnpm-debug.log*
 code/client/*.tgz
 
 .tmp
+
+# Local release rehearsal artifacts
+.release/

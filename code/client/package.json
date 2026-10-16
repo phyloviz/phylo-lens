@@ -3,6 +3,11 @@
   "version": "0.2.2",
   "description": "Headless, scalable phylogenetic tree visualization client. Server-side level-of-detail with a Sigma.js renderer, consumable as a library by host apps such as PHYLOViZ.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/phyloviz/phylo-lens.git",
+    "directory": "code/client"
+  },
   "type": "module",
   "sideEffects": false,
   "files": [
