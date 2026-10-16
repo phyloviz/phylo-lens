@@ -18,6 +18,7 @@ RUN apk add --no-cache \
         libtool \
         pkgconf \
     && curl --fail --location --silent --show-error \
+        --retry 5 --retry-max-time 180 --connect-timeout 15 --max-time 120 \
         --output /tmp/gts.tar.gz \
         "https://sourceforge.net/projects/gts/files/gts/${GTS_VERSION}/gts-${GTS_VERSION}.tar.gz/download" \
     && echo "${GTS_SHA256}  /tmp/gts.tar.gz" | sha256sum -c - \
@@ -28,6 +29,7 @@ RUN apk add --no-cache \
     && make -j"$(getconf _NPROCESSORS_ONLN)" \
     && make install \
     && curl --fail --location --silent --show-error \
+        --retry 5 --retry-max-time 180 --connect-timeout 15 --max-time 120 \
         --output /tmp/graphviz.tar.gz \
         "https://gitlab.com/api/v4/projects/4207231/packages/generic/graphviz-releases/${GRAPHVIZ_VERSION}/graphviz-${GRAPHVIZ_VERSION}.tar.gz" \
     && echo "${GRAPHVIZ_SHA256}  /tmp/graphviz.tar.gz" | sha256sum -c - \

@@ -9,6 +9,7 @@ import {
   closeAll,
   classifyFailure,
   withTimeout,
+  writeResultAndEmit,
 } from "./diagnostics.mjs";
 import { createFixture, createFixtureFromResponse } from "./fixtures.mjs";
 import { startReplayServer } from "./replay.mjs";
@@ -41,10 +42,6 @@ function stage(name, detail = "") {
   process.stderr.write(
     `${new Date().toISOString()} ${name}${detail ? ` ${detail}` : ""}\n`,
   );
-}
-
-function emit(value) {
-  process.stdout.write(`${JSON.stringify(value)}\n`);
 }
 
 async function bounded(name, operation) {
@@ -499,8 +496,7 @@ try {
       replay_access_log_path: control.replay_access_log_path ?? null,
     },
   };
-  await writeFile(resultPath, JSON.stringify(output, null, 2));
-  emit(output);
+  await writeResultAndEmit(resultPath, output);
 } catch (error) {
   const artifacts = await retainDiagnostics().catch((artifactError) => ({
     diagnostics_error: String(artifactError),
@@ -518,11 +514,7 @@ try {
       ...artifacts,
     },
   };
-  if (resultPath) {
-    await mkdir(dirname(resultPath), { recursive: true });
-    await writeFile(resultPath, JSON.stringify(failure, null, 2));
-  }
-  emit(failure);
+  await writeResultAndEmit(resultPath, failure);
 } finally {
   await closeAll(
     [

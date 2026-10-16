@@ -7,7 +7,7 @@ import { dirname, resolve } from "node:path";
 import { chromium } from "@playwright/test";
 import { createFixture } from "./fixtures.mjs";
 import { startFinalReplayServer } from "./replay.mjs";
-import { closeAll, withTimeout } from "./diagnostics.mjs";
+import { closeAll, withTimeout, writeResultAndEmit } from "./diagnostics.mjs";
 
 const [controlPath, resultPath] = process.argv.slice(2);
 const { version: playwrightVersion } = createRequire(import.meta.url)(
@@ -31,10 +31,6 @@ const logs = {
 
 function stage(name) {
   process.stderr.write(`${new Date().toISOString()} ${name}\n`);
-}
-
-function emit(value) {
-  process.stdout.write(`${JSON.stringify(value)}\n`);
 }
 
 async function writeJson(path, payload) {
@@ -391,8 +387,7 @@ try {
     frame_intervals_ms: frameIntervalsMs,
     diagnostics: logs,
   };
-  await writeJson(resultPath, output);
-  emit(output);
+  await writeResultAndEmit(resultPath, output);
 } catch (error) {
   const text = String(error);
   const failureKind =
@@ -426,8 +421,7 @@ try {
     replay: {},
     frame_intervals_ms: [],
   };
-  if (resultPath) await writeJson(resultPath, output);
-  emit(output);
+  await writeResultAndEmit(resultPath, output);
 } finally {
   await closeAll([
     ["page", page],

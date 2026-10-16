@@ -121,12 +121,20 @@ and [Docker artifact sharing](https://docs.docker.com/build/ci/github-actions/sh
 
 ## Evaluation failure diagnostics
 
-During validation, the existing RQ3 headless paired smoke failed intermittently in
-one run while the same source passed other CI/rehearsal runs. Its pass criteria
-remain unchanged. CI now preserves failed evaluation test directories (browser
-logs, observations and screenshots) for seven days, and the smoke assertion prints
-the failing observation. A recurrence blocks release and can be investigated from
-the `evaluation-failure-*` artifact; it is not automatically retried or ignored.
+Pinned GTS and Graphviz source downloads use bounded retries for transient HTTP
+errors, including upstream 503 responses. Every downloaded archive still has to
+match its pinned SHA-256 checksum before extraction and compilation.
+
+Browser evaluation runners serialize each final result once and write the same
+immutable JSON record to the result file and stdout. This prevents Playwright's
+live request-timing objects changing between the two outputs, which previously
+caused successful browser runs to be rejected as protocol failures.
+
+The result-file/stdout consistency check and smoke pass criteria remain strict.
+CI preserves failed evaluation test directories (browser logs, observations and
+screenshots) for seven days, and the smoke assertion prints the failing
+observation. A failure blocks release and can be investigated from the
+`evaluation-failure-*` artifact; it is not automatically retried or ignored.
 
 ## Recovery
 
