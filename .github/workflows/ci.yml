@@ -316,6 +316,18 @@ jobs:
           (cd eval && python -m ruff check src tests && python -m ruff format --check src tests)
           PYTHONPATH=eval/src:code/server/src python -m pytest -q eval/tests --basetemp="$RUNNER_TEMP/phylo-lens-eval-tests"
 
+      - name: Reproduce intermittent RQ3 smoke on the GitHub runner
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          RQ3_SMOKE: "1"
+          PYTHONPATH: eval/src:code/server/src
+        run: |
+          for attempt in $(seq 1 16); do
+            echo "RQ3 reproduction $attempt/16"
+            python -m pytest -q eval/tests/pilots/test_rq3.py::test_tiny_headless_paired_smoke \
+              --basetemp="$RUNNER_TEMP/phylo-lens-eval-tests/reproduction-$attempt" -x
+          done
+
       - name: Preserve evaluation failure diagnostics
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
