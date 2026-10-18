@@ -70,6 +70,11 @@ def main() -> None:
     parser.add_argument("command", choices=("publish", "verify", "latest", "inspect"))
     parser.add_argument("version")
     parser.add_argument("tarball", type=Path, nargs="?")
+    parser.add_argument(
+        "--no-provenance",
+        action="store_true",
+        help="Token-based recovery of an older commit: do not attest the recovery workflow as its source",
+    )
     args = parser.parse_args()
     parse_version(args.version)
     if args.command == "latest":
@@ -91,7 +96,7 @@ def main() -> None:
                 "--ignore-scripts",
                 "--access",
                 "public",
-                "--provenance",
+                "--provenance=false" if args.no_provenance else "--provenance",
                 "--registry",
                 REGISTRY,
             ],

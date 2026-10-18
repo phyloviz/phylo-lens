@@ -12,6 +12,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import recover_release
 import release_github
 import release_npm
 import release_service
@@ -164,6 +165,74 @@ class NpmTests(unittest.TestCase):
         ):
             release_npm.main()
             publish.assert_not_called()
+
+    def test_normal_and_recovery_publication_use_correct_provenance(self):
+        for recovery in (False, True):
+            arguments = ["release_npm.py", "publish", "0.2.4", "package.tgz"]
+            if recovery:
+                arguments.append("--no-provenance")
+            with (
+                self.subTest(recovery=recovery),
+                patch.object(sys, "argv", arguments),
+                patch.object(
+                    release_npm, "package_info", return_value="sha512-expected"
+                ),
+                patch.object(release_npm, "verify", side_effect=[False, True]),
+                patch.object(release_npm, "require_latest"),
+                patch.object(release_npm.subprocess, "run") as publish,
+            ):
+                release_npm.main()
+                command = publish.call_args.args[0]
+                self.assertIn(
+                    "--provenance=false" if recovery else "--provenance", command
+                )
+                self.assertIn(str(Path("package.tgz").resolve()), command)
+
+
+class RecoveryTests(unittest.TestCase):
+    def setUp(self):
+        self.run = {
+            "repository": {"full_name": "phyloviz/phylo-lens"},
+            "path": ".github/workflows/release-npm.yml",
+            "head_branch": "main",
+            "event": "push",
+            "head_sha": "release-commit",
+            "status": "completed",
+            "conclusion": "failure",
+        }
+        self.jobs = [
+            {"name": name, "conclusion": "success"}
+            for name in recover_release.REQUIRED_JOBS
+        ]
+
+    def test_original_validated_partial_release_can_be_recovered(self):
+        recover_release.validate_run(self.run, self.jobs, "release-commit")
+
+    def test_wrong_source_or_untrusted_workflow_is_rejected(self):
+        for key, value in {
+            "repository": {"full_name": "other/phylo-lens"},
+            "path": ".github/workflows/ci.yml",
+            "head_branch": "feature",
+            "event": "pull_request",
+            "head_sha": "different-commit",
+            "status": "in_progress",
+            "conclusion": "cancelled",
+        }.items():
+            with self.subTest(key=key), self.assertRaises(ValueError):
+                recover_release.validate_run(
+                    {**self.run, key: value}, self.jobs, "release-commit"
+                )
+
+    def test_every_original_validation_and_tag_reservation_must_pass(self):
+        for required in recover_release.REQUIRED_JOBS:
+            jobs = [
+                {**job, "conclusion": "failure"} if job["name"] == required else job
+                for job in self.jobs
+            ]
+            with self.subTest(job=required), self.assertRaises(ValueError):
+                recover_release.validate_run(self.run, jobs, "release-commit")
+        with self.assertRaises(ValueError):
+            recover_release.validate_run(self.run, [], "release-commit")
 
 
 class ServiceTests(unittest.TestCase):
