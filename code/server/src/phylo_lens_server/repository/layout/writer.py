@@ -43,6 +43,28 @@ def save_artifacts(
                 """,
             (artifacts.dataset.dataset_id, artifacts.layout_version, status),
         )
+    with _stage(stage_factory, "persist_artifacts.node_tree_index"):
+        execute_many_chunked(
+            connection,
+            """insert into node_tree_index(
+                dataset_id, layout_version, node_id, component_id, parent_id,
+                depth, dfs_start, dfs_end
+            ) values (?, ?, ?, ?, ?, ?, ?, ?)
+            on conflict(dataset_id, layout_version, node_id) do nothing""",
+            (
+                (
+                    artifacts.dataset.dataset_id,
+                    artifacts.layout_version,
+                    entry.node_id,
+                    entry.component_id,
+                    entry.parent_id,
+                    entry.depth,
+                    entry.start,
+                    entry.end,
+                )
+                for entry in artifacts.tree_index
+            ),
+        )
     with _stage(stage_factory, "persist_artifacts.prepared_clusters"):
         execute_many_chunked(
             connection,
@@ -463,6 +485,7 @@ def prepared_edge_rows(prepared_edges: tuple[QuotientEdge, ...]) -> Iterator[SQL
 
 
 LAYOUT_TABLES = (
+    "node_tree_index",
     "node_positions",
     "prepared_edges",
     "graph_edges",

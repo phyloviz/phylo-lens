@@ -19,11 +19,21 @@ Direct Newick input has no original profile-distance matrix, so each component
 uses the root expressed by its Newick serialization. Anonymous internal nodes
 are valid here. A direct Newick forest has one technical root per component.
 
-Components containing at most three canonical nodes remain explicit at every
-prepared tier. This includes three-node chains, which must not become one node
-plus a two-node aggregate in a larger forest. Each larger component keeps its
-own rooted hierarchy. The representation-count calculation treats the protected
-nodes as always visible. A layout fingerprint change invalidates old cached cuts.
+Small components remain explicit at every prepared tier. The preparation setting
+`lod_options.small_component_threshold` defaults to **64 canonical nodes**; zero
+disables this protection. The library exposes the same setting as
+`load({ lodPreparation: { smallComponentThreshold: 64 } })`, and the demo load
+form offers **Small component limit (nodes)**. It applies per connected component,
+including individual trees in a larger forest. It does not change force-layout
+parameters, roots, true depths or edges. Each larger component keeps its rooted
+hierarchy; representation counts include protected nodes as always visible.
+The policy participates in the layout fingerprint, so changing it prepares a new
+version instead of reusing incompatible cuts.
+
+64 is a configurable presentation default, not a structural rule or a measured
+readability optimum. A higher limit retains more explicit nodes across a forest;
+a lower limit introduces aggregation earlier. See the measured tradeoff and
+algorithm costs in [Indexed branch operations](TREE_INDEX.md).
 
 Technical roots are explicit in `Dataset.technical_roots`; the source
 records the rooting strategy. Both participate in the layout fingerprint.

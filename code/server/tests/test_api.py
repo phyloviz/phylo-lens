@@ -4,6 +4,7 @@ from time import sleep
 import pytest
 from fastapi.testclient import TestClient
 
+from phylo_lens_server.domain.lod import LodOptions
 from phylo_lens_server.http.graph.dependencies import (
     get_prepare_job_registry,
     get_prepared_layout_store,
@@ -105,6 +106,7 @@ def test_graph_prepare_materializes_layout_for_viewport_reads(client) -> None:
         client,
         {
             "format": FORMAT_NEWICK,
+            "lod_options": {"small_component_threshold": 0},
             "dataset_name": DATASET_API_TREE,
             "content": WEIGHTED_TREE_CONTENT,
         },
@@ -282,7 +284,9 @@ def test_graph_viewport_lod_zero_without_bounds_shows_root_and_pendant_cluster(
     prepared_layout_store,
 ) -> None:
     dataset = normalize_unit_distance_chain()
-    result = PreparationService(prepared_layout_store).prepare_dataset(dataset)
+    result = PreparationService(prepared_layout_store).prepare_dataset(
+        dataset, lod_options=LodOptions(small_component_threshold=0)
+    )
     app.dependency_overrides[get_prepared_layout_store] = lambda: prepared_layout_store
 
     response = client.post(
@@ -464,7 +468,9 @@ def test_graph_viewport_reads_cluster_members_without_bounds(
     prepared_layout_store,
 ) -> None:
     dataset = normalize_unit_distance_chain()
-    result = PreparationService(prepared_layout_store).prepare_dataset(dataset)
+    result = PreparationService(prepared_layout_store).prepare_dataset(
+        dataset, lod_options=LodOptions(small_component_threshold=0)
+    )
     app.dependency_overrides[get_prepared_layout_store] = lambda: prepared_layout_store
     cluster = next(
         cluster for cluster in result.artifacts.clusters if cluster.member_count > 1
@@ -496,7 +502,9 @@ def test_graph_viewport_expansion_serializes_meta_edges(
     # one boundary edge b->a as a meta-edge, while its internal
     # Edges stay ordinary (no is_meta in the payload).
     dataset = normalize_split_neighbor_tree()
-    result = PreparationService(prepared_layout_store).prepare_dataset(dataset)
+    result = PreparationService(prepared_layout_store).prepare_dataset(
+        dataset, lod_options=LodOptions(small_component_threshold=0)
+    )
     app.dependency_overrides[get_prepared_layout_store] = lambda: prepared_layout_store
     bcde_cluster = next(
         cluster

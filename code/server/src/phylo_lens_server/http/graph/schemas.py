@@ -10,6 +10,7 @@ from phylo_lens_server.domain.ancillary import (
     AncillaryField,
     AncillaryObservation,
 )
+from phylo_lens_server.domain.lod import LodOptions
 from phylo_lens_server.domain.models import SourceFormat
 from phylo_lens_server.domain.preparation import PrepareInput, PrepareOptions
 from phylo_lens_server.domain.revisions import AncillaryTable
@@ -44,6 +45,7 @@ class NormalizeRequest(BaseModel):
     )
     ancillary_data: AncillaryDataRequest | None = None
     sfdp_options: SfdpOptions = Field(default_factory=SfdpOptions)
+    lod_options: LodOptions = Field(default_factory=LodOptions)
 
     @model_validator(mode="before")
     @classmethod
@@ -73,6 +75,7 @@ class NormalizeRequest(BaseModel):
             if self.ancillary_data
             else None,
             sfdp_options=self.sfdp_options,
+            lod_options=self.lod_options,
         )
 
 
@@ -167,6 +170,15 @@ class GraphIsolate(BaseModel):
     )
 
 
+class GraphTreeIndex(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    component_id: str
+    parent_id: str | None
+    depth: int = Field(ge=0)
+    start: int = Field(ge=0)
+    end: int = Field(ge=1)
+
+
 class GraphViewportNode(BaseModel):
     id: str
     cluster_id: str
@@ -175,6 +187,7 @@ class GraphViewportNode(BaseModel):
     layout_status: LayoutStatus
     member_count: int = Field(default=1, ge=1)
     is_representative: bool = False
+    tree_index: GraphTreeIndex | None = None
     metadata: dict[str, str | float | bool | None] | None = None
     isolates: list[GraphIsolate] = Field(default_factory=list)
     ancillary_distribution: list[AncillaryObservation] = Field(default_factory=list)

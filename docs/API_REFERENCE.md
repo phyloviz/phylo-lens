@@ -134,6 +134,7 @@ Normalizes input and submits preparation of a persisted layout.
 | `dataset_name` | non-empty `string` | no | `"dataset"` | Dataset identifier and layout namespace |
 | `content` | non-empty `string` | yes | — | Newick text or allelic-profile matrix |
 | `options.allow_self_loops` | `boolean` | no | `false` | Permit self-loop edges during domain validation |
+| `lod_options.small_component_threshold` | integer ≥ 0 | no | `64` | Components with this many canonical nodes or fewer stay explicit at every prepared tier; zero disables protection. |
 | `metadata_schema` | `AncillaryField[]` | no | `[]` | Declared public metadata types |
 | `metadata_by_node_id` | object | no | `{}` | Direct metadata keyed by canonical node ID |
 | `ancillary_data` | `AncillaryDataRequest \| null` | no | `null` | CSV/TSV metadata joined to nodes |
@@ -197,7 +198,8 @@ JSON
 
 The service derives a `layout_version` fingerprint from the canonical dataset,
 including topology, distances, metadata, ancillary rows, source semantics, and
-the explicit layout-pipeline version. Identical submissions may reuse an active
+the preparation policy (`lod_options`), layout options, and explicit layout-pipeline
+version. Identical submissions may reuse an active
 or completed job. A metadata change produces a different layout version.
 
 ---
@@ -266,7 +268,7 @@ status, explicit timeout, stderr, and error detail when those values exist.
 | `edge_count` | non-negative `integer` | Canonical edge count |
 | `cluster_count` | non-negative `integer` | Number of materialized cluster records across tiers |
 | `lod_tier_count` | integer ≥ 1 | Number of semantic-zoom tiers |
-| `technical_roots` | `string[]` | One technical root per component, used to orient manual branch collapse |
+| `technical_roots` | `string[]` | One technical root per component; canonical rooting origins |
 | `layout_status` | `LayoutStatus` | `ready` for a successful current preparation |
 | `warnings` | `string[]` | Normalization, ancillary, distance, or forest warnings |
 
@@ -388,6 +390,7 @@ returned node count exceed the primary `max_nodes` read.
 | `layout_status` | `LayoutStatus` | Status of the stored position |
 | `member_count` | integer ≥ 1 | Number of canonical graph nodes represented; not the number of isolates sharing a profile |
 | `is_representative` | `boolean` | Whether the node is acting as a cluster representative |
+| `tree_index` | object or omitted | Immutable canonical subtree index: `component_id`, optional `parent_id` (omitted/null for roots), nonnegative `depth`, and half-open integer interval `[start, end)`. Missing on older prepared layouts. |
 | `metadata` | object or omitted | Render metadata for the node or cluster. It includes caller-visible fields and may include internal aggregation keys that are absent from `metadata_schema`. |
 | `isolates` | array; defaults to `[]` | For an individual typing profile: original `{id, metadata}` records. Empty for Newick and multi-profile LoD representatives. Older services may omit it. |
 

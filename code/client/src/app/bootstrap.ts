@@ -102,6 +102,7 @@ export default function bootstrapClientShell(baseUrl = ''): UiShell {
     lodPlayButton: getButton(ID_LOD_PLAY_BUTTON),
     lodPauseButton: getButton(ID_LOD_PAUSE_BUTTON),
     maxNodesInput: getInput(ID_MAX_NODES_INPUT),
+    smallComponentThresholdInput: getInput('small-component-threshold'),
 
     searchInput: getInput(ID_SEARCH_INPUT),
     searchButton: getButton(ID_SEARCH_BUTTON),

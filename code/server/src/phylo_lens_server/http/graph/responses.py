@@ -14,6 +14,7 @@ from phylo_lens_server.http.graph.schemas import (
     GraphRegionResponse,
     GraphSearchMatch,
     GraphSearchResponse,
+    GraphTreeIndex,
     GraphViewportEdge,
     GraphViewportNode,
     GraphViewportResponse,
@@ -101,6 +102,9 @@ def node_response(node: ViewportNode) -> GraphViewportNode:
         member_count=node.member_count,
         is_representative=node.is_representative,
         metadata=node.metadata,
+        tree_index=GraphTreeIndex.model_validate(node.tree_index)
+        if node.tree_index
+        else None,
         isolates=[GraphIsolate.model_validate(isolate) for isolate in node.isolates],
         ancillary_distribution=list(node.ancillary_distribution),
     )

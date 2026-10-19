@@ -33,6 +33,8 @@ function makeFakeWorkbench(
     exportPng: vi.fn(),
     expandCluster: vi.fn(),
     collapseCluster: vi.fn(),
+    collapseBranch: vi.fn(),
+    expandBranch: vi.fn(),
     expandAll: vi.fn(),
     collapseAll: vi.fn(),
     setKeepExpanded: vi.fn(),

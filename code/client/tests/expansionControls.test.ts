@@ -1,3 +1,4 @@
+import { toClusterId } from '../src/contracts/graph/graphIdentifiers';
 import { describe, expect, it, vi } from 'vitest';
 import { expansionControls } from '../src/app/shell/controls/expansionControls';
 import type { GraphWorkbench } from '../src/app/workbench/graphWorkbench.types';
@@ -28,9 +29,18 @@ describe('expansion controls', () => {
       }),
       expandCluster: vi.fn(),
       collapseCluster: vi.fn(),
+      collapseBranch: vi.fn(),
+      expandBranch: vi.fn(),
     } satisfies Pick<
       GraphWorkbench,
-      'getExpansionState' | 'setKeepExpanded' | 'expandAll' | 'collapseAll' | 'expandCluster' | 'collapseCluster'
+      | 'getExpansionState'
+      | 'setKeepExpanded'
+      | 'expandAll'
+      | 'collapseAll'
+      | 'expandCluster'
+      | 'collapseCluster'
+      | 'expandBranch'
+      | 'collapseBranch'
     >;
     const keepExpanded = document.createElement('input');
     keepExpanded.type = 'checkbox';
@@ -55,4 +65,43 @@ describe('expansion controls', () => {
     expect(feedback.textContent).toContain('Network unavailable');
     controls.dispose();
   });
+});
+
+it('routes indexed members and manual markers by node ID within an expanded group', async () => {
+  const group = toClusterId('shared-group');
+  const state = {
+    keepExpanded: false,
+    expandedClusterIds: [group],
+    allExpanded: false,
+    partial: false,
+    renderedNodeCount: 3,
+  };
+  const workbench = {
+    getExpansionState: () => state,
+    setKeepExpanded: vi.fn(),
+    expandAll: vi.fn(),
+    collapseAll: vi.fn(),
+    expandCluster: vi.fn(),
+    collapseCluster: vi.fn(),
+    expandBranch: vi.fn(() => state),
+    collapseBranch: vi.fn(() => state),
+  };
+  const expandSelected = document.createElement('button');
+  const collapseSelected = document.createElement('button');
+  const controls = expansionControls(workbench, { expandSelected, collapseSelected });
+  controls.mount();
+  controls.setReady(true);
+  controls.select({ nodeId: 'internal', attributes: { clusterId: group, canCollapseBranch: true } });
+  expect(collapseSelected.disabled).toBe(false);
+  collapseSelected.click();
+  await Promise.resolve();
+  expect(workbench.collapseBranch).toHaveBeenCalledWith('internal');
+  expect(workbench.collapseCluster).not.toHaveBeenCalled();
+  controls.select({ nodeId: 'internal', attributes: { clusterId: group, isBranchCollapsed: true } });
+  expect(expandSelected.disabled).toBe(false);
+  expandSelected.click();
+  await Promise.resolve();
+  expect(workbench.expandBranch).toHaveBeenCalledWith('internal');
+  expect(workbench.expandCluster).not.toHaveBeenCalled();
+  controls.dispose();
 });

@@ -12,23 +12,33 @@ implementation and regression coverage for the eleven distinct requirements.
 | Old colors reappearing | Overrides are scoped to field combinations and cleared on new trees or successful ancillary replacement. Stale palette-file reads cannot undo Reset. | `visualMappingPalette.test.ts`, browser sequence |
 | Branch dragging | An explicit arrangement root selects loaded descendants for coherent translation, preserving topology and distance values. | `sigmaDragController.test.ts`, browser pointer sequence |
 | Clusters use hop counts | Membership uses tree hops, independently of branch distances. | `test_prepared_layout.py`, `test_lod_selection.py` |
-| Small components within forests | Components of one to three canonical nodes stay explicit at all prepared tiers; components retain separate roots and connectivity. | `test_prepared_layout.py`, `test_isolated_layout.py` |
+| Small components within forests | A configurable per-component limit (default 64, zero disables) keeps small components explicit at all tiers; roots and connectivity remain separate. | `test_prepared_layout.py`, `test_isolated_layout.py` |
 | Distance-label interval | Optional inclusive minimum/maximum bounds affect labels, including export, without hiding edges. | `edgePresentation.test.ts`, browser sequence |
 | Distance-weighted grayscale edges | Fixed grayscale encoding replaces thickness growth; edge widths and numeric distances remain unchanged. | `edgePresentation.test.ts`, `sigmaRenderer.test.ts`, browser sequence |
 | Review Select Node | Removed the redundant node dropdown and wheel scope. Canvas clicks and Search populate the selected-node panel. | `uiShell.test.ts`, browser sequence |
 
-Manual folding requires a complete canonical view: small trees load that view
-initially, and other trees can use Expand all. Partial branches are never guessed.
-New loads clear manual folds; pan, zoom, ancillary replacement and nested
-collapse/expand preserve the loaded topology. A folded node retains its own
-observations; its hidden descendants are not reinterpreted as isolates of that node.
+Manual folding uses canonical DFS intervals carried by viewport nodes. It works
+on partial slices and preserves intentions across automatic LoD, pan, zoom,
+filters and ancillary replacement. Nested folds remain recorded; search reveals
+hidden targets; a new load or Expand all clears intentions. Markers retain their
+own observations. Branch commands take node IDs; LoD group commands take cluster
+IDs, which can be shared by expanded members.
 
-Validation: 323 client tests passed, including browser-fixture type checks;
-320 server tests passed, with two database-dependent checks skipped. Client
-lint, formatting, demo/library builds, server lint/formatting, and the browser
-sequence against the real API passed. See
-[`meetingRequirements.mjs`](../../code/client/tests/browser/meetingRequirements.mjs)
+Validation includes operation-count tests on a 20,000-node chain and 10,000
+component roots, partial-slice and nested-fold tests, coarse/fine viewport
+transitions, and real-API browser controls, including a 4,095-node partial LoD view. Reproducible measurements and their
+limits are in [Indexed branch operations](../TREE_INDEX.md).
+See [`meetingRequirements.mjs`](../../code/client/tests/browser/meetingRequirements.mjs)
 and [browser test instructions](../../code/client/tests/README.md).
 
 The changed forest-cut policy has a new layout fingerprint, so cached layouts
 must be prepared again to obtain the protected small-component representation.
+
+PostgreSQL deployments must run the existing schema initializer before starting
+the revised service. Existing layouts remain readable, but must be prepared again
+to obtain subtree indices and the revised component policy.
+
+Validation for this revision: 334 client tests and 336 server tests pass; two
+database-dependent checks are skipped. Client type checks, lint, formatting and
+demo/library builds pass, as do server lint/formatting and the real-API browser
+sequence.

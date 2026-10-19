@@ -1,5 +1,6 @@
 import type { GraphLayoutBounds } from './graph/viewport/GraphLayoutBounds';
 import type { AncillaryObservation, Isolate, NodeAnnotations } from './ancillary';
+import type { TreeIndex } from './graph/TreeIndex';
 import type { Point } from './Point';
 export const LAYOUT_FORCE = 'force';
 export const LAYOUT_RADIAL = 'radial';
@@ -10,6 +11,7 @@ export type LayoutMode = typeof LAYOUT_FORCE | typeof LAYOUT_RADIAL | typeof LAY
 
 /** Known ancillary values stay typed; hosts may supply other readonly attributes. */
 export type GraphNodeAttributes = Readonly<Record<string, unknown>> & {
+  readonly treeIndex?: TreeIndex;
   readonly annotations?: NodeAnnotations;
   readonly isolates?: readonly Isolate[];
   readonly ancillaryDistribution?: readonly AncillaryObservation[];

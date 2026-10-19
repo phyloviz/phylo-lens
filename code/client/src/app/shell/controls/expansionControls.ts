@@ -1,6 +1,6 @@
 import { toError } from '../../errors';
 import { reduceExpansionControls, type ExpansionControlAction, type ExpansionControlState } from './expansionState';
-import { toClusterId } from '../../../contracts/graph/graphIdentifiers';
+import { toClusterId, toNodeId } from '../../../contracts/graph/graphIdentifiers';
 import type { GraphWorkbench } from '../../workbench/graphWorkbench.types';
 import type { RenderNodeClickState } from '../../../render/renderer.types';
 import type { ExpansionState, ExpansionResult } from '../../../contracts/expansion';
@@ -19,7 +19,14 @@ export interface ExpansionControlsElements {
 export function expansionControls(
   workbench: Pick<
     GraphWorkbench,
-    'getExpansionState' | 'setKeepExpanded' | 'expandAll' | 'collapseAll' | 'expandCluster' | 'collapseCluster'
+    | 'getExpansionState'
+    | 'setKeepExpanded'
+    | 'expandAll'
+    | 'collapseAll'
+    | 'expandCluster'
+    | 'collapseCluster'
+    | 'expandBranch'
+    | 'collapseBranch'
   >,
   elements: ExpansionControlsElements = {}
 ) {
@@ -41,7 +48,8 @@ export function expansionControls(
     const expansion = ready ? workbench.getExpansionState() : null;
     const expanded = expansion?.expandedClusterIds.includes(clusterId()) ?? false;
     if (elements.expandSelected)
-      elements.expandSelected.disabled = !ready || busy || expanded || selection()?.expandable !== true;
+      elements.expandSelected.disabled =
+        !ready || busy || (expanded && selection()?.manuallyCollapsed !== true) || selection()?.expandable !== true;
     if (elements.collapseSelected)
       elements.collapseSelected.disabled =
         !ready || busy || selection()?.manuallyCollapsed === true || (!expanded && selection()?.collapsible !== true);
@@ -87,10 +95,20 @@ export function expansionControls(
   return {
     mount() {
       bindings.on(elements.expandSelected, 'click', () => {
-        void run(() => workbench.expandCluster(clusterId()));
+        void run(() => {
+          const selected = selection();
+          return selected?.manuallyCollapsed && selected.nodeId
+            ? workbench.expandBranch(toNodeId(selected.nodeId))
+            : workbench.expandCluster(clusterId());
+        });
       });
       bindings.on(elements.collapseSelected, 'click', () => {
-        void run(() => workbench.collapseCluster(clusterId()));
+        void run(() => {
+          const selected = selection();
+          return selected?.collapsible && selected.nodeId
+            ? workbench.collapseBranch(toNodeId(selected.nodeId))
+            : workbench.collapseCluster(clusterId());
+        });
       });
       bindings.on(elements.expandAll, 'click', () => {
         void run(() => workbench.expandAll());
@@ -129,6 +147,7 @@ export function expansionControls(
         selected: node
           ? {
               ...selected,
+              clusterId: toClusterId(String(node.attributes?.clusterId ?? node.id)),
               expandable: node.attributes?.isClusterProxy === true || node.attributes?.isBranchCollapsed === true,
               collapsible: node.attributes?.canCollapseBranch === true,
               manuallyCollapsed: node.attributes?.isBranchCollapsed === true,

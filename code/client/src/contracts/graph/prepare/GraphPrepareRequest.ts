@@ -1,3 +1,4 @@
+import type { LodPreparationOptions } from '../LodPreparationOptions';
 import type { SourceFormat } from '../../models';
 import type { AncillaryField, AncillaryData, AncillaryDataInput } from '../../ancillary';
 import type { SfdpOptions } from '../SfdpOptions';
@@ -17,4 +18,5 @@ export type GraphPrepareRequest = {
   readonly ancillaryData?: AncillaryDataInput;
 
   readonly sfdpOptions?: SfdpOptions;
+  readonly lodPreparation?: LodPreparationOptions;
 };

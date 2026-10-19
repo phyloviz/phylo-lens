@@ -12,6 +12,7 @@ from phylo_lens_server.domain.legacy_metadata import (
     decode_node_annotations,
     is_summary_key,
 )
+from phylo_lens_server.domain.lod import LodOptions
 from phylo_lens_server.domain.models import Dataset
 from phylo_lens_server.domain.preparation import PreparationSummary
 from phylo_lens_server.domain.sfdp import SfdpOptions, resolve_sfdp_options
@@ -69,6 +70,7 @@ class ClaimedPrepareJob:
     dataset: Dataset
     warnings: tuple[str, ...]
     sfdp_options: SfdpOptions = field(default_factory=SfdpOptions)
+    lod_options: LodOptions = field(default_factory=LodOptions)
 
 
 class DurablePrepareJobStore(Protocol):
@@ -82,6 +84,7 @@ class DurablePrepareJobStore(Protocol):
         warnings: tuple[str, ...] = (),
         *,
         sfdp_options: SfdpOptions | None = None,
+        lod_options: LodOptions | None = None,
         max_active_jobs: int | None = None,
     ) -> str: ...
 
@@ -138,14 +141,18 @@ class PostgresPrepareJobStore:
         warnings: tuple[str, ...] = (),
         *,
         sfdp_options: SfdpOptions | None = None,
+        lod_options: LodOptions | None = None,
         max_active_jobs: int | None = None,
     ) -> str:
         validate_max_active_jobs(max_active_jobs)
         dataset_id = dataset.dataset_id
         resolved_sfdp_options = resolve_sfdp_options(sfdp_options)
-        layout_version = layout_version_for_dataset(dataset, resolved_sfdp_options)
+        layout_version = layout_version_for_dataset(
+            dataset, resolved_sfdp_options, lod_options
+        )
         payload = {
             "dataset": dataset.model_dump(mode="json"),
+            "lod_options": (lod_options or LodOptions()).model_dump(mode="json"),
             "sfdp_options": resolved_sfdp_options.model_dump(
                 mode="json",
                 by_alias=True,
@@ -241,6 +248,9 @@ class PostgresPrepareJobStore:
                 row["dataset_payload"].get("dataset", row["dataset_payload"])
             ),
             warnings=tuple(row["warnings"] or ()),
+            lod_options=LodOptions.model_validate(
+                row["dataset_payload"].get("lod_options", {})
+            ),
             sfdp_options=SfdpOptions.model_validate(
                 row["dataset_payload"].get("sfdp_options", {})
             ),

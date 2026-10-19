@@ -6,6 +6,7 @@ from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from typing import Literal, Protocol
 
+from phylo_lens_server.domain.lod import LodOptions
 from phylo_lens_server.domain.models import Dataset
 from phylo_lens_server.domain.preparation import (
     PreparationSummary,
@@ -52,7 +53,11 @@ class PrepareJobSnapshot:
 
 class PrepareWorker(Protocol):
     def submit_prepare_dataset(
-        self, dataset: Dataset, *, sfdp_options: SfdpOptions | None = None
+        self,
+        dataset: Dataset,
+        *,
+        sfdp_options: SfdpOptions | None = None,
+        lod_options: LodOptions | None = None,
     ) -> Future[PreparedLayoutResult]: ...
     def shutdown(self) -> None: ...
 
@@ -65,6 +70,7 @@ class PrepareJobs(Protocol):
         warnings: tuple[str, ...] = (),
         *,
         sfdp_options: SfdpOptions | None = None,
+        lod_options: LodOptions | None = None,
         reserved_capacity: bool = False,
     ) -> str: ...
     def snapshot(self, job_id: str) -> PrepareJobSnapshot | None: ...

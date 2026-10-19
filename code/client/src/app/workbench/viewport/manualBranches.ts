@@ -1,88 +1,116 @@
-import type { PositionedGraph } from '../../../contracts/positioned';
+import type { PositionedGraph, PositionedNode } from '../../../contracts/positioned';
+import type { TreeIndex } from '../../../contracts/graph/TreeIndex';
 
-/** Orient loaded canonical components from the preparation's technical roots. */
-export function branchChildren(graph: PositionedGraph, roots: readonly string[]): Map<string, string[]> {
-  const neighbors = new Map(graph.nodes.map(node => [node.id, [] as string[]]));
-  for (const edge of graph.edges) {
-    neighbors.get(edge.source)?.push(edge.target);
-    neighbors.get(edge.target)?.push(edge.source);
+type Fold = TreeIndex & { readonly rootId: string };
+
+/**
+ * Intent is keyed by canonical node, independent of viewport slices and LoD IDs.
+ * DFS subtree intervals are nested or disjoint. Cache their disjoint outer cover
+ * on mutation, then query it by binary search for each incoming representation.
+ */
+export class ManualBranches {
+  private readonly intentions = new Map<string, Fold>();
+  private cover: readonly Fold[] = [];
+
+  get size(): number {
+    return this.intentions.size;
   }
-  const children = new Map<string, string[]>();
-  for (const root of roots) {
-    if (!neighbors.has(root)) continue;
-    const parent = new Map<string, string | null>([[root, null]]);
-    const queue = [root];
-    for (let i = 0; i < queue.length; i++) {
-      const id = queue[i];
-      const descendants: string[] = [];
-      for (const neighbor of neighbors.get(id) ?? []) {
-        if (neighbor === parent.get(id)) continue;
-        if (parent.has(neighbor)) throw new Error('Manual branch collapse requires an acyclic component.');
-        parent.set(neighbor, id);
-        descendants.push(neighbor);
-        queue.push(neighbor);
-      }
-      children.set(id, descendants);
+
+  clear(): void {
+    this.intentions.clear();
+    this.cover = [];
+  }
+
+  collapse(node: PositionedNode): boolean {
+    const index = node.attributes?.treeIndex;
+    if (!index || node.attributes?.isClusterProxy === true || index.end - index.start <= 1) return false;
+    this.intentions.set(node.id, { ...index, rootId: node.id });
+    this.rebuild();
+    return true;
+  }
+
+  collapseRoots(graph: PositionedGraph): void {
+    for (const node of graph.nodes) {
+      const index = node.attributes?.treeIndex;
+      if (index?.parentId === null && node.attributes?.isClusterProxy !== true && index.end - index.start > 1)
+        this.intentions.set(node.id, { ...index, rootId: node.id });
     }
+    this.rebuild();
   }
-  return children;
-}
 
-export function branchDescendants(children: ReadonlyMap<string, readonly string[]>, root: string): Set<string> {
-  const descendants = new Set<string>();
-  const queue = [...(children.get(root) ?? [])];
-  for (let i = 0; i < queue.length; i++) {
-    const id = queue[i];
-    if (descendants.has(id)) continue;
-    descendants.add(id);
-    for (const child of children.get(id) ?? []) queue.push(child);
+  expand(rootId: string): boolean {
+    if (!this.intentions.delete(rootId)) return false;
+    this.rebuild();
+    return true;
   }
-  return descendants;
-}
 
-/** Manual folds keep the original node's identity and observations; only descendants are hidden. */
-export function applyBranchFolds(
-  graph: PositionedGraph,
-  foldedRoots: ReadonlySet<string>,
-  children: ReadonlyMap<string, readonly string[]>
-): PositionedGraph {
-  if (children.size === 0 && foldedRoots.size === 0) return graph;
-  const hidden = new Set<string>();
-  const counts = new Map<string, number>();
-  const visibleIds = new Set(graph.nodes.map(node => node.id));
-  for (const root of foldedRoots) {
-    // A filtered-out marker must not make otherwise matching nodes unreachable.
-    if (!visibleIds.has(root)) continue;
-    const descendants = branchDescendants(children, root);
-    counts.set(root, descendants.size);
-    for (const id of descendants) hidden.add(id);
+  /** Search reveals its target, retaining unrelated and nested descendant choices. */
+  reveal(index: TreeIndex): void {
+    let changed = false;
+    for (const [id, fold] of this.intentions)
+      if (fold.componentId === index.componentId && fold.start <= index.start && index.start < fold.end) {
+        this.intentions.delete(id);
+        changed = true;
+      }
+    if (changed) this.rebuild();
   }
-  const nodes = graph.nodes
-    .filter(node => !hidden.has(node.id))
-    .map(node => {
-      const count = counts.get(node.id) ?? 0;
-      const attributes = {
-        ...node.attributes,
-        canCollapseBranch: (children.get(node.id)?.length ?? 0) > 0,
-        isBranchCollapsed: count > 0,
-        collapsedBranchCount: count,
-        ...(count > 0
-          ? {
-              type: 'border',
-              borderColor: '#0f766e',
-              label: node.attributes?.label ? `${node.id} (+${count})` : '',
-              forceLabel: Boolean(node.attributes?.label),
-            }
-          : {}),
-      };
-      return { ...node, attributes };
-    });
-  const ids = new Set(nodes.map(node => node.id));
-  const edges = graph.edges.filter(edge => ids.has(edge.source) && ids.has(edge.target));
-  return {
-    ...graph,
-    nodes,
-    edges,
-    viewMeta: { ...graph.viewMeta, sliceNodeCount: nodes.length, sliceEdgeCount: edges.length },
-  };
+
+  apply(graph: PositionedGraph): PositionedGraph {
+    const nodes: PositionedNode[] = [];
+    for (const node of graph.nodes) {
+      const index = node.attributes?.treeIndex;
+      const fold = index ? this.containing(index.start) : undefined;
+      if (fold && index && fold.start < index.start && index.start < fold.end) continue;
+      // A coarser aggregate may subsume a manual choice. Retain its normal LoD
+      // appearance; the choice becomes visible again when that tier is refined.
+      const ordinary = node.attributes?.isClusterProxy !== true;
+      const count = ordinary && fold?.rootId === node.id ? fold.end - fold.start - 1 : 0;
+      nodes.push({
+        ...node,
+        attributes: {
+          ...node.attributes,
+          canCollapseBranch: ordinary && index !== undefined && index.end - index.start > 1,
+          isBranchCollapsed: count > 0,
+          collapsedBranchCount: count,
+          ...(count > 0
+            ? {
+                type: 'border',
+                borderColor: '#0f766e',
+                label: node.attributes?.label ? `${node.id} (+${count})` : '',
+                forceLabel: Boolean(node.attributes?.label),
+              }
+            : {}),
+        },
+      });
+    }
+    const ids = new Set(nodes.map(node => node.id));
+    const edges = graph.edges.filter(edge => ids.has(edge.source) && ids.has(edge.target));
+    return {
+      ...graph,
+      nodes,
+      edges,
+      viewMeta: { ...graph.viewMeta, sliceNodeCount: nodes.length, sliceEdgeCount: edges.length },
+    };
+  }
+
+  private rebuild(): void {
+    const sorted = [...this.intentions.values()].sort((a, b) => a.start - b.start);
+    const cover: Fold[] = [];
+    for (const fold of sorted) {
+      const previous = cover[cover.length - 1];
+      if (!previous || fold.start >= previous.end) cover.push(fold);
+    }
+    this.cover = cover;
+  }
+
+  private containing(start: number): Fold | undefined {
+    let low = 0;
+    let high = this.cover.length;
+    while (low < high) {
+      const middle = low + Math.floor((high - low) / 2);
+      if (this.cover[middle].start <= start) low = middle + 1;
+      else high = middle;
+    }
+    return low > 0 ? this.cover[low - 1] : undefined;
+  }
 }

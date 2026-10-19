@@ -173,6 +173,7 @@ function buildGraphViewportNodeAttributes(
     label: isRepresentative || !showNodeLabel ? '' : node.id,
     color,
     clusterId: node.clusterId,
+    treeIndex: node.treeIndex,
     memberCount: node.memberCount,
     isClusterProxy: isRepresentative || undefined,
     type: isRepresentative ? GRAPH_VIEWER_TRIANGLE_NODE_TYPE : undefined,

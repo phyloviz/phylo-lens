@@ -72,7 +72,7 @@
           "min_y": 0.0
         },
         "layout_status": "ready",
-        "layout_version": "c7d192a54bdcd41406edf4ffd87a886e58eadb7555da6accdfe4b994660b4283",
+        "layout_version": "bfd2c75c222182f6238aac75cc42d529cab70588317c11455668cd6b9ae1cf67",
         "metadata_schema": [
           {
             "key": "country",
@@ -99,6 +99,13 @@
               "profile_count": 1.0,
               "year": 2024.0
             },
+            "tree_index": {
+              "component_id": "root",
+              "depth": 5,
+              "end": 10,
+              "parent_id": "x",
+              "start": 9
+            },
             "x": 0.0,
             "y": 0.0
           },
@@ -117,6 +124,13 @@
               "profile_count": 1.0,
               "year": 2023.0
             },
+            "tree_index": {
+              "component_id": "root",
+              "depth": 5,
+              "end": 11,
+              "parent_id": "x",
+              "start": 10
+            },
             "x": 1.0,
             "y": 1.0
           },
@@ -128,6 +142,13 @@
             "isolates": [],
             "layout_status": "ready",
             "member_count": 1,
+            "tree_index": {
+              "component_id": "root",
+              "depth": 4,
+              "end": 8,
+              "parent_id": "y",
+              "start": 7
+            },
             "x": 2.0,
             "y": 2.0
           },
@@ -139,6 +160,13 @@
             "isolates": [],
             "layout_status": "ready",
             "member_count": 1,
+            "tree_index": {
+              "component_id": "root",
+              "depth": 3,
+              "end": 6,
+              "parent_id": "z",
+              "start": 5
+            },
             "x": 3.0,
             "y": 0.0
           },
@@ -150,6 +178,13 @@
             "isolates": [],
             "layout_status": "ready",
             "member_count": 1,
+            "tree_index": {
+              "component_id": "root",
+              "depth": 2,
+              "end": 4,
+              "parent_id": "w",
+              "start": 3
+            },
             "x": 4.0,
             "y": 1.0
           },
@@ -161,6 +196,13 @@
             "isolates": [],
             "layout_status": "ready",
             "member_count": 1,
+            "tree_index": {
+              "component_id": "root",
+              "depth": 1,
+              "end": 2,
+              "parent_id": "root",
+              "start": 1
+            },
             "x": 5.0,
             "y": 2.0
           },
@@ -172,6 +214,12 @@
             "isolates": [],
             "layout_status": "ready",
             "member_count": 1,
+            "tree_index": {
+              "component_id": "g",
+              "depth": 0,
+              "end": 12,
+              "start": 11
+            },
             "x": 6.0,
             "y": 0.0
           },
@@ -183,6 +231,12 @@
             "isolates": [],
             "layout_status": "ready",
             "member_count": 1,
+            "tree_index": {
+              "component_id": "root",
+              "depth": 0,
+              "end": 11,
+              "start": 0
+            },
             "x": 7.0,
             "y": 1.0
           },
@@ -194,6 +248,13 @@
             "isolates": [],
             "layout_status": "ready",
             "member_count": 1,
+            "tree_index": {
+              "component_id": "root",
+              "depth": 1,
+              "end": 11,
+              "parent_id": "root",
+              "start": 2
+            },
             "x": 8.0,
             "y": 2.0
           },
@@ -205,6 +266,13 @@
             "isolates": [],
             "layout_status": "ready",
             "member_count": 1,
+            "tree_index": {
+              "component_id": "root",
+              "depth": 4,
+              "end": 11,
+              "parent_id": "y",
+              "start": 8
+            },
             "x": 9.0,
             "y": 0.0
           },
@@ -216,6 +284,13 @@
             "isolates": [],
             "layout_status": "ready",
             "member_count": 1,
+            "tree_index": {
+              "component_id": "root",
+              "depth": 3,
+              "end": 11,
+              "parent_id": "z",
+              "start": 6
+            },
             "x": 10.0,
             "y": 1.0
           },
@@ -227,6 +302,13 @@
             "isolates": [],
             "layout_status": "ready",
             "member_count": 1,
+            "tree_index": {
+              "component_id": "root",
+              "depth": 2,
+              "end": 11,
+              "parent_id": "w",
+              "start": 4
+            },
             "x": 11.0,
             "y": 2.0
           }
@@ -249,7 +331,7 @@
           },
           "response": {
             "dataset_id": "contract-forest",
-            "layout_version": "221d3e754fc6843f",
+            "layout_version": "df560c239520d17a",
             "matches": [
               {
                 "cluster_id": "lod_2_a",
@@ -280,7 +362,7 @@
           },
           "response": {
             "dataset_id": "contract-forest",
-            "layout_version": "221d3e754fc6843f",
+            "layout_version": "df560c239520d17a",
             "matches": [],
             "query": "Iso B",
             "total_count": 0
@@ -294,7 +376,7 @@
           },
           "response": {
             "dataset_id": "contract-forest",
-            "layout_version": "221d3e754fc6843f",
+            "layout_version": "df560c239520d17a",
             "matches": [
               {
                 "cluster_id": "lod_2_a",
@@ -317,7 +399,7 @@
           },
           "response": {
             "dataset_id": "contract-forest",
-            "layout_version": "221d3e754fc6843f",
+            "layout_version": "df560c239520d17a",
             "matches": [],
             "query": "",
             "total_count": 0
@@ -331,7 +413,7 @@
           },
           "response": {
             "dataset_id": "contract-forest",
-            "layout_version": "221d3e754fc6843f",
+            "layout_version": "df560c239520d17a",
             "matches": [],
             "query": "%",
             "total_count": 0
@@ -345,7 +427,7 @@
           },
           "response": {
             "dataset_id": "contract-forest",
-            "layout_version": "221d3e754fc6843f",
+            "layout_version": "df560c239520d17a",
             "matches": [],
             "query": "union_",
             "total_count": 0
@@ -372,7 +454,7 @@
             "dataset_id": "contract-forest",
             "edges": [],
             "layout_status": "ready",
-            "layout_version": "221d3e754fc6843f",
+            "layout_version": "df560c239520d17a",
             "metadata_schema": [
               {
                 "key": "country",
@@ -399,6 +481,13 @@
                   "profile_count": 1.0,
                   "year": 2020.0
                 },
+                "tree_index": {
+                  "component_id": "root",
+                  "depth": 5,
+                  "end": 10,
+                  "parent_id": "x",
+                  "start": 9
+                },
                 "x": 0.0,
                 "y": 0.0
               },
@@ -417,6 +506,13 @@
                   "profile_count": 1.0,
                   "year": 2022.0
                 },
+                "tree_index": {
+                  "component_id": "root",
+                  "depth": 5,
+                  "end": 11,
+                  "parent_id": "x",
+                  "start": 10
+                },
                 "x": 1.0,
                 "y": 1.0
               },
@@ -428,6 +524,13 @@
                 "isolates": [],
                 "layout_status": "ready",
                 "member_count": 1,
+                "tree_index": {
+                  "component_id": "root",
+                  "depth": 4,
+                  "end": 8,
+                  "parent_id": "y",
+                  "start": 7
+                },
                 "x": 2.0,
                 "y": 2.0
               },
@@ -439,6 +542,13 @@
                 "isolates": [],
                 "layout_status": "ready",
                 "member_count": 1,
+                "tree_index": {
+                  "component_id": "root",
+                  "depth": 3,
+                  "end": 6,
+                  "parent_id": "z",
+                  "start": 5
+                },
                 "x": 3.0,
                 "y": 0.0
               }
@@ -469,7 +579,7 @@
             "dataset_id": "contract-forest",
             "edges": [],
             "layout_status": "ready",
-            "layout_version": "221d3e754fc6843f",
+            "layout_version": "df560c239520d17a",
             "metadata_schema": [
               {
                 "key": "country",
@@ -496,6 +606,13 @@
                   "profile_count": 1.0,
                   "year": 2020.0
                 },
+                "tree_index": {
+                  "component_id": "root",
+                  "depth": 5,
+                  "end": 10,
+                  "parent_id": "x",
+                  "start": 9
+                },
                 "x": 0.0,
                 "y": 0.0
               },
@@ -513,6 +630,13 @@
                   "country": "Spain",
                   "profile_count": 1.0,
                   "year": 2022.0
+                },
+                "tree_index": {
+                  "component_id": "root",
+                  "depth": 5,
+                  "end": 11,
+                  "parent_id": "x",
+                  "start": 10
                 },
                 "x": 1.0,
                 "y": 1.0
@@ -535,7 +659,7 @@
             "dataset_id": "contract-forest",
             "edges": [],
             "layout_status": "pending",
-            "layout_version": "221d3e754fc6843f",
+            "layout_version": "df560c239520d17a",
             "metadata_schema": [
               {
                 "key": "country",
@@ -627,7 +751,7 @@
               "min_y": 0.0
             },
             "layout_status": "ready",
-            "layout_version": "221d3e754fc6843f",
+            "layout_version": "df560c239520d17a",
             "metadata_schema": [
               {
                 "key": "country",
@@ -654,6 +778,13 @@
                   "profile_count": 1.0,
                   "year": 2020.0
                 },
+                "tree_index": {
+                  "component_id": "root",
+                  "depth": 5,
+                  "end": 10,
+                  "parent_id": "x",
+                  "start": 9
+                },
                 "x": 0.0,
                 "y": 0.0
               },
@@ -672,6 +803,13 @@
                   "profile_count": 1.0,
                   "year": 2022.0
                 },
+                "tree_index": {
+                  "component_id": "root",
+                  "depth": 5,
+                  "end": 11,
+                  "parent_id": "x",
+                  "start": 10
+                },
                 "x": 1.0,
                 "y": 1.0
               },
@@ -683,6 +821,13 @@
                 "isolates": [],
                 "layout_status": "ready",
                 "member_count": 1,
+                "tree_index": {
+                  "component_id": "root",
+                  "depth": 4,
+                  "end": 8,
+                  "parent_id": "y",
+                  "start": 7
+                },
                 "x": 2.0,
                 "y": 2.0
               },
@@ -694,6 +839,13 @@
                 "isolates": [],
                 "layout_status": "ready",
                 "member_count": 1,
+                "tree_index": {
+                  "component_id": "root",
+                  "depth": 3,
+                  "end": 6,
+                  "parent_id": "z",
+                  "start": 5
+                },
                 "x": 3.0,
                 "y": 0.0
               },
@@ -705,6 +857,13 @@
                 "isolates": [],
                 "layout_status": "ready",
                 "member_count": 1,
+                "tree_index": {
+                  "component_id": "root",
+                  "depth": 2,
+                  "end": 4,
+                  "parent_id": "w",
+                  "start": 3
+                },
                 "x": 4.0,
                 "y": 1.0
               },
@@ -716,6 +875,13 @@
                 "isolates": [],
                 "layout_status": "ready",
                 "member_count": 1,
+                "tree_index": {
+                  "component_id": "root",
+                  "depth": 1,
+                  "end": 2,
+                  "parent_id": "root",
+                  "start": 1
+                },
                 "x": 5.0,
                 "y": 2.0
               },
@@ -727,6 +893,12 @@
                 "isolates": [],
                 "layout_status": "ready",
                 "member_count": 1,
+                "tree_index": {
+                  "component_id": "g",
+                  "depth": 0,
+                  "end": 12,
+                  "start": 11
+                },
                 "x": 6.0,
                 "y": 0.0
               },
@@ -738,6 +910,12 @@
                 "isolates": [],
                 "layout_status": "ready",
                 "member_count": 1,
+                "tree_index": {
+                  "component_id": "root",
+                  "depth": 0,
+                  "end": 11,
+                  "start": 0
+                },
                 "x": 7.0,
                 "y": 1.0
               },
@@ -749,6 +927,13 @@
                 "isolates": [],
                 "layout_status": "ready",
                 "member_count": 1,
+                "tree_index": {
+                  "component_id": "root",
+                  "depth": 1,
+                  "end": 11,
+                  "parent_id": "root",
+                  "start": 2
+                },
                 "x": 8.0,
                 "y": 2.0
               },
@@ -760,6 +945,13 @@
                 "isolates": [],
                 "layout_status": "ready",
                 "member_count": 1,
+                "tree_index": {
+                  "component_id": "root",
+                  "depth": 4,
+                  "end": 11,
+                  "parent_id": "y",
+                  "start": 8
+                },
                 "x": 9.0,
                 "y": 0.0
               },
@@ -771,6 +963,13 @@
                 "isolates": [],
                 "layout_status": "ready",
                 "member_count": 1,
+                "tree_index": {
+                  "component_id": "root",
+                  "depth": 3,
+                  "end": 11,
+                  "parent_id": "z",
+                  "start": 6
+                },
                 "x": 10.0,
                 "y": 1.0
               },
@@ -782,6 +981,13 @@
                 "isolates": [],
                 "layout_status": "ready",
                 "member_count": 1,
+                "tree_index": {
+                  "component_id": "root",
+                  "depth": 2,
+                  "end": 11,
+                  "parent_id": "w",
+                  "start": 4
+                },
                 "x": 11.0,
                 "y": 2.0
               }
@@ -819,7 +1025,7 @@
               "min_y": 0.0
             },
             "layout_status": "ready",
-            "layout_version": "221d3e754fc6843f",
+            "layout_version": "df560c239520d17a",
             "lod_level": 0,
             "metadata_schema": [
               {
@@ -868,6 +1074,13 @@
                   "profile_count": 2.0,
                   "year": 2021.0
                 },
+                "tree_index": {
+                  "component_id": "root",
+                  "depth": 1,
+                  "end": 11,
+                  "parent_id": "root",
+                  "start": 2
+                },
                 "x": 8.0,
                 "y": 2.0
               },
@@ -885,6 +1098,13 @@
                 "layout_status": "ready",
                 "member_count": 1,
                 "metadata": {},
+                "tree_index": {
+                  "component_id": "root",
+                  "depth": 1,
+                  "end": 2,
+                  "parent_id": "root",
+                  "start": 1
+                },
                 "x": 5.0,
                 "y": 2.0
               },
@@ -902,6 +1122,12 @@
                 "layout_status": "ready",
                 "member_count": 1,
                 "metadata": {},
+                "tree_index": {
+                  "component_id": "g",
+                  "depth": 0,
+                  "end": 12,
+                  "start": 11
+                },
                 "x": 6.0,
                 "y": 0.0
               },
@@ -919,6 +1145,12 @@
                 "layout_status": "ready",
                 "member_count": 1,
                 "metadata": {},
+                "tree_index": {
+                  "component_id": "root",
+                  "depth": 0,
+                  "end": 11,
+                  "start": 0
+                },
                 "x": 7.0,
                 "y": 1.0
               }
@@ -980,7 +1212,7 @@
               "min_y": 0.0
             },
             "layout_status": "ready",
-            "layout_version": "221d3e754fc6843f",
+            "layout_version": "df560c239520d17a",
             "lod_level": 1,
             "metadata_schema": [
               {
@@ -1029,6 +1261,13 @@
                   "profile_count": 2.0,
                   "year": 2021.0
                 },
+                "tree_index": {
+                  "component_id": "root",
+                  "depth": 3,
+                  "end": 11,
+                  "parent_id": "z",
+                  "start": 6
+                },
                 "x": 10.0,
                 "y": 1.0
               },
@@ -1046,6 +1285,13 @@
                 "layout_status": "ready",
                 "member_count": 1,
                 "metadata": {},
+                "tree_index": {
+                  "component_id": "root",
+                  "depth": 3,
+                  "end": 6,
+                  "parent_id": "z",
+                  "start": 5
+                },
                 "x": 3.0,
                 "y": 0.0
               },
@@ -1063,6 +1309,13 @@
                 "layout_status": "ready",
                 "member_count": 1,
                 "metadata": {},
+                "tree_index": {
+                  "component_id": "root",
+                  "depth": 2,
+                  "end": 4,
+                  "parent_id": "w",
+                  "start": 3
+                },
                 "x": 4.0,
                 "y": 1.0
               },
@@ -1080,6 +1333,13 @@
                 "layout_status": "ready",
                 "member_count": 1,
                 "metadata": {},
+                "tree_index": {
+                  "component_id": "root",
+                  "depth": 1,
+                  "end": 2,
+                  "parent_id": "root",
+                  "start": 1
+                },
                 "x": 5.0,
                 "y": 2.0
               },
@@ -1097,6 +1357,12 @@
                 "layout_status": "ready",
                 "member_count": 1,
                 "metadata": {},
+                "tree_index": {
+                  "component_id": "g",
+                  "depth": 0,
+                  "end": 12,
+                  "start": 11
+                },
                 "x": 6.0,
                 "y": 0.0
               },
@@ -1114,6 +1380,12 @@
                 "layout_status": "ready",
                 "member_count": 1,
                 "metadata": {},
+                "tree_index": {
+                  "component_id": "root",
+                  "depth": 0,
+                  "end": 11,
+                  "start": 0
+                },
                 "x": 7.0,
                 "y": 1.0
               },
@@ -1131,6 +1403,13 @@
                 "layout_status": "ready",
                 "member_count": 1,
                 "metadata": {},
+                "tree_index": {
+                  "component_id": "root",
+                  "depth": 1,
+                  "end": 11,
+                  "parent_id": "root",
+                  "start": 2
+                },
                 "x": 8.0,
                 "y": 2.0
               },
@@ -1148,6 +1427,13 @@
                 "layout_status": "ready",
                 "member_count": 1,
                 "metadata": {},
+                "tree_index": {
+                  "component_id": "root",
+                  "depth": 2,
+                  "end": 11,
+                  "parent_id": "w",
+                  "start": 4
+                },
                 "x": 11.0,
                 "y": 2.0
               }
@@ -1233,7 +1519,7 @@
               "min_y": 0.0
             },
             "layout_status": "ready",
-            "layout_version": "221d3e754fc6843f",
+            "layout_version": "df560c239520d17a",
             "lod_level": 100,
             "metadata_schema": [
               {
@@ -1261,6 +1547,13 @@
                   "profile_count": 1.0,
                   "year": 2020.0
                 },
+                "tree_index": {
+                  "component_id": "root",
+                  "depth": 5,
+                  "end": 10,
+                  "parent_id": "x",
+                  "start": 9
+                },
                 "x": 0.0,
                 "y": 0.0
               },
@@ -1279,6 +1572,13 @@
                   "profile_count": 1.0,
                   "year": 2022.0
                 },
+                "tree_index": {
+                  "component_id": "root",
+                  "depth": 5,
+                  "end": 11,
+                  "parent_id": "x",
+                  "start": 10
+                },
                 "x": 1.0,
                 "y": 1.0
               },
@@ -1290,6 +1590,13 @@
                 "isolates": [],
                 "layout_status": "ready",
                 "member_count": 1,
+                "tree_index": {
+                  "component_id": "root",
+                  "depth": 4,
+                  "end": 8,
+                  "parent_id": "y",
+                  "start": 7
+                },
                 "x": 2.0,
                 "y": 2.0
               },
@@ -1301,6 +1608,13 @@
                 "isolates": [],
                 "layout_status": "ready",
                 "member_count": 1,
+                "tree_index": {
+                  "component_id": "root",
+                  "depth": 3,
+                  "end": 6,
+                  "parent_id": "z",
+                  "start": 5
+                },
                 "x": 3.0,
                 "y": 0.0
               },
@@ -1312,6 +1626,13 @@
                 "isolates": [],
                 "layout_status": "ready",
                 "member_count": 1,
+                "tree_index": {
+                  "component_id": "root",
+                  "depth": 2,
+                  "end": 4,
+                  "parent_id": "w",
+                  "start": 3
+                },
                 "x": 4.0,
                 "y": 1.0
               },
@@ -1323,6 +1644,13 @@
                 "isolates": [],
                 "layout_status": "ready",
                 "member_count": 1,
+                "tree_index": {
+                  "component_id": "root",
+                  "depth": 1,
+                  "end": 2,
+                  "parent_id": "root",
+                  "start": 1
+                },
                 "x": 5.0,
                 "y": 2.0
               },
@@ -1334,6 +1662,12 @@
                 "isolates": [],
                 "layout_status": "ready",
                 "member_count": 1,
+                "tree_index": {
+                  "component_id": "g",
+                  "depth": 0,
+                  "end": 12,
+                  "start": 11
+                },
                 "x": 6.0,
                 "y": 0.0
               },
@@ -1345,6 +1679,12 @@
                 "isolates": [],
                 "layout_status": "ready",
                 "member_count": 1,
+                "tree_index": {
+                  "component_id": "root",
+                  "depth": 0,
+                  "end": 11,
+                  "start": 0
+                },
                 "x": 7.0,
                 "y": 1.0
               },
@@ -1356,6 +1696,13 @@
                 "isolates": [],
                 "layout_status": "ready",
                 "member_count": 1,
+                "tree_index": {
+                  "component_id": "root",
+                  "depth": 1,
+                  "end": 11,
+                  "parent_id": "root",
+                  "start": 2
+                },
                 "x": 8.0,
                 "y": 2.0
               },
@@ -1367,6 +1714,13 @@
                 "isolates": [],
                 "layout_status": "ready",
                 "member_count": 1,
+                "tree_index": {
+                  "component_id": "root",
+                  "depth": 4,
+                  "end": 11,
+                  "parent_id": "y",
+                  "start": 8
+                },
                 "x": 9.0,
                 "y": 0.0
               },
@@ -1378,6 +1732,13 @@
                 "isolates": [],
                 "layout_status": "ready",
                 "member_count": 1,
+                "tree_index": {
+                  "component_id": "root",
+                  "depth": 3,
+                  "end": 11,
+                  "parent_id": "z",
+                  "start": 6
+                },
                 "x": 10.0,
                 "y": 1.0
               },
@@ -1389,6 +1750,13 @@
                 "isolates": [],
                 "layout_status": "ready",
                 "member_count": 1,
+                "tree_index": {
+                  "component_id": "root",
+                  "depth": 2,
+                  "end": 11,
+                  "parent_id": "w",
+                  "start": 4
+                },
                 "x": 11.0,
                 "y": 2.0
               }
@@ -1424,7 +1792,7 @@
               "min_y": 0.0
             },
             "layout_status": "ready",
-            "layout_version": "221d3e754fc6843f",
+            "layout_version": "df560c239520d17a",
             "metadata_schema": [
               {
                 "key": "country",
@@ -1451,6 +1819,13 @@
                   "profile_count": 1.0,
                   "year": 2020.0
                 },
+                "tree_index": {
+                  "component_id": "root",
+                  "depth": 5,
+                  "end": 10,
+                  "parent_id": "x",
+                  "start": 9
+                },
                 "x": 0.0,
                 "y": 0.0
               },
@@ -1462,6 +1837,13 @@
                 "isolates": [],
                 "layout_status": "ready",
                 "member_count": 1,
+                "tree_index": {
+                  "component_id": "root",
+                  "depth": 4,
+                  "end": 11,
+                  "parent_id": "y",
+                  "start": 8
+                },
                 "x": 9.0,
                 "y": 0.0
               }
@@ -1501,7 +1883,7 @@
               "min_y": 0.0
             },
             "layout_status": "ready",
-            "layout_version": "221d3e754fc6843f",
+            "layout_version": "df560c239520d17a",
             "lod_level": 0,
             "metadata_schema": [
               {
@@ -1550,6 +1932,13 @@
                   "profile_count": 2.0,
                   "year": 2021.0
                 },
+                "tree_index": {
+                  "component_id": "root",
+                  "depth": 1,
+                  "end": 11,
+                  "parent_id": "root",
+                  "start": 2
+                },
                 "x": 8.0,
                 "y": 2.0
               },
@@ -1567,6 +1956,13 @@
                 "layout_status": "ready",
                 "member_count": 1,
                 "metadata": {},
+                "tree_index": {
+                  "component_id": "root",
+                  "depth": 1,
+                  "end": 2,
+                  "parent_id": "root",
+                  "start": 1
+                },
                 "x": 5.0,
                 "y": 2.0
               },
@@ -1584,6 +1980,12 @@
                 "layout_status": "ready",
                 "member_count": 1,
                 "metadata": {},
+                "tree_index": {
+                  "component_id": "g",
+                  "depth": 0,
+                  "end": 12,
+                  "start": 11
+                },
                 "x": 6.0,
                 "y": 0.0
               },
@@ -1601,6 +2003,12 @@
                 "layout_status": "ready",
                 "member_count": 1,
                 "metadata": {},
+                "tree_index": {
+                  "component_id": "root",
+                  "depth": 0,
+                  "end": 11,
+                  "start": 0
+                },
                 "x": 7.0,
                 "y": 1.0
               }
@@ -1635,7 +2043,7 @@
               "min_y": 0.0
             },
             "layout_status": "ready",
-            "layout_version": "221d3e754fc6843f",
+            "layout_version": "df560c239520d17a",
             "metadata_schema": [
               {
                 "key": "country",
@@ -1655,6 +2063,13 @@
                 "isolates": [],
                 "layout_status": "ready",
                 "member_count": 1,
+                "tree_index": {
+                  "component_id": "root",
+                  "depth": 1,
+                  "end": 11,
+                  "parent_id": "root",
+                  "start": 2
+                },
                 "x": 8.0,
                 "y": 2.0
               },
@@ -1673,6 +2088,13 @@
                   "profile_count": 1.0,
                   "year": 2020.0
                 },
+                "tree_index": {
+                  "component_id": "root",
+                  "depth": 5,
+                  "end": 10,
+                  "parent_id": "x",
+                  "start": 9
+                },
                 "x": 0.0,
                 "y": 0.0
               },
@@ -1690,6 +2112,12 @@
                 "layout_status": "ready",
                 "member_count": 1,
                 "metadata": {},
+                "tree_index": {
+                  "component_id": "root",
+                  "depth": 0,
+                  "end": 11,
+                  "start": 0
+                },
                 "x": 7.0,
                 "y": 1.0
               }
@@ -1702,7 +2130,7 @@
       ],
       "replacement": {
         "dataset_id": "contract-forest",
-        "layout_version": "c7d192a54bdcd41406edf4ffd87a886e58eadb7555da6accdfe4b994660b4283",
+        "layout_version": "bfd2c75c222182f6238aac75cc42d529cab70588317c11455668cd6b9ae1cf67",
         "matched_node_count": 2,
         "warnings": [
           "Ancillary data did not include rows for 10 joinable nodes."
@@ -1715,7 +2143,10 @@
         },
         "content": "(((((A:0,B:1)X:2,C:3)Y:4,D:5)Z:6,E:7)W:8,F:9)Root; G;",
         "dataset_name": "contract-forest",
-        "format": "newick"
+        "format": "newick",
+        "lod_options": {
+          "small_component_threshold": 3
+        }
       },
       "status": {
         "job_id": "<job>",
@@ -1724,7 +2155,7 @@
           "dataset_id": "contract-forest",
           "edge_count": 10,
           "layout_status": "ready",
-          "layout_version": "221d3e754fc6843f",
+          "layout_version": "df560c239520d17a",
           "lod_tier_count": 3,
           "node_count": 12,
           "technical_roots": [
@@ -1754,7 +2185,7 @@
           "min_y": 0.0
         },
         "layout_status": "ready",
-        "layout_version": "c36447164ae109cb37910ce6ee0a3c0b200adcce806e30c82e11721b1830a26d",
+        "layout_version": "0aee9be1ed6f784d0606d88ad8c6479b3cad1237aa18dfa06cc51fe26303f29b",
         "metadata_schema": [
           {
             "key": "country",
@@ -1798,6 +2229,12 @@
               "profile_count": 2.0,
               "year": "2024.0;2023.0"
             },
+            "tree_index": {
+              "component_id": "iso_a",
+              "depth": 0,
+              "end": 1,
+              "start": 0
+            },
             "x": 0.0,
             "y": 0.0
           }
@@ -1820,7 +2257,7 @@
           },
           "response": {
             "dataset_id": "contract-profiles",
-            "layout_version": "b4b0eeaf709be57d",
+            "layout_version": "4aa699fe5c672c65",
             "matches": [
               {
                 "cluster_id": "lod_0_iso_a",
@@ -1843,7 +2280,7 @@
           },
           "response": {
             "dataset_id": "contract-profiles",
-            "layout_version": "b4b0eeaf709be57d",
+            "layout_version": "4aa699fe5c672c65",
             "matches": [
               {
                 "cluster_id": "lod_0_iso_a",
@@ -1866,7 +2303,7 @@
           },
           "response": {
             "dataset_id": "contract-profiles",
-            "layout_version": "b4b0eeaf709be57d",
+            "layout_version": "4aa699fe5c672c65",
             "matches": [
               {
                 "cluster_id": "lod_0_iso_a",
@@ -1889,7 +2326,7 @@
           },
           "response": {
             "dataset_id": "contract-profiles",
-            "layout_version": "b4b0eeaf709be57d",
+            "layout_version": "4aa699fe5c672c65",
             "matches": [],
             "query": "",
             "total_count": 0
@@ -1903,7 +2340,7 @@
           },
           "response": {
             "dataset_id": "contract-profiles",
-            "layout_version": "b4b0eeaf709be57d",
+            "layout_version": "4aa699fe5c672c65",
             "matches": [],
             "query": "%",
             "total_count": 0
@@ -1917,7 +2354,7 @@
           },
           "response": {
             "dataset_id": "contract-profiles",
-            "layout_version": "b4b0eeaf709be57d",
+            "layout_version": "4aa699fe5c672c65",
             "matches": [],
             "query": "union_",
             "total_count": 0
@@ -1944,7 +2381,7 @@
             "dataset_id": "contract-profiles",
             "edges": [],
             "layout_status": "ready",
-            "layout_version": "b4b0eeaf709be57d",
+            "layout_version": "4aa699fe5c672c65",
             "metadata_schema": [
               {
                 "key": "country",
@@ -1987,6 +2424,12 @@
                   "country": "Portugal;Spain",
                   "profile_count": 2.0,
                   "year": "2020.0;2022.0"
+                },
+                "tree_index": {
+                  "component_id": "iso_a",
+                  "depth": 0,
+                  "end": 1,
+                  "start": 0
                 },
                 "x": 0.0,
                 "y": 0.0
@@ -2018,7 +2461,7 @@
             "dataset_id": "contract-profiles",
             "edges": [],
             "layout_status": "ready",
-            "layout_version": "b4b0eeaf709be57d",
+            "layout_version": "4aa699fe5c672c65",
             "metadata_schema": [
               {
                 "key": "country",
@@ -2062,6 +2505,12 @@
                   "profile_count": 2.0,
                   "year": "2020.0;2022.0"
                 },
+                "tree_index": {
+                  "component_id": "iso_a",
+                  "depth": 0,
+                  "end": 1,
+                  "start": 0
+                },
                 "x": 0.0,
                 "y": 0.0
               }
@@ -2083,7 +2532,7 @@
             "dataset_id": "contract-profiles",
             "edges": [],
             "layout_status": "pending",
-            "layout_version": "b4b0eeaf709be57d",
+            "layout_version": "4aa699fe5c672c65",
             "metadata_schema": [
               {
                 "key": "country",
@@ -2114,7 +2563,7 @@
               "min_y": 0.0
             },
             "layout_status": "ready",
-            "layout_version": "b4b0eeaf709be57d",
+            "layout_version": "4aa699fe5c672c65",
             "metadata_schema": [
               {
                 "key": "country",
@@ -2158,6 +2607,12 @@
                   "profile_count": 2.0,
                   "year": "2020.0;2022.0"
                 },
+                "tree_index": {
+                  "component_id": "iso_a",
+                  "depth": 0,
+                  "end": 1,
+                  "start": 0
+                },
                 "x": 0.0,
                 "y": 0.0
               }
@@ -2182,7 +2637,7 @@
               "min_y": 0.0
             },
             "layout_status": "ready",
-            "layout_version": "b4b0eeaf709be57d",
+            "layout_version": "4aa699fe5c672c65",
             "lod_level": 0,
             "metadata_schema": [
               {
@@ -2227,6 +2682,12 @@
                   "profile_count": 2.0,
                   "year": "2020.0;2022.0"
                 },
+                "tree_index": {
+                  "component_id": "iso_a",
+                  "depth": 0,
+                  "end": 1,
+                  "start": 0
+                },
                 "x": 0.0,
                 "y": 0.0
               }
@@ -2251,7 +2712,7 @@
               "min_y": 0.0
             },
             "layout_status": "ready",
-            "layout_version": "b4b0eeaf709be57d",
+            "layout_version": "4aa699fe5c672c65",
             "lod_level": 1,
             "metadata_schema": [
               {
@@ -2296,6 +2757,12 @@
                   "profile_count": 2.0,
                   "year": "2020.0;2022.0"
                 },
+                "tree_index": {
+                  "component_id": "iso_a",
+                  "depth": 0,
+                  "end": 1,
+                  "start": 0
+                },
                 "x": 0.0,
                 "y": 0.0
               }
@@ -2320,7 +2787,7 @@
               "min_y": 0.0
             },
             "layout_status": "ready",
-            "layout_version": "b4b0eeaf709be57d",
+            "layout_version": "4aa699fe5c672c65",
             "lod_level": 100,
             "metadata_schema": [
               {
@@ -2365,6 +2832,12 @@
                   "profile_count": 2.0,
                   "year": "2020.0;2022.0"
                 },
+                "tree_index": {
+                  "component_id": "iso_a",
+                  "depth": 0,
+                  "end": 1,
+                  "start": 0
+                },
                 "x": 0.0,
                 "y": 0.0
               }
@@ -2393,7 +2866,7 @@
               "min_y": 0.0
             },
             "layout_status": "ready",
-            "layout_version": "b4b0eeaf709be57d",
+            "layout_version": "4aa699fe5c672c65",
             "metadata_schema": [
               {
                 "key": "country",
@@ -2437,6 +2910,12 @@
                   "profile_count": 2.0,
                   "year": "2020.0;2022.0"
                 },
+                "tree_index": {
+                  "component_id": "iso_a",
+                  "depth": 0,
+                  "end": 1,
+                  "start": 0
+                },
                 "x": 0.0,
                 "y": 0.0
               }
@@ -2463,7 +2942,7 @@
               "min_y": 0.0
             },
             "layout_status": "ready",
-            "layout_version": "b4b0eeaf709be57d",
+            "layout_version": "4aa699fe5c672c65",
             "lod_level": 0,
             "metadata_schema": [
               {
@@ -2508,6 +2987,12 @@
                   "profile_count": 2.0,
                   "year": "2020.0;2022.0"
                 },
+                "tree_index": {
+                  "component_id": "iso_a",
+                  "depth": 0,
+                  "end": 1,
+                  "start": 0
+                },
                 "x": 0.0,
                 "y": 0.0
               }
@@ -2520,7 +3005,7 @@
       ],
       "replacement": {
         "dataset_id": "contract-profiles",
-        "layout_version": "c36447164ae109cb37910ce6ee0a3c0b200adcce806e30c82e11721b1830a26d",
+        "layout_version": "0aee9be1ed6f784d0606d88ad8c6479b3cad1237aa18dfa06cc51fe26303f29b",
         "matched_node_count": 1,
         "warnings": []
       },
@@ -2531,7 +3016,10 @@
         },
         "content": "id\tL1\tL2\nIso A\t1\t2\nIso B\t1\t2\n",
         "dataset_name": "contract-profiles",
-        "format": "typing_data"
+        "format": "typing_data",
+        "lod_options": {
+          "small_component_threshold": 3
+        }
       },
       "status": {
         "job_id": "<job>",
@@ -2540,7 +3028,7 @@
           "dataset_id": "contract-profiles",
           "edge_count": 0,
           "layout_status": "ready",
-          "layout_version": "b4b0eeaf709be57d",
+          "layout_version": "4aa699fe5c672c65",
           "lod_tier_count": 1,
           "node_count": 1,
           "technical_roots": [

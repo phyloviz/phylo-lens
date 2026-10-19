@@ -34,6 +34,17 @@
                 Dataset name
                 <input id="dataset-name-input" type="text" value="demo-tree" />
               </label>
+              <label>
+                Small component limit (nodes)
+                <input
+                  id="small-component-threshold"
+                  type="number"
+                  min="0"
+                  step="1"
+                  value="64"
+                  title="Components with this many nodes or fewer remain fully visible at every detail level. Zero disables this protection. Applies when loading a tree."
+                />
+              </label>
 
               <label>
                 Input type

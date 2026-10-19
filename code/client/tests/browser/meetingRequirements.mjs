@@ -54,6 +54,9 @@ try {
       return { x: bounds.left + p.x, y: bounds.top + p.y };
     }, id);
     await page.mouse.click(point.x, point.y);
+    // Selection may coincide with the 240 ms LoD transition. Commands wait
+    // until its manipulation guard releases, as a completed interaction would.
+    await page.waitForTimeout(300);
   };
   await load('requirements-browser');
   console.log('Loaded product tree.');
@@ -192,6 +195,70 @@ try {
   assert.deepEqual(after.edges, before.edges);
   assert.deepEqual(errors, []);
   await page.screenshot({ path: process.env.REQUIREMENTS_SCREENSHOT ?? join(tmpdir(), 'phylo-lens-requirements.png') });
+  // A larger tree starts as a partial LoD slice. Fold its root using only the
+  // streamed interval, then verify that camera queries continue while folded.
+  const total = 4095;
+  const binaryTree = i =>
+    i >= total ? '' : i * 2 + 1 >= total ? `n${i}:1` : `(${binaryTree(i * 2 + 1)},${binaryTree(i * 2 + 2)})n${i}:1`;
+  await page.locator('#dataset-name-input').fill('requirements-streamed-index');
+  await page.locator('#small-component-threshold').fill('32');
+  await page
+    .locator('#newick-file-input')
+    .setInputFiles({ name: 'indexed.nwk', mimeType: 'text/plain', buffer: Buffer.from(binaryTree(0) + ';') });
+  const preparation = page.waitForRequest(
+    request => request.url().endsWith('/api/graph/prepare') && request.method() === 'POST'
+  );
+  await page.locator('button[type=submit]').click();
+  assert.equal((await preparation).postDataJSON().lod_options.small_component_threshold, 32);
+  await page.waitForFunction(
+    () =>
+      window.requirementsSigma.getGraph().hasNode('n0') &&
+      document.querySelector('#status').textContent.includes('Rendered'),
+    undefined,
+    { timeout: 30000 }
+  );
+  await page.waitForTimeout(600);
+  const partialOrder = await page.evaluate(() => window.requirementsSigma.getGraph().order);
+  assert.ok(partialOrder > 1 && partialOrder < total);
+  await page.waitForLoadState('networkidle');
+  await page.evaluate(
+    () =>
+      new Promise(resolve => {
+        let frames = 0;
+        const tick = () => (++frames < 32 ? requestAnimationFrame(tick) : resolve());
+        requestAnimationFrame(tick);
+      })
+  );
+  await clickNode('n0');
+  await page.waitForLoadState('networkidle');
+  await page.locator('#collapse-selected').click();
+  await page.waitForFunction(() => window.requirementsSigma.getGraph().order === 1);
+  assert.equal(
+    await page.evaluate(() => window.requirementsSigma.getGraph().getNodeAttribute('n0', 'collapsedBranchCount')),
+    total - 1
+  );
+  // Snapshot application suppresses its own camera events for one frame.
+  await page.waitForTimeout(50);
+  const refreshed = page.waitForResponse(
+    response => response.url().endsWith('/api/graph/viewport') && response.request().method() === 'POST'
+  );
+  await page.evaluate(() => {
+    const camera = window.requirementsSigma.getCamera();
+    camera.setState({ ratio: camera.getState().ratio * 1.2 });
+  });
+  const viewport = await refreshed;
+  assert.equal(viewport.status(), 200);
+  assert.equal(typeof viewport.request().postDataJSON().xmin, 'number');
+  await page.waitForFunction(
+    () =>
+      window.requirementsSigma.getGraph().order === 1 &&
+      document.querySelector('#expansion-feedback').textContent.includes('manually collapsed')
+  );
+  await page.locator('#expand-selected').click();
+  await page.waitForFunction(() => window.requirementsSigma.getGraph().order > 1);
+  assert.ok((await page.evaluate(() => window.requirementsSigma.getGraph().order)) < total);
+  assert.deepEqual(errors, []);
+  console.log('Streamed collapse, configurable preparation, and live viewport refresh passed.');
   console.log(
     'Browser requirements passed: manual branches, display bounds, grayscale, palette lifecycle, node selection, and branch dragging.'
   );
@@ -200,11 +267,13 @@ try {
     console.error(
       await page.evaluate(() => ({
         status: document.querySelector('#status')?.textContent,
+        feedback: document.querySelector('#expansion-feedback')?.textContent,
         shell: Boolean(window.requirementsShell),
         sigma: Boolean(window.requirementsSigma),
         nodes: window.requirementsSigma
           ?.getGraph()
-          .mapNodes((id, a) => ({ id, collapsed: a.isBranchCollapsed, collapsible: a.canCollapseBranch })),
+          .mapNodes((id, a) => ({ id, collapsed: a.isBranchCollapsed, collapsible: a.canCollapseBranch }))
+          .slice(0, 20),
       }))
     );
     await page.screenshot({ path: join(tmpdir(), 'phylo-lens-requirements-failure.png') });

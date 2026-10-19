@@ -8,26 +8,33 @@ to collapse it. Commands preserve the camera.
 
 ## Manual branch collapse
 
-An ordinary internal node can also be collapsed when the complete canonical
-tree is loaded. Descendants are determined by a rooted traversal from the
-preparation's `technical_roots`: the serialization root for each Newick component,
-or the computed technical root for a typing tree. The arrangement root used for
-dragging does not change this parent/child relationship.
+An ordinary internal node can be collapsed in a streamed viewport. Preparation
+assigns every canonical node a half-open DFS subtree interval, parent, component
+and true hop depth. Viewport responses carry the index for their returned nodes;
+the browser does not need a full canonical snapshot to identify descendants.
+Parentage follows the Newick serialization root or the typing tree's technical
+root. The arrangement root used for dragging does not change it.
 
-A manually collapsed node stays circular, with a teal ring and, when node labels
-are enabled, a `(+N)` label for hidden descendants. A server LoD aggregate stays triangular. Manual collapse
-preserves the selected node's identity and observations; it does not merge the
-hidden descendants into that node's ancillary data. The selected-node panel
-reports the hidden count. Leaves cannot be collapsed.
+A manual marker stays circular, with a teal ring and, when labels are enabled,
+a `(+N)` label for its canonical descendants. A server LoD aggregate stays
+triangular. The marker retains its own identity and observations; hidden nodes
+are not merged into its ancillary data. Leaves cannot be collapsed.
 
-Use the selected node's existing `clusterId` with `collapseCluster` and
-`expandCluster` for these local folds. Expand restores its original descendants
-and edges. Search also opens folds hiding its target. Manual folds retain the
-complete source snapshot through pan, zoom and ancillary replacement; a new
-dataset resets them. Explicit expand-all clears manual folds. Collapse-all on a
-complete or known-small tree folds each component at its technical root.
-On a bounded or partial view, use expand-all first; membership is never guessed
-from an incomplete branch.
+Use `collapseBranch(nodeId)` and `expandBranch(nodeId)` for manual branches;
+use `collapseCluster(clusterId)` and `expandCluster(clusterId)` for LoD groups.
+These identities differ: members of an expanded group can share a cluster ID.
+Manual commands are local and synchronous. Expanding a marker restores the
+representations and edges available in the current slice; normal viewport reads
+continue to supply the rest as the user navigates.
+
+Fold intentions survive pan, zoom, filters and ancillary replacement. A coarser
+LoD aggregate can subsume a fold temporarily; its normal triangle remains and
+the manual marker returns when detail reveals that node again. Expanding an
+outer manual fold retains nested fold choices. Search opens containing folds to
+reveal its hidden target. Filters do not clear folds. A new dataset or Expand all
+clears them. Collapse all requests the global coarsest tier, then folds each
+returned component root in one batch. Explicit node budgets can make that result
+partial. [Indexed branch operations](TREE_INDEX.md) describes costs and invariants.
 
 ## Host API
 
@@ -37,6 +44,8 @@ The package exports `ExpansionState` and `ExpansionResult` alongside these metho
 view.setKeepExpanded(true);
 const result = await view.expandCluster(clusterId);
 view.collapseCluster(clusterId);
+view.collapseBranch(nodeId);
+view.expandBranch(nodeId);
 const all = await view.expandAll();
 await view.collapseAll();
 const state = view.getExpansionState();
@@ -47,11 +56,12 @@ Call these after `await view.load(...)`. Calls before a tree is ready, after
 persistence. `onNodeSelected` supplies `{ nodeId, clusterId, expandable }` for host
 controls. `onExpansionChanged` reports state after graph updates. Selection itself
 never sends an expansion request.
-For a complete canonical tree, selection also supplies `collapsible`; a manual
+For an indexed internal node, selection also supplies `collapsible`; a manual
 marker supplies `manuallyCollapsed: true` and `expandable: true`.
 
 `expandCluster`, `expandAll` and `collapseAll` return a promise of `ExpansionResult`.
-`collapseCluster` and `setKeepExpanded` return the current `ExpansionState`.
+`collapseCluster`, `collapseBranch`, `expandBranch` and `setKeepExpanded` return
+the current `ExpansionState`.
 
 ```ts
 interface ExpansionState {
@@ -87,8 +97,8 @@ explicit patches on the next accepted response. It does not freeze the camera.
 Expand-all requests the finest tier over the whole dataset. A count budget
 applies only when `load({ lod: { maxNodes } })` explicitly supplies one; otherwise
 every original node is returned. With persistence enabled this global
-snapshot stays at finest detail while zooming. For other views, collapse-all clears explicit state
-and requests the global coarsest tier. Automatic zoom can change that tier again
+snapshot stays at finest detail while zooming. Collapse-all clears explicit state, requests the global coarsest tier and folds
+its component roots. Automatic zoom can change that tier again
 when persistence is off. Individual collapse applies to individually expanded
 groups; use collapse-all to leave an expand-all snapshot.
 

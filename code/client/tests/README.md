@@ -32,3 +32,8 @@ temporary directory).
 
 The navigation and zoom fixtures also need a running graph service and a Newick
 fixture. `tests/browser/tsconfig.json` checks these browser fixtures separately.
+
+The meeting sequence also loads a 4,095-node binary tree with a custom component
+limit, folds its root from a partial LoD slice, and verifies that a bounded camera
+request still occurs while folded. Expanding the marker restores the current
+slice without fetching the whole tree.

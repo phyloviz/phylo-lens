@@ -23,6 +23,7 @@ it('maps wire fields and takes ownership of ancillary rows, observations and sch
         layout_status: 'ready',
         member_count: 1,
         is_representative: false,
+        tree_index: { component_id: 'A', parent_id: null, depth: 0, start: 0, end: 2 },
         metadata: { country: 'PT' },
         isolates: [{ id: 'isolate', metadata: { country: 'PT' } }],
         ancillary_distribution: [{ values: { country: 'PT' }, count: 1 }],
@@ -30,6 +31,7 @@ it('maps wire fields and takes ownership of ancillary rows, observations and sch
     ],
   } satisfies GraphViewportResponseDto;
   const result = toGraphViewportResult(dto);
+  dto.nodes[0].tree_index.end = 999;
   dto.metadata_schema[0].key = 'changed';
   dto.nodes[0].isolates[0].metadata.country = 'changed';
   dto.nodes[0].ancillary_distribution[0].values.country = 'changed';
@@ -41,6 +43,7 @@ it('maps wire fields and takes ownership of ancillary rows, observations and sch
   });
   expect(result.nodes[0]).toMatchObject({
     id: 'A',
+    treeIndex: { componentId: 'A', parentId: null, depth: 0, start: 0, end: 2 },
     clusterId: 'cluster',
     annotations: { ancillaryData: { country: 'PT' } },
     isolates: [{ id: 'isolate', ancillaryData: { country: 'PT' } }],

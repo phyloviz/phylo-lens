@@ -7,6 +7,7 @@ from concurrent.futures import Future
 from contextlib import contextmanager
 
 from phylo_lens_server.domain.identity import layout_version_for_dataset
+from phylo_lens_server.domain.lod import LodOptions
 from phylo_lens_server.domain.models import Dataset
 from phylo_lens_server.domain.preparation import (
     PreparationSummary,
@@ -60,9 +61,10 @@ class PrepareJobRegistry:
         warnings: tuple[str, ...] = (),
         *,
         sfdp_options: SfdpOptions | None = None,
+        lod_options: LodOptions | None = None,
         reserved_capacity: bool = False,
     ) -> str:
-        layout_key = prepare_layout_key(dataset, sfdp_options)
+        layout_key = prepare_layout_key(dataset, sfdp_options, lod_options)
         with self._lock:
             reusable_job_id = self._reusable_job_id_locked(layout_key)
             if reusable_job_id is not None:
@@ -74,6 +76,7 @@ class PrepareJobRegistry:
             future = self._worker.submit_prepare_dataset(
                 dataset,
                 sfdp_options=sfdp_options,
+                lod_options=lod_options,
             )
             self._futures[job_id] = future
             self._warnings[job_id] = warnings
@@ -168,8 +171,12 @@ class PrepareJobRegistry:
 def prepare_layout_key(
     dataset: Dataset,
     sfdp_options: SfdpOptions | None = None,
+    lod_options: LodOptions | None = None,
 ) -> PrepareLayoutKey:
-    return (dataset.dataset_id, layout_version_for_dataset(dataset, sfdp_options))
+    return (
+        dataset.dataset_id,
+        layout_version_for_dataset(dataset, sfdp_options, lod_options),
+    )
 
 
 def is_reusable_future(future: Future[PreparedLayoutResult]) -> bool:

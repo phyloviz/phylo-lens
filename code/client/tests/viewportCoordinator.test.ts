@@ -121,12 +121,21 @@ describe('GraphViewportCoordinator', () => {
     vi.restoreAllMocks();
   });
 
-  it('folds ordinary descendants using technical roots, preserves folds on zoom, and restores exact edges', async () => {
+  it('folds indexed descendants across streamed viewports and ancillary replacement, and restores exact edges', async () => {
     const renderer = createRenderer();
+    const indices = [
+      { componentId: 'z-root', parentId: null, depth: 0, start: 0, end: 4 },
+      { componentId: 'z-root', parentId: 'z-root', depth: 1, start: 1, end: 3 },
+      { componentId: 'z-root', parentId: 'a-branch', depth: 2, start: 2, end: 3 },
+      { componentId: 'z-root', parentId: 'z-root', depth: 1, start: 3, end: 4 },
+      { componentId: 'other-root', parentId: null, depth: 0, start: 4, end: 6 },
+      { componentId: 'other-root', parentId: 'other-root', depth: 1, start: 5, end: 6 },
+    ];
     const nodes = ['z-root', 'a-branch', 'b-leaf', 'sibling', 'other-root', 'other-leaf'].map((id, i) => ({
       annotations: nodeAnnotations(),
       id: toNodeId(id),
       clusterId: toClusterId(`single-${id}`),
+      treeIndex: indices[i],
       x: i,
       y: i,
       layoutStatus: 'ready' as const,
@@ -154,14 +163,14 @@ describe('GraphViewportCoordinator', () => {
       client: { readViewport },
       renderer,
       nodeCount: 6,
-      technicalRoots: ['z-root', 'other-root'],
     });
     controller.mount();
     await vi.advanceTimersByTimeAsync(0);
     const original = renderer.appliedGraphs.at(-1)!;
     expect(original.nodes.find(node => node.id === 'a-branch')?.attributes?.canCollapseBranch).toBe(true);
     expect(original.nodes.find(node => node.id === 'b-leaf')?.attributes?.canCollapseBranch).toBe(false);
-    controller.collapseCluster(toClusterId('single-a-branch'));
+    viewportState = { ...viewportState, pixelSize: { width: 800, height: 600 } };
+    controller.collapseBranch(toNodeId('a-branch'));
     const folded = renderer.appliedGraphs.at(-1)!;
     expect(folded.nodes.map(node => node.id)).toEqual(['z-root', 'a-branch', 'sibling', 'other-root', 'other-leaf']);
     expect(folded.nodes.find(node => node.id === 'a-branch')?.attributes).toMatchObject({
@@ -172,27 +181,113 @@ describe('GraphViewportCoordinator', () => {
     });
     renderer.emitViewChange();
     await vi.advanceTimersByTimeAsync(1000);
-    expect(readViewport).toHaveBeenCalledOnce();
+    expect(readViewport).toHaveBeenCalledTimes(2);
     await controller.replaceLayoutVersion(toLayoutVersion('updated'));
     expect(renderer.appliedGraphs.at(-1)?.nodes.map(node => node.id)).not.toContain('b-leaf');
-    await controller.expandCluster(toClusterId('single-a-branch'));
+    controller.expandBranch(toNodeId('a-branch'));
     expect(renderer.appliedGraphs.at(-1)?.nodes.map(node => node.id)).toEqual(nodes.map(node => node.id));
     expect(renderer.appliedGraphs.at(-1)?.edges).toEqual(original.edges);
-    controller.collapseCluster(toClusterId('single-a-branch'));
-    controller.collapseCluster(toClusterId('single-z-root'));
+    controller.collapseBranch(toNodeId('a-branch'));
+    controller.collapseBranch(toNodeId('z-root'));
     expect(renderer.appliedGraphs.at(-1)?.nodes.map(node => node.id)).toEqual(['z-root', 'other-root', 'other-leaf']);
-    await controller.expandCluster(toClusterId('single-z-root'));
+    controller.expandBranch(toNodeId('z-root'));
     expect(renderer.appliedGraphs.at(-1)?.nodes.map(node => node.id)).not.toContain('b-leaf');
-    await controller.expandCluster(toClusterId('single-a-branch'));
+    controller.expandBranch(toNodeId('a-branch'));
     expect(renderer.appliedGraphs.at(-1)?.edges).toEqual(original.edges);
-    controller.collapseCluster(toClusterId('single-a-branch'));
+    controller.collapseBranch(toNodeId('a-branch'));
     await controller.expandCluster(toClusterId('single-b-leaf'), { focusNodeId: toNodeId('b-leaf') });
     expect(renderer.appliedGraphs.at(-1)?.nodes.map(node => node.id)).toContain('b-leaf');
     await controller.collapseAll();
     expect(renderer.appliedGraphs.at(-1)?.nodes.map(node => node.id)).toEqual(['z-root', 'other-root']);
     await controller.expandAll();
     expect(renderer.appliedGraphs.at(-1)?.nodes).toHaveLength(6);
-    expect(() => controller.collapseCluster(toClusterId('single-b-leaf'))).toThrow(/internal node/);
+    expect(() => controller.collapseBranch(toNodeId('b-leaf'))).toThrow(/internal node/);
+    controller.unmount();
+  });
+
+  it('keeps folds across automatic coarse and fine viewport slices without forcing global detail', async () => {
+    viewportState = { ...viewportState, pixelSize: { width: 800, height: 600 } };
+    const renderer = createRenderer();
+    const [template] = viewportResponse().nodes;
+    const branch = {
+      ...template,
+      id: toNodeId('branch'),
+      clusterId: toClusterId('fine-branch'),
+      treeIndex: { componentId: 'root', parentId: 'root', depth: 1, start: 5, end: 100 },
+    };
+    const leaf = {
+      ...template,
+      id: toNodeId('leaf'),
+      clusterId: toClusterId('fine-leaf'),
+      treeIndex: { componentId: 'root', parentId: 'branch', depth: 2, start: 10, end: 11 },
+    };
+    const coarse = {
+      ...template,
+      id: toNodeId('ancestor'),
+      clusterId: toClusterId('coarse-ancestor'),
+      isRepresentative: true,
+      memberCount: 200,
+      treeIndex: { componentId: 'root', parentId: 'root', depth: 1, start: 1, end: 201 },
+    };
+    let nodes = [branch, leaf];
+    const readViewport = vi.fn(async (request: GraphViewportRequest) =>
+      viewportResponse({ nodes, edges: [], totalNodeCount: nodes.length, zoom: request.zoom ?? 1 })
+    );
+    const controller = new GraphViewportCoordinator({
+      datasetId: toDatasetId('tree'),
+      client: { readViewport },
+      renderer,
+      nodeCount: 10000,
+      lodTierCount: 6,
+      debounceMs: 0,
+    });
+    controller.mount();
+    await vi.advanceTimersByTimeAsync(0);
+    controller.collapseBranch(branch.id);
+    nodes = [coarse];
+    renderer.emitViewChange();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(renderer.appliedGraphs.at(-1)?.nodes.map(n => n.id)).toEqual(['ancestor']);
+    expect(controller.getExpansionState().manuallyCollapsedBranchCount).toBe(1);
+    nodes = [branch, leaf];
+    renderer.emitViewChange();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(renderer.appliedGraphs.at(-1)?.nodes.map(n => n.id)).toEqual(['branch']);
+    expect(readViewport).toHaveBeenCalledTimes(3);
+    expect(readViewport.mock.calls[1][0]).toMatchObject({ lodLevel: 0, xmin: expect.any(Number) });
+    expect(readViewport.mock.calls[1][0].clusterId).toBeUndefined();
+    controller.unmount();
+  });
+
+  it('folds a specific internal node inside an expanded group whose members share a cluster ID', async () => {
+    const renderer = createRenderer();
+    const [template] = viewportResponse().nodes;
+    const indexed = (id: string, start: number, end: number, parentId: string | null) => ({
+      ...template,
+      id: toNodeId(id),
+      clusterId: toClusterId('group'),
+      treeIndex: { componentId: 'root', parentId, depth: start, start, end },
+    });
+    const branch = indexed('branch', 1, 4, 'root');
+    const inner = indexed('inner', 2, 4, 'branch');
+    const leaf = indexed('leaf', 3, 4, 'inner');
+    const base = viewportResponse({ nodes: [{ ...branch, isRepresentative: true, memberCount: 3 }], edges: [] });
+    const patch = viewportResponse({ nodes: [branch, inner, leaf], edges: [], totalNodeCount: 3 });
+    const readViewport = vi.fn(async (request: GraphViewportRequest) => (request.clusterId ? patch : base));
+    const controller = new GraphViewportCoordinator({
+      datasetId: toDatasetId('tree'),
+      client: { readViewport },
+      renderer,
+    });
+    controller.mount();
+    await vi.advanceTimersByTimeAsync(0);
+    await controller.expandCluster(toClusterId('group'));
+    controller.collapseBranch(inner.id);
+    expect(renderer.appliedGraphs.at(-1)?.nodes.map(n => n.id)).toEqual(['branch', 'inner']);
+    expect(controller.getExpansionState().expandedClusterIds).toEqual(['group']);
+    controller.expandBranch(inner.id);
+    expect(renderer.appliedGraphs.at(-1)?.nodes.map(n => n.id)).toEqual(['branch', 'inner', 'leaf']);
+    expect(readViewport).toHaveBeenCalledTimes(2);
     controller.unmount();
   });
 

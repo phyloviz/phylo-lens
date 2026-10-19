@@ -7,9 +7,9 @@ from math import isfinite, log
 
 from phylo_lens_server.domain.identity import (
     LOD_REPRESENTATION_GROWTH_FACTOR,
-    LOD_SMALL_COMPONENT_NODE_THRESHOLD,
     layout_version_for_dataset,
 )
+from phylo_lens_server.domain.lod import LodOptions
 from phylo_lens_server.domain.models import Dataset
 from phylo_lens_server.domain.preparation import (
     PreparedCluster,
@@ -17,6 +17,7 @@ from phylo_lens_server.domain.preparation import (
     QuotientEdge,
 )
 from phylo_lens_server.domain.sfdp import SfdpOptions, resolve_sfdp_options
+from phylo_lens_server.pipeline.tree_index import index_forest
 
 Adjacency = dict[str, list[tuple[str, str]]]
 
@@ -41,25 +42,8 @@ def tree_adjacency(dataset: Dataset) -> Adjacency:
 
 
 def rooted_depths(neighbors: Adjacency, roots: tuple[str, ...]) -> dict[str, int]:
-    """Orient each tree component; reject cycles and missing/duplicate roots."""
-    depths: dict[str, int] = {}
-    for root in roots:
-        if root not in neighbors or root in depths:
-            raise ValueError(f"Invalid or repeated technical root: {root}.")
-        depths[root] = 0
-        queue = deque([(root, None)])
-        while queue:
-            node, parent = queue.popleft()
-            for neighbor, _ in neighbors[node]:
-                if neighbor == parent:
-                    continue
-                if neighbor in depths:
-                    raise ValueError("LoD requires an acyclic tree or forest.")
-                depths[neighbor] = depths[node] + 1
-                queue.append((neighbor, node))
-    if len(depths) != len(neighbors):
-        raise ValueError("Every tree component requires one technical root.")
-    return depths
+    """Depth-only projection of the canonical forest index."""
+    return {entry.node_id: entry.depth for entry in index_forest(neighbors, roots)}
 
 
 def representation_counts(depths: dict[str, int]) -> tuple[int, ...]:
@@ -187,29 +171,26 @@ def prepare_layout_artifacts(
     dataset: Dataset,
     *,
     sfdp_options: SfdpOptions | None = None,
+    lod_options: LodOptions | None = None,
 ) -> PreparedLayoutArtifacts:
     if not dataset.nodes:
         raise PreparedLayoutIngestError(ERR_EMPTY_DATASET)
 
     resolved_sfdp_options = resolve_sfdp_options(sfdp_options)
     neighbors = tree_adjacency(dataset)
-    depths = rooted_depths(neighbors, dataset.technical_roots)
-    # Tiny components are already readable. Preserve them at every cut instead
-    # of replacing a two-node branch with an aggregate in a larger forest.
-    for root in dataset.technical_roots:
-        component = {root}
-        frontier = [root]
-        while frontier and len(component) <= LOD_SMALL_COMPONENT_NODE_THRESHOLD:
-            node = frontier.pop()
-            for neighbor, _ in neighbors[node]:
-                if neighbor not in component:
-                    component.add(neighbor)
-                    frontier.append(neighbor)
-                    if len(component) > LOD_SMALL_COMPONENT_NODE_THRESHOLD:
-                        break
-        if len(component) <= LOD_SMALL_COMPONENT_NODE_THRESHOLD:
-            for node in component:
-                depths[node] = 0
+    tree_index = index_forest(neighbors, dataset.technical_roots)
+    policy = lod_options or LodOptions()
+    component_sizes = {
+        entry.node_id: entry.size for entry in tree_index if entry.parent_id is None
+    }
+    # Keep true topological depths immutable. Only the presentation cut protects
+    # small components; the index remains valid for manual subtree operations.
+    depths = {
+        entry.node_id: 0
+        if component_sizes[entry.component_id] <= policy.small_component_threshold
+        else entry.depth
+        for entry in tree_index
+    }
     cuts = selected_depths(depths, LOD_REPRESENTATION_GROWTH_FACTOR)
     clusters = tuple(
         cluster
@@ -218,9 +199,13 @@ def prepare_layout_artifacts(
     )
     return PreparedLayoutArtifacts(
         dataset=dataset,
-        layout_version=layout_version_for_dataset(dataset, resolved_sfdp_options),
+        layout_version=layout_version_for_dataset(
+            dataset, resolved_sfdp_options, policy
+        ),
         clusters=clusters,
         sfdp_options=resolved_sfdp_options,
+        lod_options=policy,
+        tree_index=tree_index,
     )
 
 

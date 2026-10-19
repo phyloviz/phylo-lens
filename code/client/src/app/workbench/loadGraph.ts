@@ -80,6 +80,7 @@ export async function loadGraph(
       ancillaryByNodeId: ancillary.ancillaryByNodeId,
       ancillaryData: options.ancillaryData,
       sfdpOptions: options.sfdpOptions,
+      lodPreparation: options.lodPreparation,
     };
 
     requireViewportRenderer(renderer);
@@ -107,7 +108,6 @@ export async function loadGraph(
 
       lodTierCount: preparedGraph.lodTierCount,
       nodeCount: preparedGraph.nodeCount,
-      technicalRoots: preparedGraph.technicalRoots,
 
       getPaused: () => getState().lodRefreshPaused,
       onError: error => {

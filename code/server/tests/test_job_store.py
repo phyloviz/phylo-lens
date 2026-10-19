@@ -114,6 +114,7 @@ class RecordingDurableStore:
         warnings=(),
         *,
         sfdp_options=None,
+        lod_options=None,
         max_active_jobs=None,
     ) -> str:
         self.submitted.append((dataset.dataset_id, warnings, max_active_jobs))

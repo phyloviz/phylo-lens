@@ -17,6 +17,7 @@ release information across several files.
 | Understand hop-depth tiers and semantic zoom | [LoD and clustering](LOD_AND_CLUSTERING.md) |
 | Understand viewport synchronization and Sigma rendering | [Client rendering](CLIENT_RENDERING.md) |
 | Understand representative expansion, meta-edges, and collapse | [Cluster expand/collapse](EXPAND_COLLAPSE.md) |
+| Inspect subtree indexing, fold complexity and measurements | [Indexed branch operations](TREE_INDEX.md) |
 | Configure CI, npm publication, and multi-platform Docker releases | [Release and CI](RELEASE.md) |
 | Track researcher feedback, acceptance criteria and delivery dependencies | [Feedback backlog](feedback/README.md) |
 

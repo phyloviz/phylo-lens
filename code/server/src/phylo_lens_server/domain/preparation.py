@@ -4,8 +4,10 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from types import MappingProxyType
 
+from phylo_lens_server.domain.lod import LodOptions
 from phylo_lens_server.domain.models import Dataset
 from phylo_lens_server.domain.sfdp import SfdpOptions
+from phylo_lens_server.domain.tree_index import TreeInterval
 from phylo_lens_server.domain.views import LayoutBounds, LayoutStatus
 
 from .ancillary import AncillaryData, AncillaryField
@@ -34,6 +36,8 @@ class PreparedLayoutArtifacts:
     layout_version: str
     clusters: tuple[PreparedCluster, ...]
     sfdp_options: SfdpOptions = field(default_factory=SfdpOptions)
+    lod_options: LodOptions = field(default_factory=LodOptions)
+    tree_index: tuple[TreeInterval, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -96,6 +100,7 @@ class PrepareInput:
     ancillary_by_node_id: Mapping[str, AncillaryData] = field(default_factory=dict)
     ancillary_data: AncillaryTable | None = None
     sfdp_options: SfdpOptions = field(default_factory=SfdpOptions)
+    lod_options: LodOptions = field(default_factory=LodOptions)
 
     def __post_init__(self) -> None:
         object.__setattr__(

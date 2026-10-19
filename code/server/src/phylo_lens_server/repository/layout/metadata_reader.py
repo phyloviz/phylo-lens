@@ -8,6 +8,7 @@ from phylo_lens_server.domain.summaries import (
     MetadataMap,
     aggregate_cluster_metadata_by_node_ids,
 )
+from phylo_lens_server.domain.tree_index import TreeInterval
 from phylo_lens_server.domain.views import (
     AncillaryField,
     ViewportNode,
@@ -101,6 +102,26 @@ def attach_node_metadata(
         cluster_ids=cluster_ids,
         placeholder="?",
     )
+    predicate, parameters = connection.membership(
+        "node_id", {node.node_id for node in nodes}
+    )
+    rows = connection.execute(
+        f"""select node_id, component_id, parent_id, depth, dfs_start, dfs_end
+            from node_tree_index
+            where dataset_id = ? and layout_version = ? and {predicate}""",
+        (dataset_id, layout_version, *parameters),
+    ).fetchall()
+    tree_index = {
+        row["node_id"]: TreeInterval(
+            row["node_id"],
+            row["component_id"],
+            row["parent_id"],
+            row["depth"],
+            row["dfs_start"],
+            row["dfs_end"],
+        )
+        for row in rows
+    }
     enriched: list[ViewportNode] = []
     for node in nodes:
         metadata = (
@@ -112,6 +133,7 @@ def attach_node_metadata(
             replace(
                 node,
                 metadata=metadata,
+                tree_index=tree_index.get(node.node_id),
                 isolates=isolates.get(node.node_id, ()),
                 ancillary_distribution=distributions.get(node.cluster_id, ())
                 if node.is_representative

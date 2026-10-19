@@ -120,6 +120,8 @@ export function createGraphWorkbench(
     resetLayoutEdits: () => renderer.resetLayoutEdits?.(),
     expandCluster: id => requireViewportCoordinator().expandCluster(id),
     collapseCluster: id => requireViewportCoordinator().collapseCluster(id),
+    collapseBranch: id => requireViewportCoordinator().collapseBranch(id),
+    expandBranch: id => requireViewportCoordinator().expandBranch(id),
     expandAll: () => requireViewportCoordinator().expandAll(),
     collapseAll: () => requireViewportCoordinator().collapseAll(),
     setKeepExpanded: keep => requireViewportCoordinator().setKeepExpanded(keep),

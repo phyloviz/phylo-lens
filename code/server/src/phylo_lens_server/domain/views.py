@@ -7,6 +7,7 @@ from typing import Literal
 
 from .ancillary import AncillaryField, AncillaryObservation
 from .models import Isolate
+from .tree_index import TreeInterval
 
 LayoutStatus = Literal["pending", "refining", "ready", "degraded", "failed"]
 
@@ -31,6 +32,7 @@ class ViewportNode:
     metadata: Mapping[str, str | float | bool | None] | None = None
     isolates: tuple[Isolate, ...] = ()
     ancillary_distribution: tuple[AncillaryObservation, ...] = ()
+    tree_index: TreeInterval | None = None
 
     def __post_init__(self) -> None:
         if self.metadata is not None:

@@ -1,3 +1,4 @@
+import { DEFAULT_SMALL_COMPONENT_THRESHOLD } from '../../../contracts/graph/LodPreparationOptions';
 import type { PositionedGraph } from '../../../contracts/positioned';
 import { SOURCE_FORMAT_TYPING_DATA, SOURCE_FORMAT_NEWICK, type SourceFormat } from '../../../contracts/models';
 import type { GraphDisplayOptions } from '../../../render/renderer.types';
@@ -27,6 +28,7 @@ export type GraphLoadingElements = {
   readonly ancillaryJoinColumnInput?: HTMLInputElement | HTMLSelectElement;
   readonly ancillaryFormatSelect?: HTMLSelectElement;
   readonly maxNodesInput?: HTMLInputElement;
+  readonly smallComponentThresholdInput?: HTMLInputElement;
 };
 
 type GraphLoadingOptions = {
@@ -60,6 +62,7 @@ export default function createGraphLoading(options: GraphLoadingOptions) {
     ancillaryJoinColumnInput,
     ancillaryFormatSelect,
     maxNodesInput,
+    smallComponentThresholdInput,
   } = options.elements;
   const bindings = eventBindings();
   let applyingAncillary = false;
@@ -180,6 +183,9 @@ export default function createGraphLoading(options: GraphLoadingOptions) {
           visualMapping,
           displayOptions: options.getDisplayOptions(),
           lod: { maxNodes: parseMaxNodes(maxNodesInput?.value) },
+          lodPreparation: {
+            smallComponentThreshold: parseSmallComponentThreshold(smallComponentThresholdInput?.value),
+          },
         }
       );
     } catch (error) {
@@ -193,4 +199,11 @@ export default function createGraphLoading(options: GraphLoadingOptions) {
       }
     }
   }
+}
+
+function parseSmallComponentThreshold(value: string | undefined): number {
+  const threshold = value?.trim() ? Number(value) : DEFAULT_SMALL_COMPONENT_THRESHOLD;
+  if (!Number.isSafeInteger(threshold) || threshold < 0)
+    throw new Error('Small component threshold must be a nonnegative integer.');
+  return threshold;
 }
