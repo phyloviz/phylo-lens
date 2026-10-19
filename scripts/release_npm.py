@@ -103,12 +103,12 @@ def main() -> None:
             check=True,
         )
     # npm can accept a publish before its asynchronous processing exposes the version.
-    # Allow five minutes for visibility while still requiring exact integrity.
-    for attempt in range(61):
+    # Allow ten minutes for visibility while still requiring exact integrity.
+    for attempt in range(121):
         if verify(args.version, integrity):
             print(f"Verified {PACKAGE}@{args.version}: {integrity}")
             return
-        if attempt < 60:
+        if attempt < 120:
             time.sleep(5)
     raise SystemExit(
         "Published package is not visible; retry the failed job after checking npm status"

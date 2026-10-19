@@ -52,7 +52,7 @@ jobs:
     name: Recover tested npm package using existing token
     needs: resolve
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 15
     environment: npm-production
     permissions:
       contents: read
@@ -89,7 +89,7 @@ jobs:
     name: Verify recovered artifacts and announce release
     needs: [resolve, publish-npm]
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 20
     environment: ghcr-production
     permissions:
       contents: write

@@ -188,20 +188,20 @@ class NpmTests(unittest.TestCase):
                 )
                 self.assertIn(str(Path("package.tgz").resolve()), command)
 
-    def test_accepted_package_can_take_longer_than_25_seconds_to_become_visible(self):
+    def test_accepted_package_can_take_eight_minutes_to_become_visible(self):
         with (
             patch.object(
                 sys, "argv", ["release_npm.py", "publish", "0.2.4", "package.tgz"]
             ),
             patch.object(release_npm, "package_info", return_value="sha512-expected"),
-            patch.object(release_npm, "verify", side_effect=[False] * 9 + [True]),
+            patch.object(release_npm, "verify", side_effect=[False] * 97 + [True]),
             patch.object(release_npm, "require_latest"),
             patch.object(release_npm.time, "sleep") as sleep,
             patch.object(release_npm.subprocess, "run") as publish,
         ):
             release_npm.main()
             publish.assert_called_once()
-            self.assertGreater(sum(call.args[0] for call in sleep.call_args_list), 25)
+            self.assertGreater(sum(call.args[0] for call in sleep.call_args_list), 300)
 
     def test_registry_visibility_timeout_does_not_republish_the_package(self):
         with (

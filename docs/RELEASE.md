@@ -164,7 +164,7 @@ network, throttling, and registry errors fail the workflow instead of being
 interpreted as an absent version.
 
 npm publication may be accepted before the package is publicly visible; verification
-waits up to five minutes and still requires the original SHA-512 integrity. If
+waits up to ten minutes and still requires the original SHA-512 integrity. If
 processing takes longer, wait until the version is visible, then rerun failed jobs.
 
 Do not use **Re-run all jobs** to recover a partial publication: that rebuilds

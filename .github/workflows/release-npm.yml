@@ -122,7 +122,7 @@ jobs:
     name: Publish tested npm package
     needs: [resolve, tag]
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 15
     environment: npm-production
     permissions:
       contents: read
@@ -188,7 +188,7 @@ jobs:
     name: Verify and announce complete release
     needs: [resolve, publish-npm, publish-service]
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 20
     environment: ghcr-production
     permissions:
       contents: write
