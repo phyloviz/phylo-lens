@@ -10,12 +10,10 @@ export {
   OTHERS_COLOR,
 } from './colorMapping';
 
-export const DEFAULT_NODE_SIZE = 5;
-export const MIN_NODE_SIZE = 4;
-// A wide upper bound so metadata-driven sizing is clearly legible and the
-// difference between linear and logarithmic scaling is visible on the canvas
-// (a narrow 3-10px span made both scales look nearly identical).
-export const MAX_NODE_SIZE = 22;
+// Sigma sizes are radii. Both scales add a value-dependent increment to
+// this fixed base radius, keeping sizes independent of viewport contents.
+export const DEFAULT_NODE_SIZE = 3;
+export const NODE_SIZE_VALUE_FACTOR = 1.2;
 export const DEFAULT_SIZE_FIELD = 'distance';
 export const DEFAULT_PROFILE_COUNT_FIELD = 'profile_count';
 export const SIZE_SCALE_LINEAR = 'linear';
@@ -25,6 +23,7 @@ export type SizeScale = typeof SIZE_SCALE_LINEAR | typeof SIZE_SCALE_LOG;
 
 export type SizeMappingOptions = {
   readonly field?: string;
+  /** Fixed radius growth by value or ln(1 + value), independent of the visible slice. */
   readonly scale?: SizeScale;
 };
 
@@ -66,24 +65,24 @@ export function resolveColorField(requestedColorField: string | undefined): stri
 }
 
 // Pick the default size field when no explicit size mapping is set. Prefer the
-// isolate/profile count so nodes size by how much isolate data they carry (as
-// in PHYLOViZ), falling back to branch distance when profile counts are absent.
+// isolate/profile count so nodes size by how much isolate data they carry,
+// falling back to branch distance when profile counts are absent.
 export function resolveDefaultSizeField(hasProfileCount: boolean): string {
   return hasProfileCount ? DEFAULT_PROFILE_COUNT_FIELD : DEFAULT_SIZE_FIELD;
 }
 
-// Derive node size from numeric metadata using min-max normalization.
-export function deriveSize(
-  rawValue: string | number | boolean | null | undefined,
-  stats: { min: number; max: number } | undefined,
-  scale: SizeScale
-): number {
+// Use a fixed base plus frequency without viewport normalization or
+// a maximum that would make distinct frequencies look identical.
+export function deriveSize(rawValue: string | number | boolean | null | undefined, scale: SizeScale): number {
   const value = numericAncillaryValue(rawValue);
-  if (value === null || !stats) {
+  if (value === null) {
     return DEFAULT_NODE_SIZE;
   }
 
-  return scaleNumberToRange(value, stats.min, stats.max, MIN_NODE_SIZE, MAX_NODE_SIZE, scale, DEFAULT_NODE_SIZE);
+  const nonNegativeValue = Math.max(0, value);
+  const scaledValue = scale === SIZE_SCALE_LOG ? Math.log1p(nonNegativeValue) : nonNegativeValue;
+  const size = DEFAULT_NODE_SIZE + NODE_SIZE_VALUE_FACTOR * scaledValue;
+  return Number.isFinite(size) ? size : DEFAULT_NODE_SIZE;
 }
 
 // Ancillary fields can contain numeric strings. Accept finite numeric values
@@ -98,35 +97,4 @@ export function numericAncillaryValue(value: string | number | boolean | null | 
 
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
-}
-
-function scaleNumberToRange(
-  value: number,
-  min: number,
-  max: number,
-  outputMin: number,
-  outputMax: number,
-  scale: SizeScale,
-  fallback: number
-): number {
-  if (!Number.isFinite(value) || max === min) {
-    return fallback;
-  }
-
-  const normalized = scale === SIZE_SCALE_LOG ? normalizeLogValue(value, min, max) : (value - min) / (max - min);
-  const clamped = Math.min(1, Math.max(0, normalized));
-  return outputMin + clamped * (outputMax - outputMin);
-}
-
-function normalizeLogValue(value: number, min: number, max: number): number {
-  const safeMin = Math.max(0, min);
-  const safeMax = Math.max(0, max);
-  if (safeMax === safeMin) {
-    return 0;
-  }
-
-  const transformedValue = Math.log1p(Math.max(0, value));
-  const transformedMin = Math.log1p(safeMin);
-  const transformedMax = Math.log1p(safeMax);
-  return (transformedValue - transformedMin) / (transformedMax - transformedMin);
 }

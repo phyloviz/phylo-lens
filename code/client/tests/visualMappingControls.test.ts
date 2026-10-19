@@ -60,4 +60,26 @@ describe('explicit metadata coloring', () => {
     expect(base.pie.fields).toEqual(['country']);
     expect(cleared.size?.field).toBe('profile_count');
   });
+
+  it('switches profile size scales through the controls and restores the original linear sizes', () => {
+    const profiles = {
+      ...response,
+      nodes: response.nodes.map((node, index) => ({
+        ...node,
+        annotations: decodeApiMetadata({ profile_count: index === 0 ? 1 : 10 }),
+      })),
+    };
+    const linear = buildVisualMappingForControls({}, [], 'profile_count', 'linear', undefined);
+    const log = buildVisualMappingForControls(linear, [], 'profile_count', 'log', undefined);
+    const restored = buildVisualMappingForControls(log, [], 'profile_count', 'linear', undefined);
+    const sizes = (visualMapping: typeof linear) =>
+      graphSnapshotFromViewportResponse(profiles, { visualMapping }).nodes.map(node => node.size);
+
+    const linearSizes = sizes(linear);
+    const logSizes = sizes(log);
+    expect(linearSizes[1]).toBe(15);
+    expect(logSizes[1]).toBeCloseTo(3 + 1.2 * Math.log(11));
+    expect(logSizes[0]).toBeLessThan(linearSizes[0] ?? 0);
+    expect(sizes(restored)).toEqual(linearSizes);
+  });
 });

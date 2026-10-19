@@ -42,14 +42,15 @@ function viewportResponse(
 }
 
 describe('viewportSnapshot', () => {
-  it('sizes a profile by isolate area independently of the visible slice', () => {
+  it('sizes profiles by frequency independently of the visible slice', () => {
     const single = viewportNode('single', { isolates: [{ id: toNodeId('S'), ancillaryData: {} }] });
     const grouped = viewportNode('grouped', {
       isolates: Array.from({ length: 4 }, (_, index) => ({ id: toNodeId(`S${index}`), ancillaryData: {} })),
       annotations: decodeApiMetadata({ profile_count: 4 }),
     });
     const graph = graphSnapshotFromViewportResponse(viewportResponse([single, grouped]));
-    expect(graph.nodes[1]?.size).toBe(2 * (graph.nodes[0]?.size ?? 0));
+    expect(graph.nodes[0]?.size).toBeCloseTo(4.2);
+    expect(graph.nodes[1]?.size).toBeCloseTo(7.8);
     expect(graph.nodes[1]?.attributes?.type).toBeUndefined();
     expect(graph.nodes[1]?.attributes?.isolates).toHaveLength(4);
     const isolatedSlice = graphSnapshotFromViewportResponse(viewportResponse([grouped]), { visualMapping: {} });
@@ -58,6 +59,86 @@ describe('viewportSnapshot', () => {
       visualMapping: { size: { field: 'profile_count', scale: 'linear' } },
     });
     expect(demoDefault.nodes[0]?.size).toBe(graph.nodes[1]?.size);
+  });
+
+  it.each(['linear', 'log'] as const)('keeps %s profile sizing stable across slices and filters', scale => {
+    const target = viewportNode('target', {
+      annotations: decodeApiMetadata({ profile_count: 10, country: 'Portugal' }),
+    });
+    const large = viewportNode('large', {
+      annotations: decodeApiMetadata({ profile_count: 1000, country: 'Spain' }),
+    });
+    const settings = { visualMapping: { size: { field: 'profile_count', scale } } };
+    const response = viewportResponse([target, large]);
+    const together = graphSnapshotFromViewportResponse(response, settings);
+    const alone = graphSnapshotFromViewportResponse(viewportResponse([target]), settings);
+    const filtered = graphSnapshotFromViewportResponse(response, {
+      ...settings,
+      filterState: { categorical: [{ fieldKey: 'country', acceptedValues: ['Portugal'] }], numeric: [] },
+    });
+
+    const expectedRadius = scale === 'linear' ? 15 : 3 + 1.2 * Math.log(11);
+    expect(together.nodes[0]?.size).toBeCloseTo(expectedRadius);
+    expect(alone.nodes[0]?.size).toBe(together.nodes[0]?.size);
+    expect(filtered.nodes.map(node => node.id)).toEqual(['target']);
+    expect(filtered.nodes[0]?.size).toBe(together.nodes[0]?.size);
+    expect(together.nodes[1]?.size).toBeGreaterThan(together.nodes[0]?.size ?? 0);
+  });
+
+  it.each(['linear', 'log'] as const)('uses summary counts and isolate records consistently for %s sizing', scale => {
+    const records = Array.from({ length: 10 }, (_, index) => ({ id: `isolate-${index}`, ancillaryData: {} }));
+    const graph = graphSnapshotFromViewportResponse(
+      viewportResponse([
+        viewportNode('summary', { annotations: decodeApiMetadata({ profile_count: 10 }) }),
+        viewportNode('records', { isolates: records }),
+        viewportNode('both', { annotations: decodeApiMetadata({ profile_count: 10 }), isolates: records }),
+        viewportNode('summary-precedence', {
+          annotations: decodeApiMetadata({ profile_count: 10 }),
+          isolates: records.slice(0, 1),
+        }),
+      ]),
+      { visualMapping: { size: { field: 'profile_count', scale } } }
+    );
+    const expectedRadius = scale === 'linear' ? 15 : 3 + 1.2 * Math.log(11);
+    for (const node of graph.nodes) expect(node.size).toBeCloseTo(expectedRadius);
+  });
+
+  it.each(['linear', 'log'] as const)('retains compact triangle sizing with an explicit %s mapping', scale => {
+    const graph = graphSnapshotFromViewportResponse(
+      viewportResponse([
+        viewportNode('cluster', {
+          memberCount: 97_000,
+          isRepresentative: true,
+          annotations: decodeApiMetadata({ profile_count: 100_000 }),
+        }),
+      ]),
+      { visualMapping: { size: { field: 'profile_count', scale } } }
+    );
+    expect(graph.nodes[0]?.size).toBe(6);
+    expect(graph.nodes[0]?.attributes?.type).toBe('triangle');
+  });
+
+  it('resolves default size fields per node rather than from its visible neighbors', () => {
+    const distance = viewportNode('distance', { annotations: decodeApiMetadata({ distance: 10 }) });
+    const profile = viewportNode('profile', { annotations: decodeApiMetadata({ profile_count: 4 }) });
+    const alone = graphSnapshotFromViewportResponse(viewportResponse([distance]));
+    const mixed = graphSnapshotFromViewportResponse(viewportResponse([distance, profile]));
+    expect(alone.nodes[0]?.size).toBe(15);
+    expect(mixed.nodes[0]?.size).toBe(alone.nodes[0]?.size);
+    expect(mixed.nodes[1]?.size).toBeCloseTo(7.8);
+  });
+
+  it.each(['linear', 'log'] as const)('uses safe base radii for missing and invalid %s values', scale => {
+    const values = [undefined, null, '', 'unavailable', true, Number.NaN, Infinity, -5, 0];
+    const graph = graphSnapshotFromViewportResponse(
+      viewportResponse(
+        values.map((value, index) =>
+          viewportNode(`node-${index}`, { annotations: decodeApiMetadata(value === undefined ? {} : { size: value }) })
+        )
+      ),
+      { visualMapping: { size: { field: 'size', scale } } }
+    );
+    expect(graph.nodes.map(node => node.size)).toEqual(values.map(() => 3));
   });
 
   it('uses isolate counts for country pies and preserves multi-field correlations', () => {
@@ -190,6 +271,12 @@ describe('viewportSnapshot', () => {
       visualMapping: { size: { field: 'distance', scale: 'log' } },
     });
 
-    expect(logarithmic.nodes[1]?.size ?? 0).toBeGreaterThan(linear.nodes[1]?.size ?? 0);
+    expect(linear.nodes[1]?.size).toBeCloseTo(123);
+    expect(logarithmic.nodes[1]?.size).toBeCloseTo(3 + 1.2 * Math.log(101));
+    expect(logarithmic.nodes[1]?.size ?? 0).toBeLessThan(linear.nodes[1]?.size ?? 0);
+    const single = graphSnapshotFromViewportResponse(viewportResponse([response.nodes[1]]), {
+      visualMapping: { size: { field: 'distance', scale: 'log' } },
+    });
+    expect(single.nodes[0]?.size).toBe(logarithmic.nodes[1]?.size);
   });
 });
