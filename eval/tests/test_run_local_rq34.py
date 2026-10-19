@@ -1,6 +1,7 @@
 """Local structural evidence must detect corrupt persisted partitions/edges."""
 
 from phylo_lens_server.domain.models import SourceFormat
+from phylo_lens_server.domain.lod import LodOptions
 
 import sqlite3
 
@@ -8,19 +9,19 @@ import pytest
 from phylo_lens_server.domain.preparation import PrepareInput
 from phylo_lens_server.pipeline.ingestion import ingest_dataset
 from phylo_lens_server.pipeline.lod import (
-    rooted_depths,
     selected_depths,
-    tree_adjacency,
 )
 from phylo_lens_server.services.preparation import PreparationService
 from phylo_lens_server.repository.layout.sqlite_layout_repository import (
     SQLiteLayoutRepository,
 )
-from run_local_rq34 import validate_rq3
+from run_local_rq34 import presentation_depths, validate_rq3
 
 
-@pytest.fixture
-def prepared(tmp_path):
+@pytest.fixture(
+    params=[0, 64], ids=["aggregation-enabled", "small-component-protected"]
+)
+def prepared(tmp_path, request):
     dataset = ingest_dataset(
         PrepareInput(
             format=SourceFormat("newick"),
@@ -29,11 +30,12 @@ def prepared(tmp_path):
         )
     ).dataset
     store = SQLiteLayoutRepository(tmp_path)
-    result = PreparationService(store).prepare_dataset(dataset)
-    cuts = selected_depths(
-        rooted_depths(tree_adjacency(dataset), dataset.technical_roots)
+    limit = request.param
+    result = PreparationService(store).prepare_dataset(
+        dataset, lod_options=LodOptions(small_component_threshold=limit)
     )
-    return dataset, store, result.artifacts.layout_version, cuts
+    cuts = selected_depths(presentation_depths(dataset, limit))
+    return dataset, store, result.artifacts.layout_version, cuts, limit
 
 
 def test_local_validation_covers_every_prepared_tier(prepared):
@@ -68,3 +70,18 @@ def test_changed_canonical_distance_is_rejected(prepared):
         )
     with pytest.raises(AssertionError):
         validate_rq3(*prepared)
+
+
+def test_presentation_oracle_protects_only_whole_components_within_the_limit():
+    dataset = ingest_dataset(
+        PrepareInput(format=SourceFormat("newick"), content="((a)b)r;((((e)d)c)z)s;")
+    ).dataset
+    depths = presentation_depths(dataset, 3)
+    assert {key: depths[key] for key in ("r", "a", "b")} == {"r": 0, "a": 0, "b": 0}
+    assert {key: depths[key] for key in ("s", "z", "c", "d", "e")} == {
+        "s": 0,
+        "z": 1,
+        "c": 2,
+        "d": 3,
+        "e": 4,
+    }

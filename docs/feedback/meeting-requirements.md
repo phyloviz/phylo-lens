@@ -42,3 +42,8 @@ Validation for this revision: 334 client tests and 336 server tests pass; two
 database-dependent checks are skipped. Client type checks, lint, formatting and
 demo/library builds pass, as do server lint/formatting and the real-API browser
 sequence.
+
+The evaluation suite also passes locally with smoke flags enabled: 138 tests,
+with five environment-dependent skips. Its independent BFS oracle covers both
+protected components and disabled protection; corruption checks include every
+materialized quotient tier, even when finest-tier reads use canonical edges.

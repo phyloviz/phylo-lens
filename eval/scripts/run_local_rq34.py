@@ -7,6 +7,7 @@ release configurations, layouts, targets and observation schemas are untouched.
 from __future__ import annotations
 
 from phylo_lens_server.domain.models import SourceFormat
+from phylo_lens_server.domain.lod import DEFAULT_SMALL_COMPONENT_THRESHOLD
 
 import argparse
 import hashlib
@@ -46,24 +47,45 @@ def free_port():
         return sock.getsockname()[1]
 
 
-def validate_rq3(dataset, store, version, cuts):
-    """Independent persisted partition/quotient checks, O(L*(N+E))."""
-    ids = {node.id for node in dataset.nodes}
+def presentation_depths(
+    dataset, small_component_threshold=DEFAULT_SMALL_COMPONENT_THRESHOLD
+):
+    """Independent BFS oracle for hop cuts with protected whole components."""
     adjacency = defaultdict(list)
     for edge in dataset.edges:
         adjacency[edge.source].append(edge.target)
         adjacency[edge.target].append(edge.source)
     depths = {}
-    queue = deque((root, 0) for root in dataset.technical_roots)
-    while queue:
-        node, depth = queue.popleft()
-        if node in depths:
-            continue
-        depths[node] = depth
-        queue.extend(
-            (child, depth + 1) for child in adjacency[node] if child not in depths
-        )
-    assert set(depths) == ids
+    for root in dataset.technical_roots:
+        assert root not in depths
+        component = []
+        queue = deque([(root, 0)])
+        while queue:
+            node, depth = queue.popleft()
+            if node in depths:
+                continue
+            depths[node] = depth
+            component.append(node)
+            queue.extend(
+                (child, depth + 1) for child in adjacency[node] if child not in depths
+            )
+        if len(component) <= small_component_threshold:
+            for node in component:
+                depths[node] = 0
+    assert set(depths) == {node.id for node in dataset.nodes}
+    return depths
+
+
+def validate_rq3(
+    dataset,
+    store,
+    version,
+    cuts,
+    small_component_threshold=DEFAULT_SMALL_COMPONENT_THRESHOLD,
+):
+    """Independent persisted partition/quotient checks, O(L*(N+E))."""
+    ids = {node.id for node in dataset.nodes}
+    depths = presentation_depths(dataset, small_component_threshold)
     histogram = Counter(depths.values())
     rows, previous = [], None
     with sqlite3.connect(store.path) as connection:
@@ -156,6 +178,18 @@ def validate_rq3(dataset, store, version, cuts):
                 assert internal[cluster["cluster_id"]] == cluster["member_count"] - 1
                 if cluster["member_count"] > 1:
                     assert boundary[cluster["cluster_id"]] == 1
+            # Finest-tier reads use canonical edges. Check the materialized
+            # quotient independently too, including tiers whose query bypasses it.
+            stored_quotient = list(
+                connection.execute(
+                    "select source_node_id,target_node_id,distance from prepared_edges where dataset_id=? and layout_version=? and lod_level=?",
+                    (dataset.dataset_id, version, level),
+                )
+            )
+            assert len(stored_quotient) == len(quotient_distances)
+            assert {
+                (tuple(sorted((row[0], row[1]))), row[2]) for row in stored_quotient
+            } == quotient_distances
             view = store.read_viewport(
                 dataset_id=dataset.dataset_id,
                 layout_version=version,
@@ -429,9 +463,7 @@ def main():
     from phylo_lens_server.domain.preparation import PrepareInput
     from phylo_lens_server.pipeline.ingestion import ingest_dataset
     from phylo_lens_server.pipeline.lod import (
-        rooted_depths,
         selected_depths,
-        tree_adjacency,
     )
     from phylo_lens_server.services.preparation import PreparationService
     from phylo_lens_server.repository.layout.sqlite_layout_repository import (
@@ -524,7 +556,7 @@ def main():
     else:
         result = PreparationService(store, stage_factory=stage).prepare_dataset(dataset)
         version = result.artifacts.layout_version
-    depths = rooted_depths(tree_adjacency(dataset), dataset.technical_roots)
+    depths = presentation_depths(dataset)
     cuts = selected_depths(depths)
     rq3 = validate_rq3(dataset, store, version, cuts)
     write(directory / "rq3.json", rq3)
