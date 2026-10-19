@@ -107,6 +107,7 @@ export async function loadGraph(
 
       lodTierCount: preparedGraph.lodTierCount,
       nodeCount: preparedGraph.nodeCount,
+      technicalRoots: preparedGraph.technicalRoots,
 
       getPaused: () => getState().lodRefreshPaused,
       onError: error => {

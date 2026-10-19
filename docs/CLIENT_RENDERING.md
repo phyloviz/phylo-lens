@@ -214,6 +214,28 @@ Original isolate records are available on positioned-node attributes as
 `isolates`. Single-field pies use category counts, and multi-field pies use
 per-isolate records to preserve correlations between selected fields.
 
+Category color overrides are scoped to the selected field combination. Switching
+trees or successfully replacing ancillary data clears custom colors. **Reset**
+restores the default palette while retaining selected fields, size scale and
+category grouping. Pending palette-file reads cannot restore colors after a reset.
+
+The overview wheel describes the current view. Click a node or focus a search
+result to populate the separate selected-node panel. The duplicate node dropdown
+and wheel-scope selector have been removed.
+
+Distance-weighted edges encode distance as grayscale at constant width. The
+channel is `round(200 - 200 / max(1, distance))`: unit distances are black and
+larger distances become lighter. Zero is black; missing or invalid distances
+retain the ordinary edge color. This fixed mapping does not depend on viewport
+minima or maxima. It changes appearance only, preserving edge distances.
+
+Distance labels accept optional inclusive minimum and maximum bounds through
+`edgeDistanceLabelMin` and `edgeDistanceLabelMax`. Empty bounds are open; an
+inverted interval shows no labels and the maximum input reports an error. These
+bounds affect labels only, including publication exports; zoom visibility policy
+still applies to the interactive view. Export's all-labels option overrides zoom
+visibility while respecting the distance interval.
+
 ## Metadata filters
 
 Filters are applied locally to the currently loaded snapshot. The workbench

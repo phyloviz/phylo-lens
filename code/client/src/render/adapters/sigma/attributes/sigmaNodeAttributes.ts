@@ -8,6 +8,7 @@ import {
   PHYLOVIZ_NODE_SELECTED_COLOR,
   SIGMA_DEFAULT_NODE_SIZE,
   SIGMA_NODE_TYPE_DEFAULT,
+  SIGMA_NODE_TYPE_BORDER,
   SIGMA_NODE_TYPE_PIECHART,
   SIGMA_NODE_TYPE_TRIANGLE,
 } from '../sigmaRendering.constants';
@@ -54,9 +55,11 @@ function addPositionedNode(
   const isClusterProxy = node.attributes?.isClusterProxy === true;
   const nodeType = isClusterProxy
     ? SIGMA_NODE_TYPE_TRIANGLE
-    : !unionNode && hasPieData && pieSliceKeys.length > 0
-      ? SIGMA_NODE_TYPE_PIECHART
-      : SIGMA_NODE_TYPE_DEFAULT;
+    : node.attributes?.isBranchCollapsed === true
+      ? SIGMA_NODE_TYPE_BORDER
+      : !unionNode && hasPieData && pieSliceKeys.length > 0
+        ? SIGMA_NODE_TYPE_PIECHART
+        : SIGMA_NODE_TYPE_DEFAULT;
   const nodeSize = unionNode ? UNION_NODE_SIZE : (node.size ?? SIGMA_DEFAULT_NODE_SIZE);
 
   graph.addNode(node.id, {
@@ -67,7 +70,7 @@ function addPositionedNode(
     ...pieAttributes,
     type: nodeType,
     color: derivePositionedNodeColor(node),
-    borderColor: undefined,
+    borderColor: node.attributes?.isBranchCollapsed === true ? '#0f766e' : undefined,
     label:
       rendererOptions.label?.enabled === false || rendererOptions.display?.nodeLabels === false
         ? ''
@@ -98,7 +101,7 @@ export function applyPieChartNodeTypes(graph: Graph, sliceKeys: readonly string[
     // A cluster proxy is an interaction affordance; it must stay a triangle so
     // its tip continues to identify the edge that expands the cluster. Pies
     // remain available for ordinary nodes only.
-    if (!unionNode && attributes.isClusterProxy !== true && hasPieData) {
+    if (!unionNode && attributes.isClusterProxy !== true && attributes.isBranchCollapsed !== true && hasPieData) {
       graph.setNodeAttribute(nodeId, 'type', SIGMA_NODE_TYPE_PIECHART);
     }
   });

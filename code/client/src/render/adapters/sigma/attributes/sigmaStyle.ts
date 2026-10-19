@@ -4,7 +4,6 @@ import {
   PHYLOVIZ_NODE_GROUP_FOUNDER_COLOR,
   PHYLOVIZ_NODE_SELECTED_COLOR,
   PHYLOVIZ_NODE_SUBGROUP_FOUNDER_COLOR,
-  SIGMA_DISTANCE_EDGE_SIZE_FACTOR,
 } from '../sigmaRendering.constants';
 
 const PHYLOVIZ_ROLE_KEYS = ['phyloviz_role', 'st_role', 'node_role', 'role'];
@@ -32,16 +31,4 @@ export function derivePhylovizNodeColor(attributes: Record<string, unknown> | un
   }
 
   return PHYLOVIZ_NODE_COMMON_COLOR;
-}
-
-export function edgeSizeForDistance(
-  distance: number | null | undefined,
-  baseSize: number,
-  distanceWeighted: boolean
-): number {
-  if (!distanceWeighted || typeof distance !== 'number' || !Number.isFinite(distance) || distance <= 0) {
-    return baseSize;
-  }
-
-  return baseSize + Math.log1p(distance) * SIGMA_DISTANCE_EDGE_SIZE_FACTOR;
 }

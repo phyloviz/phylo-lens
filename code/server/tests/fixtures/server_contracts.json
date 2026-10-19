@@ -72,7 +72,7 @@
           "min_y": 0.0
         },
         "layout_status": "ready",
-        "layout_version": "fe9c16378873cc7e73e6cc3ead2a13e126d858953dbac41359d7d17fcef39f2d",
+        "layout_version": "c7d192a54bdcd41406edf4ffd87a886e58eadb7555da6accdfe4b994660b4283",
         "metadata_schema": [
           {
             "key": "country",
@@ -249,7 +249,7 @@
           },
           "response": {
             "dataset_id": "contract-forest",
-            "layout_version": "6dc96f6be607027a",
+            "layout_version": "221d3e754fc6843f",
             "matches": [
               {
                 "cluster_id": "lod_2_a",
@@ -280,7 +280,7 @@
           },
           "response": {
             "dataset_id": "contract-forest",
-            "layout_version": "6dc96f6be607027a",
+            "layout_version": "221d3e754fc6843f",
             "matches": [],
             "query": "Iso B",
             "total_count": 0
@@ -294,7 +294,7 @@
           },
           "response": {
             "dataset_id": "contract-forest",
-            "layout_version": "6dc96f6be607027a",
+            "layout_version": "221d3e754fc6843f",
             "matches": [
               {
                 "cluster_id": "lod_2_a",
@@ -317,7 +317,7 @@
           },
           "response": {
             "dataset_id": "contract-forest",
-            "layout_version": "6dc96f6be607027a",
+            "layout_version": "221d3e754fc6843f",
             "matches": [],
             "query": "",
             "total_count": 0
@@ -331,7 +331,7 @@
           },
           "response": {
             "dataset_id": "contract-forest",
-            "layout_version": "6dc96f6be607027a",
+            "layout_version": "221d3e754fc6843f",
             "matches": [],
             "query": "%",
             "total_count": 0
@@ -345,7 +345,7 @@
           },
           "response": {
             "dataset_id": "contract-forest",
-            "layout_version": "6dc96f6be607027a",
+            "layout_version": "221d3e754fc6843f",
             "matches": [],
             "query": "union_",
             "total_count": 0
@@ -372,7 +372,7 @@
             "dataset_id": "contract-forest",
             "edges": [],
             "layout_status": "ready",
-            "layout_version": "6dc96f6be607027a",
+            "layout_version": "221d3e754fc6843f",
             "metadata_schema": [
               {
                 "key": "country",
@@ -469,7 +469,7 @@
             "dataset_id": "contract-forest",
             "edges": [],
             "layout_status": "ready",
-            "layout_version": "6dc96f6be607027a",
+            "layout_version": "221d3e754fc6843f",
             "metadata_schema": [
               {
                 "key": "country",
@@ -535,7 +535,7 @@
             "dataset_id": "contract-forest",
             "edges": [],
             "layout_status": "pending",
-            "layout_version": "6dc96f6be607027a",
+            "layout_version": "221d3e754fc6843f",
             "metadata_schema": [
               {
                 "key": "country",
@@ -627,7 +627,7 @@
               "min_y": 0.0
             },
             "layout_status": "ready",
-            "layout_version": "6dc96f6be607027a",
+            "layout_version": "221d3e754fc6843f",
             "metadata_schema": [
               {
                 "key": "country",
@@ -819,7 +819,7 @@
               "min_y": 0.0
             },
             "layout_status": "ready",
-            "layout_version": "6dc96f6be607027a",
+            "layout_version": "221d3e754fc6843f",
             "lod_level": 0,
             "metadata_schema": [
               {
@@ -980,7 +980,7 @@
               "min_y": 0.0
             },
             "layout_status": "ready",
-            "layout_version": "6dc96f6be607027a",
+            "layout_version": "221d3e754fc6843f",
             "lod_level": 1,
             "metadata_schema": [
               {
@@ -1233,7 +1233,7 @@
               "min_y": 0.0
             },
             "layout_status": "ready",
-            "layout_version": "6dc96f6be607027a",
+            "layout_version": "221d3e754fc6843f",
             "lod_level": 100,
             "metadata_schema": [
               {
@@ -1424,7 +1424,7 @@
               "min_y": 0.0
             },
             "layout_status": "ready",
-            "layout_version": "6dc96f6be607027a",
+            "layout_version": "221d3e754fc6843f",
             "metadata_schema": [
               {
                 "key": "country",
@@ -1501,7 +1501,7 @@
               "min_y": 0.0
             },
             "layout_status": "ready",
-            "layout_version": "6dc96f6be607027a",
+            "layout_version": "221d3e754fc6843f",
             "lod_level": 0,
             "metadata_schema": [
               {
@@ -1635,7 +1635,7 @@
               "min_y": 0.0
             },
             "layout_status": "ready",
-            "layout_version": "6dc96f6be607027a",
+            "layout_version": "221d3e754fc6843f",
             "metadata_schema": [
               {
                 "key": "country",
@@ -1702,7 +1702,7 @@
       ],
       "replacement": {
         "dataset_id": "contract-forest",
-        "layout_version": "fe9c16378873cc7e73e6cc3ead2a13e126d858953dbac41359d7d17fcef39f2d",
+        "layout_version": "c7d192a54bdcd41406edf4ffd87a886e58eadb7555da6accdfe4b994660b4283",
         "matched_node_count": 2,
         "warnings": [
           "Ancillary data did not include rows for 10 joinable nodes."
@@ -1724,9 +1724,13 @@
           "dataset_id": "contract-forest",
           "edge_count": 10,
           "layout_status": "ready",
-          "layout_version": "6dc96f6be607027a",
+          "layout_version": "221d3e754fc6843f",
           "lod_tier_count": 3,
           "node_count": 12,
+          "technical_roots": [
+            "root",
+            "g"
+          ],
           "warnings": [
             "Newick input contains 2 disconnected components; kept as a forest.",
             "Ancillary data did not include rows for 10 joinable nodes."
@@ -1750,7 +1754,7 @@
           "min_y": 0.0
         },
         "layout_status": "ready",
-        "layout_version": "ada02e29c4f3f9dd1f399deaf4d4beb042e7c38f04db8c6af91ede2e3a6fe746",
+        "layout_version": "c36447164ae109cb37910ce6ee0a3c0b200adcce806e30c82e11721b1830a26d",
         "metadata_schema": [
           {
             "key": "country",
@@ -1816,7 +1820,7 @@
           },
           "response": {
             "dataset_id": "contract-profiles",
-            "layout_version": "8583da59c42b4e27",
+            "layout_version": "b4b0eeaf709be57d",
             "matches": [
               {
                 "cluster_id": "lod_0_iso_a",
@@ -1839,7 +1843,7 @@
           },
           "response": {
             "dataset_id": "contract-profiles",
-            "layout_version": "8583da59c42b4e27",
+            "layout_version": "b4b0eeaf709be57d",
             "matches": [
               {
                 "cluster_id": "lod_0_iso_a",
@@ -1862,7 +1866,7 @@
           },
           "response": {
             "dataset_id": "contract-profiles",
-            "layout_version": "8583da59c42b4e27",
+            "layout_version": "b4b0eeaf709be57d",
             "matches": [
               {
                 "cluster_id": "lod_0_iso_a",
@@ -1885,7 +1889,7 @@
           },
           "response": {
             "dataset_id": "contract-profiles",
-            "layout_version": "8583da59c42b4e27",
+            "layout_version": "b4b0eeaf709be57d",
             "matches": [],
             "query": "",
             "total_count": 0
@@ -1899,7 +1903,7 @@
           },
           "response": {
             "dataset_id": "contract-profiles",
-            "layout_version": "8583da59c42b4e27",
+            "layout_version": "b4b0eeaf709be57d",
             "matches": [],
             "query": "%",
             "total_count": 0
@@ -1913,7 +1917,7 @@
           },
           "response": {
             "dataset_id": "contract-profiles",
-            "layout_version": "8583da59c42b4e27",
+            "layout_version": "b4b0eeaf709be57d",
             "matches": [],
             "query": "union_",
             "total_count": 0
@@ -1940,7 +1944,7 @@
             "dataset_id": "contract-profiles",
             "edges": [],
             "layout_status": "ready",
-            "layout_version": "8583da59c42b4e27",
+            "layout_version": "b4b0eeaf709be57d",
             "metadata_schema": [
               {
                 "key": "country",
@@ -2014,7 +2018,7 @@
             "dataset_id": "contract-profiles",
             "edges": [],
             "layout_status": "ready",
-            "layout_version": "8583da59c42b4e27",
+            "layout_version": "b4b0eeaf709be57d",
             "metadata_schema": [
               {
                 "key": "country",
@@ -2079,7 +2083,7 @@
             "dataset_id": "contract-profiles",
             "edges": [],
             "layout_status": "pending",
-            "layout_version": "8583da59c42b4e27",
+            "layout_version": "b4b0eeaf709be57d",
             "metadata_schema": [
               {
                 "key": "country",
@@ -2110,7 +2114,7 @@
               "min_y": 0.0
             },
             "layout_status": "ready",
-            "layout_version": "8583da59c42b4e27",
+            "layout_version": "b4b0eeaf709be57d",
             "metadata_schema": [
               {
                 "key": "country",
@@ -2178,7 +2182,7 @@
               "min_y": 0.0
             },
             "layout_status": "ready",
-            "layout_version": "8583da59c42b4e27",
+            "layout_version": "b4b0eeaf709be57d",
             "lod_level": 0,
             "metadata_schema": [
               {
@@ -2247,7 +2251,7 @@
               "min_y": 0.0
             },
             "layout_status": "ready",
-            "layout_version": "8583da59c42b4e27",
+            "layout_version": "b4b0eeaf709be57d",
             "lod_level": 1,
             "metadata_schema": [
               {
@@ -2316,7 +2320,7 @@
               "min_y": 0.0
             },
             "layout_status": "ready",
-            "layout_version": "8583da59c42b4e27",
+            "layout_version": "b4b0eeaf709be57d",
             "lod_level": 100,
             "metadata_schema": [
               {
@@ -2389,7 +2393,7 @@
               "min_y": 0.0
             },
             "layout_status": "ready",
-            "layout_version": "8583da59c42b4e27",
+            "layout_version": "b4b0eeaf709be57d",
             "metadata_schema": [
               {
                 "key": "country",
@@ -2459,7 +2463,7 @@
               "min_y": 0.0
             },
             "layout_status": "ready",
-            "layout_version": "8583da59c42b4e27",
+            "layout_version": "b4b0eeaf709be57d",
             "lod_level": 0,
             "metadata_schema": [
               {
@@ -2516,7 +2520,7 @@
       ],
       "replacement": {
         "dataset_id": "contract-profiles",
-        "layout_version": "ada02e29c4f3f9dd1f399deaf4d4beb042e7c38f04db8c6af91ede2e3a6fe746",
+        "layout_version": "c36447164ae109cb37910ce6ee0a3c0b200adcce806e30c82e11721b1830a26d",
         "matched_node_count": 1,
         "warnings": []
       },
@@ -2536,9 +2540,12 @@
           "dataset_id": "contract-profiles",
           "edge_count": 0,
           "layout_status": "ready",
-          "layout_version": "8583da59c42b4e27",
+          "layout_version": "b4b0eeaf709be57d",
           "lod_tier_count": 1,
           "node_count": 1,
+          "technical_roots": [
+            "iso_a"
+          ],
           "warnings": []
         },
         "status": "ready"

@@ -121,6 +121,81 @@ describe('GraphViewportCoordinator', () => {
     vi.restoreAllMocks();
   });
 
+  it('folds ordinary descendants using technical roots, preserves folds on zoom, and restores exact edges', async () => {
+    const renderer = createRenderer();
+    const nodes = ['z-root', 'a-branch', 'b-leaf', 'sibling', 'other-root', 'other-leaf'].map((id, i) => ({
+      annotations: nodeAnnotations(),
+      id: toNodeId(id),
+      clusterId: toClusterId(`single-${id}`),
+      x: i,
+      y: i,
+      layoutStatus: 'ready' as const,
+      memberCount: 1,
+      isRepresentative: false,
+    }));
+    const edges = [
+      ['z-root', 'a-branch'],
+      ['a-branch', 'b-leaf'],
+      ['z-root', 'sibling'],
+      ['other-root', 'other-leaf'],
+    ].map(([source, target], i) => ({
+      id: toNodeId(`e${i}`),
+      source: toNodeId(source),
+      target: toNodeId(target),
+      distance: i + 1,
+    }));
+    const response = viewportResponse({ nodes, edges, totalNodeCount: 6 });
+    const readViewport = vi.fn(async (request: GraphViewportRequest) => ({
+      ...response,
+      layoutVersion: request.layoutVersion ?? response.layoutVersion,
+    }));
+    const controller = new GraphViewportCoordinator({
+      datasetId: toDatasetId('tree'),
+      client: { readViewport },
+      renderer,
+      nodeCount: 6,
+      technicalRoots: ['z-root', 'other-root'],
+    });
+    controller.mount();
+    await vi.advanceTimersByTimeAsync(0);
+    const original = renderer.appliedGraphs.at(-1)!;
+    expect(original.nodes.find(node => node.id === 'a-branch')?.attributes?.canCollapseBranch).toBe(true);
+    expect(original.nodes.find(node => node.id === 'b-leaf')?.attributes?.canCollapseBranch).toBe(false);
+    controller.collapseCluster(toClusterId('single-a-branch'));
+    const folded = renderer.appliedGraphs.at(-1)!;
+    expect(folded.nodes.map(node => node.id)).toEqual(['z-root', 'a-branch', 'sibling', 'other-root', 'other-leaf']);
+    expect(folded.nodes.find(node => node.id === 'a-branch')?.attributes).toMatchObject({
+      isBranchCollapsed: true,
+      isClusterProxy: undefined,
+      type: 'border',
+      collapsedBranchCount: 1,
+    });
+    renderer.emitViewChange();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(readViewport).toHaveBeenCalledOnce();
+    await controller.replaceLayoutVersion(toLayoutVersion('updated'));
+    expect(renderer.appliedGraphs.at(-1)?.nodes.map(node => node.id)).not.toContain('b-leaf');
+    await controller.expandCluster(toClusterId('single-a-branch'));
+    expect(renderer.appliedGraphs.at(-1)?.nodes.map(node => node.id)).toEqual(nodes.map(node => node.id));
+    expect(renderer.appliedGraphs.at(-1)?.edges).toEqual(original.edges);
+    controller.collapseCluster(toClusterId('single-a-branch'));
+    controller.collapseCluster(toClusterId('single-z-root'));
+    expect(renderer.appliedGraphs.at(-1)?.nodes.map(node => node.id)).toEqual(['z-root', 'other-root', 'other-leaf']);
+    await controller.expandCluster(toClusterId('single-z-root'));
+    expect(renderer.appliedGraphs.at(-1)?.nodes.map(node => node.id)).not.toContain('b-leaf');
+    await controller.expandCluster(toClusterId('single-a-branch'));
+    expect(renderer.appliedGraphs.at(-1)?.edges).toEqual(original.edges);
+    controller.collapseCluster(toClusterId('single-a-branch'));
+    await controller.expandCluster(toClusterId('single-b-leaf'), { focusNodeId: toNodeId('b-leaf') });
+    expect(renderer.appliedGraphs.at(-1)?.nodes.map(node => node.id)).toContain('b-leaf');
+    await controller.collapseAll();
+    expect(renderer.appliedGraphs.at(-1)?.nodes.map(node => node.id)).toEqual(['z-root', 'other-root']);
+    await controller.expandAll();
+    expect(renderer.appliedGraphs.at(-1)?.nodes).toHaveLength(6);
+    expect(() => controller.collapseCluster(toClusterId('single-b-leaf'))).toThrow(/internal node/);
+    controller.unmount();
+  });
+
   it('keeps a fulfilled initial load fulfilled after unmount', async () => {
     const renderer = createRenderer();
     const controller = new GraphViewportCoordinator({

@@ -32,7 +32,10 @@ export type GraphLoadingElements = {
 type GraphLoadingOptions = {
   readonly workbench: Pick<GraphWorkbench, 'loadGraph' | 'applyAncillaryData'>;
   readonly elements: GraphLoadingElements;
-  readonly ancillary: Pick<ReturnType<typeof createAncillaryControls>, 'resetSelectedNode' | 'prepareVisualMapping'>;
+  readonly ancillary: Pick<
+    ReturnType<typeof createAncillaryControls>,
+    'resetSelectedNode' | 'prepareVisualMapping' | 'resetPalette'
+  >;
   readonly getGraph: () => PositionedGraph | null;
   readonly getDisplayOptions: () => GraphDisplayOptions;
   readonly onLoadStarted: () => void;
@@ -128,6 +131,7 @@ export default function createGraphLoading(options: GraphLoadingOptions) {
       if (!data) throw new Error('Choose an ancillary table first.');
       const result = await options.workbench.applyAncillaryData(data);
       if (sequence !== loadSequence) return;
+      options.ancillary.resetPalette();
       options.setStatus(
         `Applied ancillary data to ${result.matchedNodeCount} nodes.${result.warnings.length ? ' ' + result.warnings.join(' ') : ''}`
       );

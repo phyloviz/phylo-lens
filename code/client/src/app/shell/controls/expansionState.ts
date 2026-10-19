@@ -1,6 +1,12 @@
 import type { ClusterId } from '../../../contracts/graph/graphIdentifiers';
 
-type Selection = { readonly clusterId: ClusterId; readonly expandable: boolean } | null;
+type Selection = {
+  readonly clusterId: ClusterId;
+  readonly nodeId?: string;
+  readonly expandable: boolean;
+  readonly collapsible?: boolean;
+  readonly manuallyCollapsed?: boolean;
+} | null;
 export type ExpansionControlState =
   | { readonly kind: 'unavailable' }
   | { readonly kind: 'ready'; readonly selected: Selection; readonly failure: string | null }

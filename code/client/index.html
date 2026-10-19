@@ -133,10 +133,10 @@
 
                 <div class="button-stack">
                   <button id="expand-selected" class="secondary-button" type="button" disabled>
-                    Expand selected group
+                    Expand selected branch or group
                   </button>
                   <button id="collapse-selected" class="secondary-button" type="button" disabled>
-                    Collapse selected group
+                    Collapse selected branch or group
                   </button>
                 </div>
 
@@ -246,21 +246,9 @@
               <section class="control-card" aria-labelledby="distribution-heading">
                 <h3 id="distribution-heading">Ancillary distribution</h3>
 
-                <label>
-                  Wheel scope
-                  <select id="ancillary-mode">
-                    <option value="global" selected>Global (all rendered nodes)</option>
-                    <option value="current">Current graph snapshot</option>
-                    <option value="selected">Selected node only</option>
-                  </select>
-                </label>
-
-                <label>
-                  Node
-                  <select id="ancillary-node" disabled>
-                    <option value="">Select node</option>
-                  </select>
-                </label>
+                <p class="field-help">
+                  The overview shows the current view. Click a node or use Search to inspect its details.
+                </p>
 
                 <label class="checkbox-row">
                   <input id="show-node-pies" type="checkbox" checked />
@@ -300,6 +288,7 @@
                       type="file"
                       accept=".txt,.palette,.json,application/json,text/plain"
                     />
+                    <button id="palette-reset-button" class="text-button" type="button">Reset</button>
                     <button id="palette-save-button" class="text-button" type="button">Save</button>
                   </div>
                 </div>
@@ -311,9 +300,20 @@
                 <select id="display-options" multiple size="3" aria-label="Display options">
                   <option value="node-labels">Node labels</option>
                   <option value="edge-distance-labels">Edge distance labels</option>
-                  <option value="distance-weighted-edges">Distance-weighted edges</option>
+                  <option value="distance-weighted-edges">Distance-weighted edges (grayscale)</option>
                 </select>
                 <p class="field-help">Select one or more options. Click an item again to toggle it.</p>
+                <div class="two-column-controls">
+                  <label>
+                    Minimum label distance
+                    <input id="edge-label-min" type="number" min="0" step="any" placeholder="No minimum" />
+                  </label>
+                  <label>
+                    Maximum label distance
+                    <input id="edge-label-max" type="number" min="0" step="any" placeholder="No maximum" />
+                  </label>
+                </div>
+                <p class="field-help">Distance bounds include both endpoints and affect labels only.</p>
               </section>
             </div>
           </section>

@@ -20,8 +20,6 @@ export const ID_STATUS = 'status';
 export const ID_GRAPH_ROOT = 'graph-root';
 export const ID_ANCILLARY_WHEEL = 'ancillary-wheel';
 export const ID_ANCILLARY_SELECTED_NODE_WHEEL = 'ancillary-selected-node-wheel';
-export const ID_ANCILLARY_MODE = 'ancillary-mode';
-export const ID_ANCILLARY_NODE = 'ancillary-node';
 export const ID_ANCILLARY_PIE_FIELD = 'metadata-pie-field';
 export const ID_ANCILLARY_SIZE_FIELD = 'metadata-size-field';
 export const ID_ANCILLARY_SIZE_SCALE = 'metadata-size-scale';
@@ -69,8 +67,6 @@ export default function bootstrapClientShell(baseUrl = ''): UiShell {
     ancillaryFormatSelect: getSelect(ID_ANCILLARY_FORMAT),
     ancillaryWheelContainer: getOptionalElement(ID_ANCILLARY_WHEEL),
     ancillarySelectedNodeWheelContainer: getOptionalElement(ID_ANCILLARY_SELECTED_NODE_WHEEL),
-    ancillaryModeSelect: getSelect(ID_ANCILLARY_MODE),
-    ancillaryNodeSelect: getSelect(ID_ANCILLARY_NODE),
 
     ancillaryFieldSelect: getSelect(ID_ANCILLARY_PIE_FIELD),
     showNodePiesInput: getInput('show-node-pies'),
@@ -81,6 +77,7 @@ export default function bootstrapClientShell(baseUrl = ''): UiShell {
     paletteLoadButton: getButton(ID_PALETTE_LOAD_BUTTON),
     paletteLoadInput: getInput(ID_PALETTE_LOAD_INPUT),
     paletteSaveButton: getButton(ID_PALETTE_SAVE_BUTTON),
+    paletteResetButton: getButton('palette-reset-button'),
 
     displayOptionsSelect: getSelect(ID_DISPLAY_OPTIONS),
     motionInput: getInput('motion-enabled'),
@@ -89,6 +86,8 @@ export default function bootstrapClientShell(baseUrl = ''): UiShell {
     resetLayoutButton: getButton('reset-layout'),
     dragStatus: getOptionalElement('drag-status'),
     edgeLabelPolicySelect: getSelect('edge-label-policy'),
+    edgeLabelMinInput: getInput('edge-label-min'),
+    edgeLabelMaxInput: getInput('edge-label-max'),
     exportScaleInput: getSelect('export-scale'),
     exportLabelSizeInput: getInput('export-label-size'),
     exportButton: getButton('export-png'),

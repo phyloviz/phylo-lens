@@ -9,6 +9,7 @@ import { detectPieSliceKeys } from '../../mapping/pieMapping';
 import { formatDistanceLabel } from './attributes/sigmaLabels';
 import { calculateAncillaryDistribution } from '../../../ancillary/ancillaryDistribution';
 import { exportCanvasLayersAsPng } from '../../export/canvasExport';
+import { showsDistanceLabel } from '../../mapping/edgeMapping';
 
 /** A separate renderer provides real high-resolution labels without resizing the live view. */
 export async function exportSigmaPublication(
@@ -40,7 +41,12 @@ export async function exportSigmaPublication(
   const copy = graph.copy();
   copy.forEachNode((id, attributes) => copy.setNodeAttribute(id, 'size', (attributes.size ?? 3) * scale));
   copy.forEachEdge((id, attributes) => {
-    const label = labelsEnabled && (!selected || selected.has(id)) ? formatDistanceLabel(attributes.distance) : '';
+    const label =
+      labelsEnabled &&
+      (!selected || selected.has(id)) &&
+      showsDistanceLabel(attributes.distance, { ...rendererOptions.display, edgeDistanceLabels: true })
+        ? formatDistanceLabel(attributes.distance)
+        : '';
     copy.mergeEdgeAttributes(id, { size: (attributes.size ?? 1) * scale, label, forceLabel: Boolean(label) });
   });
   const container = document.createElement('div');

@@ -57,6 +57,10 @@ export interface GraphDisplayOptions {
   readonly edgeDistanceLabels?: boolean;
   /** Auto retains the interactive zoom threshold; always shows enabled labels at every zoom. */
   readonly edgeDistanceLabelPolicy?: 'auto' | 'always';
+  /** Inclusive numeric distance bounds; omitted bounds are open. */
+  readonly edgeDistanceLabelMin?: number;
+  readonly edgeDistanceLabelMax?: number;
+  /** Encode distance with grayscale at constant edge width. */
   readonly distanceWeightedEdges?: boolean;
 }
 

@@ -38,6 +38,12 @@ const PREPARE_FIXTURE = {
   warnings: [],
 };
 
+it('validates optional preparation roots before they can orient a branch', () => {
+  const status = { job_id: 'job', status: 'ready', result: { ...PREPARE_FIXTURE, technical_roots: ['root'] } };
+  expect(isGraphPrepareStatusDto(status)).toBe(true);
+  expect(isGraphPrepareStatusDto({ ...status, result: { ...status.result, technical_roots: [3] } })).toBe(false);
+});
+
 const REGION_FIXTURE = {
   dataset_id: 'tree',
   layout_version: 'abc123',

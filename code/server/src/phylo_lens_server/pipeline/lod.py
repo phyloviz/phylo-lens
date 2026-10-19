@@ -7,6 +7,7 @@ from math import isfinite, log
 
 from phylo_lens_server.domain.identity import (
     LOD_REPRESENTATION_GROWTH_FACTOR,
+    LOD_SMALL_COMPONENT_NODE_THRESHOLD,
     layout_version_for_dataset,
 )
 from phylo_lens_server.domain.models import Dataset
@@ -193,6 +194,22 @@ def prepare_layout_artifacts(
     resolved_sfdp_options = resolve_sfdp_options(sfdp_options)
     neighbors = tree_adjacency(dataset)
     depths = rooted_depths(neighbors, dataset.technical_roots)
+    # Tiny components are already readable. Preserve them at every cut instead
+    # of replacing a two-node branch with an aggregate in a larger forest.
+    for root in dataset.technical_roots:
+        component = {root}
+        frontier = [root]
+        while frontier and len(component) <= LOD_SMALL_COMPONENT_NODE_THRESHOLD:
+            node = frontier.pop()
+            for neighbor, _ in neighbors[node]:
+                if neighbor not in component:
+                    component.add(neighbor)
+                    frontier.append(neighbor)
+                    if len(component) > LOD_SMALL_COMPONENT_NODE_THRESHOLD:
+                        break
+        if len(component) <= LOD_SMALL_COMPONENT_NODE_THRESHOLD:
+            for node in component:
+                depths[node] = 0
     cuts = selected_depths(depths, LOD_REPRESENTATION_GROWTH_FACTOR)
     clusters = tuple(
         cluster

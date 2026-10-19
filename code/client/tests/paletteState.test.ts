@@ -18,9 +18,9 @@ it('keeps palette inputs, saved groupings and previous states independent', () =
   colors.PT = '#000000';
   Object.assign(grouping, { PT: 'other' });
   expect(next.baseMapping.pie?.fields).toEqual(['country']);
-  expect(next.colors.PT).toBe('#ffffff');
+  expect(next.colorsByFields.country.PT).toBe('#ffffff');
   expect(next.groupingByFields.country.PT).toBe('separate');
-  expect(state.colors.PT).toBe('#123456');
+  expect(state.colorsByFields.country.PT).toBe('#123456');
 });
 
 it('keeps expansion-control transitions separate from the asynchronous operation', () => {

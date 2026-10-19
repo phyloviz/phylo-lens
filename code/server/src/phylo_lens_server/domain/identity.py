@@ -8,8 +8,9 @@ from phylo_lens_server.domain.sfdp import SfdpOptions, resolve_sfdp_options
 
 from .legacy_metadata import encode_dataset_annotations
 
-LAYOUT_PIPELINE_VERSION = "rooted-hop-representation-lod-v2"
+LAYOUT_PIPELINE_VERSION = "rooted-hop-representation-lod-v3"
 LOD_REPRESENTATION_GROWTH_FACTOR = 2.0
+LOD_SMALL_COMPONENT_NODE_THRESHOLD = 3
 
 
 def layout_version_for_dataset(
@@ -20,6 +21,7 @@ def layout_version_for_dataset(
     payload = {
         "pipeline_version": LAYOUT_PIPELINE_VERSION,
         "lod_representation_growth_factor": LOD_REPRESENTATION_GROWTH_FACTOR,
+        "lod_small_component_node_threshold": LOD_SMALL_COMPONENT_NODE_THRESHOLD,
         "sfdp_options": resolved_sfdp_options.model_dump(
             mode="json",
             by_alias=True,

@@ -87,6 +87,7 @@ class GraphPrepareResponse(BaseModel):
     edge_count: int = Field(ge=0)
     cluster_count: int = Field(ge=0)
     lod_tier_count: int = Field(default=1, ge=1)
+    technical_roots: list[str] = Field(default_factory=list)
     layout_status: LayoutStatus
     warnings: list[str] = Field(default_factory=list)
 

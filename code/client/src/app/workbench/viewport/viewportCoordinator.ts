@@ -1,7 +1,9 @@
 import { toError } from '../../errors';
+import { hasActiveFilters } from '../../../ancillary/filterEngine';
 import { toNodeId } from '../../../contracts/graph/graphIdentifiers';
 import type { ClusterId, DatasetId, LayoutVersion, NodeId } from '../../../contracts/graph/graphIdentifiers';
 import { retainMovedNodes } from './retainMovedNodes';
+import { applyBranchFolds, branchChildren, branchDescendants } from './manualBranches';
 import type { ExpansionState, ExpansionResult } from '../../../contracts/expansion';
 import { composeViewportExpansion, isIncompleteExpansion } from './expandedViewport';
 import type { GraphClient } from '../../../contracts/graph/GraphClient';
@@ -40,6 +42,7 @@ export type GraphViewportCoordinatorOptions = {
   readonly lodTierCount?: number;
   readonly smallTreeThreshold?: number;
   readonly nodeCount?: number | null;
+  readonly technicalRoots?: readonly string[];
   readonly getPaused?: () => boolean;
   readonly onError?: (error: Error) => void;
   readonly getRenderSettings?: () => ViewportRenderSettings;
@@ -67,6 +70,10 @@ export class GraphViewportCoordinator {
   private readonly lodTierCount: number;
   private readonly smallTreeThreshold: number;
   private readonly preparedNodeCount: number | null;
+  private readonly technicalRoots: readonly string[];
+  private branchChildren = new Map<string, string[]>();
+  private readonly manualFolds = new Map<ClusterId, string>();
+  private completeBranchGraph: PositionedGraph | null = null;
   private readonly getPaused?: () => boolean;
   private readonly onError?: (error: Error) => void;
   private readonly getRenderSettings?: () => ViewportRenderSettings;
@@ -144,6 +151,7 @@ export class GraphViewportCoordinator {
     this.lodTierCount = Math.max(options.lodTierCount ?? 1, 1);
     this.smallTreeThreshold = options.smallTreeThreshold ?? GRAPH_VIEWER_SMALL_TREE_NODE_THRESHOLD;
     this.preparedNodeCount = options.nodeCount ?? null;
+    this.technicalRoots = [...(options.technicalRoots ?? [])];
     this.getPaused = options.getPaused;
     this.onError = options.onError;
     this.getRenderSettings = options.getRenderSettings;
@@ -261,7 +269,8 @@ export class GraphViewportCoordinator {
     if (!this.currentGraph) {
       return;
     }
-    this.currentGraph = graphSnapshotWithDisplayOptions(this.currentGraph, displayOptions);
+    this.currentGraph = graphSnapshotWithDisplayOptions(this.composeGraph(), displayOptions);
+    this.currentGraph = applyBranchFolds(this.currentGraph, new Set(this.manualFolds.values()), this.branchChildren);
     this.applyGraph(this.currentGraph, 'viewport_sync');
     this.onGraphApplied?.(this.currentGraph);
   }
@@ -272,10 +281,11 @@ export class GraphViewportCoordinator {
     return {
       keepExpanded: this.keepExpanded,
       expandedClusterIds: [...this.expandedPatches.keys()],
-      allExpanded: this.allExpanded && !this.expansionPartial,
+      allExpanded: this.allExpanded && !this.expansionPartial && this.manualFolds.size === 0,
       partial: this.expansionPartial,
       renderedNodeCount: this.currentGraph?.nodes.length ?? 0,
       maxNodes: this.maxNodes,
+      ...(this.manualFolds.size ? { manuallyCollapsedBranchCount: this.manualFolds.size } : {}),
     };
   }
 
@@ -301,6 +311,21 @@ export class GraphViewportCoordinator {
     const { fitToResponse, focusNodeId } = options;
     this.requireExpansionReady();
     if (!clusterId) throw new Error('A cluster ID is required.');
+    if (
+      this.manualFolds.has(clusterId) ||
+      (focusNodeId && this.completeBranchGraph?.nodes.some(node => node.id === focusNodeId))
+    ) {
+      this.beginExpansion();
+      this.manualFolds.delete(clusterId);
+      if (focusNodeId)
+        for (const [id, root] of this.manualFolds) {
+          if (branchDescendants(this.branchChildren, root).has(focusNodeId)) this.manualFolds.delete(id);
+        }
+      const graph = this.composeGraph();
+      this.applyGraph(graph, 'cluster_expand', clusterId, true);
+      this.onGraphApplied?.(graph);
+      return this.expansionResult();
+    }
     if (!focusNodeId && this.expandedPatches.has(clusterId)) return this.expansionResult();
     if (!focusNodeId && this.maxNodes !== undefined && (this.currentGraph?.nodes.length ?? 0) >= this.maxNodes) {
       this.expansionPartial = true;
@@ -356,10 +381,11 @@ export class GraphViewportCoordinator {
   private async loadGlobalExpansion(expand: boolean): Promise<ExpansionResult> {
     this.requireExpansionReady();
     const sequence = this.beginExpansion();
+    const manualCollapse = !expand && (this.isKnownSmallTree() || this.completeBranchGraph !== null);
     const request: GraphViewportRequest = {
       datasetId: this.datasetId,
       layoutVersion: this.layoutVersion,
-      lodLevel: expand ? this.lodTierCount - 1 : 0,
+      lodLevel: expand || manualCollapse ? this.lodTierCount - 1 : 0,
       ...(this.maxNodes === undefined ? {} : { maxNodes: this.maxNodes }),
     };
     const response = await this.readExpansion(this.client.readViewport(request), sequence);
@@ -368,9 +394,17 @@ export class GraphViewportCoordinator {
     this.lastViewportRequest = request;
     this.lastRequestedLodLevel = request.lodLevel;
     this.expandedPatches.clear();
+    this.manualFolds.clear();
     this.allExpanded = expand;
     this.expansionLodLevel = request.lodLevel ?? 0;
-    const graph = this.composeGraph();
+    let graph = this.composeGraph();
+    if (!expand) {
+      for (const root of this.technicalRoots) {
+        const node = graph.nodes.find(node => node.id === root && node.attributes?.canCollapseBranch === true);
+        if (node) this.manualFolds.set(String(node.attributes?.clusterId ?? node.id) as ClusterId, root);
+      }
+      graph = this.composeGraph();
+    }
     this.applyGraph(graph, 'viewport_sync');
     this.onGraphApplied?.(graph, response);
     return this.expansionResult();
@@ -379,9 +413,19 @@ export class GraphViewportCoordinator {
   collapseCluster(clusterId: ClusterId): ExpansionState {
     this.requireExpansionReady();
     this.beginExpansion();
-    this.expandedPatches.delete(clusterId);
+    if (this.expandedPatches.has(clusterId)) this.expandedPatches.delete(clusterId);
+    else {
+      const node = this.currentGraph?.nodes.find(node => (node.attributes?.clusterId ?? node.id) === clusterId);
+      if (
+        node &&
+        node.attributes?.isClusterProxy !== true &&
+        (node.attributes?.canCollapseBranch !== true || node.attributes?.isBranchCollapsed === true)
+      )
+        throw new Error('Choose an internal node in a complete tree view, or use Expand all first.');
+      if (node?.attributes?.canCollapseBranch === true) this.manualFolds.set(clusterId, node.id);
+    }
     const graph = this.composeGraph();
-    this.applyGraph(graph, 'cluster_collapse', clusterId);
+    this.applyGraph(graph, 'cluster_collapse', clusterId, true);
     this.onGraphApplied?.(graph);
     return this.getExpansionState();
   }
@@ -433,13 +477,39 @@ export class GraphViewportCoordinator {
       this.priorityNodeId
     );
     this.expansionPartial = composed.partial;
-    this.currentGraph = composed.graph;
-    return composed.graph;
+    const expectedCount = this.preparedNodeCount ?? this.baseResponse!.totalNodeCount;
+    const possiblyComplete =
+      this.technicalRoots.length > 0 &&
+      !composed.partial &&
+      this.baseResponse!.nodes.length + responses.reduce((sum, response) => sum + response.nodes.length, 0) >=
+        expectedCount;
+    // Most viewport slices cannot support manual folds. Avoid a second metadata
+    // conversion except when filters hide nodes from a potentially complete view.
+    const canonical = possiblyComplete
+      ? settings?.filterState && hasActiveFilters(settings.filterState)
+        ? composeViewportExpansion(
+            this.baseResponse!,
+            responses,
+            { ...settings, filterState: undefined },
+            this.maxNodes
+          ).graph
+        : composed.graph
+      : null;
+    const complete =
+      canonical !== null &&
+      canonical.nodes.length === expectedCount &&
+      canonical.nodes.every(node => node.attributes?.isClusterProxy !== true);
+    this.completeBranchGraph = complete ? canonical : null;
+    this.branchChildren = complete && canonical ? branchChildren(canonical, this.technicalRoots) : new Map();
+    if (!complete) this.manualFolds.clear();
+    this.currentGraph = applyBranchFolds(composed.graph, new Set(this.manualFolds.values()), this.branchChildren);
+    return this.currentGraph;
   }
 
   // Camera and viewport requests
 
   private scheduleViewportRefreshForCamera(): void {
+    if (this.manualFolds.size > 0) return;
     if (this.getPaused?.()) {
       return;
     }
@@ -514,6 +584,7 @@ export class GraphViewportCoordinator {
     const sequence = ++this.requestSequence;
     const pinned = this.keepExpanded && this.expansionLodLevel !== undefined;
     const finestTier =
+      this.manualFolds.size > 0 ||
       (this.keepExpanded && this.allExpanded) ||
       (!pinned &&
         (!this.loadedInitialViewport || !this.viewportLodEnabled()) &&

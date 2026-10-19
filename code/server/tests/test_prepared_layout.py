@@ -409,6 +409,34 @@ def test_branch_distances_do_not_determine_hop_clusters() -> None:
     assert partitions(dataset) == partitions(changed)
 
 
+def test_three_node_chain_in_a_forest_stays_explicit_at_every_level() -> None:
+    dataset = ingest_dataset(
+        NormalizeRequest(
+            format="newick",
+            content="((a:2)b:1)r;((((((z6)z5)z4)z3)z2)z1)z0;single;",
+        ).to_domain()
+    ).dataset
+    artifacts = prepare_layout_artifacts(dataset)
+    levels = {cluster.lod_level for cluster in artifacts.clusters}
+    assert len(levels) > 1
+    for level in levels:
+        for node_id in ("a", "b", "r", "single"):
+            matching = [
+                cluster
+                for cluster in artifacts.clusters
+                if cluster.lod_level == level and node_id in cluster.member_node_ids
+            ]
+            assert len(matching) == 1
+            assert matching[0].member_node_ids == (node_id,)
+    edges = compute_prepared_edges(artifacts)
+    for level in levels:
+        pairs = {
+            (edge.source, edge.target) for edge in edges if edge.lod_level == level
+        }
+        assert ("a", "b") in pairs
+        assert ("b", "r") in pairs
+
+
 def test_cluster_geometry_computes_bounds_and_radius_in_one_pass() -> None:
     bounds, radius = cluster_geometry(
         {"a": (1.0, 2.0), "b": (4.0, -2.0)},

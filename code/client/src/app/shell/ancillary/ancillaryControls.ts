@@ -5,12 +5,6 @@ import { getSelectedOptions } from '../controls/selectOptions';
 import eventBindings from '../events/eventBindings';
 import visualMappingPalette from '../palette/visualMappingPalette';
 import ancillaryWheels from './ancillaryWheels';
-import {
-  ANCILLARY_MODE_SELECTED,
-  getAncillaryMode,
-  updateNodeSelector,
-  updateNodeSelectionVisibility,
-} from './nodeSelector';
 
 export const CATEGORY_COLOR_SAVE_FILENAME = 'phyloviz-category-colors.txt';
 export const SELECTED_NODE_WHEEL_EMPTY_MESSAGE = 'Click a node to view its ancillary distribution.';
@@ -19,8 +13,6 @@ export const SELECT_PIE_FIELD_MESSAGE = 'Select an ancillary field to view its d
 export type AncillaryControlsElements = {
   readonly ancillaryWheelContainer?: HTMLElement;
   readonly ancillarySelectedNodeWheelContainer?: HTMLElement;
-  readonly ancillaryModeSelect?: HTMLSelectElement;
-  readonly ancillaryNodeSelect?: HTMLSelectElement;
   readonly ancillaryFieldSelect?: HTMLSelectElement;
   readonly showNodePiesInput?: HTMLInputElement;
   readonly ancillarySizeFieldInput?: HTMLInputElement;
@@ -29,6 +21,7 @@ export type AncillaryControlsElements = {
   readonly paletteLoadButton?: HTMLButtonElement;
   readonly paletteLoadInput?: HTMLInputElement;
   readonly paletteSaveButton?: HTMLButtonElement;
+  readonly paletteResetButton?: HTMLButtonElement;
 };
 
 type AncillaryControlsOptions = {
@@ -43,8 +36,6 @@ export default function createAncillaryControls(options: AncillaryControlsOption
   const {
     ancillaryWheelContainer,
     ancillarySelectedNodeWheelContainer,
-    ancillaryModeSelect,
-    ancillaryNodeSelect,
     ancillaryFieldSelect,
     showNodePiesInput,
     ancillarySizeFieldInput,
@@ -53,6 +44,7 @@ export default function createAncillaryControls(options: AncillaryControlsOption
     paletteLoadButton,
     paletteLoadInput,
     paletteSaveButton,
+    paletteResetButton,
   } = options.elements;
   const bindings = eventBindings();
   const fields = ancillaryFieldControls(ancillaryFieldSelect);
@@ -76,8 +68,6 @@ export default function createAncillaryControls(options: AncillaryControlsOption
   const wheels = ancillaryWheels({
     overviewContainer: ancillaryWheelContainer,
     selectedNodeContainer: ancillarySelectedNodeWheelContainer,
-    modeSelect: ancillaryModeSelect,
-    nodeSelect: ancillaryNodeSelect,
     getGraph: options.getGraph,
     getVisualMapping: palette.getCurrentVisualMapping,
     getCategoryColorOverrides: palette.getCategoryColorOverrides,
@@ -92,6 +82,7 @@ export default function createAncillaryControls(options: AncillaryControlsOption
     refreshGraph,
     resetAfterFailure,
     prepareVisualMapping,
+    resetPalette: palette.resetColors,
     showNode: wheels.renderSelectedNode,
     resetSelectedNode: wheels.resetSelectedNode,
     getDistribution: wheels.getDistribution,
@@ -101,12 +92,6 @@ export default function createAncillaryControls(options: AncillaryControlsOption
     wheels.renderOverview();
     wheels.resetSelectedNode();
     palette.renderControls();
-    bindings.on(ancillaryModeSelect, 'change', () => {
-      updateSelector(options.getGraph());
-      updateNodeSelectionVisibility(ancillaryNodeSelect, ancillaryModeSelect);
-      wheels.renderOverview();
-    });
-    bindings.on(ancillaryNodeSelect, 'change', wheels.renderOverview);
     bindings.on(ancillaryFieldSelect, 'change', applyFieldSelection);
     bindings.on(ancillaryFieldSelect, 'mousedown', event => {
       if (fields.toggleOption(event)) applyFieldSelection();
@@ -118,7 +103,7 @@ export default function createAncillaryControls(options: AncillaryControlsOption
     bindings.on(paletteLoadButton, 'click', () => paletteLoadInput?.click());
     bindings.on(paletteLoadInput, 'change', () => void palette.load());
     bindings.on(paletteSaveButton, 'click', palette.save);
-    updateNodeSelectionVisibility(ancillaryNodeSelect, ancillaryModeSelect);
+    bindings.on(paletteResetButton, 'click', palette.resetColors);
     fields.updateOptions(null);
   }
 
@@ -127,18 +112,9 @@ export default function createAncillaryControls(options: AncillaryControlsOption
     palette.applyControlChange();
   }
 
-  function updateSelector(graph: PositionedGraph | null): void {
-    updateNodeSelector(
-      ancillaryNodeSelect,
-      getAncillaryMode(ancillaryModeSelect) === ANCILLARY_MODE_SELECTED ? graph : null
-    );
-  }
-
   function refreshGraph(graph: PositionedGraph): void {
-    updateSelector(graph);
     fields.updateOptions(graph);
     palette.renderControls();
-    updateNodeSelectionVisibility(ancillaryNodeSelect, ancillaryModeSelect);
     wheels.renderOverview();
     wheels.refreshSelectedNode();
   }
@@ -158,7 +134,6 @@ export default function createAncillaryControls(options: AncillaryControlsOption
 
   function resetAfterFailure(): void {
     palette.reset();
-    updateNodeSelector(ancillaryNodeSelect, null);
     fields.updateOptions(null);
     palette.renderControls();
     wheels.renderOverview();

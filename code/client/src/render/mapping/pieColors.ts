@@ -100,7 +100,7 @@ export function resolvePieSliceColors(
   const palette = requestedPalette?.length
     ? requestedPalette
     : (resolvePiePaletteFromNodes(nodes) ?? DEFAULT_COLOR_PALETTE);
-  const overrides = collectPieCategoryColors(nodes);
+  const overrides = requestedCategoryColors === undefined ? collectPieCategoryColors(nodes) : {};
   const categories = new Map(
     nodes.flatMap(node => {
       const stored = node.distribution ?? distributionFromAttributes(node.attributes);

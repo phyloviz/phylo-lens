@@ -22,7 +22,13 @@ export interface PhyloLensViewOptions {
   container: HTMLElement;
   apiUrl: string;
   onError?: (error: Error) => void;
-  onNodeSelected?: (selection: { nodeId: NodeId | null; clusterId: ClusterId | null; expandable: boolean }) => void;
+  onNodeSelected?: (selection: {
+    nodeId: NodeId | null;
+    clusterId: ClusterId | null;
+    expandable: boolean;
+    collapsible?: boolean;
+    manuallyCollapsed?: boolean;
+  }) => void;
   onInteractionFeedback?: (message: string) => void;
   onExpansionChanged?: (state: ExpansionState) => void;
 }
@@ -77,7 +83,11 @@ export function createPhyloLensView(options: PhyloLensViewOptions): PhyloLensVie
     options.onNodeSelected?.({
       nodeId: state.nodeId === null ? null : toNodeId(state.nodeId),
       clusterId: typeof state.attributes?.clusterId === 'string' ? toClusterId(state.attributes.clusterId) : null,
-      expandable: state.attributes?.isClusterProxy === true,
+      expandable: state.attributes?.isClusterProxy === true || state.attributes?.isBranchCollapsed === true,
+      ...(state.attributes?.canCollapseBranch === true
+        ? { collapsible: state.attributes?.isBranchCollapsed !== true }
+        : {}),
+      ...(state.attributes?.isBranchCollapsed === true ? { manuallyCollapsed: true } : {}),
     })
   );
   workbench.setGraphRenderedHandler(() => options.onExpansionChanged?.(workbench.getExpansionState()));

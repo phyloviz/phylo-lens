@@ -266,6 +266,7 @@ status, explicit timeout, stderr, and error detail when those values exist.
 | `edge_count` | non-negative `integer` | Canonical edge count |
 | `cluster_count` | non-negative `integer` | Number of materialized cluster records across tiers |
 | `lod_tier_count` | integer ≥ 1 | Number of semantic-zoom tiers |
+| `technical_roots` | `string[]` | One technical root per component, used to orient manual branch collapse |
 | `layout_status` | `LayoutStatus` | `ready` for a successful current preparation |
 | `warnings` | `string[]` | Normalization, ancillary, distance, or forest warnings |
 

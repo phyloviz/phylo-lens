@@ -19,6 +19,12 @@ Direct Newick input has no original profile-distance matrix, so each component
 uses the root expressed by its Newick serialization. Anonymous internal nodes
 are valid here. A direct Newick forest has one technical root per component.
 
+Components containing at most three canonical nodes remain explicit at every
+prepared tier. This includes three-node chains, which must not become one node
+plus a two-node aggregate in a larger forest. Each larger component keeps its
+own rooted hierarchy. The representation-count calculation treats the protected
+nodes as always visible. A layout fingerprint change invalidates old cached cuts.
+
 Technical roots are explicit in `Dataset.technical_roots`; the source
 records the rooting strategy. Both participate in the layout fingerprint.
 

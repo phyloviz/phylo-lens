@@ -34,6 +34,8 @@ function describeNode(node: PositionedNode): NodeDetails {
   else if (isolateIds.length > 0) kind = 'Profile';
 
   const counts: string[] = [];
+  if (node.attributes?.isBranchCollapsed === true)
+    counts.push(`Manually collapsed branch · ${node.attributes.collapsedBranchCount} descendant nodes hidden`);
   if (isCluster) counts.push(`${memberCount} nodes`);
   if (isolateCount > 0) counts.push(`${isolateCount} ${isolateCount === 1 ? 'isolate' : 'isolates'}`);
 

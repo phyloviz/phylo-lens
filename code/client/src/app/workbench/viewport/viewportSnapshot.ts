@@ -1,3 +1,4 @@
+import { distanceEdgeColor, showsDistanceLabel } from '../../../render/mapping/edgeMapping';
 import { isClusterRepresentative } from '../../../render/mapping/clusterNodes';
 import type { AncillaryObservation } from '../../../contracts/ancillary';
 import { ancillaryValues } from '../../../ancillary/ancillaryAccess';
@@ -94,7 +95,6 @@ export function graphSnapshotWithDisplayOptions(
   displayOptions?: GraphDisplayOptions
 ): PositionedGraph {
   const showNodeLabel = displayOptions?.nodeLabels !== false;
-  const showEdgeLabel = displayOptions?.edgeDistanceLabels === true;
   const distanceWeighted = displayOptions?.distanceWeightedEdges === true;
 
   return {
@@ -108,10 +108,13 @@ export function graphSnapshotWithDisplayOptions(
     edges: graph.edges.map(edge => {
       const attributes = { ...(edge.attributes ?? {}) };
       const distance = numberAttribute(attributes.distance);
-      const hasDistance = distance !== undefined;
-      attributes.size = edgeSizeForDistance(distance, GRAPH_VIEWER_BASE_EDGE_SIZE, distanceWeighted);
-      attributes.label = showEdgeLabel && hasDistance ? String(distance) : '';
-      attributes.forceLabel = showEdgeLabel;
+      const showLabel = showsDistanceLabel(distance, displayOptions);
+      attributes.size = GRAPH_VIEWER_BASE_EDGE_SIZE;
+      attributes.color = distanceWeighted
+        ? distanceEdgeColor(distance, GRAPH_VIEWER_EDGE_COLOR)
+        : GRAPH_VIEWER_EDGE_COLOR;
+      attributes.label = showLabel ? String(distance) : '';
+      attributes.forceLabel = showLabel;
       return { ...edge, attributes };
     }),
   };
@@ -184,18 +187,15 @@ function buildGraphViewportNodeAttributes(
 
 function buildGraphViewportEdgeAttributes(edge: GraphViewportEdge, displayOptions?: GraphDisplayOptions) {
   const isMeta = edge.isMeta === true;
-  const hasDistance = typeof edge.distance === 'number' && Number.isFinite(edge.distance);
-  const showEdgeLabel = displayOptions?.edgeDistanceLabels === true;
+  const showLabel = showsDistanceLabel(edge.distance, displayOptions);
   return {
-    color: GRAPH_VIEWER_EDGE_COLOR,
-    size: edgeSizeForDistance(
-      edge.distance,
-      GRAPH_VIEWER_BASE_EDGE_SIZE,
-      displayOptions?.distanceWeightedEdges === true
-    ),
+    color: displayOptions?.distanceWeightedEdges
+      ? distanceEdgeColor(edge.distance, GRAPH_VIEWER_EDGE_COLOR)
+      : GRAPH_VIEWER_EDGE_COLOR,
+    size: GRAPH_VIEWER_BASE_EDGE_SIZE,
     distance: edge.distance ?? undefined,
-    label: showEdgeLabel && hasDistance ? String(edge.distance) : '',
-    forceLabel: showEdgeLabel,
+    label: showLabel ? String(edge.distance) : '',
+    forceLabel: showLabel,
     isMeta,
   };
 }
@@ -275,13 +275,6 @@ function pieNodeAttributes(visuals: ResolvedViewportVisuals, distribution: reado
     [PIE_CATEGORY_COLORS_ATTRIBUTE]: colors,
     [PIE_PALETTE_ATTRIBUTE]: visuals.palette,
   };
-}
-
-function edgeSizeForDistance(distance: number | null | undefined, baseSize: number, distanceWeighted: boolean): number {
-  if (!distanceWeighted || typeof distance !== 'number' || !Number.isFinite(distance) || distance <= 0) {
-    return baseSize;
-  }
-  return baseSize + Math.log1p(distance) * 0.75;
 }
 
 function numberAttribute(value: unknown): number | undefined {

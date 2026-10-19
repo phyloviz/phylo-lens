@@ -51,6 +51,7 @@ it('maps wire fields and takes ownership of ancillary rows, observations and sch
 
 it('owns prepare warnings and exposes structured failure details in camelCase', () => {
   const warnings = ['A layout warning'];
+  const technicalRoots = ['root'];
   const ready = toGraphPrepareStatus({
     job_id: 'job',
     status: 'ready',
@@ -62,10 +63,13 @@ it('owns prepare warnings and exposes structured failure details in camelCase', 
       edge_count: 1,
       cluster_count: 1,
       warnings,
+      technical_roots: technicalRoots,
     },
   });
   warnings.push('Changed');
   expect(ready.result?.warnings).toEqual(['A layout warning']);
+  technicalRoots.push('changed');
+  expect(ready.result?.technicalRoots).toEqual(['root']);
   const failed = toGraphPrepareStatus({
     job_id: 'job',
     status: 'failed',

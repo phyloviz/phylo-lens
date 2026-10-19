@@ -156,6 +156,7 @@ def test_durable_prepare_job_registry_submits_and_maps_ready_snapshot() -> None:
         "edge_count": 2,
         "cluster_count": 1,
         "lod_tier_count": 1,
+        "technical_roots": ["root"],
         "layout_status": "ready",
         "warnings": ["note"],
     }

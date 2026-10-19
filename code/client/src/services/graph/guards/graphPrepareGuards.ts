@@ -38,6 +38,7 @@ function isGraphPrepareResponseDto(value: unknown): value is GraphPrepareRespons
     isFiniteNumber(value.edge_count) &&
     isFiniteNumber(value.cluster_count) &&
     isOptionalFiniteNumber(value.lod_tier_count) &&
+    (value.technical_roots === undefined || isArrayOf(value.technical_roots, isString)) &&
     isGraphLayoutStatus(value.layout_status) &&
     isArrayOf(value.warnings, isString)
   );

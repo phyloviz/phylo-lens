@@ -117,6 +117,7 @@ class PreparationSummary(FrozenValue):
     edge_count: int
     cluster_count: int
     lod_tier_count: int = 1
+    technical_roots: tuple[str, ...] = ()
     layout_status: LayoutStatus
     warnings: tuple[str, ...] = ()
 
@@ -132,6 +133,7 @@ class PreparationSummary(FrozenValue):
             edge_count=len(result.artifacts.dataset.edges),
             cluster_count=len(result.artifacts.clusters),
             lod_tier_count=max(len(levels), 1),
+            technical_roots=result.artifacts.dataset.technical_roots,
             layout_status=result.layout_status,
             warnings=warnings,
         )

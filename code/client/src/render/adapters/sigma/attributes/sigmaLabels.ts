@@ -42,6 +42,17 @@ export const drawCenteredNodeLabel: NodeLabelDrawingFunction = (context, data, s
     return;
   }
 
+  if (data.isBranchCollapsed === true) {
+    context.save();
+    context.font = `${settings.labelWeight} ${settings.labelSize}px ${settings.labelFont}`;
+    context.fillStyle = resolveLabelColor(data, settings);
+    context.textAlign = 'center';
+    context.textBaseline = 'bottom';
+    context.fillText(data.label, data.x, data.y - data.size - 4);
+    context.restore();
+    return;
+  }
+
   const label = fitLabelToNode(context, data.label, data.size * 1.75);
   if (!label) {
     return;

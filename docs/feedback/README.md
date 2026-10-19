@@ -1,5 +1,8 @@
 # Researcher feedback delivery backlog
 
+The [visualization meeting checklist](meeting-requirements.md) records the
+implementation and validation of the later eleven-item visualization follow-up.
+
 Source: researcher feedback supplied by the project maintainer, 2026-09-17.
 All ten work items are required; priority determines delivery order, not scope.
 The researcher supplied typing and ancillary files on 2026-09-17. Keep them

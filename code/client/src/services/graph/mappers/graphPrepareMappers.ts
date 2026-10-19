@@ -45,6 +45,7 @@ function toGraphPrepareResult(dto: GraphPrepareResponseDto): GraphPrepareResult 
     edgeCount: dto.edge_count,
     clusterCount: dto.cluster_count,
     lodTierCount: dto.lod_tier_count,
+    technicalRoots: dto.technical_roots && [...dto.technical_roots],
     layoutStatus: dto.layout_status,
     warnings: [...dto.warnings],
   };

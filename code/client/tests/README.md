@@ -21,5 +21,14 @@ node tests/browser/elasticMotion.mjs
 node tests/browser/viewportReadability.mjs
 ```
 
+`node tests/browser/meetingRequirements.mjs` verifies manual collapse/expand,
+distance-label intervals, grayscale edges, palette reset and lifecycle, removal
+of the redundant node selector, and real pointer-driven branch dragging against
+the product UI. Start a local API service first; `REQUIREMENTS_API_URL` defaults
+to `http://127.0.0.1:8128`. Use an isolated service data directory. The script
+creates and closes its own Vite server and browser, and writes a screenshot to
+`REQUIREMENTS_SCREENSHOT` (default `phylo-lens-requirements.png` in the system
+temporary directory).
+
 The navigation and zoom fixtures also need a running graph service and a Newick
 fixture. `tests/browser/tsconfig.json` checks these browser fixtures separately.
