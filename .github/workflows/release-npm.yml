@@ -144,9 +144,10 @@ jobs:
         with:
           name: npm-package
           path: .release/npm
-      - name: Publish with OIDC and verify package integrity
+      - name: Publish with OIDC or the existing npm token and verify integrity
         env:
           VERSION: ${{ needs.resolve.outputs.version }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: python3 scripts/release_npm.py publish "$VERSION" .release/npm/phylo-lens.tgz
 
   publish-service:

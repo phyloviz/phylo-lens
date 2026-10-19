@@ -30,7 +30,8 @@ service publication workflow has been removed.
    available to these jobs.
 5. Create the release tag, or verify that a retry's tag still identifies the
    validated commit. Never move a tag.
-6. Publish the saved npm tarball through OIDC and the saved container images using
+6. Publish the saved npm tarball through OIDC (or the existing `NPM_TOKEN` fallback)
+   and the saved container images using
    `GITHUB_TOKEN`. These jobs install no application dependencies or rebuild code.
 7. Verify npm's SHA-512 package integrity and the exact Docker image configuration
    digests for both platforms. Assemble the multi-platform image from immutable
@@ -104,8 +105,9 @@ Before the first coordinated release:
 - On npm, verify the trusted publisher for `@phyloviz/phylo-lens`: organization
   `phyloviz`, repository `phylo-lens`, workflow **release-npm.yml** (filename only),
   environment **npm-production**, with direct `npm publish` allowed. The workflow
-  needs no `NPM_TOKEN`; remove obsolete tokens after the first successful OIDC
-  publication. npm CLI 11.5.1+ and Node 22.14+ are required; the workflow uses Node 24.
+  accepts the existing `NPM_TOKEN` secret as a fallback until OIDC has been verified
+  by a successful production publication. Do not remove the working token before
+  that verification. npm CLI 11.5.1+ and Node 22.14+ are required; the workflow uses Node 24.
 - Confirm GHCR grants this repository package write access. The existing setup
   already published previous versions using its repository token.
 
@@ -138,7 +140,23 @@ observation. A failure blocks release and can be investigated from the
 
 ## Recovery
 
-Open the original **Release** run and choose **Re-run failed jobs**. Successful
+If publication failed because npm trusted publishing is not configured, the
+existing repository secret `NPM_TOKEN` can publish the saved package. Adding token
+support on main does not change an older run's immutable workflow definition.
+Use **Recover release** on **main** with the original tag and Release run ID (for
+v0.2.4: tag `v0.2.4`, run ID `39025519975`). The action validates the original
+production run and every required check, then downloads its original artifacts.
+It verifies npm integrity and both Docker configurations before promoting aliases
+and announcing the original GitHub release. No version bump or rebuild is needed.
+Artifacts must still be retained; otherwise prepare a new patch.
+
+This recovery action uses the existing token, requires the production environments,
+and shares the normal release concurrency lock. It deliberately disables npm
+provenance for the recovered tarball: the recovery workflow commit differs from
+the package's source commit. Original source validation and artifact integrity are
+still required. Normal releases continue to generate provenance.
+
+For a transient failure that needs no workflow change, open the original **Release** run and choose **Re-run failed jobs**. Successful
 validation jobs retain their exact artifacts for **seven days**. npm publication
 is skipped only when the existing package has identical integrity; Docker
 publication is skipped only when both image identities match. Authentication,

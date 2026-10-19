@@ -1,0 +1,142 @@
+name: Recover release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to complete (for example v0.2.4)
+        required: true
+        type: string
+      run_id:
+        description: Original Release workflow run ID containing the validated artifacts
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+# Share the normal release lock so recovery cannot race a new release.
+concurrency:
+  group: release-production
+  cancel-in-progress: false
+
+jobs:
+  resolve:
+    name: Verify original validated production run
+    if: github.repository == 'phyloviz/phylo-lens' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+      sha: ${{ steps.resolve.outputs.sha }}
+      run_id: ${{ steps.resolve.outputs.run_id }}
+      tag: ${{ steps.resolve.outputs.tag }}
+    steps:
+      - name: Checkout reviewed recovery helpers
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Validate tag and original run
+        id: resolve
+        env:
+          TAG: ${{ inputs.tag }}
+          RUN_ID: ${{ inputs.run_id }}
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/recover_release.py "$TAG" "$RUN_ID"
+
+  publish-npm:
+    name: Recover tested npm package using existing token
+    needs: resolve
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: npm-production
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Checkout reviewed publication helpers
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Setup Node.js for token publishing
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+      - name: Download original tested package
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: npm-package
+          path: .release/npm-package
+          run-id: ${{ needs.resolve.outputs.run_id }}
+          github-token: ${{ github.token }}
+      - name: Publish saved package with the existing token and verify integrity
+        env:
+          VERSION: ${{ needs.resolve.outputs.version }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        # The event source is the recovery workflow commit, not the package source.
+        # Do not generate an npm provenance statement identifying the wrong commit.
+        run: |
+          test -n "$NODE_AUTH_TOKEN" || { echo 'NPM_TOKEN is not configured' >&2; exit 1; }
+          python3 scripts/release_npm.py publish "$VERSION" .release/npm-package/phylo-lens.tgz --no-provenance
+
+  announce:
+    name: Verify recovered artifacts and announce release
+    needs: [resolve, publish-npm]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: ghcr-production
+    permissions:
+      contents: write
+      actions: read
+      packages: write
+    steps:
+      - name: Checkout reviewed recovery helpers
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Restore original release notes
+        env:
+          SHA: ${{ needs.resolve.outputs.sha }}
+        run: git show "$SHA:RELEASE_NOTES.md" > RELEASE_NOTES.md
+      - name: Download original tested images
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: service-*
+          path: .release
+          run-id: ${{ needs.resolve.outputs.run_id }}
+          github-token: ${{ github.token }}
+      - name: Download original tested npm package
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: npm-package
+          path: .release/npm-package
+          run-id: ${{ needs.resolve.outputs.run_id }}
+          github-token: ${{ github.token }}
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+      - name: Login to GHCR
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Verify saved package and promote the verified service manifest
+        env:
+          VERSION: ${{ needs.resolve.outputs.version }}
+          SHA: ${{ needs.resolve.outputs.sha }}
+        run: |
+          python3 scripts/release_npm.py verify "$VERSION" .release/npm-package/phylo-lens.tgz
+          python3 scripts/release_npm.py latest "$VERSION"
+          python3 scripts/release_service.py promote "$VERSION" "$SHA" .release
+      - name: Announce only the completed coordinated release
+        env:
+          TAG: ${{ needs.resolve.outputs.tag }}
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/release_github.py "$TAG"
