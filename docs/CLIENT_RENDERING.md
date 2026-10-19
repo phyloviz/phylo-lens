@@ -199,10 +199,17 @@ reach the renderer.
 Visual mappings do not change topology, LoD membership, or server queries.
 Changing a mapping re-applies renderer attributes to the current graph.
 
-Typing profile nodes use radius `3 * sqrt(isolate_count)` by default, so their
-area is proportional to isolate count and does not change with viewport contents.
-The linear `profile_count` mapping uses the same rule; an explicit logarithmic or
-other-field mapping overrides it. LoD triangles retain their separate size rule.
+Node sizing uses a fixed base radius plus a value-dependent increment. Linear
+uses radius `3 + 1.2 * value`; Logarithmic uses `3 + 1.2 * ln(1 + value)`.
+Linear describes radius growth, not area. Neither scale normalizes against the
+current viewport or caps valid sizes, so panning and filtering do not rescale
+remaining nodes, and equal-valued slices still reflect their values.
+
+Typing profiles use their summary isolate count by default, falling back to the
+number of isolate records when no summary is available. Explicit numeric fields
+use the same rules, including numeric strings. Missing or invalid values use
+radius `3`; negative values are treated as zero. LoD triangles retain their
+separate compact size rule in both modes.
 Original isolate records are available on positioned-node attributes as
 `isolates`. Single-field pies use category counts, and multi-field pies use
 per-isolate records to preserve correlations between selected fields.

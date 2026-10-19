@@ -11,8 +11,8 @@ import type { GraphDisplayOptions } from '../../../render/renderer.types';
 import {
   resolveMappingPalette,
   DEFAULT_PROFILE_COUNT_FIELD,
+  DEFAULT_NODE_SIZE,
   deriveSize,
-  numericAncillaryValue,
   resolveColorField,
   resolveDefaultSizeField,
   SIZE_SCALE_LINEAR,
@@ -31,7 +31,7 @@ import {
   PIE_PALETTE_ATTRIBUTE,
 } from '../../../render/mapping/pieMapping';
 
-export const DEFAULT_GRAPH_VIEWER_NODE_SIZE = 3;
+export const DEFAULT_GRAPH_VIEWER_NODE_SIZE = DEFAULT_NODE_SIZE;
 export const GRAPH_VIEWER_REPRESENTATIVE_BASE_SIZE = 3.5;
 export const GRAPH_VIEWER_REPRESENTATIVE_LOG_SIZE_FACTOR = 0.55;
 export const GRAPH_VIEWER_REPRESENTATIVE_MAX_SIZE = 6;
@@ -48,13 +48,11 @@ export interface ViewportRenderSettings {
 
 interface ResolvedViewportVisuals {
   colorField: string | undefined;
-  sizeField: string;
+  sizeField?: string;
   scale: SizeScale;
   palette: readonly string[];
   categoryColors?: Readonly<Record<string, string>>;
   grouping: PieCategoryGrouping;
-  numericStats?: { min: number; max: number };
-  customSize: boolean;
   pie?: NonNullable<VisualMappingOptions['pie']>;
 }
 
@@ -63,7 +61,7 @@ export function graphSnapshotFromViewportResponse(
   settings?: ViewportRenderSettings
 ): PositionedGraph {
   const nodes = filteredViewportNodes(response, settings);
-  const visuals = resolveViewportVisuals(nodes, settings);
+  const visuals = resolveViewportVisuals(settings);
   const liveNodeIds = new Set(nodes.map(node => node.id));
   const displayOptions = settings?.displayOptions;
 
@@ -121,7 +119,7 @@ export function graphSnapshotWithDisplayOptions(
 
 function positionedNodeFromViewportNode(
   node: GraphViewportNode,
-  visuals: ResolvedViewportVisuals | null,
+  visuals: ResolvedViewportVisuals,
   displayOptions?: GraphDisplayOptions
 ): PositionedNode {
   const attributes = buildGraphViewportNodeAttributes(node, visuals, displayOptions);
@@ -146,26 +144,24 @@ function positionedEdgeFromViewportEdge(edge: GraphViewportEdge, displayOptions?
 
 function buildGraphViewportNodeAttributes(
   node: GraphViewportNode,
-  visuals: ResolvedViewportVisuals | null,
+  visuals: ResolvedViewportVisuals,
   displayOptions?: GraphDisplayOptions
 ) {
   const isRepresentative = node.memberCount > 1;
   const observations = nodeObservations(node);
-  const fields = visuals?.pie?.fields?.length ? visuals.pie.fields : visuals?.colorField ? [visuals.colorField] : [];
+  const fields = visuals.pie?.fields?.length ? visuals.pie.fields : visuals.colorField ? [visuals.colorField] : [];
   const distribution = pieDistribution(observations, fields);
   // A mixed group has no single category color; keep its solid summary neutral.
   const color =
-    visuals && distribution.length === 1
+    distribution.length === 1
       ? resolvePieCategoryColor(distribution[0], visuals.palette, visuals.categoryColors?.[distribution[0].category])
       : GRAPH_VIEWER_NODE_COLOR;
-  const size =
-    !isRepresentative &&
-    node.isolates?.length &&
-    (!visuals?.customSize || (visuals.sizeField === DEFAULT_PROFILE_COUNT_FIELD && visuals.scale === SIZE_SCALE_LINEAR))
-      ? DEFAULT_GRAPH_VIEWER_NODE_SIZE * Math.sqrt(node.isolates.length)
-      : visuals && visuals.numericStats
-        ? deriveSize(nodeValue(node, visuals.sizeField), visuals.numericStats, visuals.scale)
-        : nodeSizeForMemberCount(node.memberCount);
+  const size = isRepresentative
+    ? nodeSizeForMemberCount(node.memberCount)
+    : deriveSize(
+        nodeValue(node, visuals.sizeField ?? resolveDefaultSizeField(profileCount(node) !== undefined)),
+        visuals.scale
+      );
   const showNodeLabel = displayOptions?.nodeLabels !== false;
   return {
     x: node.x,
@@ -218,64 +214,34 @@ function filteredViewportNodes(
   });
 }
 
-function resolveViewportVisuals(
-  nodes: readonly GraphViewportNode[],
-  settings?: ViewportRenderSettings
-): ResolvedViewportVisuals | null {
-  const mapping = settings?.visualMapping;
-  if (!mapping) {
-    return null;
-  }
+function resolveViewportVisuals(settings?: ViewportRenderSettings): ResolvedViewportVisuals {
+  const mapping = settings?.visualMapping ?? {};
 
   const colorField = resolveColorField(mapping.colorField);
-  const sizeField = mapping.size?.field ?? resolveDefaultSizeField(viewportHasProfileCount(nodes));
+  const sizeField = mapping.size?.field;
   const scale = mapping.size?.scale ?? SIZE_SCALE_LINEAR;
   const palette = resolveMappingPalette(mapping);
-  const numericStats = computeSizeFieldStats(nodes, sizeField);
   const pie = mapping.pie && mapping.pie.enabled !== false ? mapping.pie : undefined;
 
   return {
     colorField,
-    customSize: mapping.size !== undefined,
     sizeField,
     scale,
     palette,
     categoryColors: mapping.pie?.categoryColors,
     grouping: pieGroupingForFields(mapping.pie?.fields ?? [], mapping.pie?.categoryGrouping),
-    numericStats,
     pie,
   };
 }
 
 function nodeValue(node: GraphViewportNode, field: string) {
-  const { ancillaryData, ancillarySummary, profileSummary } = node.annotations;
-  if (field === DEFAULT_PROFILE_COUNT_FIELD) return profileSummary.isolateCount;
+  const { ancillaryData, ancillarySummary } = node.annotations;
+  if (field === DEFAULT_PROFILE_COUNT_FIELD) return profileCount(node);
   return Object.hasOwn(ancillaryData, field) ? ancillaryData[field] : ancillarySummary.values[field];
 }
 
-function viewportHasProfileCount(nodes: readonly GraphViewportNode[]): boolean {
-  return nodes.some(node => node.annotations.profileSummary.isolateCount !== undefined);
-}
-
-function computeSizeFieldStats(
-  nodes: readonly GraphViewportNode[],
-  sizeField: string
-): { min: number; max: number } | undefined {
-  let min = Number.POSITIVE_INFINITY;
-  let max = Number.NEGATIVE_INFINITY;
-  nodes.forEach(node => {
-    const value = numericAncillaryValue(nodeValue(node, sizeField));
-    if (value === null) {
-      return;
-    }
-    min = Math.min(min, value);
-    max = Math.max(max, value);
-  });
-
-  if (!Number.isFinite(min) || !Number.isFinite(max)) {
-    return undefined;
-  }
-  return { min, max };
+function profileCount(node: GraphViewportNode): number | undefined {
+  return node.annotations.profileSummary.isolateCount ?? (node.isolates?.length || undefined);
 }
 
 function nodeSizeForMemberCount(memberCount: number): number {
@@ -293,9 +259,9 @@ function nodeObservations(node: GraphViewportNode): readonly AncillaryObservatio
   return [{ values: ancillaryValues(node.annotations), count: 1 }];
 }
 
-function pieNodeAttributes(visuals: ResolvedViewportVisuals | null, distribution: readonly PieCategory[]) {
-  const pie = visuals?.pie;
-  if (!visuals || !pie?.fields?.length) return {};
+function pieNodeAttributes(visuals: ResolvedViewportVisuals, distribution: readonly PieCategory[]) {
+  const pie = visuals.pie;
+  if (!pie?.fields?.length) return {};
   const colors = Object.fromEntries(
     distribution.flatMap(slice => {
       const color = pie.categoryColors?.[slice.category];
