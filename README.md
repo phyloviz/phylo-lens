@@ -4,6 +4,8 @@ PhyloLens is an embeddable browser visualization library and companion API
 service for interactive exploration of large phylogenetic trees and
 typing-derived graphs.
 
+> **Live demo:** [Try PhyloLens in your browser](http://192.92.147.22:3000/).
+
 The browser package owns rendering and interaction. The service owns input
 normalization, PhyloLib-based typing-data processing, Graphviz layout
 computation, level-of-detail (LoD) materialization, persistence, and bounded
