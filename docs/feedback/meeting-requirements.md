@@ -2,6 +2,9 @@
 
 The repeated Linear/Logarithmic item is counted once. This checklist records
 implementation and regression coverage for the eleven distinct requirements.
+All eleven are covered. The scope review on 2026-10-20 confirmed that the existing
+branch-dragging interaction and SFDP component packing satisfy their respective
+meeting items, together with the configurable small-component protection below.
 
 | Requirement | Delivered behavior | Coverage |
 | --- | --- | --- |
@@ -10,9 +13,9 @@ implementation and regression coverage for the eleven distinct requirements.
 | Expand/collapse on small trees without LoD aggregates | Internal nodes can hide and restore their technical-root descendants. Manual circles/rings and counts distinguish them from LoD triangles. | `viewportCoordinator.test.ts`, browser sequence |
 | Reset palette | Reset restores default colors while retaining fields, sizing and grouping. | `visualMappingPalette.test.ts`, browser sequence |
 | Old colors reappearing | Overrides are scoped to field combinations and cleared on new trees or successful ancillary replacement. Stale palette-file reads cannot undo Reset. | `visualMappingPalette.test.ts`, browser sequence |
-| Branch dragging | An explicit arrangement root selects loaded descendants for coherent translation, preserving topology and distance values. | `sigmaDragController.test.ts`, browser pointer sequence |
+| Branch dragging | The existing interaction uses an explicit arrangement root to select loaded descendants for coherent translation, preserving topology and distance values. | `sigmaDragController.test.ts`, browser pointer sequence |
 | Clusters use hop counts | Membership uses tree hops, independently of branch distances. | `test_prepared_layout.py`, `test_lod_selection.py` |
-| Small components within forests | A configurable per-component limit (default 64, zero disables) keeps small components explicit at all tiers; roots and connectivity remain separate. | `test_prepared_layout.py`, `test_isolated_layout.py` |
+| Small components within forests | Existing SFDP component packing organizes disconnected trees. A configurable per-component limit (default 64, zero disables) keeps small components explicit at all tiers; roots and connectivity remain separate. | `test_prepared_layout.py`, `test_isolated_layout.py` |
 | Distance-label interval | Optional inclusive minimum/maximum bounds affect labels, including export, without hiding edges. | `edgePresentation.test.ts`, browser sequence |
 | Distance-weighted grayscale edges | Fixed grayscale encoding replaces thickness growth; edge widths and numeric distances remain unchanged. | `edgePresentation.test.ts`, `sigmaRenderer.test.ts`, browser sequence |
 | Review Select Node | Removed the redundant node dropdown and wheel scope. Canvas clicks and Search populate the selected-node panel. | `uiShell.test.ts`, browser sequence |
@@ -26,8 +29,8 @@ IDs, which can be shared by expanded members.
 
 Validation includes operation-count tests on a 20,000-node chain and 10,000
 component roots, partial-slice and nested-fold tests, coarse/fine viewport
-transitions, and real-API browser controls, including a 4,095-node partial LoD view. Reproducible measurements and their
-limits are in [Indexed branch operations](../TREE_INDEX.md).
+transitions, and real-API browser controls, including a 4,095-node partial LoD
+view. Reproducible measurements and their limits are in [Indexed branch operations](../TREE_INDEX.md).
 See [`meetingRequirements.mjs`](../../code/client/tests/browser/meetingRequirements.mjs)
 and [browser test instructions](../../code/client/tests/README.md).
 
