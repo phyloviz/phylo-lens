@@ -19,6 +19,9 @@ export function toGraphPrepareRequestDto(request: GraphPrepareRequest): GraphPre
     metadata_by_node_id: request.ancillaryByNodeId,
     ancillary_data: request.ancillaryData === undefined ? undefined : toAncillaryDataInputDto(request.ancillaryData),
     sfdp_options: request.sfdpOptions,
+    lod_options: request.lodPreparation && {
+      small_component_threshold: request.lodPreparation.smallComponentThreshold,
+    },
   };
 }
 
@@ -33,6 +36,7 @@ export function copyGraphPrepareRequestDto(dto: GraphPrepareRequestDto): GraphPr
         ? undefined
         : Object.fromEntries(Object.entries(dto.metadata_by_node_id).map(([id, data]) => [id, { ...data }])),
     sfdp_options: dto.sfdp_options && { ...dto.sfdp_options },
+    lod_options: dto.lod_options && { ...dto.lod_options },
     ancillary_data: dto.ancillary_data && { ...dto.ancillary_data },
   };
 }
@@ -45,6 +49,7 @@ function toGraphPrepareResult(dto: GraphPrepareResponseDto): GraphPrepareResult 
     edgeCount: dto.edge_count,
     clusterCount: dto.cluster_count,
     lodTierCount: dto.lod_tier_count,
+    technicalRoots: dto.technical_roots && [...dto.technical_roots],
     layoutStatus: dto.layout_status,
     warnings: [...dto.warnings],
   };

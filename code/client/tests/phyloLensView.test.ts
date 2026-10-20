@@ -1,4 +1,4 @@
-import { toDatasetId, toLayoutVersion, toClusterId } from '../src/contracts/graph/graphIdentifiers';
+import { toDatasetId, toLayoutVersion, toClusterId, toNodeId } from '../src/contracts/graph/graphIdentifiers';
 import { describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -13,6 +13,8 @@ const mocks = vi.hoisted(() => ({
   collapseAll: vi.fn(),
   expandCluster: vi.fn(),
   collapseCluster: vi.fn(),
+  collapseBranch: vi.fn(),
+  expandBranch: vi.fn(),
   getExpansionState: vi.fn(),
   setKeepExpanded: vi.fn(),
 }));
@@ -37,6 +39,8 @@ vi.mock('../src/app/workbench/graphWorkbench', () => ({
     collapseAll: mocks.collapseAll,
     expandCluster: mocks.expandCluster,
     collapseCluster: mocks.collapseCluster,
+    collapseBranch: mocks.collapseBranch,
+    expandBranch: mocks.expandBranch,
     getExpansionState: mocks.getExpansionState,
     setKeepExpanded: mocks.setKeepExpanded,
     setInteractionFeedbackHandler: vi.fn(),
@@ -270,10 +274,16 @@ it('exposes expansion results and prevents operations after disposal', async () 
   expect(mocks.setKeepExpanded).toHaveBeenCalledWith(true);
   await view.expandCluster(toClusterId('group'));
   expect(mocks.expandCluster).toHaveBeenCalledWith('group');
+  view.collapseBranch(toNodeId('internal'));
+  view.expandBranch(toNodeId('internal'));
+  expect(mocks.collapseBranch).toHaveBeenCalledWith('internal');
+  expect(mocks.expandBranch).toHaveBeenCalledWith('internal');
   view.dispose();
   await expect(view.expandAll()).rejects.toThrow(ERR_PHYLO_LENS_VIEW_DISPOSED);
   await expect(view.collapseAll()).rejects.toThrow(ERR_PHYLO_LENS_VIEW_DISPOSED);
   expect(() => view.collapseCluster(toClusterId('group'))).toThrow(ERR_PHYLO_LENS_VIEW_DISPOSED);
+  expect(() => view.collapseBranch(toNodeId('internal'))).toThrow(ERR_PHYLO_LENS_VIEW_DISPOSED);
+  expect(() => view.expandBranch(toNodeId('internal'))).toThrow(ERR_PHYLO_LENS_VIEW_DISPOSED);
 });
 
 it('exposes motion preference and feedback without allowing calls after disposal', () => {

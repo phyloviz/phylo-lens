@@ -1,5 +1,6 @@
 from contextlib import nullcontext
 
+from phylo_lens_server.domain.lod import LodOptions
 from phylo_lens_server.domain.models import Dataset
 from phylo_lens_server.domain.sfdp import SfdpOptions
 from phylo_lens_server.repository.jobs.postgres import (
@@ -42,12 +43,14 @@ class DurablePrepareJobRegistry:
         warnings: tuple[str, ...] = (),
         *,
         sfdp_options: SfdpOptions | None = None,
+        lod_options: LodOptions | None = None,
         reserved_capacity: bool = False,
     ) -> str:
         return self._store.submit(
             dataset,
             warnings,
             sfdp_options=sfdp_options,
+            lod_options=lod_options,
             max_active_jobs=self._max_active_jobs,
         )
 

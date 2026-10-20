@@ -10,6 +10,13 @@ export interface GraphViewportNodeDto {
   layout_status: GraphLayoutStatus;
   member_count: number;
   is_representative: boolean;
+  tree_index?: {
+    component_id: string;
+    parent_id?: string | null;
+    depth: number;
+    start: number;
+    end: number;
+  } | null;
   metadata?: AncillaryData | null;
   isolates?: GraphIsolateDto[];
   ancillary_distribution?: AncillaryObservation[];

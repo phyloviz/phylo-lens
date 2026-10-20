@@ -35,6 +35,7 @@ export default function (options: VisualMappingPaletteOptions) {
   };
   const fieldKey = (fields: string[]) => JSON.stringify(normalizedPieFields(fields));
   const currentGrouping = () => state.groupingByFields[fieldKey(options.getSelectedFields())] ?? {};
+  const currentColors = () => state.colorsByFields[fieldKey(options.getSelectedFields())] ?? {};
   const controls = categoryColorControls(options.container);
 
   return {
@@ -42,6 +43,7 @@ export default function (options: VisualMappingPaletteOptions) {
     getCategoryColorOverrides: getCategoryColorOverrides,
     setBaseVisualMapping: setBaseVisualMapping,
     reset: reset,
+    resetColors,
     renderControls: renderControls,
     applyControlChange: applyControlChange,
     load: load,
@@ -53,7 +55,7 @@ export default function (options: VisualMappingPaletteOptions) {
   }
 
   function getCategoryColorOverrides(): Record<string, string> {
-    return { ...state.colors };
+    return { ...currentColors() };
   }
 
   function setBaseVisualMapping(mapping: VisualMappingOptions): void {
@@ -71,7 +73,7 @@ export default function (options: VisualMappingPaletteOptions) {
     controls.render({
       graph: options.getGraph(),
       selectedFields: options.getSelectedFields(),
-      categoryColorOverrides: { ...state.colors },
+      categoryColorOverrides: { ...currentColors() },
       palette: resolveMappingPalette(state.mapping),
       categoryGrouping: currentGrouping(),
     });
@@ -80,6 +82,14 @@ export default function (options: VisualMappingPaletteOptions) {
   function applyControlChange(): void {
     revision++;
     applyMapping();
+  }
+
+  function resetColors(): void {
+    revision++;
+    dispatch({ kind: 'resetColors' });
+    renderControls();
+    applyMapping();
+    options.setStatus('Palette reset to default colors.');
   }
 
   function applyMapping(): void {
@@ -112,7 +122,7 @@ export default function (options: VisualMappingPaletteOptions) {
       const content = await readTextFile(file);
       if (!isCurrent()) return;
       const colors = parseCategoryColorPalette(content, categories);
-      dispatch({ kind: 'colorsLoaded', colors });
+      dispatch({ kind: 'colorsLoaded', colors, fieldKey: selectedFields });
       renderControls();
       applyMapping();
       if (isCurrent()) options.setStatus(`Loaded ${Object.keys(colors).length} category colors`);
@@ -141,7 +151,7 @@ export default function (options: VisualMappingPaletteOptions) {
       options.getSelectedFields(),
       options.getSizeFieldValue(),
       options.getSizeScaleValue(),
-      { ...state.colors }
+      { ...currentColors() }
     );
     const pie = mapping.pie && { ...mapping.pie };
     if (pie) {

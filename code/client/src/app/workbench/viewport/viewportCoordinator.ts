@@ -2,6 +2,7 @@ import { toError } from '../../errors';
 import { toNodeId } from '../../../contracts/graph/graphIdentifiers';
 import type { ClusterId, DatasetId, LayoutVersion, NodeId } from '../../../contracts/graph/graphIdentifiers';
 import { retainMovedNodes } from './retainMovedNodes';
+import { ManualBranches } from './manualBranches';
 import type { ExpansionState, ExpansionResult } from '../../../contracts/expansion';
 import { composeViewportExpansion, isIncompleteExpansion } from './expandedViewport';
 import type { GraphClient } from '../../../contracts/graph/GraphClient';
@@ -67,6 +68,7 @@ export class GraphViewportCoordinator {
   private readonly lodTierCount: number;
   private readonly smallTreeThreshold: number;
   private readonly preparedNodeCount: number | null;
+  private readonly manualFolds = new ManualBranches();
   private readonly getPaused?: () => boolean;
   private readonly onError?: (error: Error) => void;
   private readonly getRenderSettings?: () => ViewportRenderSettings;
@@ -261,7 +263,9 @@ export class GraphViewportCoordinator {
     if (!this.currentGraph) {
       return;
     }
-    this.currentGraph = graphSnapshotWithDisplayOptions(this.currentGraph, displayOptions);
+    this.currentGraph = this.manualFolds.apply(
+      graphSnapshotWithDisplayOptions(this.composeUnfoldedGraph(), displayOptions)
+    );
     this.applyGraph(this.currentGraph, 'viewport_sync');
     this.onGraphApplied?.(this.currentGraph);
   }
@@ -272,10 +276,11 @@ export class GraphViewportCoordinator {
     return {
       keepExpanded: this.keepExpanded,
       expandedClusterIds: [...this.expandedPatches.keys()],
-      allExpanded: this.allExpanded && !this.expansionPartial,
+      allExpanded: this.allExpanded && !this.expansionPartial && this.manualFolds.size === 0,
       partial: this.expansionPartial,
       renderedNodeCount: this.currentGraph?.nodes.length ?? 0,
       maxNodes: this.maxNodes,
+      ...(this.manualFolds.size ? { manuallyCollapsedBranchCount: this.manualFolds.size } : {}),
     };
   }
 
@@ -325,9 +330,9 @@ export class GraphViewportCoordinator {
       return this.expansionResult();
     }
     if (focusNodeId) {
-      if (!response.nodes.some(node => node.id === focusNodeId && !node.isRepresentative)) {
-        throw new Error('The requested profile is unavailable in this cluster.');
-      }
+      const target = response.nodes.find(node => node.id === focusNodeId && !node.isRepresentative);
+      if (!target) throw new Error('The requested profile is unavailable in this cluster.');
+      if (target?.treeIndex) this.manualFolds.reveal(target.treeIndex);
       this.priorityNodeId = focusNodeId;
     }
     this.expandedPatches.set(clusterId, response);
@@ -368,9 +373,14 @@ export class GraphViewportCoordinator {
     this.lastViewportRequest = request;
     this.lastRequestedLodLevel = request.lodLevel;
     this.expandedPatches.clear();
+    this.manualFolds.clear();
     this.allExpanded = expand;
     this.expansionLodLevel = request.lodLevel ?? 0;
-    const graph = this.composeGraph();
+    let graph = this.composeGraph();
+    if (!expand) {
+      this.manualFolds.collapseRoots(graph);
+      graph = this.composeGraph();
+    }
     this.applyGraph(graph, 'viewport_sync');
     this.onGraphApplied?.(graph, response);
     return this.expansionResult();
@@ -381,7 +391,29 @@ export class GraphViewportCoordinator {
     this.beginExpansion();
     this.expandedPatches.delete(clusterId);
     const graph = this.composeGraph();
-    this.applyGraph(graph, 'cluster_collapse', clusterId);
+    this.applyGraph(graph, 'cluster_collapse', clusterId, true);
+    this.onGraphApplied?.(graph);
+    return this.getExpansionState();
+  }
+
+  collapseBranch(nodeId: NodeId): ExpansionState {
+    this.requireExpansionReady();
+    const node = this.currentGraph?.nodes.find(node => node.id === nodeId);
+    if (!node || !this.manualFolds.collapse(node))
+      throw new Error('Choose an internal node with prepared branch information.');
+    return this.applyBranchChange('cluster_collapse');
+  }
+
+  expandBranch(nodeId: NodeId): ExpansionState {
+    this.requireExpansionReady();
+    this.manualFolds.expand(nodeId);
+    return this.applyBranchChange('cluster_expand');
+  }
+
+  private applyBranchChange(reason: 'cluster_expand' | 'cluster_collapse'): ExpansionState {
+    this.beginExpansion();
+    const graph = this.composeGraph();
+    this.applyGraph(graph, reason, null, true);
     this.onGraphApplied?.(graph);
     return this.getExpansionState();
   }
@@ -423,17 +455,19 @@ export class GraphViewportCoordinator {
   }
 
   private composeGraph(): PositionedGraph {
-    const responses = [...this.expandedPatches.values()];
-    const settings = this.getRenderSettings?.();
+    this.currentGraph = this.manualFolds.apply(this.composeUnfoldedGraph());
+    return this.currentGraph;
+  }
+
+  private composeUnfoldedGraph(): PositionedGraph {
     const composed = composeViewportExpansion(
       this.baseResponse!,
-      responses,
-      settings,
+      [...this.expandedPatches.values()],
+      this.getRenderSettings?.(),
       this.maxNodes,
       this.priorityNodeId
     );
     this.expansionPartial = composed.partial;
-    this.currentGraph = composed.graph;
     return composed.graph;
   }
 

@@ -31,6 +31,10 @@ export function buildVisualMappingForControls(
       ...(mapping.pie ?? baseVisualMapping.pie ?? {}),
       categoryColors,
     };
+  } else if (categoryColors && mapping.pie) {
+    const pie = { ...mapping.pie };
+    delete pie.categoryColors;
+    mapping.pie = pie;
   }
 
   if (selectedFields.length === 0) {

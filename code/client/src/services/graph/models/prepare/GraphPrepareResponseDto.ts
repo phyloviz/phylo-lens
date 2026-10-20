@@ -7,6 +7,7 @@ export interface GraphPrepareResponseDto {
   edge_count: number;
   cluster_count: number;
   lod_tier_count?: number;
+  technical_roots?: string[];
   layout_status: GraphLayoutStatus;
   warnings: string[];
 }

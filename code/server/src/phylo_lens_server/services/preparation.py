@@ -4,6 +4,7 @@ import logging
 from collections.abc import Callable
 from contextlib import AbstractContextManager, contextmanager
 
+from phylo_lens_server.domain.lod import LodOptions
 from phylo_lens_server.domain.models import Dataset
 from phylo_lens_server.domain.preparation import (
     PreparedLayoutResult,
@@ -44,10 +45,13 @@ class PreparationService:
         dataset: Dataset,
         *,
         sfdp_options: SfdpOptions | None = None,
+        lod_options: LodOptions | None = None,
         should_continue: Callable[[], bool] | None = None,
     ) -> PreparedLayoutResult:
         with self._stage("lod_construction"):
-            artifacts = prepare_layout_artifacts(dataset, sfdp_options=sfdp_options)
+            artifacts = prepare_layout_artifacts(
+                dataset, sfdp_options=sfdp_options, lod_options=lod_options
+            )
         ensure_should_continue(should_continue)
         with self._stage("persistence.clear"):
             self.store.clear_layout_version(
@@ -152,6 +156,7 @@ def prepare_graph_job(
             dataset,
             ingested.warnings,
             sfdp_options=request.sfdp_options,
+            lod_options=request.lod_options,
             reserved_capacity=reserved_capacity,
         )
     return PrepareJob(

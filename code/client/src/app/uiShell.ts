@@ -26,12 +26,6 @@ export {
   SELECT_PIE_FIELD_MESSAGE,
 } from './shell/ancillary/ancillaryControls';
 export {
-  ANCILLARY_MODE_GLOBAL,
-  ANCILLARY_MODE_CURRENT,
-  ANCILLARY_MODE_SELECTED,
-  type AncillaryMode,
-} from './shell/ancillary/nodeSelector';
-export {
   DISPLAY_OPTION_DISTANCE_WEIGHTED_EDGES,
   DISPLAY_OPTION_EDGE_DISTANCE_LABELS,
   DISPLAY_OPTION_NODE_LABELS,
@@ -202,6 +196,7 @@ export default function createUiShell(options: UiShellOptions): UiShell {
   function handleGraphRendered(graph: PositionedGraph): void {
     setStatus(buildRenderedStatus(graph));
     lastRenderedGraph = graph;
+    expansion.refreshGraph(graph);
     expansion.setReady(true);
     loading.updateApplyAncillaryButton();
     ancillary.refreshGraph(graph);

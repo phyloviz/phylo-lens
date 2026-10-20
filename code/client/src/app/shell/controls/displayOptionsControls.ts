@@ -6,19 +6,23 @@ import { getSelectedOptions } from './selectOptions';
 export type DisplayOptionsControlsElements = {
   readonly displayOptionsSelect?: HTMLSelectElement;
   readonly edgeLabelPolicySelect?: HTMLSelectElement;
+  readonly edgeLabelMinInput?: HTMLInputElement;
+  readonly edgeLabelMaxInput?: HTMLInputElement;
 };
 
 export default function createDisplayOptionsControls(
   workbench: Pick<GraphWorkbench, 'updateDisplayOptions'>,
   elements: DisplayOptionsControlsElements
 ) {
-  const { displayOptionsSelect, edgeLabelPolicySelect } = elements;
+  const { displayOptionsSelect, edgeLabelPolicySelect, edgeLabelMinInput, edgeLabelMaxInput } = elements;
   const bindings = eventBindings();
 
   return { mount, unmount: bindings.clear, readOptions, apply };
 
   function mount(): void {
     bindings.on(edgeLabelPolicySelect, 'change', apply);
+    bindings.on(edgeLabelMinInput, 'input', apply);
+    bindings.on(edgeLabelMaxInput, 'input', apply);
     bindings.on(displayOptionsSelect, 'change', apply);
     bindings.on(displayOptionsSelect, 'mousedown', event => {
       if (toggleClickedOption(displayOptionsSelect, event)) apply();
@@ -27,6 +31,18 @@ export default function createDisplayOptionsControls(
 
   function readOptions(): GraphDisplayOptions {
     const display = buildDisplayOptions(getSelectedOptions(displayOptionsSelect));
+    const readBound = (input?: HTMLInputElement) => {
+      if (!input?.value.trim()) return undefined;
+      const value = Number(input.value);
+      return Number.isFinite(value) && value >= 0 ? value : undefined;
+    };
+    const min = readBound(edgeLabelMinInput);
+    const max = readBound(edgeLabelMaxInput);
+    edgeLabelMaxInput?.setCustomValidity(
+      min !== undefined && max !== undefined && min > max ? 'Maximum must be at least minimum.' : ''
+    );
+    if (min !== undefined) Object.assign(display, { edgeDistanceLabelMin: min });
+    if (max !== undefined) Object.assign(display, { edgeDistanceLabelMax: max });
     return edgeLabelPolicySelect
       ? { ...display, edgeDistanceLabelPolicy: edgeLabelPolicySelect.value === 'always' ? 'always' : 'auto' }
       : display;

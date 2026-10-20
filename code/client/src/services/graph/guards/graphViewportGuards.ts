@@ -42,6 +42,7 @@ export function isGraphViewportNodeDto(value: unknown): value is GraphViewportNo
     isGraphLayoutStatus(value.layout_status) &&
     isFiniteNumber(value.member_count) &&
     isBoolean(value.is_representative) &&
+    (value.tree_index == null || isTreeIndexDto(value.tree_index)) &&
     (value.metadata == null || isAncillaryData(value.metadata)) &&
     (value.ancillary_distribution === undefined ||
       isArrayOf(
@@ -80,5 +81,22 @@ function isGraphLayoutBoundsDto(value: unknown): boolean {
     isFiniteNumber(value.max_x) &&
     isFiniteNumber(value.min_y) &&
     isFiniteNumber(value.max_y)
+  );
+}
+
+function isTreeIndexDto(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    isString(value.component_id) &&
+    (value.parent_id == null || isString(value.parent_id)) &&
+    isFiniteNumber(value.depth) &&
+    Number.isSafeInteger(value.depth) &&
+    value.depth >= 0 &&
+    isFiniteNumber(value.start) &&
+    Number.isSafeInteger(value.start) &&
+    value.start >= 0 &&
+    isFiniteNumber(value.end) &&
+    Number.isSafeInteger(value.end) &&
+    value.end > value.start
   );
 }

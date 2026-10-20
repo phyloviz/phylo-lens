@@ -25,7 +25,8 @@ export function isGraphPrepareRequestDto(value: unknown): value is GraphPrepareR
     isOptionalGraphMetadataSchema(value.metadata_schema) &&
     isOptionalMetadataByNodeId(value.metadata_by_node_id) &&
     isOptionalAncillaryDataRequest(value.ancillary_data) &&
-    isOptionalSfdpOptions(value.sfdp_options)
+    isOptionalSfdpOptions(value.sfdp_options) &&
+    isOptionalLodOptions(value.lod_options)
   );
 }
 
@@ -38,6 +39,7 @@ function isGraphPrepareResponseDto(value: unknown): value is GraphPrepareRespons
     isFiniteNumber(value.edge_count) &&
     isFiniteNumber(value.cluster_count) &&
     isOptionalFiniteNumber(value.lod_tier_count) &&
+    (value.technical_roots === undefined || isArrayOf(value.technical_roots, isString)) &&
     isGraphLayoutStatus(value.layout_status) &&
     isArrayOf(value.warnings, isString)
   );
@@ -141,5 +143,17 @@ function isOptionalAncillaryDataRequest(value: unknown): boolean {
       isString(value.content) &&
       isString(value.join_column) &&
       (value.format === undefined || value.format === 'auto' || value.format === 'csv' || value.format === 'tsv'))
+  );
+}
+
+function isOptionalLodOptions(value: unknown): boolean {
+  return (
+    value === undefined ||
+    (isRecord(value) &&
+      Object.keys(value).every(key => key === 'small_component_threshold') &&
+      (value.small_component_threshold === undefined ||
+        (isFiniteNumber(value.small_component_threshold) &&
+          Number.isSafeInteger(value.small_component_threshold) &&
+          value.small_component_threshold >= 0)))
   );
 }

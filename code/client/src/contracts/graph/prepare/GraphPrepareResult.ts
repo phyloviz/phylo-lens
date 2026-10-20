@@ -8,6 +8,7 @@ export type GraphPrepareResult = {
   readonly edgeCount: number;
   readonly clusterCount: number;
   readonly lodTierCount?: number;
+  readonly technicalRoots?: readonly string[];
   readonly layoutStatus: GraphLayoutStatus;
   readonly warnings: readonly string[];
 };

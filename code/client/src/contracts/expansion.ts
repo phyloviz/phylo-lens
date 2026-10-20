@@ -7,6 +7,7 @@ export type ExpansionState = {
   readonly partial: boolean;
   readonly renderedNodeCount: number;
   readonly maxNodes?: number;
+  readonly manuallyCollapsedBranchCount?: number;
 };
 
 export type ExpansionResult = ExpansionState & {

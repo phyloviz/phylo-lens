@@ -700,7 +700,7 @@ describe('sigmaRenderer', () => {
     renderer.unmount();
   });
 
-  it('renders edge distance labels and distance-weighted edge sizes', () => {
+  it('renders edge distance labels and distance-weighted grayscale at constant width', () => {
     document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
 
     const renderer = createSigmaRenderer({
@@ -729,7 +729,8 @@ describe('sigmaRenderer', () => {
     expect(lastSigmaOptions?.renderEdgeLabels).toBe(false);
     expect(lastGraph?.getEdgeAttribute('e_root_a_1', 'label')).toBe('2.500');
     expect(lastGraph?.getEdgeAttribute('e_root_a_1', 'forceLabel')).toBe(true);
-    expect(lastGraph?.getEdgeAttribute('e_root_a_1', 'size')).toBeGreaterThan(1.25);
+    expect(lastGraph?.getEdgeAttribute('e_root_a_1', 'size')).toBe(1.75);
+    expect(lastGraph?.getEdgeAttribute('e_root_a_1', 'color')).toBe('#787878');
 
     lastCamera?.setState({ ratio: 0.4 });
     lastCamera?.handler?.();

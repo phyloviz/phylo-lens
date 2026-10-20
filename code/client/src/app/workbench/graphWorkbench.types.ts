@@ -1,3 +1,4 @@
+import type { LodPreparationOptions } from '../../contracts/graph/LodPreparationOptions';
 import type { ClusterId, DatasetId, LayoutVersion, NodeId } from '../../contracts/graph/graphIdentifiers';
 import type { GraphSearchResult } from '../../contracts/graph/search/GraphSearchResult';
 import type { AncillaryData } from '../../contracts/ancillary';
@@ -47,6 +48,7 @@ export interface LoadGraphOptions extends AncillaryInputOptions {
   readonly visualMapping?: VisualMappingOptions;
   readonly displayOptions?: GraphDisplayOptions;
   readonly sfdpOptions?: SfdpOptions;
+  readonly lodPreparation?: LodPreparationOptions;
 
   readonly lod?: {
     readonly maxNodes?: number;
@@ -68,6 +70,8 @@ export type GraphNodeClickedHandler = (state: RenderNodeClickState) => void;
 export interface GraphWorkbench {
   expandCluster: (clusterId: ClusterId) => Promise<ExpansionResult>;
   collapseCluster: (clusterId: ClusterId) => ExpansionState;
+  collapseBranch: (nodeId: NodeId) => ExpansionState;
+  expandBranch: (nodeId: NodeId) => ExpansionState;
   expandAll: () => Promise<ExpansionResult>;
   collapseAll: () => Promise<ExpansionResult>;
   setKeepExpanded: (keep: boolean) => ExpansionState;

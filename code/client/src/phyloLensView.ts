@@ -1,3 +1,4 @@
+import type { LodPreparationOptions } from './contracts/graph/LodPreparationOptions';
 import { toNodeId, toClusterId } from './contracts/graph/graphIdentifiers';
 import type { ClusterId, NodeId } from './contracts/graph/graphIdentifiers';
 import type { DragSelection, PngExportOptions } from './render/renderer.types';
@@ -22,7 +23,13 @@ export interface PhyloLensViewOptions {
   container: HTMLElement;
   apiUrl: string;
   onError?: (error: Error) => void;
-  onNodeSelected?: (selection: { nodeId: NodeId | null; clusterId: ClusterId | null; expandable: boolean }) => void;
+  onNodeSelected?: (selection: {
+    nodeId: NodeId | null;
+    clusterId: ClusterId | null;
+    expandable: boolean;
+    collapsible?: boolean;
+    manuallyCollapsed?: boolean;
+  }) => void;
   onInteractionFeedback?: (message: string) => void;
   onExpansionChanged?: (state: ExpansionState) => void;
 }
@@ -33,6 +40,7 @@ export interface PhyloLensLoadOptions extends AncillaryInputOptions {
   sourceFormat?: SourceFormat;
   visualMapping?: VisualMappingOptions;
   sfdpOptions?: SfdpOptions;
+  readonly lodPreparation?: LodPreparationOptions;
   lod?: {
     maxNodes?: number;
     representationSpacingPx?: number;
@@ -51,6 +59,8 @@ export interface PhyloLensView {
   cancelPendingFocus: () => void;
   expandCluster: (clusterId: ClusterId) => Promise<ExpansionResult>;
   collapseCluster: (clusterId: ClusterId) => ExpansionState;
+  collapseBranch: (nodeId: NodeId) => ExpansionState;
+  expandBranch: (nodeId: NodeId) => ExpansionState;
   expandAll: () => Promise<ExpansionResult>;
   collapseAll: () => Promise<ExpansionResult>;
   setKeepExpanded: (keep: boolean) => ExpansionState;
@@ -77,7 +87,11 @@ export function createPhyloLensView(options: PhyloLensViewOptions): PhyloLensVie
     options.onNodeSelected?.({
       nodeId: state.nodeId === null ? null : toNodeId(state.nodeId),
       clusterId: typeof state.attributes?.clusterId === 'string' ? toClusterId(state.attributes.clusterId) : null,
-      expandable: state.attributes?.isClusterProxy === true,
+      expandable: state.attributes?.isClusterProxy === true || state.attributes?.isBranchCollapsed === true,
+      ...(state.attributes?.canCollapseBranch === true
+        ? { collapsible: state.attributes?.isBranchCollapsed !== true }
+        : {}),
+      ...(state.attributes?.isBranchCollapsed === true ? { manuallyCollapsed: true } : {}),
     })
   );
   workbench.setGraphRenderedHandler(() => options.onExpansionChanged?.(workbench.getExpansionState()));
@@ -97,6 +111,8 @@ export function createPhyloLensView(options: PhyloLensViewOptions): PhyloLensVie
     cancelPendingFocus: () => activeWorkbench().cancelPendingFocus(),
     expandCluster: async id => activeWorkbench().expandCluster(id),
     collapseCluster: id => activeWorkbench().collapseCluster(id),
+    collapseBranch: id => activeWorkbench().collapseBranch(id),
+    expandBranch: id => activeWorkbench().expandBranch(id),
     expandAll: async () => activeWorkbench().expandAll(),
     collapseAll: async () => activeWorkbench().collapseAll(),
     setKeepExpanded: keep => activeWorkbench().setKeepExpanded(keep),

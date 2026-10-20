@@ -65,6 +65,7 @@ def run_postgres_prepare_worker(
             result = layout_worker.prepare_dataset(
                 claimed.dataset,
                 sfdp_options=claimed.sfdp_options,
+                lod_options=claimed.lod_options,
                 should_continue=lease_monitor.assert_owned,
             )
             summary = PreparationSummary.from_result(result, claimed.warnings)

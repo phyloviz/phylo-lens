@@ -3,13 +3,10 @@ import { renderAncillaryWheel } from '../../../components/ancillary-wheel/Ancill
 import type { PositionedGraph } from '../../../contracts/positioned';
 import { resolveMappingPalette, type VisualMappingOptions } from '../../../render/mapping/visualMapping';
 import { renderNodeDetails } from './nodeDetails';
-import { ANCILLARY_MODE_SELECTED, getAncillaryMode } from './nodeSelector';
 
 type AncillaryWheelsOptions = {
   readonly overviewContainer?: HTMLElement;
   readonly selectedNodeContainer?: HTMLElement;
-  readonly modeSelect?: HTMLSelectElement;
-  readonly nodeSelect?: HTMLSelectElement;
   readonly getGraph: () => PositionedGraph | null;
   readonly getVisualMapping: () => VisualMappingOptions;
   readonly getCategoryColorOverrides: () => Readonly<Record<string, string>>;
@@ -37,11 +34,6 @@ export default function createAncillaryWheels(options: AncillaryWheelsOptions) {
     const graph = options.getGraph();
     if (!graph) {
       renderAncillaryWheel(options.overviewContainer, null);
-      return;
-    }
-
-    if (getAncillaryMode(options.modeSelect) === ANCILLARY_MODE_SELECTED) {
-      renderSelectedOverview(graph);
       return;
     }
 
@@ -99,20 +91,6 @@ export default function createAncillaryWheels(options: AncillaryWheelsOptions) {
       categoryColors: options.getCategoryColorOverrides(),
       categoryGrouping: mapping.pie?.categoryGrouping,
     });
-  }
-
-  function renderSelectedOverview(graph: PositionedGraph): void {
-    if (!options.overviewContainer) {
-      return;
-    }
-
-    const selectedId = options.nodeSelect?.value;
-    if (!selectedId) {
-      renderAncillaryWheel(options.overviewContainer, null, 'Choose a node to view its ancillary distribution.');
-      return;
-    }
-
-    renderDistribution(options.overviewContainer, graph, new Set([selectedId]), `Node '${selectedId}'`);
   }
 
   function renderDistribution(

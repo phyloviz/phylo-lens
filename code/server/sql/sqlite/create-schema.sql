@@ -127,3 +127,16 @@ create table if not exists profile_isolates(
 );
 create index if not exists idx_profile_isolates_node
     on profile_isolates(dataset_id, layout_version, node_id);
+
+-- Immutable preorder intervals for the canonical rooted forest.
+create table if not exists node_tree_index (
+    dataset_id text not null,
+    layout_version text not null,
+    node_id text not null,
+    component_id text not null,
+    parent_id text,
+    depth integer not null check (depth >= 0),
+    dfs_start integer not null check (dfs_start >= 0),
+    dfs_end integer not null check (dfs_end > dfs_start),
+    primary key (dataset_id, layout_version, node_id)
+);

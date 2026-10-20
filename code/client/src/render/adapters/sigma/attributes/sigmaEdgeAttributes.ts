@@ -13,7 +13,7 @@ import {
   SIGMA_DEFAULT_EDGE_SIZE,
 } from '../sigmaRendering.constants';
 import type { SigmaRendererOptions } from '../sigmaRenderer.types';
-import { edgeSizeForDistance } from './sigmaStyle';
+import { distanceEdgeColor, showsDistanceLabel } from '../../../mapping/edgeMapping';
 
 export function addPositionedEdges(
   graph: Graph,
@@ -28,26 +28,16 @@ export function addPositionedEdges(
     const attributes = { ...edge.attributes };
     // Prepared snapshots keep their labels, colors and sizes; copy them into Graphology.
     if (rendererOptions) {
-      attributes.color = deriveEdgeColor(edge.attributes, distanceRange);
-      attributes.size = deriveEdgeSize(edge.attributes, rendererOptions);
-      attributes.label =
-        rendererOptions.display?.edgeDistanceLabels === true ? formatDistanceLabel(edge.attributes?.distance) : '';
-      attributes.forceLabel = rendererOptions.display?.edgeDistanceLabels === true;
+      attributes.color = rendererOptions.display?.distanceWeightedEdges
+        ? distanceEdgeColor(edge.attributes?.distance, PHYLOVIZ_EDGE_TIEBREAK_NONE_COLOR)
+        : deriveEdgeColor(edge.attributes, distanceRange);
+      attributes.size = rendererOptions.edge?.size ?? SIGMA_DEFAULT_EDGE_SIZE;
+      const showLabel = showsDistanceLabel(edge.attributes?.distance, rendererOptions.display);
+      attributes.label = showLabel ? formatDistanceLabel(edge.attributes?.distance) : '';
+      attributes.forceLabel = showLabel;
     }
     graph.addEdgeWithKey(edge.id, edge.source, edge.target, attributes);
   });
-}
-
-function deriveEdgeSize(
-  attributes: Record<string, unknown> | undefined,
-  rendererOptions: SigmaRendererOptions
-): number {
-  const baseSize = rendererOptions.edge?.size ?? SIGMA_DEFAULT_EDGE_SIZE;
-  return edgeSizeForDistance(
-    toPositiveNumber(attributes?.distance),
-    baseSize,
-    rendererOptions.display?.distanceWeightedEdges === true
-  );
 }
 
 function deriveEdgeColor(

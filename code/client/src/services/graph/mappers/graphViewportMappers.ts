@@ -45,6 +45,17 @@ export function toGraphViewportNode(dto: GraphViewportNodeDto): GraphViewportNod
     layoutStatus: dto.layout_status,
     memberCount: dto.member_count,
     isRepresentative: dto.is_representative,
+    ...(dto.tree_index
+      ? {
+          treeIndex: {
+            componentId: dto.tree_index.component_id,
+            parentId: dto.tree_index.parent_id ?? null,
+            depth: dto.tree_index.depth,
+            start: dto.tree_index.start,
+            end: dto.tree_index.end,
+          },
+        }
+      : {}),
     annotations: decodeApiMetadata(dto.metadata ?? {}),
     isolates: dto.isolates?.map(toGraphIsolate),
     ancillaryDistribution: dto.ancillary_distribution?.map(observation => ({

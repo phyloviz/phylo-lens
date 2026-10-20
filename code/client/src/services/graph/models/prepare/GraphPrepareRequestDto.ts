@@ -19,4 +19,5 @@ export interface GraphPrepareRequestDto {
   ancillary_data?: AncillaryDataInputDto;
 
   sfdp_options?: SfdpOptions;
+  lod_options?: { small_component_threshold?: number };
 }

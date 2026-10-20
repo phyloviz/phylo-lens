@@ -13,6 +13,7 @@ from phylo_lens_server.domain.legacy_metadata import (
     encode_dataset_annotations,
     is_summary_key,
 )
+from phylo_lens_server.domain.lod import LodOptions
 from phylo_lens_server.domain.models import Dataset, GraphEdge
 from phylo_lens_server.domain.preparation import (
     PreparationSummary,
@@ -144,7 +145,9 @@ def _branching_dataset() -> Dataset:
 def test_prepare_layout_artifacts_builds_pendant_subtrees_with_attachment_nodes() -> (
     None
 ):
-    artifacts = prepare_layout_artifacts(_dataset())
+    artifacts = prepare_layout_artifacts(
+        _dataset(), lod_options=LodOptions(small_component_threshold=0)
+    )
 
     assert artifacts.dataset.dataset_id == DATASET_ID
     assert artifacts.layout_version
@@ -407,6 +410,40 @@ def test_branch_distances_do_not_determine_hop_clusters() -> None:
         }
 
     assert partitions(dataset) == partitions(changed)
+
+
+@pytest.mark.parametrize("limit", [8, 32, 64, 128])
+def test_small_component_policy_keeps_whole_components_explicit(limit: int) -> None:
+    def chain(size, prefix):
+        return (
+            "(" * (size - 1)
+            + prefix
+            + str(size - 1)
+            + "".join(")" + prefix + str(i) for i in range(size - 2, -1, -1))
+            + ";"
+        )
+
+    dataset = ingest_dataset(
+        NormalizeRequest(
+            format="newick",
+            content=chain(limit, "a") + chain(limit + 1, "b") + "single;",
+        ).to_domain()
+    ).dataset
+    artifacts = prepare_layout_artifacts(
+        dataset, lod_options=LodOptions(small_component_threshold=limit)
+    )
+    levels = {cluster.lod_level for cluster in artifacts.clusters}
+    assert len(levels) > 1
+    assert any(cluster.member_count > 1 for cluster in artifacts.clusters)
+    for cluster in artifacts.clusters:
+        if any(
+            node.startswith("a") or node == "single" for node in cluster.member_node_ids
+        ):
+            assert cluster.member_count == 1
+    # Protection changes presentation, never topology or subtree counts.
+    indexed = {entry.node_id: entry for entry in artifacts.tree_index}
+    assert indexed["a0"].size == limit
+    assert indexed[f"a{limit - 1}"].depth == limit - 1
 
 
 def test_cluster_geometry_computes_bounds_and_radius_in_one_pass() -> None:
@@ -806,6 +843,7 @@ class RecordingPrepareWorker:
     def __init__(self) -> None:
         self.submitted_datasets: list[Dataset] = []
         self.submitted_sfdp_options: list[SfdpOptions | None] = []
+        self.submitted_lod_options: list[LodOptions | None] = []
         self.futures: list[Future[PreparedLayoutResult]] = []
 
     def submit_prepare_dataset(
@@ -813,10 +851,12 @@ class RecordingPrepareWorker:
         dataset: Dataset,
         *,
         sfdp_options: SfdpOptions | None = None,
+        lod_options: LodOptions | None = None,
     ) -> Future[PreparedLayoutResult]:
         future: Future[PreparedLayoutResult] = Future()
         self.submitted_datasets.append(dataset)
         self.submitted_sfdp_options.append(sfdp_options)
+        self.submitted_lod_options.append(lod_options)
         self.futures.append(future)
         return future
 
@@ -834,6 +874,7 @@ class ImmediatelyCompletedPrepareWorker:
         dataset: Dataset,
         *,
         sfdp_options: SfdpOptions | None = None,
+        lod_options: LodOptions | None = None,
     ) -> Future[PreparedLayoutResult]:
         future: Future[PreparedLayoutResult] = Future()
         future.set_result(
@@ -841,6 +882,7 @@ class ImmediatelyCompletedPrepareWorker:
                 artifacts=prepare_layout_artifacts(
                     dataset,
                     sfdp_options=sfdp_options,
+                    lod_options=lod_options,
                 )
             )
         )
@@ -856,6 +898,7 @@ class ImmediatelyFailedPrepareWorker:
         dataset: Dataset,
         *,
         sfdp_options: SfdpOptions | None = None,
+        lod_options: LodOptions | None = None,
     ) -> Future[PreparedLayoutResult]:
         future: Future[PreparedLayoutResult] = Future()
         future.set_exception(RuntimeError("layout failed immediately"))
@@ -1410,7 +1453,9 @@ def test_aggregate_cluster_metadata_skips_null_only_and_breaks_ties_alphabetical
 def test_viewport_cluster_members_carry_public_node_metadata(tmp_path) -> None:
     store = SQLiteLayoutRepository(tmp_path)
     worker = PreparationService(store)
-    result = worker.prepare_dataset(_dataset_with_metadata())
+    result = worker.prepare_dataset(
+        _dataset_with_metadata(), lod_options=LodOptions(small_component_threshold=0)
+    )
     branch_cluster = next(
         cluster
         for cluster in result.artifacts.clusters
@@ -1445,7 +1490,9 @@ def test_viewport_cluster_members_prioritize_focused_node_when_limited(
 ) -> None:
     store = SQLiteLayoutRepository(tmp_path)
     worker = PreparationService(store)
-    result = worker.prepare_dataset(_dataset_with_metadata())
+    result = worker.prepare_dataset(
+        _dataset_with_metadata(), lod_options=LodOptions(small_component_threshold=0)
+    )
     branch_cluster = next(
         cluster
         for cluster in result.artifacts.clusters
@@ -1527,7 +1574,9 @@ def test_viewport_expansion_reroutes_boundary_edges_to_neighbor_representatives(
     # At selected hop depth 0, {b,c,d,e} is attached to visible node a through one edge.
     store = SQLiteLayoutRepository(tmp_path)
     worker = PreparationService(store)
-    result = worker.prepare_dataset(_dataset())
+    result = worker.prepare_dataset(
+        _dataset(), lod_options=LodOptions(small_component_threshold=0)
+    )
     branch_cluster = next(
         cluster
         for cluster in result.artifacts.clusters
@@ -1575,7 +1624,9 @@ def test_truncated_expansion_only_shows_boundary_when_attachment_is_returned(
     tmp_path,
 ) -> None:
     store = SQLiteLayoutRepository(tmp_path)
-    result = PreparationService(store).prepare_dataset(_dataset())
+    result = PreparationService(store).prepare_dataset(
+        _dataset(), lod_options=LodOptions(small_component_threshold=0)
+    )
     cluster = next(
         item
         for item in result.artifacts.clusters
@@ -1650,7 +1701,9 @@ def test_viewport_representatives_carry_cluster_metadata_aggregate(tmp_path) -> 
     store = SQLiteLayoutRepository(tmp_path)
     worker = PreparationService(store)
     dataset = _chain_dataset_with_metadata(60)
-    result = worker.prepare_dataset(dataset)
+    result = worker.prepare_dataset(
+        dataset, lod_options=LodOptions(small_component_threshold=0)
+    )
     members_by_cluster = {
         cluster.cluster_id: cluster.member_node_ids
         for cluster in result.artifacts.clusters
@@ -1932,3 +1985,20 @@ def test_unweighted_newick_keeps_absent_distances_through_persistence(tmp_path) 
         max_nodes=10,
     )
     assert all(edge.distance is None for edge in read.edges)
+
+
+def test_prepare_job_reuse_and_worker_use_the_requested_lod_policy():
+    worker = RecordingPrepareWorker()
+    registry = PrepareJobRegistry(worker)
+    dataset = _dataset()
+    policy = LodOptions(small_component_threshold=32)
+    first = registry.submit(dataset, lod_options=policy)
+    assert registry.submit(dataset, lod_options=policy) == first
+    assert (
+        registry.submit(dataset, lod_options=LodOptions(small_component_threshold=128))
+        != first
+    )
+    assert worker.submitted_lod_options == [
+        policy,
+        LodOptions(small_component_threshold=128),
+    ]

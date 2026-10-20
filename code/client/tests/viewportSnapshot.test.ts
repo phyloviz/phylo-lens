@@ -226,7 +226,7 @@ describe('viewportSnapshot', () => {
 
     expect(graph.nodes[0]?.attributes?.label).toBe('');
     expect(graph.edges[0]?.attributes).toMatchObject({ label: '4', forceLabel: true });
-    expect(graph.edges[0]?.attributes?.size).toBeGreaterThan(1);
+    expect(graph.edges[0]?.attributes).toMatchObject({ size: 1, color: '#969696' });
   });
 
   it('keeps categorical colors stable when the session has complete metadata', () => {

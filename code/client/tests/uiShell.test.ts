@@ -33,6 +33,8 @@ function makeFakeWorkbench(
     exportPng: vi.fn(),
     expandCluster: vi.fn(),
     collapseCluster: vi.fn(),
+    collapseBranch: vi.fn(),
+    expandBranch: vi.fn(),
     expandAll: vi.fn(),
     collapseAll: vi.fn(),
     setKeepExpanded: vi.fn(),
@@ -618,11 +620,6 @@ describe('uiShell', () => {
     document.body.innerHTML = `
       <form id="render-form"></form>
       <textarea id="newick-input"></textarea>
-      <select id="ancillary-mode">
-        <option value="global">Global</option>
-        <option value="selected">Selected node</option>
-      </select>
-      <select id="ancillary-node"></select>
       <select id="metadata-pie-field"></select>
       <div id="ancillary-wheel"></div>
       <div id="ancillary-selected-node-wheel"></div>
@@ -667,8 +664,6 @@ describe('uiShell', () => {
     };
     const newickInput = document.getElementById('newick-input') as HTMLTextAreaElement;
     newickInput.value = '(A,B)Root;';
-    const ancillaryModeSelect = document.getElementById('ancillary-mode') as HTMLSelectElement;
-    const ancillaryNodeSelect = document.getElementById('ancillary-node') as HTMLSelectElement;
     const ancillaryFieldSelect = document.getElementById('metadata-pie-field') as HTMLSelectElement;
     const ancillaryWheelContainer = document.getElementById('ancillary-wheel') as HTMLElement;
     const ancillarySelectedNodeWheelContainer = document.getElementById('ancillary-selected-node-wheel') as HTMLElement;
@@ -678,8 +673,6 @@ describe('uiShell', () => {
       elements: {
         form: document.getElementById('render-form') as HTMLFormElement,
         newickInput,
-        ancillaryModeSelect,
-        ancillaryNodeSelect,
         ancillaryFieldSelect,
         ancillaryWheelContainer,
         ancillarySelectedNodeWheelContainer,
@@ -695,7 +688,6 @@ describe('uiShell', () => {
     fakeWorkbench.emitNodeClick('a');
 
     // The overview wheel and its mode selector are left untouched by a click.
-    expect(ancillaryModeSelect.value).toBe('global');
     // The clicked node's distribution appears in the dedicated second panel.
     expect(ancillarySelectedNodeWheelContainer.textContent).toContain('Portugal');
     expect(ancillarySelectedNodeWheelContainer.textContent).toContain('75.0%');
@@ -1145,11 +1137,6 @@ describe('uiShell', () => {
       <input id="search-input" type="search" />
       <button id="search-button" type="button">Search</button>
       <div id="search-results"></div>
-      <select id="ancillary-mode">
-        <option value="global">Global</option>
-        <option value="selected">Selected node</option>
-      </select>
-      <select id="ancillary-node"></select>
       <select id="metadata-pie-field"></select>
       <div id="ancillary-wheel"></div>
       <div id="ancillary-selected-node-wheel"></div>
@@ -1161,8 +1148,6 @@ describe('uiShell', () => {
     const searchInput = document.getElementById('search-input') as HTMLInputElement;
     const searchButton = document.getElementById('search-button') as HTMLButtonElement;
     const searchResults = document.getElementById('search-results') as HTMLElement;
-    const ancillaryModeSelect = document.getElementById('ancillary-mode') as HTMLSelectElement;
-    const ancillaryNodeSelect = document.getElementById('ancillary-node') as HTMLSelectElement;
     const ancillaryFieldSelect = document.getElementById('metadata-pie-field') as HTMLSelectElement;
     const ancillaryWheelContainer = document.getElementById('ancillary-wheel') as HTMLElement;
     const ancillarySelectedNodeWheelContainer = document.getElementById('ancillary-selected-node-wheel') as HTMLElement;
@@ -1201,8 +1186,6 @@ describe('uiShell', () => {
         searchInput,
         searchButton,
         searchResults,
-        ancillaryModeSelect,
-        ancillaryNodeSelect,
         ancillaryFieldSelect,
         ancillaryWheelContainer,
         ancillarySelectedNodeWheelContainer,
@@ -1238,7 +1221,6 @@ describe('uiShell', () => {
     });
     // Focusing a search result populates the selected-node panel, not the
     // overview wheel or its mode selector.
-    expect(ancillaryModeSelect.value).toBe('global');
     expect(ancillarySelectedNodeWheelContainer.textContent).toContain('Portugal');
     expect(ancillarySelectedNodeWheelContainer.textContent).toContain('75.0%');
     expect(status.textContent).toBe('Focused a');

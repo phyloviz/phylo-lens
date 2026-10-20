@@ -2,6 +2,7 @@
 
 from concurrent.futures import Future, ThreadPoolExecutor
 
+from phylo_lens_server.domain.lod import LodOptions
 from phylo_lens_server.domain.models import Dataset
 from phylo_lens_server.domain.preparation import PreparedLayoutResult
 from phylo_lens_server.domain.sfdp import SfdpOptions
@@ -19,12 +20,19 @@ class PrepareExecutor:
         self._owns_executor = executor is None
 
     def submit_prepare_dataset(
-        self, dataset: Dataset, *, sfdp_options: SfdpOptions | None = None
+        self,
+        dataset: Dataset,
+        *,
+        sfdp_options: SfdpOptions | None = None,
+        lod_options: LodOptions | None = None,
     ) -> Future[PreparedLayoutResult]:
         if self._executor is None:
             self._executor = ThreadPoolExecutor(max_workers=1)
         return self._executor.submit(
-            self.preparation.prepare_dataset, dataset, sfdp_options=sfdp_options
+            self.preparation.prepare_dataset,
+            dataset,
+            sfdp_options=sfdp_options,
+            lod_options=lod_options,
         )
 
     def shutdown(self) -> None:

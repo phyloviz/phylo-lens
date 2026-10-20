@@ -38,6 +38,12 @@ const PREPARE_FIXTURE = {
   warnings: [],
 };
 
+it('validates optional preparation roots before they can orient a branch', () => {
+  const status = { job_id: 'job', status: 'ready', result: { ...PREPARE_FIXTURE, technical_roots: ['root'] } };
+  expect(isGraphPrepareStatusDto(status)).toBe(true);
+  expect(isGraphPrepareStatusDto({ ...status, result: { ...status.result, technical_roots: [3] } })).toBe(false);
+});
+
 const REGION_FIXTURE = {
   dataset_id: 'tree',
   layout_version: 'abc123',
@@ -322,4 +328,33 @@ describe('graphGuards', () => {
     expect(isGraphSearchResponseDto({ ...SEARCH_FIXTURE, total_count: '2' })).toBe(false);
     expect(isGraphSearchResponseDto({ ...SEARCH_FIXTURE, matches: [{ node_id: 'x' }] })).toBe(false);
   });
+});
+
+it('accepts optional canonical intervals and rejects malformed indices', () => {
+  const index = { component_id: 'root', parent_id: null, depth: 0, start: 0, end: 10 };
+  const response = (tree_index: unknown) => ({
+    ...VIEWPORT_FIXTURE,
+    nodes: [{ ...VIEWPORT_FIXTURE.nodes[0], tree_index }],
+  });
+  expect(isGraphViewportResponseDto(response(index))).toBe(true);
+  expect(isGraphViewportResponseDto(response({ ...index, parent_id: undefined }))).toBe(true);
+  for (const patch of [
+    { start: -1 },
+    { end: 0 },
+    { start: 1.5 },
+    { depth: true },
+    { parent_id: 12 },
+    { end: Number.MAX_SAFE_INTEGER + 1 },
+  ])
+    expect(isGraphViewportResponseDto(response({ ...index, ...patch }))).toBe(false);
+});
+
+it('accepts a preparation threshold including zero and rejects invalid values', () => {
+  const request = (small_component_threshold: unknown) => ({
+    format: 'newick',
+    content: '(a,b)r;',
+    lod_options: { small_component_threshold },
+  });
+  for (const value of [0, 32, 64, 128]) expect(isGraphPrepareRequestDto(request(value))).toBe(true);
+  for (const value of [-1, 1.5, true, '64', Infinity]) expect(isGraphPrepareRequestDto(request(value))).toBe(false);
 });

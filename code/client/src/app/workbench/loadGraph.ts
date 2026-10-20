@@ -80,6 +80,7 @@ export async function loadGraph(
       ancillaryByNodeId: ancillary.ancillaryByNodeId,
       ancillaryData: options.ancillaryData,
       sfdpOptions: options.sfdpOptions,
+      lodPreparation: options.lodPreparation,
     };
 
     requireViewportRenderer(renderer);

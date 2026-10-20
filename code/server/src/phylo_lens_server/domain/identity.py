@@ -3,23 +3,26 @@ from __future__ import annotations
 import json
 from hashlib import sha256
 
+from phylo_lens_server.domain.lod import LodOptions
 from phylo_lens_server.domain.models import Dataset
 from phylo_lens_server.domain.sfdp import SfdpOptions, resolve_sfdp_options
 
 from .legacy_metadata import encode_dataset_annotations
 
-LAYOUT_PIPELINE_VERSION = "rooted-hop-representation-lod-v2"
+LAYOUT_PIPELINE_VERSION = "indexed-rooted-forest-lod-v4"
 LOD_REPRESENTATION_GROWTH_FACTOR = 2.0
 
 
 def layout_version_for_dataset(
     dataset: Dataset,
     sfdp_options: SfdpOptions | None = None,
+    lod_options: LodOptions | None = None,
 ) -> str:
     resolved_sfdp_options = resolve_sfdp_options(sfdp_options)
     payload = {
         "pipeline_version": LAYOUT_PIPELINE_VERSION,
         "lod_representation_growth_factor": LOD_REPRESENTATION_GROWTH_FACTOR,
+        "lod_options": (lod_options or LodOptions()).model_dump(mode="json"),
         "sfdp_options": resolved_sfdp_options.model_dump(
             mode="json",
             by_alias=True,
