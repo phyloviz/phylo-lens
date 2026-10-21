@@ -6,6 +6,7 @@ export type PngExportControlsElements = {
   readonly exportScaleInput?: HTMLSelectElement;
   readonly exportLabelSizeInput?: HTMLInputElement;
   readonly exportButton?: HTMLButtonElement;
+  readonly exportFeedback?: HTMLElement;
 };
 
 type PngExportControlsOptions = {
@@ -19,7 +20,7 @@ type PngExportControlsOptions = {
 };
 
 export default function createPngExportControls(options: PngExportControlsOptions) {
-  const { exportButton, exportScaleInput, exportLabelSizeInput } = options.elements;
+  const { exportButton, exportScaleInput, exportLabelSizeInput, exportFeedback } = options.elements;
   const bindings = eventBindings();
   let sequence = 0;
 
@@ -40,10 +41,12 @@ export default function createPngExportControls(options: PngExportControlsOption
       options.setFailureStatus('load a tree before exporting');
       return;
     }
+    if (exportLabelSizeInput && !exportLabelSizeInput.reportValidity()) return;
     const request = ++sequence;
     const load = options.getLoadSequence();
     const isCurrent = () => request === sequence;
     exportButton.disabled = true;
+    if (exportFeedback) exportFeedback.textContent = 'Preparing PNG…';
     try {
       const blob = await options.workbench.exportPng({
         scale: Number(exportScaleInput?.value ?? 2),
@@ -54,8 +57,11 @@ export default function createPngExportControls(options: PngExportControlsOption
       if (!isCurrent()) return;
       // Finish exports across graph loads; status still belongs to the current load.
       downloadBlob('phylo-lens.png', blob);
+      if (exportFeedback) exportFeedback.textContent = 'PNG downloaded.';
       if (load === options.getLoadSequence()) options.setStatus('Exported PNG of the current slice and view.');
     } catch (error) {
+      if (isCurrent() && exportFeedback)
+        exportFeedback.textContent = error instanceof Error ? error.message : 'PNG export failed';
       if (isCurrent() && load === options.getLoadSequence())
         options.setFailureStatus(error instanceof Error ? error.message : 'PNG export failed');
     } finally {

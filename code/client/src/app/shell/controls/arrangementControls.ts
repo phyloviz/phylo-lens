@@ -14,7 +14,7 @@ type ArrangementWorkbench = Pick<
   'isMotionEnabled' | 'setMotionEnabled' | 'setInteractionFeedbackHandler' | 'setDragSelection' | 'resetLayoutEdits'
 >;
 
-const DIRECT_DRAG_STATUS = 'Direct dragging: connected nodes react while Motion is on.';
+const DIRECT_DRAG_STATUS = 'Direct dragging: connected nodes react while Node motion is on.';
 
 export default function createArrangementControls(
   workbench: ArrangementWorkbench,

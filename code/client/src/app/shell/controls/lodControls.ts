@@ -1,25 +1,17 @@
 import type { PositionedGraph } from '../../../contracts/positioned';
 
-export function updateLodPlaybackControls({
-  playButton,
-  pauseButton,
+export function updateLodRefreshControl({
+  input,
   lodAvailable,
   paused,
 }: {
-  playButton: HTMLButtonElement | undefined;
-  pauseButton: HTMLButtonElement | undefined;
+  input: HTMLInputElement | undefined;
   lodAvailable: boolean;
   paused: boolean;
 }): void {
-  if (playButton) {
-    playButton.disabled = !lodAvailable || !paused;
-    playButton.setAttribute('aria-pressed', String(!paused));
-  }
-
-  if (pauseButton) {
-    pauseButton.disabled = !lodAvailable || paused;
-    pauseButton.setAttribute('aria-pressed', String(paused));
-  }
+  if (!input) return;
+  input.disabled = !lodAvailable;
+  input.checked = !paused;
 }
 
 export function isLodGraph(graph: PositionedGraph | null): boolean {

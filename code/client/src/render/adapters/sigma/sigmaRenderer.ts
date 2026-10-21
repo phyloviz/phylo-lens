@@ -84,6 +84,7 @@ export default function createSigmaRenderer(options: SigmaRendererOptions = {}) 
   let sourceSnapshot: PositionedGraph | null = null;
   let sigmaInstance: Sigma | null = null;
   let containerElement: HTMLElement | null = null;
+  let containerResizeObserver: ResizeObserver | null = null;
   let pieSliceKeys: string[] = [];
   let pieProgramSignature = '';
   let coordinateBounds: GraphLayoutBounds | null = null;
@@ -313,6 +314,11 @@ export default function createSigmaRenderer(options: SigmaRendererOptions = {}) 
     sigmaInstance = new Sigma(sigmaGraph, containerElement, buildSigmaSettings(rendererOptions));
     sigmaInstance.getCamera().setState(defaultCameraState());
     bindSigmaHandlers();
+    if (typeof ResizeObserver !== 'undefined') {
+      containerResizeObserver?.disconnect();
+      containerResizeObserver = new ResizeObserver(() => sigmaInstance?.scheduleRender());
+      containerResizeObserver.observe(containerElement);
+    }
   }
 
   // Render positioned nodes and edges into Graphology then refresh Sigma.
@@ -432,6 +438,8 @@ export default function createSigmaRenderer(options: SigmaRendererOptions = {}) 
 
   // Drop container and graph references when renderer is detached.
   function unmount(): void {
+    containerResizeObserver?.disconnect();
+    containerResizeObserver = null;
     transitions.cancel();
     forceMotionController.dispose();
     pendingSnapshot = null;

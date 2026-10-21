@@ -30,6 +30,18 @@ creates and closes its own Vite server and browser, and writes a screenshot to
 `REQUIREMENTS_SCREENSHOT` (default `phylo-lens-requirements.png` in the system
 temporary directory).
 
+The same browser sequence checks Enter-to-search without reloading the dataset,
+selected-node actions after search, independent display checkboxes, invalid
+distance intervals, numeric size-field choices and both scales, a real PNG
+download, and horizontal fit at 1440, 768, 390 and 320 pixels. These are functional
+and layout checks; they do not measure task completion time or discoverability
+with users. The Vite cache is separate from the development preview.
+
+Task navigation preserves files and settings, and a successful load opens Explore.
+The browser sequence also exercises keyboard tab navigation, contextual inspector
+selection, canvas resizing when the inspector closes, and export-dialog focus
+containment, Escape, and return to its trigger.
+
 The navigation and zoom fixtures also need a running graph service and a Newick
 fixture. `tests/browser/tsconfig.json` checks these browser fixtures separately.
 

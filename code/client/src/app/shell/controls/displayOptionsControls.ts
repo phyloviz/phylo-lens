@@ -1,10 +1,13 @@
 import type { GraphDisplayOptions } from '../../../render/renderer.types';
 import type { GraphWorkbench } from '../../workbench/graphWorkbench';
 import eventBindings from '../events/eventBindings';
-import { getSelectedOptions } from './selectOptions';
 
 export type DisplayOptionsControlsElements = {
-  readonly displayOptionsSelect?: HTMLSelectElement;
+  readonly nodeLabelsInput?: HTMLInputElement;
+  readonly edgeDistanceLabelsInput?: HTMLInputElement;
+  readonly distanceWeightedEdgesInput?: HTMLInputElement;
+  readonly edgeLabelSettings?: HTMLFieldSetElement;
+  readonly edgeLabelFeedback?: HTMLElement;
   readonly edgeLabelPolicySelect?: HTMLSelectElement;
   readonly edgeLabelMinInput?: HTMLInputElement;
   readonly edgeLabelMaxInput?: HTMLInputElement;
@@ -14,7 +17,16 @@ export default function createDisplayOptionsControls(
   workbench: Pick<GraphWorkbench, 'updateDisplayOptions'>,
   elements: DisplayOptionsControlsElements
 ) {
-  const { displayOptionsSelect, edgeLabelPolicySelect, edgeLabelMinInput, edgeLabelMaxInput } = elements;
+  const {
+    nodeLabelsInput,
+    edgeDistanceLabelsInput,
+    distanceWeightedEdgesInput,
+    edgeLabelSettings,
+    edgeLabelFeedback,
+    edgeLabelPolicySelect,
+    edgeLabelMinInput,
+    edgeLabelMaxInput,
+  } = elements;
   const bindings = eventBindings();
 
   return { mount, unmount: bindings.clear, readOptions, apply };
@@ -23,14 +35,20 @@ export default function createDisplayOptionsControls(
     bindings.on(edgeLabelPolicySelect, 'change', apply);
     bindings.on(edgeLabelMinInput, 'input', apply);
     bindings.on(edgeLabelMaxInput, 'input', apply);
-    bindings.on(displayOptionsSelect, 'change', apply);
-    bindings.on(displayOptionsSelect, 'mousedown', event => {
-      if (toggleClickedOption(displayOptionsSelect, event)) apply();
-    });
+    for (const input of [nodeLabelsInput, edgeDistanceLabelsInput, distanceWeightedEdgesInput])
+      bindings.on(input, 'change', apply);
   }
 
   function readOptions(): GraphDisplayOptions {
-    const display = buildDisplayOptions(getSelectedOptions(displayOptionsSelect));
+    const display: GraphDisplayOptions = {
+      nodeLabels: nodeLabelsInput?.checked ?? false,
+      edgeDistanceLabels: edgeDistanceLabelsInput?.checked ?? false,
+      distanceWeightedEdges: distanceWeightedEdgesInput?.checked ?? false,
+    };
+    if (edgeLabelSettings) {
+      edgeLabelSettings.hidden = !display.edgeDistanceLabels;
+      edgeLabelSettings.disabled = !display.edgeDistanceLabels;
+    }
     const readBound = (input?: HTMLInputElement) => {
       if (!input?.value.trim()) return undefined;
       const value = Number(input.value);
@@ -38,9 +56,16 @@ export default function createDisplayOptionsControls(
     };
     const min = readBound(edgeLabelMinInput);
     const max = readBound(edgeLabelMaxInput);
-    edgeLabelMaxInput?.setCustomValidity(
-      min !== undefined && max !== undefined && min > max ? 'Maximum must be at least minimum.' : ''
-    );
+    const message =
+      display.edgeDistanceLabels && min !== undefined && max !== undefined && min > max
+        ? 'Maximum must be at least minimum.'
+        : '';
+    edgeLabelMaxInput?.setCustomValidity(message);
+    if (edgeLabelFeedback)
+      edgeLabelFeedback.textContent = display.edgeDistanceLabels
+        ? ([edgeLabelMinInput, edgeLabelMaxInput].find(input => input && !input.validity.valid)?.validationMessage ??
+          '')
+        : '';
     if (min !== undefined) Object.assign(display, { edgeDistanceLabelMin: min });
     if (max !== undefined) Object.assign(display, { edgeDistanceLabelMax: max });
     return edgeLabelPolicySelect
@@ -49,30 +74,12 @@ export default function createDisplayOptionsControls(
   }
 
   function apply(): void {
-    workbench.updateDisplayOptions(readOptions());
+    const options = readOptions();
+    if (
+      options.edgeDistanceLabels &&
+      [edgeLabelMinInput, edgeLabelMaxInput].some(input => input && !input.validity.valid)
+    )
+      return;
+    workbench.updateDisplayOptions(options);
   }
-}
-
-export const DISPLAY_OPTION_NODE_LABELS = 'node-labels';
-export const DISPLAY_OPTION_EDGE_DISTANCE_LABELS = 'edge-distance-labels';
-export const DISPLAY_OPTION_DISTANCE_WEIGHTED_EDGES = 'distance-weighted-edges';
-
-export function buildDisplayOptions(selectedValues: readonly string[]): GraphDisplayOptions {
-  const selected = new Set(selectedValues);
-
-  return {
-    nodeLabels: selected.has(DISPLAY_OPTION_NODE_LABELS),
-    edgeDistanceLabels: selected.has(DISPLAY_OPTION_EDGE_DISTANCE_LABELS),
-    distanceWeightedEdges: selected.has(DISPLAY_OPTION_DISTANCE_WEIGHTED_EDGES),
-  };
-}
-
-export function toggleClickedOption(select: HTMLSelectElement | undefined, event: MouseEvent): boolean {
-  if (!select || !(event.target instanceof HTMLOptionElement)) {
-    return false;
-  }
-
-  event.preventDefault();
-  event.target.selected = !event.target.selected;
-  return true;
 }

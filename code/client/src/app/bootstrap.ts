@@ -27,9 +27,7 @@ export const ID_PALETTE_CONTROLS = 'palette-controls';
 export const ID_PALETTE_LOAD_BUTTON = 'palette-load-button';
 export const ID_PALETTE_LOAD_INPUT = 'palette-load-input';
 export const ID_PALETTE_SAVE_BUTTON = 'palette-save-button';
-export const ID_DISPLAY_OPTIONS = 'display-options';
-export const ID_LOD_PLAY_BUTTON = 'lod-play-button';
-export const ID_LOD_PAUSE_BUTTON = 'lod-pause-button';
+export const ID_AUTOMATIC_DETAIL = 'automatic-detail';
 export const ID_MAX_NODES_INPUT = 'max-nodes-input';
 export const ID_SEARCH_INPUT = 'search-input';
 export const ID_SEARCH_BUTTON = 'search-button';
@@ -49,6 +47,7 @@ export default function bootstrapClientShell(baseUrl = ''): UiShell {
   if (!newickInput) throw new Error(ERR_MISSING_NEWICK_INPUT);
   const elements = {
     form,
+    workspaceRoot: getOptionalElement('workspace-root'),
     newickInput,
     status: requireElement(ID_STATUS, ERR_MISSING_STATUS),
     graphRoot: requireElement(ID_GRAPH_ROOT, ERR_MISSING_GRAPH_ROOT),
@@ -70,7 +69,7 @@ export default function bootstrapClientShell(baseUrl = ''): UiShell {
 
     ancillaryFieldSelect: getSelect(ID_ANCILLARY_PIE_FIELD),
     showNodePiesInput: getInput('show-node-pies'),
-    ancillarySizeFieldInput: getInput(ID_ANCILLARY_SIZE_FIELD),
+    ancillarySizeFieldSelect: getSelect(ID_ANCILLARY_SIZE_FIELD),
     ancillarySizeScaleSelect: getSelect(ID_ANCILLARY_SIZE_SCALE),
 
     paletteControlsContainer: getOptionalElement(ID_PALETTE_CONTROLS),
@@ -79,7 +78,11 @@ export default function bootstrapClientShell(baseUrl = ''): UiShell {
     paletteSaveButton: getButton(ID_PALETTE_SAVE_BUTTON),
     paletteResetButton: getButton('palette-reset-button'),
 
-    displayOptionsSelect: getSelect(ID_DISPLAY_OPTIONS),
+    nodeLabelsInput: getInput('show-node-labels'),
+    edgeDistanceLabelsInput: getInput('show-edge-distance-labels'),
+    distanceWeightedEdgesInput: getInput('distance-weighted-edges'),
+    edgeLabelSettings: getFieldset('edge-label-settings'),
+    edgeLabelFeedback: getOptionalElement('edge-label-feedback'),
     motionInput: getInput('motion-enabled'),
     branchRootButton: getButton('branch-root'),
     singleDragButton: getButton('single-drag'),
@@ -91,6 +94,7 @@ export default function bootstrapClientShell(baseUrl = ''): UiShell {
     exportScaleInput: getSelect('export-scale'),
     exportLabelSizeInput: getInput('export-label-size'),
     exportButton: getButton('export-png'),
+    exportFeedback: getOptionalElement('export-feedback'),
     expansion: {
       expandSelected: getButton('expand-selected'),
       collapseSelected: getButton('collapse-selected'),
@@ -98,9 +102,9 @@ export default function bootstrapClientShell(baseUrl = ''): UiShell {
       collapseAll: getButton('collapse-all'),
       keepExpanded: getInput('keep-expanded'),
       feedback: getOptionalElement('expansion-feedback'),
+      selectionLabel: getOptionalElement('selected-node-label'),
     },
-    lodPlayButton: getButton(ID_LOD_PLAY_BUTTON),
-    lodPauseButton: getButton(ID_LOD_PAUSE_BUTTON),
+    automaticDetailInput: getInput(ID_AUTOMATIC_DETAIL),
     maxNodesInput: getInput(ID_MAX_NODES_INPUT),
     smallComponentThresholdInput: getInput('small-component-threshold'),
 
@@ -140,6 +144,11 @@ function getButton(id: string): HTMLButtonElement | undefined {
 function getInput(id: string): HTMLInputElement | undefined {
   const element = getOptionalElement(id);
   return element instanceof HTMLInputElement ? element : undefined;
+}
+
+function getFieldset(id: string): HTMLFieldSetElement | undefined {
+  const element = getOptionalElement(id);
+  return element instanceof HTMLFieldSetElement ? element : undefined;
 }
 
 function getSelect(id: string): HTMLSelectElement | undefined {

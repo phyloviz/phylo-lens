@@ -195,11 +195,9 @@ describe('uiShell', () => {
     await shell.renderCurrentInput();
 
     expect(status.textContent).toContain('Rendered');
-    expect(status.textContent).toContain('slice 1 nodes');
-    // Tier is 1-based: lodLevel 0 of 3 tiers reads "LoD tier 1/3", making a
-    // semantic-zoom transition observable in the status bar.
-    expect(status.textContent).toContain('LoD tier 1/3');
-    expect(status.textContent).toContain('LoD zoom 4.00');
+    expect(status.textContent).toContain('1 visible node');
+    expect(status.textContent).toContain('detail level 1/3');
+    expect(status.textContent).not.toContain('LoD zoom');
     shell.unmount();
   });
 
@@ -770,7 +768,7 @@ describe('uiShell', () => {
     document.body.innerHTML = `
       <form id="render-form"></form>
       <textarea id="newick-input"></textarea>
-      <input id="metadata-size-field" type="text" value="profile_count" />
+      <select id="metadata-size-field"><option value="profile_count">Profile count</option></select>
       <select id="metadata-size-scale">
         <option value="linear">Linear</option>
         <option value="log" selected>Logarithmic</option>
@@ -780,7 +778,7 @@ describe('uiShell', () => {
 
     const form = document.getElementById('render-form') as HTMLFormElement;
     const input = document.getElementById('newick-input') as HTMLTextAreaElement;
-    const ancillarySizeFieldInput = document.getElementById('metadata-size-field') as HTMLInputElement;
+    const ancillarySizeFieldSelect = document.getElementById('metadata-size-field') as HTMLSelectElement;
     const ancillarySizeScaleSelect = document.getElementById('metadata-size-scale') as HTMLSelectElement;
     const status = document.getElementById('status') as HTMLElement;
 
@@ -791,7 +789,7 @@ describe('uiShell', () => {
       elements: {
         form,
         newickInput: input,
-        ancillarySizeFieldInput,
+        ancillarySizeFieldSelect,
         ancillarySizeScaleSelect,
         status,
       },
@@ -938,195 +936,98 @@ describe('uiShell', () => {
     shell.unmount();
   });
 
-  it('forwards display option selector changes to the workbench', () => {
+  it('keeps independent display choices and defers invalid label intervals', () => {
     document.body.innerHTML = `
-      <form id="render-form"></form>
-      <textarea id="newick-input"></textarea>
-      <select id="display-options" multiple>
-        <option value="node-labels" selected>Node labels</option>
-        <option value="edge-distance-labels">Edge distance labels</option>
-        <option value="distance-weighted-edges">Distance-weighted edges</option>
-      </select>
-      <div id="status"></div>
-    `;
-
-    const form = document.getElementById('render-form') as HTMLFormElement;
-    const input = document.getElementById('newick-input') as HTMLTextAreaElement;
-    const displayOptionsSelect = document.getElementById('display-options') as HTMLSelectElement;
-    const status = document.getElementById('status') as HTMLElement;
-
-    const fakeWorkbench = makeFakeWorkbench();
-    const shell = uiShell({
-      workbench: fakeWorkbench,
-      elements: {
-        form,
-        newickInput: input,
-        displayOptionsSelect,
-        status,
-      },
-    });
-
-    shell.mount();
-    displayOptionsSelect.options[1]!.selected = true;
-    displayOptionsSelect.options[2]!.selected = true;
-    displayOptionsSelect.dispatchEvent(new Event('change'));
-
-    expect(fakeWorkbench.updateDisplayOptions).toHaveBeenLastCalledWith({
-      nodeLabels: true,
-      edgeDistanceLabels: true,
-      distanceWeightedEdges: true,
-    });
-    shell.unmount();
-  });
-
-  it('toggles display selector options independently on click', () => {
-    document.body.innerHTML = `
-      <form id="render-form"></form>
-      <textarea id="newick-input"></textarea>
-      <select id="display-options" multiple>
-        <option value="node-labels" selected>Node labels</option>
-        <option value="edge-distance-labels">Edge distance labels</option>
-        <option value="distance-weighted-edges">Distance-weighted edges</option>
-      </select>
-      <div id="status"></div>
-    `;
-
-    const form = document.getElementById('render-form') as HTMLFormElement;
-    const input = document.getElementById('newick-input') as HTMLTextAreaElement;
-    const displayOptionsSelect = document.getElementById('display-options') as HTMLSelectElement;
-    const status = document.getElementById('status') as HTMLElement;
-
-    const fakeWorkbench = makeFakeWorkbench();
-    const shell = uiShell({
-      workbench: fakeWorkbench,
-      elements: {
-        form,
-        newickInput: input,
-        displayOptionsSelect,
-        status,
-      },
-    });
-
-    shell.mount();
-    displayOptionsSelect.options[1]!.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
-    displayOptionsSelect.options[2]!.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
-
-    expect(displayOptionsSelect.options[0]!.selected).toBe(true);
-    expect(displayOptionsSelect.options[1]!.selected).toBe(true);
-    expect(displayOptionsSelect.options[2]!.selected).toBe(true);
-    expect(fakeWorkbench.updateDisplayOptions).toHaveBeenLastCalledWith({
-      nodeLabels: true,
-      edgeDistanceLabels: true,
-      distanceWeightedEdges: true,
-    });
-
-    displayOptionsSelect.options[1]!.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
-
-    expect(displayOptionsSelect.options[0]!.selected).toBe(true);
-    expect(displayOptionsSelect.options[1]!.selected).toBe(false);
-    expect(displayOptionsSelect.options[2]!.selected).toBe(true);
-    expect(fakeWorkbench.updateDisplayOptions).toHaveBeenLastCalledWith({
-      nodeLabels: true,
-      edgeDistanceLabels: false,
-      distanceWeightedEdges: true,
-    });
-
-    shell.unmount();
-  });
-
-  it('allows node labels to be disabled when no other display option is selected', () => {
-    document.body.innerHTML = `
-      <form id="render-form"></form>
-      <textarea id="newick-input"></textarea>
-      <select id="display-options" multiple>
-        <option value="node-labels" selected>Node labels</option>
-        <option value="edge-distance-labels">Edge distance labels</option>
-        <option value="distance-weighted-edges">Distance-weighted edges</option>
-      </select>
-      <div id="status"></div>
-    `;
-
-    const displayOptionsSelect = document.getElementById('display-options') as HTMLSelectElement;
+      <form id="render-form"></form><textarea id="newick-input"></textarea>
+      <input id="node-labels" type="checkbox" checked />
+      <input id="edge-labels" type="checkbox" />
+      <input id="weighted" type="checkbox" />
+      <fieldset id="bounds"><input id="min" type="number" min="0" /><input id="max" type="number" min="0" /></fieldset>
+      <p id="feedback"></p><div id="status"></div>`;
+    const input = (id: string) => document.getElementById(id) as HTMLInputElement;
+    const settings = document.getElementById('bounds') as HTMLFieldSetElement;
+    const feedback = document.getElementById('feedback')!;
     const workbench = makeFakeWorkbench();
     const shell = uiShell({
       workbench,
       elements: {
         form: document.getElementById('render-form') as HTMLFormElement,
         newickInput: document.getElementById('newick-input') as HTMLTextAreaElement,
-        displayOptionsSelect,
-        status: document.getElementById('status') as HTMLElement,
+        status: document.getElementById('status')!,
+        nodeLabelsInput: input('node-labels'),
+        edgeDistanceLabelsInput: input('edge-labels'),
+        distanceWeightedEdgesInput: input('weighted'),
+        edgeLabelMinInput: input('min'),
+        edgeLabelMaxInput: input('max'),
+        edgeLabelSettings: settings,
+        edgeLabelFeedback: feedback,
       },
     });
-
     shell.mount();
-    displayOptionsSelect.options[0]!.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
-
-    expect(displayOptionsSelect.options[0]!.selected).toBe(false);
+    expect(settings.hidden).toBe(true);
+    input('edge-labels').click();
+    input('weighted').click();
+    input('node-labels').click();
+    expect(settings.hidden).toBe(false);
     expect(workbench.updateDisplayOptions).toHaveBeenLastCalledWith({
       nodeLabels: false,
-      edgeDistanceLabels: false,
-      distanceWeightedEdges: false,
+      edgeDistanceLabels: true,
+      distanceWeightedEdges: true,
     });
+    input('min').value = '4';
+    input('min').dispatchEvent(new Event('input'));
+    workbench.updateDisplayOptions.mockClear();
+    input('max').value = '2';
+    input('max').dispatchEvent(new Event('input'));
+    expect(workbench.updateDisplayOptions).not.toHaveBeenCalled();
+    expect(feedback.textContent).toContain('Maximum must be at least minimum');
+    input('max').value = '8';
+    input('max').dispatchEvent(new Event('input'));
+    expect(feedback.textContent).toBe('');
+    expect(workbench.updateDisplayOptions).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        edgeDistanceLabelMin: 4,
+        edgeDistanceLabelMax: 8,
+      })
+    );
+    input('edge-labels').click();
+    expect(settings.hidden).toBe(true);
+    expect(settings.disabled).toBe(true);
+    expect(input('min').value).toBe('4');
+    expect(input('weighted').checked).toBe(true);
     shell.unmount();
+    workbench.updateDisplayOptions.mockClear();
+    input('weighted').click();
+    expect(workbench.updateDisplayOptions).not.toHaveBeenCalled();
   });
 
-  it('toggles LoD playback controls for rendered LoD graphs', async () => {
-    document.body.innerHTML = `
-      <form id="render-form"></form>
-      <textarea id="newick-input"></textarea>
-      <button id="lod-play-button" type="button"></button>
-      <button id="lod-pause-button" type="button"></button>
-      <div id="status"></div>
-    `;
-
-    const form = document.getElementById('render-form') as HTMLFormElement;
-    const input = document.getElementById('newick-input') as HTMLTextAreaElement;
-    const lodPlayButton = document.getElementById('lod-play-button') as HTMLButtonElement;
-    const lodPauseButton = document.getElementById('lod-pause-button') as HTMLButtonElement;
-    const status = document.getElementById('status') as HTMLElement;
-
-    input.value = '(A,B)Root;';
-    const fakeWorkbench = makeFakeWorkbench({
+  it('synchronizes the automatic-detail checkbox without changing node motion', async () => {
+    const form = document.createElement('form');
+    const newickInput = document.createElement('textarea');
+    newickInput.value = '(A,B)Root;';
+    const automaticDetailInput = document.createElement('input');
+    automaticDetailInput.type = 'checkbox';
+    document.body.append(automaticDetailInput);
+    const status = document.createElement('div');
+    const workbench = makeFakeWorkbench({
       nodes: [{ id: 'root', x: 0, y: 0 }],
       edges: [],
-      viewMeta: {
-        layout: 'server',
-        lodLevel: 1,
-        sliceNodeCount: 1,
-      },
+      viewMeta: { layout: 'server', lodLevel: 1, sliceNodeCount: 1 },
     });
-    const shell = uiShell({
-      workbench: fakeWorkbench,
-      elements: {
-        form,
-        newickInput: input,
-        lodPlayButton,
-        lodPauseButton,
-        status,
-      },
-    });
-
+    const shell = uiShell({ workbench, elements: { form, newickInput, automaticDetailInput, status } });
     shell.mount();
+    expect(automaticDetailInput.disabled).toBe(true);
     await shell.renderCurrentInput();
-
-    expect(lodPlayButton.disabled).toBe(true);
-    expect(lodPauseButton.disabled).toBe(false);
-
-    lodPauseButton.click();
-    await Promise.resolve();
-
-    expect(fakeWorkbench.setLodRefreshPaused).toHaveBeenLastCalledWith(true);
-    expect(lodPlayButton.disabled).toBe(false);
-    expect(lodPauseButton.disabled).toBe(true);
-    expect(status.textContent).toContain('LoD paused');
-
-    lodPlayButton.click();
-    await Promise.resolve();
-
-    expect(fakeWorkbench.setLodRefreshPaused).toHaveBeenLastCalledWith(false);
-    expect(lodPlayButton.disabled).toBe(true);
-    expect(lodPauseButton.disabled).toBe(false);
-
+    expect(automaticDetailInput.disabled).toBe(false);
+    expect(automaticDetailInput.checked).toBe(true);
+    automaticDetailInput.click();
+    expect(workbench.setLodRefreshPaused).toHaveBeenLastCalledWith(true);
+    expect(automaticDetailInput.checked).toBe(false);
+    expect(status.textContent).toContain('paused');
+    automaticDetailInput.click();
+    expect(workbench.setLodRefreshPaused).toHaveBeenLastCalledWith(false);
+    expect(automaticDetailInput.checked).toBe(true);
+    expect(workbench.setMotionEnabled).not.toHaveBeenCalled();
     shell.unmount();
   });
 
@@ -1178,6 +1079,9 @@ describe('uiShell', () => {
       viewMeta: { layout: 'force', lodLevel: 0 },
     });
 
+    const branchRootButton = document.createElement('button');
+    const selectionLabel = document.createElement('p');
+    const collapseSelected = document.createElement('button');
     const shell = uiShell({
       workbench: fakeWorkbench,
       elements: {
@@ -1190,11 +1094,16 @@ describe('uiShell', () => {
         ancillaryWheelContainer,
         ancillarySelectedNodeWheelContainer,
         status,
+        branchRootButton,
+        expansion: { collapseSelected, selectionLabel },
       },
     });
 
     shell.mount();
-    searchButton.click();
+    const enter = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+    searchInput.dispatchEvent(enter);
+    expect(enter.defaultPrevented).toBe(true);
+    expect(fakeWorkbench.loadGraph).not.toHaveBeenCalled();
     await Promise.resolve();
 
     const resultButton = searchResults.querySelector('.search-result') as HTMLButtonElement;
@@ -1224,6 +1133,10 @@ describe('uiShell', () => {
     expect(ancillarySelectedNodeWheelContainer.textContent).toContain('Portugal');
     expect(ancillarySelectedNodeWheelContainer.textContent).toContain('75.0%');
     expect(status.textContent).toBe('Focused a');
+    expect(selectionLabel.textContent).toBe('Selected: a · Leaf node');
+    expect(branchRootButton.disabled).toBe(false);
+    branchRootButton.click();
+    expect(fakeWorkbench.setDragSelection).toHaveBeenLastCalledWith({ kind: 'branch', rootId: 'a' });
     shell.unmount();
   });
 
@@ -1365,7 +1278,11 @@ it('applies an uploaded table to the current tree without submitting the render 
 });
 
 it('enables arrangement-root selection and clears it for the next dataset', async () => {
-  const workbench = makeFakeWorkbench();
+  const workbench = makeFakeWorkbench({
+    nodes: [{ id: 'a', x: 0, y: 0 }],
+    edges: [],
+    viewMeta: { layout: 'server', lodLevel: 0 },
+  });
   workbench.setDragSelection = vi.fn();
   const branchRootButton = document.createElement('button');
   branchRootButton.disabled = true;
@@ -1381,6 +1298,7 @@ it('enables arrangement-root selection and clears it for the next dataset', asyn
     },
   });
   shell.mount();
+  await shell.renderCurrentInput();
   const select = vi.mocked(workbench.setNodeClickedHandler).mock.calls[0][0]!;
   select({ nodeId: 'a' });
   expect(branchRootButton.disabled).toBe(false);

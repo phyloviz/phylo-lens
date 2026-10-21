@@ -1,6 +1,7 @@
 import type { PositionedGraph } from '../../../contracts/positioned';
 import type { VisualMappingOptions } from '../../../render/mapping/visualMapping';
 import ancillaryFieldControls from '../controls/ancillaryFieldControls';
+import sizeFieldControls from '../controls/sizeFieldControls';
 import { getSelectedOptions } from '../controls/selectOptions';
 import eventBindings from '../events/eventBindings';
 import visualMappingPalette from '../palette/visualMappingPalette';
@@ -15,7 +16,7 @@ export type AncillaryControlsElements = {
   readonly ancillarySelectedNodeWheelContainer?: HTMLElement;
   readonly ancillaryFieldSelect?: HTMLSelectElement;
   readonly showNodePiesInput?: HTMLInputElement;
-  readonly ancillarySizeFieldInput?: HTMLInputElement;
+  readonly ancillarySizeFieldSelect?: HTMLSelectElement;
   readonly ancillarySizeScaleSelect?: HTMLSelectElement;
   readonly paletteControlsContainer?: HTMLElement;
   readonly paletteLoadButton?: HTMLButtonElement;
@@ -38,7 +39,7 @@ export default function createAncillaryControls(options: AncillaryControlsOption
     ancillarySelectedNodeWheelContainer,
     ancillaryFieldSelect,
     showNodePiesInput,
-    ancillarySizeFieldInput,
+    ancillarySizeFieldSelect,
     ancillarySizeScaleSelect,
     paletteControlsContainer,
     paletteLoadButton,
@@ -48,6 +49,7 @@ export default function createAncillaryControls(options: AncillaryControlsOption
   } = options.elements;
   const bindings = eventBindings();
   const fields = ancillaryFieldControls(ancillaryFieldSelect);
+  const sizeFields = sizeFieldControls(ancillarySizeFieldSelect);
   const palette = visualMappingPalette({
     updateVisualMapping: options.updateVisualMapping,
     container: paletteControlsContainer,
@@ -56,7 +58,7 @@ export default function createAncillaryControls(options: AncillaryControlsOption
     getGraph: options.getGraph,
     getSelectedFields: () => getSelectedOptions(ancillaryFieldSelect),
     getPiesEnabled: () => showNodePiesInput?.checked,
-    getSizeFieldValue: () => ancillarySizeFieldInput?.value,
+    getSizeFieldValue: () => ancillarySizeFieldSelect?.value,
     getSizeScaleValue: () => ancillarySizeScaleSelect?.value,
     onChanged: () => {
       wheels.renderOverview();
@@ -97,7 +99,7 @@ export default function createAncillaryControls(options: AncillaryControlsOption
       if (fields.toggleOption(event)) applyFieldSelection();
     });
     bindings.on(showNodePiesInput, 'change', palette.applyControlChange);
-    bindings.on(ancillarySizeFieldInput, 'input', palette.applyControlChange);
+    bindings.on(ancillarySizeFieldSelect, 'change', palette.applyControlChange);
     bindings.on(ancillarySizeScaleSelect, 'change', palette.applyControlChange);
     bindings.on(paletteControlsContainer, 'input', palette.applyControlChange);
     bindings.on(paletteLoadButton, 'click', () => paletteLoadInput?.click());
@@ -105,6 +107,7 @@ export default function createAncillaryControls(options: AncillaryControlsOption
     bindings.on(paletteSaveButton, 'click', palette.save);
     bindings.on(paletteResetButton, 'click', palette.resetColors);
     fields.updateOptions(null);
+    sizeFields.reset();
   }
 
   function applyFieldSelection(): void {
@@ -114,12 +117,14 @@ export default function createAncillaryControls(options: AncillaryControlsOption
 
   function refreshGraph(graph: PositionedGraph): void {
     fields.updateOptions(graph);
+    sizeFields.refresh(graph);
     palette.renderControls();
     wheels.renderOverview();
     wheels.refreshSelectedNode();
   }
 
   function prepareVisualMapping(mapping: VisualMappingOptions): VisualMappingOptions {
+    sizeFields.reset(mapping.size?.field);
     fields.setSelection(
       mapping.pie?.enabled !== false && mapping.pie?.fields?.length
         ? mapping.pie.fields
@@ -135,6 +140,7 @@ export default function createAncillaryControls(options: AncillaryControlsOption
   function resetAfterFailure(): void {
     palette.reset();
     fields.updateOptions(null);
+    sizeFields.reset();
     palette.renderControls();
     wheels.renderOverview();
   }

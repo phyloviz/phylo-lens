@@ -35,6 +35,7 @@ let pieProgramInputs: Array<{
 let forceMotionStarts = 0;
 let forceMotionKills = 0;
 let sigmaConstructions = 0;
+let scheduledRenders = 0;
 let lastForceMotionSettings: Record<string, number> | null = null;
 let workerCommands: MotionCommand[] = [];
 let animationFrameCallback: FrameRequestCallback | null = null;
@@ -172,6 +173,7 @@ vi.mock('sigma', () => {
     }
 
     scheduleRender() {
+      scheduledRenders++;
       return this;
     }
 
@@ -287,6 +289,37 @@ describe('sigmaRenderer', () => {
     });
 
     renderer.unmount();
+  });
+
+  it('resizes with its host panel and disconnects the container observer on unmount', () => {
+    const observe = vi.fn();
+    const disconnect = vi.fn();
+    let notify: ResizeObserverCallback | undefined;
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(callback: ResizeObserverCallback) {
+          notify = callback;
+        }
+        observe = observe;
+        disconnect = disconnect;
+      }
+    );
+    try {
+      const renderer = createSigmaRenderer();
+      const container = requireContainer();
+      renderer.mount({ container });
+      expect(observe).toHaveBeenCalledWith(container);
+      const before = scheduledRenders;
+      notify?.([], {} as ResizeObserver);
+      expect(scheduledRenders).toBe(before + 1);
+      renderer.unmount();
+      expect(disconnect).toHaveBeenCalledTimes(1);
+      notify?.([], {} as ResizeObserver);
+      expect(scheduledRenders).toBe(before + 1);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('keeps renderer instances independent and allows methods to be passed as callbacks', () => {
