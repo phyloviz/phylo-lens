@@ -7,14 +7,25 @@ export type ArrangementControlsElements = {
   readonly singleDragButton?: HTMLButtonElement;
   readonly resetLayoutButton?: HTMLButtonElement;
   readonly dragStatus?: HTMLElement;
+  readonly relaxLayoutButton?: HTMLButtonElement;
+  readonly stopLayoutButton?: HTMLButtonElement;
+  readonly layoutMotionStatus?: HTMLElement;
 };
 
 type ArrangementWorkbench = Pick<
   GraphWorkbench,
-  'isMotionEnabled' | 'setMotionEnabled' | 'setInteractionFeedbackHandler' | 'setDragSelection' | 'resetLayoutEdits'
+  | 'isMotionEnabled'
+  | 'setMotionEnabled'
+  | 'setInteractionFeedbackHandler'
+  | 'setDragSelection'
+  | 'resetLayoutEdits'
+  | 'relaxLayout'
+  | 'stopLayout'
+  | 'getLayoutMotionState'
+  | 'setLayoutMotionHandler'
 >;
 
-const DIRECT_DRAG_STATUS = 'Direct dragging: connected nodes react while Motion is on.';
+const DIRECT_DRAG_STATUS = 'Direct dragging. Enable automatic relaxation for connected nodes to react.';
 
 export default function createArrangementControls(
   workbench: ArrangementWorkbench,
@@ -23,12 +34,45 @@ export default function createArrangementControls(
   const { motionInput, branchRootButton, singleDragButton, resetLayoutButton, dragStatus } = elements;
   const bindings = eventBindings();
   let selectedNodeId: string | null = null;
+  let ready = false;
 
-  return { mount, unmount, selectNode, reset };
+  return {
+    mount,
+    unmount,
+    selectNode,
+    reset,
+    setReady: (value: boolean) => {
+      ready = value;
+      refresh();
+    },
+  };
+
+  function refresh(): void {
+    const state = workbench.getLayoutMotionState();
+    if (motionInput) motionInput.checked = state.automatic;
+    if (elements.relaxLayoutButton) elements.relaxLayoutButton.disabled = !ready || state.running;
+    if (elements.stopLayoutButton) elements.stopLayoutButton.disabled = !state.running && !state.automatic;
+    if (elements.layoutMotionStatus)
+      elements.layoutMotionStatus.textContent = state.running
+        ? 'Relaxing the loaded view…'
+        : state.automatic
+          ? 'Automatic relaxation enabled. Settled positions are retained.'
+          : 'Manual layout. Zoom preserves positions; use Relax layout when needed.';
+  }
 
   function mount(): void {
+    workbench.setLayoutMotionHandler(refresh);
+    refresh();
+    bindings.on(elements.relaxLayoutButton, 'click', () => {
+      workbench.relaxLayout();
+      refresh();
+    });
+    bindings.on(elements.stopLayoutButton, 'click', () => {
+      workbench.stopLayout();
+      refresh();
+    });
     if (motionInput) {
-      motionInput.checked = workbench.isMotionEnabled?.() ?? true;
+      motionInput.checked = workbench.isMotionEnabled?.() ?? false;
       bindings.on(motionInput, 'change', () => workbench.setMotionEnabled(motionInput.checked));
     }
     workbench.setInteractionFeedbackHandler?.(message => {
@@ -56,6 +100,7 @@ export default function createArrangementControls(
   }
 
   function reset(): void {
+    workbench.setDragSelection({ kind: 'node' });
     selectNode(null);
     if (dragStatus) dragStatus.textContent = DIRECT_DRAG_STATUS;
   }
@@ -63,5 +108,6 @@ export default function createArrangementControls(
   function unmount(): void {
     bindings.clear();
     workbench.setInteractionFeedbackHandler?.(null);
+    workbench.setLayoutMotionHandler(null);
   }
 }

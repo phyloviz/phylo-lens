@@ -19,6 +19,9 @@ def read_graph_viewport(
     query: ViewportQuery,
     store: LayoutRepository,
 ) -> ViewportReadResult:
+    scope = (
+        {"component_id": query.component_id} if query.component_id is not None else {}
+    )
     layout_version = resolve_layout_version(
         store, query.dataset_id, query.layout_version
     )
@@ -28,6 +31,7 @@ def read_graph_viewport(
         counts = store.viewport_representation_counts(
             dataset_id=query.dataset_id,
             layout_version=layout_version,
+            **scope,
             xmin=bounds.xmin,
             xmax=bounds.xmax,
             ymin=bounds.ymin,
@@ -47,6 +51,7 @@ def read_graph_viewport(
     result = store.read_viewport(
         dataset_id=query.dataset_id,
         layout_version=layout_version,
+        **scope,
         xmin=query.xmin,
         xmax=query.xmax,
         ymin=query.ymin,
@@ -63,12 +68,16 @@ def read_graph_region(
     query: RegionQuery,
     store: LayoutRepository,
 ) -> RegionReadResult:
+    scope = (
+        {"component_id": query.component_id} if query.component_id is not None else {}
+    )
     layout_version = resolve_layout_version(
         store, query.dataset_id, query.layout_version
     )
     result = store.read_region(
         dataset_id=query.dataset_id,
         layout_version=layout_version,
+        **scope,
         xmin=query.xmin,
         xmax=query.xmax,
         ymin=query.ymin,
@@ -82,12 +91,16 @@ def search_graph_nodes(
     query: SearchQuery,
     store: LayoutRepository,
 ) -> SearchReadResult:
+    scope = (
+        {"component_id": query.component_id} if query.component_id is not None else {}
+    )
     layout_version = resolve_layout_version(
         store, query.dataset_id, query.layout_version
     )
     result = store.search_nodes(
         dataset_id=query.dataset_id,
         layout_version=layout_version,
+        **scope,
         query=query.query,
         limit=query.limit,
     )

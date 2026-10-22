@@ -26,6 +26,7 @@ def read_region(
     ymin: float,
     ymax: float,
     max_nodes: int | None = None,
+    component_id: str | None = None,
 ) -> RegionReadResult:
     ready_nodes, total_node_count = read_positioned_nodes(
         connection,
@@ -36,6 +37,7 @@ def read_region(
         ymin=ymin,
         ymax=ymax,
         max_nodes=max_nodes,
+        component_id=component_id,
     )
     nodes = tuple(ready_nodes)
     node_ids = {node.node_id for node in nodes}

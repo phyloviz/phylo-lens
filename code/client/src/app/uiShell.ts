@@ -8,12 +8,15 @@ import createGraphLoading, { type GraphLoadingElements } from './shell/inputs/gr
 import createDisplayOptionsControls, {
   type DisplayOptionsControlsElements,
 } from './shell/controls/displayOptionsControls';
-import { isLodGraph, updateLodPlaybackControls } from './shell/controls/lodControls';
+import { isLodGraph, updateLodRefreshControl } from './shell/controls/lodControls';
 import eventBindings from './shell/events/eventBindings';
 import searchController from './shell/search/searchController';
 import regionSelection from './shell/region/regionSelection';
 import createArrangementControls, { type ArrangementControlsElements } from './shell/controls/arrangementControls';
 import createPngExportControls, { type PngExportControlsElements } from './shell/controls/pngExportControls';
+import createWorkspaceControls from './shell/controls/workspaceControls';
+
+import forestControls, { type ForestControlsElements } from './shell/controls/forestControls';
 
 export { STATUS_RENDERED_PREFIX } from './shell/status/renderedStatus';
 export { STATUS_RENDERING_PREFIX } from './shell/inputs/graphLoading';
@@ -25,11 +28,6 @@ export {
   SELECTED_NODE_WHEEL_EMPTY_MESSAGE,
   SELECT_PIE_FIELD_MESSAGE,
 } from './shell/ancillary/ancillaryControls';
-export {
-  DISPLAY_OPTION_DISTANCE_WEIGHTED_EDGES,
-  DISPLAY_OPTION_EDGE_DISTANCE_LABELS,
-  DISPLAY_OPTION_NODE_LABELS,
-} from './shell/controls/displayOptionsControls';
 
 export const DEFAULT_STATUS_READY = 'Ready';
 export const STATUS_FAILED_PREFIX = 'Failed';
@@ -37,15 +35,16 @@ export const ERR_STATUS_ELEMENT_REQUIRED = 'Status element is required.';
 export const ERR_RENDER_FORM_REQUIRED = 'Render form is required.';
 export const ERR_NEWICK_INPUT_REQUIRED = 'Newick input is required.';
 
-export type UiShellElements = ArrangementControlsElements &
+export type UiShellElements = ForestControlsElements &
+  ArrangementControlsElements &
   DisplayOptionsControlsElements &
   PngExportControlsElements &
   AncillaryControlsElements &
   GraphLoadingElements & {
     readonly status: HTMLElement;
+    readonly workspaceRoot?: HTMLElement;
     readonly expansion?: ExpansionControlsElements;
-    readonly lodPlayButton?: HTMLButtonElement;
-    readonly lodPauseButton?: HTMLButtonElement;
+    readonly automaticDetailInput?: HTMLInputElement;
     readonly searchInput?: HTMLInputElement;
     readonly searchButton?: HTMLButtonElement;
     readonly searchResults?: HTMLElement;
@@ -68,8 +67,7 @@ export default function createUiShell(options: UiShellOptions): UiShell {
   const { workbench, elements } = options;
   const {
     status,
-    lodPlayButton,
-    lodPauseButton,
+    automaticDetailInput,
     searchInput,
     searchButton,
     searchResults,
@@ -81,8 +79,10 @@ export default function createUiShell(options: UiShellOptions): UiShell {
   if (!status) throw new Error(ERR_STATUS_ELEMENT_REQUIRED);
 
   let lastRenderedGraph: PositionedGraph | null = null;
+  let selectedNodeId: string | null = null;
   const getGraph = (): PositionedGraph | null => lastRenderedGraph;
   const bindings = eventBindings();
+  const workspace = createWorkspaceControls(elements.workspaceRoot);
   const expansion = expansionControls(workbench, elements.expansion);
   const arrangement = createArrangementControls(workbench, elements);
   const display = createDisplayOptionsControls(workbench, elements);
@@ -99,7 +99,7 @@ export default function createUiShell(options: UiShellOptions): UiShell {
     results: searchResults,
     setStatus,
     setFailureStatus,
-    onNodeFocused: ancillary.showNode,
+    onNodeFocused: selectNode,
   });
   const region = regionSelection({
     workbench,
@@ -109,6 +109,20 @@ export default function createUiShell(options: UiShellOptions): UiShell {
     setStatus,
     setFailureStatus,
     getAncillaryDistribution: ancillary.getDistribution,
+    onSelected: workspace.showRegion,
+  });
+  const forest = forestControls(workbench, elements, pending => {
+    if (!pending) {
+      expansion.setReady(lastRenderedGraph !== null);
+      arrangement.setReady((lastRenderedGraph?.nodes.length ?? 0) > 1);
+      return;
+    }
+    arrangement.setReady(false);
+    selectNode(null);
+    search.reset();
+    region.reset();
+    arrangement.reset();
+    expansion.setReady(false);
   });
   const loading = createGraphLoading({
     workbench,
@@ -119,14 +133,24 @@ export default function createUiShell(options: UiShellOptions): UiShell {
     setStatus,
     setFailureStatus,
     onLoadStarted: () => {
+      forest.reset();
+      workspace.loadStarted();
+      selectNode(null);
       search.reset();
       region.reset();
       arrangement.reset();
+      arrangement.setReady(false);
       expansion.setReady(false);
+      refreshLodControls(false);
     },
     onLoadFailed: () => {
+      workspace.loadFailed();
       lastRenderedGraph = null;
       ancillary.resetAfterFailure();
+    },
+    onLoadCompleted: name => {
+      workspace.loadCompleted(name);
+      void forest.load();
     },
   });
   const pngExport = createPngExportControls({
@@ -143,23 +167,24 @@ export default function createUiShell(options: UiShellOptions): UiShell {
 
   function mount(): void {
     setStatus(DEFAULT_STATUS_READY);
+    workspace.mount();
+    forest.mount();
     loading.mount();
     arrangement.mount();
     expansion.mount();
     workbench.setErrorHandler(error => setFailureStatus(error.message));
     workbench.setGraphRenderedHandler(handleGraphRendered);
-    workbench.setNodeClickedHandler(state => {
-      expansion.select(state);
-      arrangement.selectNode(state.nodeId);
-      if (state.nodeId === null) ancillary.resetSelectedNode();
-      else ancillary.showNode(state.nodeId);
-    });
+    workbench.setNodeClickedHandler(state => selectNode(state.nodeId));
     ancillary.mount();
     display.mount();
     pngExport.mount();
-    bindings.on(lodPlayButton, 'click', () => handleLodPlaybackChange(false));
-    bindings.on(lodPauseButton, 'click', () => handleLodPlaybackChange(true));
+    bindings.on(automaticDetailInput, 'change', () => handleLodPlaybackChange(!automaticDetailInput!.checked));
     bindings.on(searchInput, 'input', search.reset);
+    bindings.on(searchInput, 'keydown', event => {
+      if (event.key !== 'Enter' || event.isComposing) return;
+      event.preventDefault();
+      void search.searchCurrentDataset();
+    });
     bindings.on(searchButton, 'click', () => void search.searchCurrentDataset());
     bindings.on(regionSelectToggle, 'click', region.toggle);
     workbench.setRegionSelectedHandler(bounds => void region.handleSelected(bounds));
@@ -174,6 +199,8 @@ export default function createUiShell(options: UiShellOptions): UiShell {
     search.reset();
     region.reset();
     bindings.clear();
+    workspace.unmount();
+    forest.unmount();
     display.unmount();
     pngExport.unmount();
     expansion.dispose();
@@ -196,28 +223,46 @@ export default function createUiShell(options: UiShellOptions): UiShell {
   function handleGraphRendered(graph: PositionedGraph): void {
     setStatus(buildRenderedStatus(graph));
     lastRenderedGraph = graph;
-    expansion.refreshGraph(graph);
+    arrangement.setReady(graph.nodes.length > 1);
     expansion.setReady(true);
     loading.updateApplyAncillaryButton();
     ancillary.refreshGraph(graph);
+    refreshSelectionControls();
     refreshLodControls(isLodGraph(graph));
     region.reset();
+  }
+
+  function selectNode(nodeId: string | null): void {
+    selectedNodeId = nodeId;
+    refreshSelectionControls();
+    workspace.selectNode(nodeId);
+    if (nodeId === null) ancillary.resetSelectedNode();
+    else ancillary.showNode(nodeId);
+  }
+
+  function refreshSelectionControls(): void {
+    const node = lastRenderedGraph?.nodes.find(candidate => candidate.id === selectedNodeId);
+    expansion.select({ nodeId: node?.id ?? null, attributes: node?.attributes });
+    arrangement.selectNode(node?.id ?? null);
   }
 
   function handleLodPlaybackChange(paused: boolean): void {
     try {
       workbench.setLodRefreshPaused(paused);
       refreshLodControls(isLodGraph(lastRenderedGraph));
-      if (paused) setStatus('LoD paused: navigate freely without slice refreshes');
+      setStatus(
+        paused
+          ? 'Automatic detail updates paused. Node motion is controlled separately.'
+          : 'Automatic detail updates enabled.'
+      );
     } catch (error) {
       setFailureStatus(toError(error).message);
     }
   }
 
   function refreshLodControls(lodAvailable: boolean): void {
-    updateLodPlaybackControls({
-      playButton: lodPlayButton,
-      pauseButton: lodPauseButton,
+    updateLodRefreshControl({
+      input: automaticDetailInput,
       lodAvailable,
       paused: workbench.isLodRefreshPaused(),
     });

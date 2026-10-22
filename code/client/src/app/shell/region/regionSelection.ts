@@ -12,6 +12,7 @@ export interface RegionSelectionOptions {
   setStatus: (status: string) => void;
   setFailureStatus: (message: string) => void;
   getAncillaryDistribution: (includeNodeIds?: Set<string>) => AncillaryDistribution | null;
+  onSelected?: () => void;
 }
 
 export default function (options: RegionSelectionOptions) {
@@ -63,6 +64,7 @@ export default function (options: RegionSelectionOptions) {
         aggregatedAncillaryData: result.aggregatedAncillaryData,
         ancillaryDistribution: options.getAncillaryDistribution(new Set(result.nodeIds)),
       });
+      options.onSelected?.();
       options.setStatus(
         `Region selected: ${result.nodeCount} ${result.scope === 'display' ? 'loaded display nodes' : result.nodeCount === 1 ? 'node' : 'nodes'}`
       );

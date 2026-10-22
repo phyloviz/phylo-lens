@@ -184,7 +184,7 @@ function requireViewportRenderer(renderer: GraphRenderer): void {
 function resetRenderer(renderer: GraphRenderer): void {
   const motionEnabled = renderer.isMotionEnabled?.() ?? true;
 
-  renderer.resetLayoutEdits?.();
+  renderer.resetLayoutEdits?.({ allViews: true });
   renderer.setMotionEnabled?.(motionEnabled);
   renderer.focusNode?.(null);
 }

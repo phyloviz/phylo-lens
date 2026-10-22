@@ -1,4 +1,5 @@
 import Graph from 'graphology';
+import type { LayoutMotionState } from '../../renderer.types';
 import Sigma from 'sigma';
 
 import { isClusterRepresentative } from '../../mapping/clusterNodes';
@@ -79,11 +80,13 @@ export default function createSigmaRenderer(options: SigmaRendererOptions = {}) 
   const dragPins = new Map<string, Point>();
   let manipulationHandler: ((active: boolean) => void) | null = null;
   let feedbackHandler: ((message: string) => void) | null = null;
+  let motionHandler: ((state: LayoutMotionState) => void) | null = null;
   let selectingRegion = false;
   let pendingSnapshot: { graph: PositionedGraph; options?: { preservePositions?: boolean } } | null = null;
   let sourceSnapshot: PositionedGraph | null = null;
   let sigmaInstance: Sigma | null = null;
   let containerElement: HTMLElement | null = null;
+  let containerResizeObserver: ResizeObserver | null = null;
   let pieSliceKeys: string[] = [];
   let pieProgramSignature = '';
   let coordinateBounds: GraphLayoutBounds | null = null;
@@ -115,6 +118,8 @@ export default function createSigmaRenderer(options: SigmaRendererOptions = {}) 
     },
   };
   const forceMotionController = createSigmaForceMotion(forceMotion, {
+    onStateChanged: () => motionHandler?.(getLayoutMotionState()),
+    onSettled: () => sigmaGraph?.forEachNode((id, point) => displayPositions.arrange(id, { x: point.x, y: point.y })),
     onTick: updateClusterTriangleRotations,
     onError: message => feedbackHandler?.(message),
     reference: id => displayPositions.reference(id),
@@ -194,6 +199,16 @@ export default function createSigmaRenderer(options: SigmaRendererOptions = {}) 
 
   return {
     kind: RendererType.Sigma,
+    relaxLayout: () => forceMotionController.relax(),
+    stopLayout: () => {
+      sigmaGraph?.forEachNode((id, attributes) => displayPositions.arrange(id, { x: attributes.x, y: attributes.y }));
+      setMotionEnabled(false);
+    },
+    getLayoutMotionState,
+    setLayoutMotionHandler: (handler: ((state: LayoutMotionState) => void) | null) => {
+      motionHandler = handler;
+      handler?.(getLayoutMotionState());
+    },
     setMotionEnabled,
     isMotionEnabled,
     setInteractionFeedbackHandler,
@@ -203,6 +218,11 @@ export default function createSigmaRenderer(options: SigmaRendererOptions = {}) 
     getDisplayedNodesInBounds,
     setDragSelection,
     resetLayoutEdits,
+    getCameraState: () => readCameraState(sigmaInstance),
+    restoreCameraState: state => {
+      suppressViewChangesFor(16);
+      restoreCameraState(sigmaInstance, state);
+    },
     mount,
     render,
     setViewChangeHandler,
@@ -239,7 +259,13 @@ export default function createSigmaRenderer(options: SigmaRendererOptions = {}) 
   }
 
   function setMotionEnabled(enabled: boolean): void {
+    if (!enabled)
+      sigmaGraph?.forEachNode((id, attributes) => displayPositions.arrange(id, { x: attributes.x, y: attributes.y }));
     forceMotionController.setEnabled(enabled);
+  }
+
+  function getLayoutMotionState(): LayoutMotionState {
+    return { automatic: forceMotionController.isEnabled(), running: forceMotionController.isRunning() };
   }
 
   function isMotionEnabled(): boolean {
@@ -295,14 +321,19 @@ export default function createSigmaRenderer(options: SigmaRendererOptions = {}) 
     dragSelection = selection.kind === 'group' ? { ...selection, nodeIds: [...selection.nodeIds] } : { ...selection };
   }
 
-  function resetLayoutEdits(): void {
+  function resetLayoutEdits(options?: { allViews?: boolean }): void {
     pendingSnapshot = null;
     setMotionEnabled(false);
     transitions.cancel();
     dragController.reset();
-    displayPositions.clear();
+    displayPositions.clear(options?.allViews ? undefined : sourceSnapshot?.viewMeta.componentId);
     dragSelection = { kind: 'node' };
-    if (sourceSnapshot && sigmaInstance) applyGraphSnapshot(sourceSnapshot, { preservePositions: false });
+    if (!options?.allViews && sourceSnapshot && sigmaInstance)
+      applyGraphSnapshot(sourceSnapshot, { preservePositions: false });
+    if (options?.allViews) {
+      sourceSnapshot = null;
+      forceMotionController.dispose();
+    }
     manipulationHandler?.(false);
   }
 
@@ -313,6 +344,11 @@ export default function createSigmaRenderer(options: SigmaRendererOptions = {}) 
     sigmaInstance = new Sigma(sigmaGraph, containerElement, buildSigmaSettings(rendererOptions));
     sigmaInstance.getCamera().setState(defaultCameraState());
     bindSigmaHandlers();
+    if (typeof ResizeObserver !== 'undefined') {
+      containerResizeObserver?.disconnect();
+      containerResizeObserver = new ResizeObserver(() => sigmaInstance?.scheduleRender());
+      containerResizeObserver.observe(containerElement);
+    }
   }
 
   // Render positioned nodes and edges into Graphology then refresh Sigma.
@@ -432,10 +468,13 @@ export default function createSigmaRenderer(options: SigmaRendererOptions = {}) 
 
   // Drop container and graph references when renderer is detached.
   function unmount(): void {
+    containerResizeObserver?.disconnect();
+    containerResizeObserver = null;
     transitions.cancel();
     forceMotionController.dispose();
     pendingSnapshot = null;
     manipulationHandler = null;
+    motionHandler = null;
     unbindSigmaHandlers();
     sigmaInstance?.kill();
     sigmaInstance = null;
@@ -469,7 +508,7 @@ export default function createSigmaRenderer(options: SigmaRendererOptions = {}) 
       return null;
     }
     const bounds = currentViewportBounds();
-    const halo = displayPositions.queryPadding();
+    const halo = displayPositions.queryPadding(sourceSnapshot?.viewMeta.componentId);
     return {
       bounds: {
         xmin: bounds.xmin - halo.x,
@@ -496,13 +535,17 @@ export default function createSigmaRenderer(options: SigmaRendererOptions = {}) 
     const wasTransitioning = transitions.isActive();
     transitions.cancel();
     forceMotionController.stop();
+    const componentChanged = sourceSnapshot?.viewMeta.componentId !== graph.viewMeta.componentId;
     const previousLod = sourceSnapshot?.viewMeta.lodLevel;
     if (options?.preservePositions) captureDisplayPositions();
     sourceSnapshot = graph;
     const planned = displayPositions.ingest(graph);
     graph = { ...graph, nodes: planned.nodes };
     const lodChanged = previousLod !== undefined && previousLod !== graph.viewMeta.lodLevel;
-    const needsTransition = wasTransitioning || lodChanged || planned.origins.size > 0;
+    const needsTransition =
+      !componentChanged &&
+      forceMotionController.isEnabled() &&
+      (wasTransitioning || lodChanged || planned.origins.size > 0);
     const targets = needsTransition ? new Map(graph.nodes.map(node => [node.id, { x: node.x, y: node.y }])) : null;
     if (lodChanged) transitions.captureAnchor(graph);
     if (needsTransition) {

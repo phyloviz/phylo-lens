@@ -1,5 +1,6 @@
 import type { ClusterId, DatasetId, LayoutVersion, NodeId } from '../graphIdentifiers';
 export type GraphViewportRequest = {
+  readonly componentId?: string;
   readonly datasetId: DatasetId;
   readonly layoutVersion?: LayoutVersion | null;
   readonly clusterId?: ClusterId | null;

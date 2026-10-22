@@ -328,3 +328,23 @@ Useful measurements separate:
 Use a fresh process, or account for cached jobs and stored layouts. Reusing the
 same `(dataset_id, layout_version)` measures reuse time rather than a new
 preparation run.
+
+
+## Connected-component panels
+
+`POST /api/graph/components` returns paged summaries for a published dataset and
+layout version: component ID, canonical node count, DFS start and prepared bounds.
+`after` is the previous `next_cursor`; `limit` defaults to 50 and is capped at 200.
+The response uses `next_cursor: null` at the end. Missing prepared versions return
+404. Summaries are indexed, copied to ancillary revisions and deleted with their
+layout. Existing caches must be prepared with pipeline identity
+`component-panels-lod-v5`; the PostgreSQL schema identity is
+`component-panels-schema-v4`.
+
+Viewport, region and search requests accept optional `component_id`. Omitting it
+queries the forest. Supplying it restricts membership before pagination and
+adaptive representation counts; viewport bounds refer to that component's
+prepared coordinates. Cluster expansion validates that its representative
+belongs to the selected component. Edges cannot cross connected components.
+The viewport count includes each in-bounds node once plus boundary neighbors
+outside the rectangle; a cap does not count omitted in-bounds neighbors twice.

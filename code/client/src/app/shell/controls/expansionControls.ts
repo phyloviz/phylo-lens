@@ -14,6 +14,7 @@ export interface ExpansionControlsElements {
   collapseAll?: HTMLButtonElement;
   keepExpanded?: HTMLInputElement;
   feedback?: HTMLElement;
+  selectionLabel?: HTMLElement;
 }
 
 export function expansionControls(
@@ -47,6 +48,19 @@ export function expansionControls(
     const failure = state.kind === 'ready' ? state.failure : null;
     const expansion = ready ? workbench.getExpansionState() : null;
     const expanded = expansion?.expandedClusterIds.includes(clusterId()) ?? false;
+    const selected = selection();
+    if (elements.selectionLabel)
+      elements.selectionLabel.textContent = selected?.nodeId
+        ? `Selected: ${selected.nodeId} · ${selected.manuallyCollapsed ? 'Collapsed branch' : selected.collapsible ? 'Internal node' : selected.expandable || expanded ? 'Automatic group' : 'Leaf node'}`
+        : 'Select a node in the graph or search results.';
+    const target =
+      selected?.manuallyCollapsed || selected?.collapsible
+        ? 'branch'
+        : selected?.expandable || expanded
+          ? 'group'
+          : 'selection';
+    if (elements.expandSelected) elements.expandSelected.textContent = `Expand ${target}`;
+    if (elements.collapseSelected) elements.collapseSelected.textContent = `Collapse ${target}`;
     if (elements.expandSelected)
       elements.expandSelected.disabled =
         !ready || busy || (expanded && selection()?.manuallyCollapsed !== true) || selection()?.expandable !== true;

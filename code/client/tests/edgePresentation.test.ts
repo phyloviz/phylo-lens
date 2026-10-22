@@ -35,7 +35,13 @@ describe('edge presentation', () => {
     const edgeLabelMinInput = document.createElement('input');
     const edgeLabelMaxInput = document.createElement('input');
     const updateDisplayOptions = vi.fn();
-    const controls = createDisplayControls({ updateDisplayOptions }, { edgeLabelMinInput, edgeLabelMaxInput });
+    const edgeDistanceLabelsInput = document.createElement('input');
+    edgeDistanceLabelsInput.type = 'checkbox';
+    edgeDistanceLabelsInput.checked = true;
+    const controls = createDisplayControls(
+      { updateDisplayOptions },
+      { edgeLabelMinInput, edgeLabelMaxInput, edgeDistanceLabelsInput }
+    );
     controls.mount();
     edgeLabelMinInput.value = '0';
     edgeLabelMaxInput.value = '5';

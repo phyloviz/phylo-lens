@@ -11,6 +11,8 @@ export type SigmaForceMotionOptions = {
 export interface SigmaForceMotionCallbacks {
   onTick?: () => void;
   onError?: (message: string) => void;
+  onStateChanged?: () => void;
+  onSettled?: () => void;
   reference: (id: string) => Point | undefined;
   anchor: (id: string) => Point | undefined;
   collisionRadius?: (id: string, size: number) => number | undefined;
@@ -27,7 +29,8 @@ export default function createSigmaForceMotion(
   const settings = { ...options.settings };
   let worker: Worker | null = null,
     graph: Graph | null = null;
-  let enabled = options.enabled !== false,
+  let enabled = options.enabled === true,
+    manual = false,
     suspended = false,
     revision = 0,
     minimumRevision = 0;
@@ -39,21 +42,27 @@ export default function createSigmaForceMotion(
     const id = graph.findNode(() => true)!;
     return callbacks.collisionRadius?.(id, graph.getNodeAttribute(id, 'size') ?? 5);
   }
-  function stop() {
+  function stopWorker() {
     clearTimeout(geometryTimer);
     geometryTimer = undefined;
     worker?.terminate();
     worker = null;
     minimumRevision = ++revision;
+    callbacks.onStateChanged?.();
+  }
+  function stop() {
+    manual = false;
+    stopWorker();
   }
   function send(command: MotionCommand) {
     worker?.postMessage(command);
   }
   function resume() {
-    if (!enabled || suspended || !graph || graph.order < 2 || worker) return;
+    if ((!enabled && !manual) || suspended || !graph || graph.order < 2 || worker) return;
     try {
       const active = new ElasticWorker();
       worker = active;
+      callbacks.onStateChanged?.();
       previousRadius = radius();
       const ids = graph.nodes();
       const indices = new Map(ids.map((id, i) => [id, i]));
@@ -72,6 +81,11 @@ export default function createSigmaForceMotion(
           { attributes: ['x', 'y'] }
         );
         callbacks.onTick?.();
+        if (data.settled) {
+          callbacks.onSettled?.();
+          manual = false;
+          stopWorker();
+        }
       };
       active.onerror = () => {
         if (worker === active) {
@@ -118,6 +132,12 @@ export default function createSigmaForceMotion(
       resume();
     },
     stop,
+    relax() {
+      stopWorker();
+      manual = true;
+      resume();
+    },
+    isRunning: () => worker !== null,
     // Camera translation does not change glyph footprints. Reheat only after a
     // meaningful scale/resize change and debounce animations; never reset anchors.
     refreshGeometry() {
@@ -143,11 +163,13 @@ export default function createSigmaForceMotion(
       // Reject old frames at grab/release boundaries, not on every mousemove.
       if (changedMembers || released.length) minimumRevision = revision;
       send({ type: 'pin', revision, points: pins, released });
+      if (enabled && !worker && (points.length || released.length)) resume();
     },
     setEnabled(value: boolean) {
       enabled = value;
       if (value) resume();
       else stop();
+      callbacks.onStateChanged?.();
     },
     isEnabled: () => enabled,
     suspend(value: boolean) {

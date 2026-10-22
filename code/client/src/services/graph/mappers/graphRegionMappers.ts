@@ -8,6 +8,7 @@ import { toGraphViewportNode, toGraphViewportEdge } from './graphViewportMappers
 export function toGraphRegionRequestDto(request: GraphRegionRequest): GraphRegionRequestDto {
   return {
     dataset_id: request.datasetId,
+    component_id: request.componentId,
     layout_version: request.layoutVersion,
     xmin: request.xmin,
     xmax: request.xmax,

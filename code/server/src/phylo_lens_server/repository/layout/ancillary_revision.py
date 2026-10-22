@@ -29,6 +29,7 @@ from phylo_lens_server.repository.layout.writer import (
 
 # Explicit columns keep geometry copying reviewable and exclude publication dates.
 GEOMETRY_COLUMNS = {
+    "forest_components": "component_id, node_count, dfs_start, min_x, max_x, min_y, max_y",
     "node_tree_index": "node_id, component_id, parent_id, depth, dfs_start, dfs_end",
     "prepared_clusters": (
         "cluster_id, lod_level, representative_node_id, member_count, "

@@ -5,6 +5,8 @@ import json
 from phylo_lens_server.domain.models import Isolate
 from phylo_lens_server.domain.search import SearchMatch, identifier_score
 
+from .components import component_source
+
 
 def load_isolates(connection, *, dataset_id, layout_version, node_ids, placeholder="?"):
     if not node_ids:
@@ -34,13 +36,17 @@ def search_isolates(
     layout_version: str,
     needle: str,
     placeholder: str = "?",
+    component_id: str | None = None,
 ) -> tuple[SearchMatch, ...]:
+    source, params = component_source(
+        "profile_isolates", component_id, placeholder=placeholder
+    )
     # Original isolate identifiers use Unicode case folding on both backends.
     rows = connection.execute(
-        f"""select node_id, isolate_id from profile_isolates
+        f"""select node_id, isolate_id from {source}
         where dataset_id = {placeholder} and layout_version = {placeholder}
         order by isolate_id""",
-        (dataset_id, layout_version),
+        (*params, dataset_id, layout_version),
     )
     lowered = needle.casefold()
     return tuple(

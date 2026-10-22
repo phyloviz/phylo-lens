@@ -28,7 +28,7 @@ const snapshot: PositionedGraph = {
   edges: nodes.slice(1).map(n => ({ id: `e${n.id}`, source: String(Math.floor((+n.id - 1) / 2)), target: n.id })),
   viewMeta: { layout: 'server', lodLevel: 0, globalBounds: { minX: 0, maxX: 12, minY: -2, maxY: 4 } },
 };
-const renderer = createSigmaRenderer();
+const renderer = createSigmaRenderer({ forceMotion: { enabled: true } });
 renderer.mount({ container: document.querySelector<HTMLElement>('#graph')! });
 renderer.render(snapshot);
 Object.assign(window, {

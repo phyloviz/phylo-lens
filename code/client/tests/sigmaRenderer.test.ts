@@ -35,6 +35,7 @@ let pieProgramInputs: Array<{
 let forceMotionStarts = 0;
 let forceMotionKills = 0;
 let sigmaConstructions = 0;
+let scheduledRenders = 0;
 let lastForceMotionSettings: Record<string, number> | null = null;
 let workerCommands: MotionCommand[] = [];
 let animationFrameCallback: FrameRequestCallback | null = null;
@@ -172,6 +173,7 @@ vi.mock('sigma', () => {
     }
 
     scheduleRender() {
+      scheduledRenders++;
       return this;
     }
 
@@ -287,6 +289,37 @@ describe('sigmaRenderer', () => {
     });
 
     renderer.unmount();
+  });
+
+  it('resizes with its host panel and disconnects the container observer on unmount', () => {
+    const observe = vi.fn();
+    const disconnect = vi.fn();
+    let notify: ResizeObserverCallback | undefined;
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(callback: ResizeObserverCallback) {
+          notify = callback;
+        }
+        observe = observe;
+        disconnect = disconnect;
+      }
+    );
+    try {
+      const renderer = createSigmaRenderer();
+      const container = requireContainer();
+      renderer.mount({ container });
+      expect(observe).toHaveBeenCalledWith(container);
+      const before = scheduledRenders;
+      notify?.([], {} as ResizeObserver);
+      expect(scheduledRenders).toBe(before + 1);
+      renderer.unmount();
+      expect(disconnect).toHaveBeenCalledTimes(1);
+      notify?.([], {} as ResizeObserver);
+      expect(scheduledRenders).toBe(before + 1);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('keeps renderer instances independent and allows methods to be passed as callbacks', () => {
@@ -515,7 +548,7 @@ describe('sigmaRenderer', () => {
   it('runs live force motion for both client and server layouts', () => {
     document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
 
-    const renderer = createSigmaRenderer();
+    const renderer = createSigmaRenderer({ forceMotion: { enabled: true } });
     renderer.mount({ container: requireContainer() });
     renderer.render({
       nodes: [
@@ -551,6 +584,7 @@ describe('sigmaRenderer', () => {
 
     const renderer = createSigmaRenderer({
       forceMotion: {
+        enabled: true,
         settings: { anchorStrength: 0.05, linkStrength: 0.4 },
       },
     });
@@ -634,7 +668,7 @@ describe('sigmaRenderer', () => {
   it('keeps cluster proxy triangle tips aligned while force motion moves nodes', () => {
     document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
 
-    const renderer = createSigmaRenderer();
+    const renderer = createSigmaRenderer({ forceMotion: { enabled: true } });
     renderer.mount({ container: requireContainer() });
     renderer.render({
       nodes: [
@@ -1197,7 +1231,7 @@ describe('sigmaRenderer', () => {
 
   it('keeps worker motion on while dragging, protects pins and defers viewport replacement', () => {
     document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
-    const renderer = createSigmaRenderer();
+    const renderer = createSigmaRenderer({ forceMotion: { enabled: true } });
     renderer.mount({ container: requireContainer() });
     const snapshot: PositionedGraph = {
       nodes: [
@@ -1235,7 +1269,7 @@ describe('sigmaRenderer', () => {
     renderer.unmount();
   });
 
-  it('animates expansion from a moved proxy, preserves pause and does not transition ordinary refreshes', () => {
+  it('preserves manual positions through expansion and detail changes without animating', () => {
     document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
     const renderer = createSigmaRenderer({ forceMotion: { enabled: false } });
     renderer.mount({ container: requireContainer() });
@@ -1258,8 +1292,8 @@ describe('sigmaRenderer', () => {
     };
     renderer.applyGraphSnapshot(fine);
     const graph = lastGraph!;
-    expect(graph.getNodeAttributes('a')).toMatchObject({ x: 25, y: 3 });
-    expect(renderer.isManipulating()).toBe(true);
+    expect(graph.getNodeAttributes('a')).toMatchObject({ x: 24, y: 3 });
+    expect(renderer.isManipulating()).toBe(false);
     animationFrameCallback?.(performance.now() + 300);
     expect(graph.getNodeAttributes('a')).toMatchObject({ x: 24, y: 3 });
     expect(graph.getNodeAttributes('b')).toMatchObject({ x: 26, y: 3 });
@@ -1268,15 +1302,15 @@ describe('sigmaRenderer', () => {
     renderer.applyGraphSnapshot(fine);
     expect(renderer.isManipulating()).toBe(false);
     renderer.applyGraphSnapshot({ ...fine, viewMeta: { ...fine.viewMeta, lodLevel: 1 } });
-    expect(renderer.isManipulating()).toBe(true);
+    expect(renderer.isManipulating()).toBe(false);
     animationFrameCallback?.(performance.now() + 300);
-    expect(graph.getNodeAttributes('a')).toMatchObject({ x: 19, y: 0 });
+    expect(graph.getNodeAttributes('a')).toMatchObject({ x: 24, y: 3 });
     renderer.unmount();
   });
 
   it('interrupts child animation at the displayed position when direct dragging starts', () => {
     document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
-    const renderer = createSigmaRenderer({ forceMotion: { enabled: false } });
+    const renderer = createSigmaRenderer({ forceMotion: { enabled: true } });
     renderer.mount({ container: requireContainer() });
     const viewMeta: PositionedGraph['viewMeta'] = {
       layout: 'server',
@@ -1307,6 +1341,33 @@ describe('sigmaRenderer', () => {
     expect(graph.getNodeAttribute('a', 'x')).toBeCloseTo(x + 1);
     mouseHandlers.get('mouseup')?.forEach(handler => handler({ x: x + 1, y: 0 }));
     expect(renderer.isManipulating()).toBe(false);
+    renderer.unmount();
+  });
+
+  it('clears every retained position when another dataset reuses node identities', () => {
+    const renderer = createSigmaRenderer({ forceMotion: { enabled: true } });
+    renderer.mount({ container: requireContainer() });
+    renderer.applyGraphSnapshot({
+      nodes: [
+        { id: 'a', x: 10, y: 20 },
+        { id: 'b', x: 20, y: 30 },
+      ],
+      edges: [],
+      viewMeta: { layout: 'server', lodLevel: 0 },
+    });
+    expect(forceMotionStarts).toBe(1);
+    renderer.resetLayoutEdits({ allViews: true });
+    renderer.setMotionEnabled(true);
+    expect(forceMotionStarts).toBe(1);
+    renderer.applyGraphSnapshot({
+      nodes: [
+        { id: 'a', x: 100, y: 200 },
+        { id: 'b', x: 200, y: 300 },
+      ],
+      edges: [],
+      viewMeta: { layout: 'server', lodLevel: 0 },
+    });
+    expect(lastGraph!.getNodeAttributes('a')).toMatchObject({ x: 100, y: 200 });
     renderer.unmount();
   });
 
@@ -1487,7 +1548,7 @@ describe('sigmaRenderer', () => {
 
     vi.spyOn(performance, 'now').mockReturnValue(0);
 
-    const renderer = createSigmaRenderer();
+    const renderer = createSigmaRenderer({ forceMotion: { enabled: true } });
     renderer.mount({ container: requireContainer() });
 
     renderer.render({
@@ -1523,7 +1584,7 @@ describe('sigmaRenderer', () => {
   });
 
   it('ignores queued transition frames after a newer snapshot or unmount', () => {
-    const renderer = createSigmaRenderer({ forceMotion: { enabled: false } });
+    const renderer = createSigmaRenderer({ forceMotion: { enabled: true } });
     renderer.mount({ container: requireContainer() });
     renderer.render({ nodes: [{ id: 'a', x: 0, y: 0 }], edges: [], viewMeta: { layout: 'server', lodLevel: 0 } });
     renderer.applyGraphSnapshot({

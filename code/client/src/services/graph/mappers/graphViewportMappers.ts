@@ -16,6 +16,7 @@ import type { GraphViewportResult } from '../../../contracts/graph/viewport/Grap
 export function toGraphViewportRequestDto(request: GraphViewportRequest): GraphViewportRequestDto {
   return {
     dataset_id: request.datasetId,
+    component_id: request.componentId,
     layout_version: request.layoutVersion,
     cluster_id: request.clusterId,
     focus_node_id: request.focusNodeId,

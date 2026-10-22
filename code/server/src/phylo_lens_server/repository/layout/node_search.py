@@ -16,6 +16,7 @@ from phylo_lens_server.domain.search import (
     rank_matches,
 )
 
+from .components import component_source
 from .isolate_membership import search_isolates
 
 
@@ -28,6 +29,7 @@ def search_nodes(
     limit: int,
     placeholder: str = "?",
     like_operator: Literal["like", "ilike"] = "like",
+    component_id: str | None = None,
 ) -> SearchReadResult:
     needle = query.strip()
     if not needle:
@@ -36,9 +38,13 @@ def search_nodes(
     pattern = (
         "%" + needle.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
     )
-    parameters = (dataset_id, layout_version, pattern)
+    positions, scope_params = component_source(
+        "node_positions", component_id, placeholder=p
+    )
+    metadata, _ = component_source("node_metadata", component_id, placeholder=p)
+    parameters = (*scope_params, dataset_id, layout_version, pattern)
     id_rows = connection.execute(
-        f"""select distinct node_id from node_positions
+        f"""select distinct node_id from {positions}
         where dataset_id = {p} and layout_version = {p}
         and node_id {like_operator} {p} escape '\\'""",
         parameters,
@@ -54,7 +60,7 @@ def search_nodes(
         if not is_generated_union_node(row["node_id"])
     )
     ancillary_rows = connection.execute(
-        f"""select node_id, metadata_json from node_metadata
+        f"""select node_id, metadata_json from {metadata}
         where dataset_id = {p} and layout_version = {p}
         and metadata_json {like_operator} {p} escape '\\'""",
         parameters,
@@ -81,6 +87,7 @@ def search_nodes(
                 dataset_id=dataset_id,
                 layout_version=layout_version,
                 needle=needle,
+                component_id=component_id,
                 placeholder=p,
             ),
         )

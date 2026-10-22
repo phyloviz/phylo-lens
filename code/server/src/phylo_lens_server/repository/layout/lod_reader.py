@@ -1,5 +1,7 @@
 """Spatial representation counts for viewport-aware selection on both stores."""
 
+from .components import component_source
+
 
 def read_viewport_representation_counts(
     connection,
@@ -12,7 +14,17 @@ def read_viewport_representation_counts(
     ymax: float | None,
     placeholder: str,
     max_lod_level: int | None = None,
+    component_id: str | None = None,
 ) -> dict[int, int]:
+    clusters, scope_params = component_source(
+        "prepared_clusters",
+        component_id,
+        node_column="representative_node_id",
+        placeholder=placeholder,
+    )
+    positions, node_scope_params = component_source(
+        "node_positions", component_id, placeholder=placeholder
+    )
     bounded = xmin is not None
     params = (dataset_id, layout_version)
     cluster_bounds = (
@@ -29,19 +41,19 @@ def read_viewport_representation_counts(
         f"""
         select lod_level,
                sum(case when x is not null {cluster_bounds} then 1 else 0 end) as visible_count
-        from prepared_clusters
+        from {clusters}
         where dataset_id = {placeholder} and layout_version = {placeholder}
         {ceiling_clause}
         group by lod_level
         having count(x) = count(*)
         order by lod_level
         """,
-        (*cluster_params, *params, *ceiling_params),
+        (*cluster_params, *scope_params, *params, *ceiling_params),
     ).fetchall()
     counts = {int(row["lod_level"]): int(row["visible_count"]) for row in rows}
     finest_row = connection.execute(
-        f"select max(lod_level) as finest_level from prepared_clusters where dataset_id = {placeholder} and layout_version = {placeholder}",
-        params,
+        f"select max(lod_level) as finest_level from {clusters} where dataset_id = {placeholder} and layout_version = {placeholder}",
+        (*scope_params, *params),
     ).fetchone()
     finest = finest_row["finest_level"] if finest_row else None
     if finest is None or finest not in counts:
@@ -56,7 +68,7 @@ def read_viewport_representation_counts(
     row = connection.execute(
         f"""
         with visible as (
-            select node_id from node_positions
+            select node_id from {positions}
             where dataset_id = {placeholder} and layout_version = {placeholder}
             {node_bounds}
         ), represented as (
@@ -74,7 +86,7 @@ def read_viewport_representation_counts(
         join node_positions np on np.node_id = r.node_id
         where np.dataset_id = {placeholder} and np.layout_version = {placeholder}
         """,
-        (*params, *cluster_params, *params, *params, *params),
+        (*node_scope_params, *params, *cluster_params, *params, *params, *params),
     ).fetchone()
     counts[int(finest)] = int(row["visible_count"])
     return counts

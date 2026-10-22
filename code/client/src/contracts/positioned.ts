@@ -35,6 +35,7 @@ export type PositionedGraph = {
   readonly nodes: readonly PositionedNode[];
   readonly edges: readonly PositionedEdge[];
   readonly viewMeta: {
+    readonly componentId?: string;
     readonly layout: LayoutMode;
     readonly lodLevel: number;
     readonly lodTierCount?: number;

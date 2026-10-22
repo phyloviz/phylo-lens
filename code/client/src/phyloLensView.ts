@@ -54,6 +54,13 @@ export interface PhyloLensAncillaryResult {
 }
 
 export interface PhyloLensView {
+  listComponents: GraphWorkbench['listComponents'];
+  selectComponent: GraphWorkbench['selectComponent'];
+  getComponentId: GraphWorkbench['getComponentId'];
+  relaxLayout: GraphWorkbench['relaxLayout'];
+  stopLayout: GraphWorkbench['stopLayout'];
+  getLayoutMotionState: GraphWorkbench['getLayoutMotionState'];
+  setLayoutMotionHandler: GraphWorkbench['setLayoutMotionHandler'];
   searchNodes: GraphWorkbench['searchNodes'];
   focusNode: GraphWorkbench['focusNode'];
   cancelPendingFocus: () => void;
@@ -102,6 +109,13 @@ export function createPhyloLensView(options: PhyloLensViewOptions): PhyloLensVie
   };
 
   return {
+    listComponents: page => activeWorkbench().listComponents(page),
+    selectComponent: component => activeWorkbench().selectComponent(component),
+    getComponentId: () => activeWorkbench().getComponentId(),
+    relaxLayout: () => activeWorkbench().relaxLayout(),
+    stopLayout: () => activeWorkbench().stopLayout(),
+    getLayoutMotionState: () => activeWorkbench().getLayoutMotionState(),
+    setLayoutMotionHandler: handler => activeWorkbench().setLayoutMotionHandler(handler),
     setMotionEnabled: enabled => activeWorkbench().setMotionEnabled(enabled),
     isMotionEnabled: () => activeWorkbench().isMotionEnabled(),
     setDragSelection: selection => activeWorkbench().setDragSelection(selection),

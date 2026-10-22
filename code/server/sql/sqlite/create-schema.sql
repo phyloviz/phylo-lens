@@ -140,3 +140,23 @@ create table if not exists node_tree_index (
     dfs_end integer not null check (dfs_end > dfs_start),
     primary key (dataset_id, layout_version, node_id)
 );
+
+create index if not exists node_tree_component_idx
+    on node_tree_index(dataset_id, layout_version, component_id, node_id);
+create table if not exists forest_components(
+    dataset_id text not null,
+    layout_version text not null,
+    component_id text not null,
+    node_count integer not null,
+    dfs_start integer not null,
+    min_x double precision not null,
+    max_x double precision not null,
+    min_y double precision not null,
+    max_y double precision not null,
+    primary key(dataset_id, layout_version, component_id)
+);
+create index if not exists forest_components_page_idx
+    on forest_components(dataset_id, layout_version, dfs_start);
+
+create index if not exists prepared_clusters_representative_idx
+    on prepared_clusters(dataset_id, layout_version, representative_node_id, lod_level);

@@ -7,7 +7,11 @@ export const STATUS_RENDERED_PREFIX = 'Rendered';
 export const STATUS_DEGRADED_LAYOUT_WARNING = '⚠ This stored layout was prepared by an earlier service version';
 
 export function buildRenderedStatus(graph: PositionedGraph): string {
-  const parts = [`${graph.nodes.length} nodes`, `${graph.edges.length} edges`, lodTierLabel(graph)];
+  const parts = [
+    `${graph.nodes.length} visible ${graph.nodes.length === 1 ? 'node' : 'nodes'}`,
+    `${graph.edges.length} edges`,
+    detailLevelLabel(graph),
+  ];
   const isolateCounts = graph.nodes.map(node => {
     return readNodeAnnotations(node.attributes).profileSummary.isolateCount;
   });
@@ -18,14 +22,6 @@ export function buildRenderedStatus(graph: PositionedGraph): string {
     )
   ) {
     parts.push(`${isolateCounts.reduce((sum, count) => sum + count, 0)} isolates represented`);
-  }
-
-  if (typeof graph.viewMeta.sliceNodeCount === 'number') {
-    parts.push(`slice ${graph.viewMeta.sliceNodeCount} nodes`);
-  }
-
-  if (typeof graph.viewMeta.zoom === 'number') {
-    parts.push(`LoD zoom ${graph.viewMeta.zoom.toFixed(2)}`);
   }
 
   const status = `${STATUS_RENDERED_PREFIX}: ${parts.join(', ')}`;
@@ -59,15 +55,12 @@ function isLayoutWarning(warning: string | undefined): boolean {
   return normalized.includes('graphviz') || normalized.includes('layout');
 }
 
-// Human-readable current LoD tier. When the tier count is known it reads
-// "LoD tier X/Y" (1-based) so a semantic-zoom transition is visible even when
-// the coarse tier looks like plain leaves; otherwise it falls back to the raw
-// rendered depth.
-function lodTierLabel(graph: PositionedGraph): string {
+// Keep semantic detail changes visible without exposing viewport request diagnostics.
+function detailLevelLabel(graph: PositionedGraph): string {
   const tierCount = graph.viewMeta.lodTierCount;
   if (typeof tierCount === 'number' && tierCount > 0) {
     const tier = Math.min(graph.viewMeta.lodLevel + 1, tierCount);
-    return `LoD tier ${tier}/${tierCount}`;
+    return `detail level ${tier}/${tierCount}`;
   }
-  return `rendered depth ${graph.viewMeta.lodLevel}`;
+  return `detail level ${graph.viewMeta.lodLevel + 1}`;
 }

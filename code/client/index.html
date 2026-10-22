@@ -6,314 +6,265 @@
     <title>PhyloLens Client Demo</title>
     <link rel="stylesheet" href="demo.css" />
   </head>
-  <body>
+  <body id="workspace-root">
     <header class="app-bar">
       <span class="brand-mark" aria-hidden="true">P</span>
-      <div>
+      <div class="app-brand">
         <h1>PhyloLens</h1>
-        <p class="app-bar-sub">Semantic-zoom phylogenetic viewer</p>
+        <p class="app-bar-sub">Phylogenetic viewer</p>
       </div>
-      <span class="app-bar-spacer"></span>
-      <span class="app-bar-chip">Server-precomputed LoD</span>
+      <div class="dataset-summary">
+        <span class="app-bar-sub">Current dataset</span>
+        <strong id="current-dataset">No dataset loaded</strong>
+      </div>
+      <div class="app-bar-actions">
+        <button
+          id="controls-toggle"
+          class="app-bar-button controls-toggle"
+          type="button"
+          aria-controls="workspace-sidebar"
+          aria-expanded="true"
+        >
+          Controls
+        </button>
+        <button id="change-data" class="app-bar-button" type="button">Load data</button>
+        <button
+          id="open-export"
+          class="app-bar-button"
+          type="button"
+          aria-haspopup="dialog"
+          aria-controls="export-dialog"
+          disabled
+        >
+          Export
+        </button>
+      </div>
     </header>
+    <div class="app-shell" data-controls-open="true">
+      <aside id="workspace-sidebar" class="app-drawer" aria-label="Visualization controls">
+        <nav class="workspace-tabs" role="tablist" aria-label="Visualization tasks">
+          <button
+            id="explore-tab"
+            type="button"
+            role="tab"
+            aria-controls="explore-panel"
+            aria-selected="false"
+            tabindex="-1"
+            data-workspace-tab="explore"
+          >
+            Explore
+          </button>
+          <button
+            id="appearance-tab"
+            type="button"
+            role="tab"
+            aria-controls="appearance-panel"
+            aria-selected="false"
+            tabindex="-1"
+            data-workspace-tab="appearance"
+          >
+            Appearance
+          </button>
+          <button
+            id="data-tab"
+            type="button"
+            role="tab"
+            aria-controls="data-panel"
+            aria-selected="true"
+            tabindex="0"
+            data-workspace-tab="data"
+          >
+            Data
+          </button>
+        </nav>
+        <section
+          id="explore-panel"
+          class="drawer-section"
+          role="tabpanel"
+          aria-labelledby="explore-tab"
+          data-workspace-panel="explore"
+          hidden
+        >
+          <div class="section-heading">
+            <p class="section-kicker">Interaction</p>
+            <h2 id="explore-heading">Explore</h2>
+          </div>
 
-    <div class="app-shell">
-      <aside class="app-drawer" aria-label="Visualization controls">
-        <form id="render-form">
-          <section class="drawer-section" aria-labelledby="dataset-heading">
-            <div class="section-heading">
-              <p class="section-kicker">Input</p>
-              <h2 id="dataset-heading">Dataset</h2>
-              <p>
-                Load a Newick tree or an allelic-profile table. Ancillary data can be attached now or replaced later.
+          <div class="section-body">
+            <p class="interaction-hint">
+              Select a node in the graph or search results to inspect it and work with its branch.
+            </p>
+
+            <section class="control-card" aria-labelledby="expansion-heading">
+              <h3 id="expansion-heading">Expansion</h3>
+
+              <div class="button-grid">
+                <button id="expand-all" class="secondary-button" type="button" disabled>Expand all</button>
+                <button id="collapse-all" class="secondary-button" type="button" disabled>Collapse all</button>
+              </div>
+
+              <label class="checkbox-row">
+                <input id="keep-expanded" type="checkbox" disabled />
+                <span>Keep detail and expansions</span>
+              </label>
+              <p class="field-help">
+                Locks the current detail level and retains expanded groups while navigating. Viewport updates can still
+                run.
               </p>
-            </div>
+              <p id="expansion-feedback" class="control-feedback" aria-live="polite">
+                Load a tree to use expansion controls.
+              </p>
+            </section>
 
-            <div class="section-body">
-              <label>
-                Dataset name
-                <input id="dataset-name-input" type="text" value="demo-tree" />
+            <section class="control-card" aria-labelledby="lod-heading">
+              <h3 id="lod-heading">Level of detail</h3>
+              <label class="checkbox-row">
+                <input id="automatic-detail" type="checkbox" checked disabled />
+                <span>Automatic detail updates</span>
               </label>
-              <label>
-                Small component limit (nodes)
-                <input
-                  id="small-component-threshold"
-                  type="number"
-                  min="0"
-                  step="1"
-                  value="64"
-                  title="Components with this many nodes or fewer remain fully visible at every detail level. Zero disables this protection. Applies when loading a tree."
-                />
+              <p class="field-help">
+                Refreshes visible content as you pan and zoom. Turn off to keep the loaded view. Node motion is
+                controlled separately.
+              </p>
+            </section>
+
+            <section class="control-card" aria-labelledby="region-heading">
+              <h3 id="region-heading">Region selection</h3>
+              <button id="region-select-toggle" class="secondary-button full-width" type="button" aria-pressed="false">
+                Select region
+              </button>
+              <p class="field-help">Draw a box over the graph to inspect the nodes and ancillary distribution.</p>
+            </section>
+
+            <section class="control-card motion-card" aria-labelledby="motion-heading">
+              <h3 id="motion-heading">Motion and arrangement</h3>
+              <label class="checkbox-row">
+                <input id="motion-enabled" type="checkbox" />
+                <span>Automatic layout relaxation</span>
               </label>
-
-              <label>
-                Input type
-                <select id="source-format" aria-controls="newick-source-controls typing-source-controls">
-                  <option value="newick" selected>Newick tree</option>
-                  <option value="typing_data">Typing data (MLST / cgMLST profiles)</option>
-                </select>
-              </label>
-
-              <div id="newick-source-controls" class="source-controls">
-                <label>
-                  Newick file
-                  <span class="field-help">Accepted formats: .nwk, .newick, .tree, or .txt</span>
-                  <input id="newick-file-input" type="file" accept=".nwk,.newick,.tree,.txt" />
-                </label>
-
-                <label hidden>
-                  Newick input
-                  <textarea id="newick-input"></textarea>
-                </label>
+              <div class="button-grid">
+                <button id="relax-layout" type="button">Relax layout</button>
+                <button id="stop-layout" class="secondary-button" type="button" disabled>Stop and keep</button>
               </div>
-
-              <div id="typing-source-controls" class="source-controls" hidden>
-                <label>
-                  Typing data
-                  <span class="field-help">MLST / cgMLST allelic profiles in a delimited text file</span>
-                  <input id="typing-file-input" type="file" accept=".tsv,.csv,.txt,.tab" />
-                </label>
-              </div>
-
-              <details class="control-card optional-card">
-                <summary>
-                  <span>Ancillary data</span>
-                  <span class="optional-badge">Optional</span>
-                </summary>
-
-                <div class="details-body">
-                  <label>
-                    Ancillary table
-                    <input id="ancillary-file-input" type="file" accept=".csv,.tsv,.txt" />
-                  </label>
-
-                  <div class="two-column-controls">
-                    <label>
-                      Join column
-                      <select id="ancillary-join-column-input" disabled>
-                        <option value="">Choose an ancillary table first</option>
-                      </select>
-                    </label>
-
-                    <label>
-                      Table format
-                      <select id="ancillary-format">
-                        <option value="auto" selected>Auto</option>
-                        <option value="tsv">TSV</option>
-                        <option value="csv">CSV</option>
-                      </select>
-                    </label>
-                  </div>
-
-                  <button id="apply-ancillary-button" class="secondary-button full-width" type="button" disabled>
-                    Apply table to current tree
-                  </button>
-                  <p class="field-help">
-                    Choose the column whose values match the tree's node IDs. Applying the table replaces the current
-                    ancillary data without recomputing the tree layout.
-                  </p>
-                </div>
+              <p id="layout-motion-status" class="control-feedback" role="status" aria-live="polite"></p>
+              <button class="secondary-button" type="button" id="reset-layout">Reset positions</button>
+              <p class="control-feedback" id="drag-status" role="status" aria-live="polite">
+                Direct dragging. Arranged positions are kept for this dataset session.
+              </p>
+              <details class="help-details">
+                <summary>Advanced branch dragging</summary>
+                <button class="secondary-button" type="button" id="single-drag">Direct dragging</button>
+                <p>
+                  Click a node and choose it as the arrangement root in Selected node, then drag a node to translate its
+                  loaded branch. This root is a visual choice, not a biological ancestor. Missing roots, disconnected
+                  nodes and cycles show a message instead of guessing membership.
+                </p>
               </details>
+              <details class="help-details">
+                <summary>Motion, positions and detail changes</summary>
+                <p>
+                  Relax layout adjusts the loaded nodes on demand. Automatic layout relaxation also responds to
+                  navigation and dragging. Settled positions are retained during zoom and detail changes. Reset
+                  positions restores the computed layout and disables automatic relaxation.
+                </p>
+                <p>
+                  Automatic detail updates change which nodes are loaded as you navigate. Keep detail and expansions
+                  locks the detail level and retains expanded groups while allowing viewport updates.
+                </p>
+                <p>Dragging changes positions only. Edge distances stay unchanged; use distance labels to read them.</p>
+              </details>
+            </section>
+          </div>
+        </section>
 
-              <label hidden>
-                Advanced ancillary JSON
-                <textarea
-                  id="ancillary-input"
-                  placeholder='{"ancillary_by_node_id":{"a":{"country":"Portugal"}}}'
-                ></textarea>
+        <section
+          id="appearance-panel"
+          class="drawer-section"
+          role="tabpanel"
+          aria-labelledby="appearance-tab"
+          data-workspace-panel="appearance"
+          hidden
+        >
+          <div class="section-heading">
+            <p class="section-kicker">Appearance</p>
+            <h2 id="mapping-heading">Appearance</h2>
+          </div>
+
+          <div class="section-body">
+            <section class="control-card" aria-labelledby="distribution-heading">
+              <h3 id="distribution-heading">Color and distributions</h3>
+
+              <p class="field-help">Choose a field to color nodes. Multiple fields show observed combinations.</p>
+
+              <label class="checkbox-row">
+                <input id="show-node-pies" type="checkbox" checked />
+                <span>Show node pie charts</span>
               </label>
 
-              <button class="primary-action" type="submit">Normalize and render</button>
-            </div>
-          </section>
-
-          <section class="drawer-section" aria-labelledby="explore-heading">
-            <div class="section-heading">
-              <p class="section-kicker">Interaction</p>
-              <h2 id="explore-heading">Explore</h2>
-            </div>
-
-            <div class="section-body">
-              <p class="interaction-hint">
-                Click a node to select it. Use the controls below to expand groups, navigate levels of detail, or
-                inspect a region.
-              </p>
-
-              <section class="control-card" aria-labelledby="expansion-heading">
-                <h3 id="expansion-heading">Expansion</h3>
-
-                <div class="button-stack">
-                  <button id="expand-selected" class="secondary-button" type="button" disabled>
-                    Expand selected branch or group
-                  </button>
-                  <button id="collapse-selected" class="secondary-button" type="button" disabled>
-                    Collapse selected branch or group
-                  </button>
-                </div>
-
-                <div class="button-grid">
-                  <button id="expand-all" class="secondary-button" type="button" disabled>Expand all</button>
-                  <button id="collapse-all" class="secondary-button" type="button" disabled>Collapse all</button>
-                </div>
-
-                <label class="checkbox-row">
-                  <input id="keep-expanded" type="checkbox" disabled />
-                  <span>Keep expansion while zooming</span>
-                </label>
-                <p class="field-help">Fixes the current detail level until disabled.</p>
-                <p id="expansion-feedback" class="control-feedback" aria-live="polite">
-                  Load a tree to use expansion controls.
-                </p>
-              </section>
-
-              <section class="control-card" aria-labelledby="lod-heading">
-                <h3 id="lod-heading">Level of detail</h3>
-                <div class="lod-playback">
-                  <button id="lod-play-button" class="secondary-button" type="button" disabled>Play</button>
-                  <button id="lod-pause-button" class="secondary-button" type="button" disabled>Pause</button>
-                </div>
-                <p class="field-help">Pause automatic slice refreshes while navigating the current graph.</p>
-              </section>
-
-              <section class="control-card" aria-labelledby="search-heading">
-                <h3 id="search-heading">Search</h3>
-                <div class="search-controls">
-                  <label class="visually-hidden" for="search-input">Node ID or ancillary data</label>
-                  <input id="search-input" type="search" placeholder="Node ID or ancillary data" />
-                  <button id="search-button" type="button">Search</button>
-                </div>
-                <div id="search-results" aria-live="polite"></div>
-              </section>
-
-              <section class="control-card" aria-labelledby="region-heading">
-                <h3 id="region-heading">Region selection</h3>
-                <button
-                  id="region-select-toggle"
-                  class="secondary-button full-width"
-                  type="button"
-                  aria-pressed="false"
-                >
-                  Select region
-                </button>
-                <p class="field-help">Draw a box over the graph to inspect the nodes and ancillary distribution.</p>
-              </section>
-
-              <section class="control-card motion-card" aria-labelledby="motion-heading">
-                <h3 id="motion-heading">Motion and arrangement</h3>
-                <label class="checkbox-row">
-                  <input id="motion-enabled" type="checkbox" checked />
-                  <span>Motion</span>
-                </label>
-                <button class="secondary-button" type="button" id="reset-layout">Reset to server layout</button>
-                <p class="control-feedback" id="drag-status" role="status" aria-live="polite">
-                  Direct dragging: connected nodes react while Motion is on.
-                </p>
-                <details class="help-details">
-                  <summary>Advanced branch dragging</summary>
-                  <button class="secondary-button" type="button" id="branch-root" disabled>
-                    Use selected node as arrangement root
-                  </button>
-                  <button class="secondary-button" type="button" id="single-drag">Direct dragging</button>
-                  <p>
-                    Click a node and choose it as the arrangement root, then drag a node to translate its loaded branch.
-                    This root is a visual choice, not a biological ancestor. Missing roots, disconnected nodes and
-                    cycles show a message instead of guessing membership.
-                  </p>
-                </details>
-                <details class="help-details">
-                  <summary>Motion, positions and detail changes</summary>
-                  <p>
-                    Server positions appear first, then Motion allows connected nodes to react to dragging in a worker
-                    and settle. Turn Motion off to freeze positions and arrange nodes or groups precisely. Reset pauses
-                    Motion and restores the server layout.
-                  </p>
-                  <p>
-                    Drag freely in both directions. Positions are remembered for up to 20,000 recently loaded nodes;
-                    older off-screen positions may be forgotten. Viewport queries include the current displacement.
-                    Dense views use level of detail and viewport bounds. Motion cools when idle and wakes when you drag.
-                    Detail-tier changes blend back toward server positions. Expanding a known cluster introduces its
-                    children from the displayed cluster. Motion resumes only if enabled.
-                  </p>
-                  <p>
-                    Region selection counts loaded nodes at their displayed positions, including collapsed groups; it
-                    does not select hidden members individually. Region queries follow the selected spatial bounds.
-                  </p>
-                  <p>
-                    Only display geometry changes. Topology and edge distances remain unchanged. Geometric lengths do
-                    not encode allelic distances; use distance labels.
-                  </p>
-                </details>
-              </section>
-            </div>
-          </section>
-
-          <section class="drawer-section" aria-labelledby="mapping-heading">
-            <div class="section-heading">
-              <p class="section-kicker">Appearance</p>
-              <h2 id="mapping-heading">Visual mapping</h2>
-            </div>
-
-            <div class="section-body">
-              <section class="control-card" aria-labelledby="distribution-heading">
-                <h3 id="distribution-heading">Ancillary distribution</h3>
-
-                <p class="field-help">
-                  The overview shows the current view. Click a node or use Search to inspect its details.
-                </p>
-
-                <label class="checkbox-row">
-                  <input id="show-node-pies" type="checkbox" checked />
-                  <span>Show node pie charts</span>
-                </label>
-
-                <label>
-                  Pie fields
-                  <select id="metadata-pie-field" multiple size="5" disabled>
-                    <option value="">None — neutral nodes</option>
-                  </select>
-                </label>
-              </section>
-
-              <section class="control-card" aria-labelledby="size-heading">
-                <h3 id="size-heading">Node size</h3>
-                <label>
-                  Size field
-                  <input id="metadata-size-field" type="text" value="profile_count" />
-                </label>
-                <label>
-                  Scale
-                  <select id="metadata-size-scale">
-                    <option value="linear" selected>Linear</option>
-                    <option value="log">Logarithmic</option>
-                  </select>
-                </label>
-              </section>
-
-              <section class="control-card" aria-labelledby="colors-heading">
-                <div class="control-card-heading">
-                  <h3 id="colors-heading">Category colors</h3>
-                  <div class="category-color-actions">
-                    <button id="palette-load-button" class="text-button" type="button">Load</button>
-                    <input
-                      id="palette-load-input"
-                      type="file"
-                      accept=".txt,.palette,.json,application/json,text/plain"
-                    />
-                    <button id="palette-reset-button" class="text-button" type="button">Reset</button>
-                    <button id="palette-save-button" class="text-button" type="button">Save</button>
-                  </div>
-                </div>
-                <div id="palette-controls" class="category-color-controls"></div>
-              </section>
-
-              <section class="control-card" aria-labelledby="display-heading">
-                <h3 id="display-heading">Display options</h3>
-                <select id="display-options" multiple size="3" aria-label="Display options">
-                  <option value="node-labels">Node labels</option>
-                  <option value="edge-distance-labels">Edge distance labels</option>
-                  <option value="distance-weighted-edges">Distance-weighted edges (grayscale)</option>
+              <label>
+                Color and pie fields
+                <select id="metadata-pie-field" multiple size="5" disabled>
+                  <option value="">None — neutral nodes</option>
                 </select>
-                <p class="field-help">Select one or more options. Click an item again to toggle it.</p>
+              </label>
+            </section>
+
+            <section class="control-card" aria-labelledby="size-heading">
+              <h3 id="size-heading">Node size</h3>
+              <label>
+                Size field
+                <select id="metadata-size-field">
+                  <option value="profile_count">Profile count</option>
+                </select>
+                <span class="field-help">
+                  Numeric fields in the current view. Missing or nonnumeric values use the base node size.
+                </span>
+              </label>
+              <label>
+                Scale
+                <select id="metadata-size-scale">
+                  <option value="linear" selected>Linear</option>
+                  <option value="log">Logarithmic</option>
+                </select>
+              </label>
+              <label class="checkbox-row">
+                <input id="show-node-labels" type="checkbox" />
+                <span>Node labels</span>
+              </label>
+            </section>
+
+            <section class="control-card" aria-labelledby="colors-heading">
+              <div class="control-card-heading">
+                <h3 id="colors-heading">Category colors</h3>
+                <div class="category-color-actions">
+                  <button id="palette-load-button" class="text-button" type="button">Load palette</button>
+                  <input id="palette-load-input" type="file" accept=".txt,.palette,.json,application/json,text/plain" />
+                  <button id="palette-reset-button" class="text-button" type="button">Reset palette</button>
+                  <button id="palette-save-button" class="text-button" type="button">Save palette</button>
+                </div>
+              </div>
+              <div id="palette-controls" class="category-color-controls"></div>
+            </section>
+
+            <section class="control-card" aria-labelledby="display-heading">
+              <h3 id="display-heading">Edges</h3>
+              <label class="checkbox-row">
+                <input id="distance-weighted-edges" type="checkbox" />
+                <span>Distance-weighted edges (grayscale)</span>
+              </label>
+              <label class="checkbox-row">
+                <input id="show-edge-distance-labels" type="checkbox" aria-controls="edge-label-settings" />
+                <span>Edge distance labels</span>
+              </label>
+              <fieldset id="edge-label-settings" class="label-settings" hidden disabled>
+                <legend>Distance labels</legend>
+                <label>
+                  Visibility
+                  <select id="edge-label-policy">
+                    <option value="auto">Automatic with zoom</option>
+                    <option value="always">At every zoom</option>
+                  </select>
+                </label>
                 <div class="two-column-controls">
                   <label>
                     Minimum label distance
@@ -325,86 +276,290 @@
                   </label>
                 </div>
                 <p class="field-help">Distance bounds include both endpoints and affect labels only.</p>
-              </section>
-            </div>
-          </section>
+                <p id="edge-label-feedback" class="control-feedback" role="alert"></p>
+              </fieldset>
+            </section>
+          </div>
+        </section>
 
-          <section class="drawer-section" aria-labelledby="export-heading">
-            <div class="section-heading">
-              <p class="section-kicker">Output</p>
-              <h2 id="export-heading">Export</h2>
-            </div>
+        <div id="data-panel" role="tabpanel" aria-labelledby="data-tab" data-workspace-panel="data">
+          <form id="render-form">
+            <section class="drawer-section" aria-labelledby="dataset-heading">
+              <div class="section-heading">
+                <p class="section-kicker">Input</p>
+                <h2 id="dataset-heading">Dataset</h2>
+                <p>
+                  Load a Newick tree or an allelic-profile table. Ancillary data can be attached now or replaced later.
+                </p>
+              </div>
 
-            <div class="section-body">
-              <label>
-                Distance label visibility
-                <select id="edge-label-policy">
-                  <option value="auto">Automatic with zoom</option>
-                  <option value="always">At every zoom</option>
-                </select>
-              </label>
+              <div class="section-body">
+                <label>
+                  Dataset name
+                  <input id="dataset-name-input" type="text" value="demo-tree" />
+                </label>
 
-              <section class="control-card" aria-labelledby="publication-heading">
-                <h3 id="publication-heading">Publication PNG</h3>
+                <label>
+                  Input type
+                  <select id="source-format" aria-controls="newick-source-controls typing-source-controls">
+                    <option value="newick" selected>Newick tree</option>
+                    <option value="typing_data">Typing data (MLST / cgMLST profiles)</option>
+                  </select>
+                </label>
 
-                <div class="two-column-controls">
+                <div id="newick-source-controls" class="source-controls">
                   <label>
-                    Resolution
-                    <select id="export-scale">
-                      <option value="1">1×</option>
-                      <option value="2" selected>2×</option>
-                      <option value="3">3×</option>
-                      <option value="4">4×</option>
-                    </select>
+                    Newick file
+                    <span class="field-help">Accepted formats: .nwk, .newick, .tree, or .txt</span>
+                    <input id="newick-file-input" type="file" accept=".nwk,.newick,.tree,.txt" />
                   </label>
 
-                  <label>
-                    Label size
-                    <input id="export-label-size" type="number" min="6" max="72" value="12" />
+                  <label hidden>
+                    Newick input
+                    <textarea id="newick-input"></textarea>
                   </label>
                 </div>
 
-                <button id="export-png" class="full-width" type="button">Export PNG</button>
+                <div id="typing-source-controls" class="source-controls" hidden>
+                  <label>
+                    Typing data
+                    <span class="field-help">MLST / cgMLST allelic profiles in a delimited text file</span>
+                    <input id="typing-file-input" type="file" accept=".tsv,.csv,.txt,.tab" />
+                  </label>
+                </div>
+
+                <details class="control-card optional-card">
+                  <summary>
+                    <span>Ancillary data</span>
+                    <span class="optional-badge">Optional</span>
+                  </summary>
+
+                  <div class="details-body">
+                    <label>
+                      Ancillary table
+                      <input id="ancillary-file-input" type="file" accept=".csv,.tsv,.txt" />
+                    </label>
+
+                    <div class="two-column-controls">
+                      <label>
+                        Join column
+                        <select id="ancillary-join-column-input" disabled>
+                          <option value="">Choose an ancillary table first</option>
+                        </select>
+                      </label>
+
+                      <label>
+                        Table format
+                        <select id="ancillary-format">
+                          <option value="auto" selected>Auto</option>
+                          <option value="tsv">TSV</option>
+                          <option value="csv">CSV</option>
+                        </select>
+                      </label>
+                    </div>
+
+                    <button id="apply-ancillary-button" class="secondary-button full-width" type="button" disabled>
+                      Apply table to current tree
+                    </button>
+                    <p class="field-help">
+                      Choose the column whose values match the tree's node IDs. Applying the table replaces the current
+                      ancillary data without recomputing the tree layout.
+                    </p>
+                  </div>
+                </details>
+
+                <label hidden>
+                  Advanced ancillary JSON
+                  <textarea
+                    id="ancillary-input"
+                    placeholder='{"ancillary_by_node_id":{"a":{"country":"Portugal"}}}'
+                  ></textarea>
+                </label>
 
                 <details class="help-details">
-                  <summary>Export scope and limitations</summary>
-                  <p>
-                    Exports the current view of the loaded slice with its category legend. Increasing the resolution
-                    redraws the figure; it does not load more nodes or expand groups. Labels can overlap in dense trees
-                    or clip at the image boundary. Legend counts describe the loaded slice, including nodes outside the
-                    visible frame.
-                  </p>
+                  <summary>Advanced preparation</summary>
+                  <div class="details-body">
+                    <label>
+                      Small component limit (nodes)
+                      <input
+                        id="small-component-threshold"
+                        type="number"
+                        min="0"
+                        step="1"
+                        value="64"
+                        title="Components with this many nodes or fewer remain fully visible at every detail level. Zero disables this protection. Applies when loading a tree."
+                      />
+                    </label>
+                    <p class="field-help">
+                      Trees up to this node count stay fully visible. Zero disables protection. Applies on the next
+                      load.
+                    </p>
+                  </div>
                 </details>
-              </section>
-            </div>
-          </section>
-        </form>
+                <button class="primary-action" type="submit">Load dataset</button>
+              </div>
+            </section>
+          </form>
+        </div>
       </aside>
-
       <main class="app-main">
-        <div id="status" aria-live="polite"></div>
+        <div class="workspace-toolbar">
+          <section class="graph-search" aria-labelledby="search-heading">
+            <h2 id="search-heading" class="visually-hidden">Search nodes</h2>
+            <div class="search-controls">
+              <label class="visually-hidden" for="search-input">Node ID or ancillary data</label>
+              <input id="search-input" type="search" placeholder="Node ID or ancillary data" />
+              <button id="search-button" type="button">Search</button>
+            </div>
+            <div id="search-results" aria-live="polite"></div>
+          </section>
 
-        <section class="canvas-card">
-          <div id="graph-root" aria-label="Graph render container"></div>
-        </section>
+          <button
+            id="inspector-toggle"
+            class="secondary-button"
+            type="button"
+            aria-controls="workspace-inspector"
+            aria-expanded="true"
+          >
+            Inspector
+          </button>
+        </div>
+        <div id="status" role="status" aria-live="polite"></div>
+        <section id="forest-controls" class="forest-controls" aria-label="Forest views" hidden></section>
+        <div class="view-workspace" data-inspector-open="true">
+          <section class="canvas-card"><div id="graph-root" aria-label="Graph render container"></div></section>
+          <aside id="workspace-inspector" class="inspector" aria-label="Graph inspector">
+            <div class="inspector-heading">
+              <h2>Inspector</h2>
+              <button id="inspector-close" class="text-button" type="button">Hide</button>
+            </div>
+            <nav class="inspector-tabs" role="tablist" aria-label="Inspect graph">
+              <button
+                id="inspect-node-tab"
+                type="button"
+                role="tab"
+                aria-controls="inspect-node-panel"
+                aria-selected="false"
+                tabindex="-1"
+                data-inspector-tab="node"
+              >
+                Node
+              </button>
+              <button
+                id="inspect-overview-tab"
+                type="button"
+                role="tab"
+                aria-controls="inspect-overview-panel"
+                aria-selected="true"
+                tabindex="0"
+                data-inspector-tab="overview"
+              >
+                Overview
+              </button>
+              <button
+                id="inspect-region-tab"
+                type="button"
+                role="tab"
+                aria-controls="inspect-region-panel"
+                aria-selected="false"
+                tabindex="-1"
+                data-inspector-tab="region"
+              >
+                Region
+              </button>
+            </nav>
+            <section
+              id="inspect-overview-panel"
+              class="inspector-panel"
+              role="tabpanel"
+              aria-labelledby="inspect-overview-tab"
+              data-inspector-panel="overview"
+            >
+              <h2 class="panel-title">Overview distribution</h2>
+              <div id="ancillary-wheel" aria-live="polite"></div>
+            </section>
+            <section
+              id="inspect-node-panel"
+              class="inspector-panel"
+              role="tabpanel"
+              aria-labelledby="inspect-node-tab"
+              data-inspector-panel="node"
+              hidden
+            >
+              <h2 class="panel-title">Selected node</h2>
+              <p id="selected-node-label" class="control-feedback" aria-live="polite">
+                Select a node in the graph or search results.
+              </p>
+              <div class="selection-actions">
+                <div class="button-stack">
+                  <button id="expand-selected" class="secondary-button" type="button" disabled>
+                    Expand selected branch or group
+                  </button>
+                  <button id="collapse-selected" class="secondary-button" type="button" disabled>
+                    Collapse selected branch or group
+                  </button>
+                </div>
 
-        <div class="panel-grid">
-          <section class="panel-card">
-            <h2 class="panel-title">Overview distribution</h2>
-            <div id="ancillary-wheel" aria-live="polite"></div>
-          </section>
-          <section class="panel-card">
-            <h2 class="panel-title">Selected node</h2>
-            <div id="ancillary-selected-node-wheel" aria-live="polite"></div>
-          </section>
-          <section class="panel-card">
-            <h2 class="panel-title">Region selection</h2>
-            <div id="region-selection-panel" aria-live="polite"></div>
-          </section>
+                <button class="secondary-button" type="button" id="branch-root" disabled>
+                  Use selected node as arrangement root
+                </button>
+              </div>
+              <div id="ancillary-selected-node-wheel" aria-live="polite"></div>
+            </section>
+            <section
+              id="inspect-region-panel"
+              class="inspector-panel"
+              role="tabpanel"
+              aria-labelledby="inspect-region-tab"
+              data-inspector-panel="region"
+              hidden
+            >
+              <h2 class="panel-title">Region selection</h2>
+              <div id="region-selection-panel" aria-live="polite"></div>
+            </section>
+          </aside>
         </div>
       </main>
     </div>
+    <dialog id="export-dialog" class="export-dialog" aria-labelledby="export-heading" aria-describedby="export-scope">
+      <div class="dialog-heading">
+        <h2 id="export-heading">Export view</h2>
+        <button id="close-export" class="text-button" type="button">Close</button>
+      </div>
+      <p id="export-scope" class="field-help">Download the current view as a PNG with its category legend.</p>
+      <div class="section-body">
+        <section class="export-settings" aria-label="PNG settings">
+          <div class="two-column-controls">
+            <label>
+              Resolution
+              <select id="export-scale">
+                <option value="1">1×</option>
+                <option value="2" selected>2×</option>
+                <option value="3">3×</option>
+                <option value="4">4×</option>
+              </select>
+            </label>
 
+            <label>
+              Label size
+              <input id="export-label-size" type="number" min="6" max="72" value="12" />
+            </label>
+          </div>
+
+          <button id="export-png" class="full-width" type="button">Download PNG</button>
+          <p id="export-feedback" class="control-feedback" role="status" aria-live="polite"></p>
+
+          <details class="help-details">
+            <summary>Export scope and limitations</summary>
+            <p>
+              Exports the current view of the loaded slice with its category legend. Increasing the resolution redraws
+              the figure; it does not load more nodes or expand groups. Labels can overlap in dense trees or clip at the
+              image boundary. Legend counts describe the loaded slice, including nodes outside the visible frame.
+            </p>
+          </details>
+        </section>
+      </div>
+    </dialog>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

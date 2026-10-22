@@ -485,6 +485,7 @@ def prepared_edge_rows(prepared_edges: tuple[QuotientEdge, ...]) -> Iterator[SQL
 
 
 LAYOUT_TABLES = (
+    "forest_components",
     "node_tree_index",
     "node_positions",
     "prepared_edges",
@@ -521,6 +522,9 @@ def clear_dataset(
 def publish_layout_version(
     connection: LayoutSQL, *, dataset_id: str, layout_version: str, status: LayoutStatus
 ) -> None:
+    from .components import materialize_components
+
+    materialize_components(connection, dataset_id, layout_version)
     # PostgreSQL's existing trigger touches updated_at; SQLite uses this expression.
     touch = (
         ", updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now')"

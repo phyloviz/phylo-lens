@@ -10,6 +10,7 @@ from phylo_lens_server.database.sqlite import (
     database_path_for_root,
     initialize_schema,
 )
+from phylo_lens_server.domain.components import ComponentsReadResult
 from phylo_lens_server.domain.preparation import (
     ClusterLayout,
     NodeLayoutPosition,
@@ -157,18 +158,39 @@ class SQLiteLayoutRepository:
         ymin: float | None,
         ymax: float | None,
         max_lod_level: int | None = None,
+        component_id: str | None = None,
     ) -> dict[int, int]:
         with self._connect() as connection:
             return read_viewport_representation_counts(
                 connection,
                 dataset_id=dataset_id,
                 layout_version=layout_version,
+                component_id=component_id,
                 xmin=xmin,
                 xmax=xmax,
                 ymin=ymin,
                 ymax=ymax,
                 placeholder="?",
                 max_lod_level=max_lod_level,
+            )
+
+    def read_components(
+        self,
+        *,
+        dataset_id: str,
+        layout_version: str,
+        after: int | None = None,
+        limit: int = 50,
+    ) -> ComponentsReadResult:
+        from .components import read_components
+
+        with self._connect() as connection:
+            return read_components(
+                LayoutSQL(connection, "sqlite"),
+                dataset_id=dataset_id,
+                layout_version=layout_version,
+                after=after,
+                limit=limit,
             )
 
     def read_viewport(
@@ -184,12 +206,14 @@ class SQLiteLayoutRepository:
         lod_level: int | None = None,
         cluster_id: str | None = None,
         focus_node_id: str | None = None,
+        component_id: str | None = None,
     ) -> ViewportReadResult:
         with self._connect() as connection:
             return viewport_reader.read_viewport(
                 LayoutSQL(connection, "sqlite"),
                 dataset_id=dataset_id,
                 layout_version=layout_version,
+                component_id=component_id,
                 xmin=xmin,
                 xmax=xmax,
                 ymin=ymin,
@@ -210,12 +234,14 @@ class SQLiteLayoutRepository:
         ymin: float,
         ymax: float,
         max_nodes: int | None = None,
+        component_id: str | None = None,
     ) -> RegionReadResult:
         with self._connect() as connection:
             return region_reader.read_region(
                 LayoutSQL(connection, "sqlite"),
                 dataset_id=dataset_id,
                 layout_version=layout_version,
+                component_id=component_id,
                 xmin=xmin,
                 xmax=xmax,
                 ymin=ymin,
@@ -230,12 +256,14 @@ class SQLiteLayoutRepository:
         layout_version: str,
         query: str,
         limit: int,
+        component_id: str | None = None,
     ) -> SearchReadResult:
         with self._connect() as connection:
             return node_search.search_nodes(
                 connection,
                 dataset_id=dataset_id,
                 layout_version=layout_version,
+                component_id=component_id,
                 query=query,
                 limit=limit,
             )
