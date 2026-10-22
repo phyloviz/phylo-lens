@@ -13,7 +13,6 @@ export class DisplayPositions {
   private readonly proxies = new Map<string, string>();
   private visible = new Set<string>();
   private margin = 0;
-  private lodLevel: number | undefined;
   static readonly HISTORY_LIMIT = 20_000;
 
   clear(): void {
@@ -21,7 +20,6 @@ export class DisplayPositions {
     this.proxies.clear();
     this.visible.clear();
     this.margin = 0;
-    this.lodLevel = undefined;
   }
   get(id: string): Point | undefined {
     const point = this.entries.get(id)?.display;
@@ -94,8 +92,6 @@ export class DisplayPositions {
       this.margin = Math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY, 1e-9) * 0.02;
     }
 
-    const tierChanged = this.lodLevel !== undefined && this.lodLevel !== graph.viewMeta.lodLevel;
-    this.lodLevel = graph.viewMeta.lodLevel;
     const origins = new Map<string, Point>();
     const previous = this.visible;
     const previousClusters = new Map<string, Entry[]>();
@@ -148,12 +144,12 @@ export class DisplayPositions {
         }
       }
 
-      if (tierChanged) {
-        display = { x: node.x, y: node.y };
-        inherited = zero();
-      }
-
-      const anchor = tierChanged ? display : (existing?.anchor ?? display);
+      const anchor = existing
+        ? {
+            x: existing.anchor.x + display.x - existing.display.x,
+            y: existing.anchor.y + display.y - existing.display.y,
+          }
+        : display;
       this.entries.delete(node.id);
       this.entries.set(node.id, {
         server: { x: node.x, y: node.y },
@@ -172,9 +168,12 @@ export class DisplayPositions {
         this.proxies.set(node.attributes.clusterId, node.id);
 
     this.visible = new Set(graph.nodes.map(n => n.id));
-    // Forget old tiers and bound off-screen history; visible nodes are never evicted.
+    // Keep edits for this dataset session. Only unedited off-screen cache entries
+    // are expendable; changing detail or panels must never discard arranged nodes.
     for (const id of this.entries.keys()) {
-      if (!this.visible.has(id) && (tierChanged || this.entries.size > DisplayPositions.HISTORY_LIMIT))
+      const entry = this.entries.get(id)!;
+      const edited = Math.hypot(entry.display.x - entry.server.x, entry.display.y - entry.server.y) > 1e-9;
+      if (!this.visible.has(id) && !edited && this.entries.size > DisplayPositions.HISTORY_LIMIT)
         this.entries.delete(id);
     }
 

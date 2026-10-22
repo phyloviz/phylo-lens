@@ -365,15 +365,16 @@ deep zoom reveals detail without indefinitely enlarging markers.
 This is a deliberate change from Sigma's default square-root scaling in both
 directions; see [Sigma size semantics](https://www.sigmajs.org/docs/advanced/sizes/).
 
-When Motion is enabled, collision radii use the actual projected glyph radius
+With automatic relaxation enabled, collision radii use the actual projected glyph radius
 and one CSS pixel of clearance, converted through Sigma's viewport transform to
 prepared graph coordinates. Triangles use their 1.35 circumradius multiplier.
 The worker uses these radii in its quadtree collision force while spring rest
 lengths and anchors continue to reference the prepared arrangement. Zoom/resize
 changes exceeding 5% in collision scale reheat the worker after a 120 ms debounce;
 panning alone does not restart physics. Motion off and manipulation suspension
-cancel pending reheating. The simulation sleeps after cooling rather than running
-continuously. Finite settling is approximate; collisions between pinned nodes,
+cancel pending reheating. The worker terminates after cooling and commits the settled coordinates as
+new anchors. Manual relaxation uses the same finite simulation without enabling
+automatic reheating. Finite settling is approximate; collisions between pinned nodes,
 or deliberately disabling collision strength, can prevent complete separation.
 
 These changes affect display coordinates and retrieval budgets only. Canonical
@@ -395,3 +396,22 @@ Regression coverage includes a 53-node nearly coincident slice at three coordina
 scales and a real Sigma/worker browser fixture checking separation, zoom reheating,
 panning notification, and Motion off. Previous thesis measurements apply to their
 recorded product commit, not these subsequent changes, and remain untouched.
+
+
+## Manual relaxation and retained positions
+
+The default is manual relaxation. Camera changes do not restart a worker or
+interpolate existing nodes back to prepared coordinates. Detail loading remains
+independent: newly revealed members inherit their aggregate's display offset.
+Explicit relaxation and dragging update a separate position store; canonical
+server coordinates and topology remain immutable. Stop commits current anchors,
+and automatic mode can be enabled explicitly. A settled worker is released.
+
+Positions use a map keyed by canonical node ID. Modified entries remain for the
+dataset session. The
+20,000-entry clean-history budget evicts only unmodified off-screen entries;
+it is not a memory limit on edits. For V visible nodes and K retained entries,
+ingestion and displacement padding cost O(V + K); retained position memory is
+O(K). A new dataset clears the store before ingesting any matching node IDs.
+There is currently no browser-reload persistence.
+

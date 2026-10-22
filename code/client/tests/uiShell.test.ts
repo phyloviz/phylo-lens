@@ -22,6 +22,10 @@ function makeFakeWorkbench(
   let regionSelectModeEnabled = false;
 
   return {
+    relaxLayout: vi.fn(),
+    stopLayout: vi.fn(),
+    getLayoutMotionState: vi.fn(() => ({ automatic: false, running: false })),
+    setLayoutMotionHandler: vi.fn(),
     setErrorHandler: vi.fn(),
     applyAncillaryFilters: vi.fn(() => renderedGraph),
     clearAncillaryFilters: vi.fn(() => renderedGraph),

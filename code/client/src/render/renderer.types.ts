@@ -90,7 +90,13 @@ export type DragSelection =
   | { readonly kind: 'branch'; readonly rootId: string }
   | { readonly kind: 'group'; readonly nodeIds: readonly string[] };
 
+export type LayoutMotionState = { readonly automatic: boolean; readonly running: boolean };
+
 export interface GraphRenderer {
+  relaxLayout?: () => void;
+  stopLayout?: () => void;
+  getLayoutMotionState?: () => LayoutMotionState;
+  setLayoutMotionHandler?: (handler: ((state: LayoutMotionState) => void) | null) => void;
   setMotionEnabled?: (enabled: boolean) => void;
   isMotionEnabled?: () => boolean;
   setInteractionFeedbackHandler?: (handler: ((message: string) => void) | null) => void;
@@ -103,10 +109,11 @@ export interface GraphRenderer {
    * rendered node ID: retained on reload/filter/expansion, cleared on a new dataset.
    * Children inherit a moved proxy's offset when expanded; collapse uses the children's mean offset.
    * Dragging is unrestricted; queries include measured display displacement plus a surrounding margin.
-   * Off-screen history retains up to 20,000 nodes. Tier changes transition to server positions.
+   * Arranged positions survive detail changes for the dataset session.
+   * Unedited off-screen history is bounded; edits are retained until reset or a new dataset.
    * Reset pauses motion and restores server coordinates. Region selection uses the loaded display.
    */
-  resetLayoutEdits?: () => void;
+  resetLayoutEdits?: (options?: { allViews?: boolean }) => void;
   mount: (context: RenderContext) => void;
   unmount: () => void;
   render: (graph: PositionedGraph) => void;

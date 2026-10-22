@@ -41,3 +41,5 @@ export { toNodeId, toClusterId, toDatasetId, toLayoutVersion } from './contracts
 export type { NodeId, ClusterId, DatasetId, LayoutVersion } from './contracts/graph/graphIdentifiers';
 
 export type { Point } from './contracts/Point';
+
+export type { LayoutMotionState } from './render/renderer.types';

@@ -2,7 +2,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import Graph from 'graphology';
 import createSigmaForceMotion from '../src/render/adapters/sigma/motion/sigmaForceMotion';
 const workers = vi.hoisted(
-  () => [] as { postMessage: ReturnType<typeof vi.fn>; terminate: ReturnType<typeof vi.fn> }[]
+  () =>
+    [] as {
+      postMessage: ReturnType<typeof vi.fn>;
+      terminate: ReturnType<typeof vi.fn>;
+      onmessage?: (event: { data: { positions: Float64Array; revision: number; settled: boolean } }) => void;
+    }[]
 );
 vi.mock('../src/render/adapters/sigma/motion/elastic.worker?worker&inline', () => ({
   default: class {
@@ -25,7 +30,7 @@ describe('motion camera geometry lifecycle', () => {
     graph.addNode('b', { x: 1, y: 0, size: 5 });
     let radius = 0.01;
     const motion = createSigmaForceMotion(
-      {},
+      { enabled: true },
       {
         reference: () => ({ x: 0, y: 0 }),
         anchor: () => ({ x: 4, y: 5 }),
@@ -55,4 +60,48 @@ describe('motion camera geometry lifecycle', () => {
     expect(workers).toHaveLength(2);
     motion.dispose();
   });
+});
+
+it('starts manually, releases a settled worker and rejects queued frames after stop', async () => {
+  vi.useFakeTimers();
+  const graph = new Graph();
+  graph.addNode('a', { x: 0, y: 0 });
+  graph.addNode('b', { x: 1, y: 0 });
+  const settled = vi.fn();
+  let radius = 1;
+  const motion = createSigmaForceMotion(
+    {},
+    {
+      reference: () => undefined,
+      anchor: () => undefined,
+      constrain: (_id, point) => point,
+      collisionRadius: () => radius,
+      onSettled: settled,
+    }
+  );
+  motion.start(graph);
+  radius = 2;
+  motion.refreshGeometry();
+  await vi.advanceTimersByTimeAsync(200);
+  expect(workers).toHaveLength(0);
+  motion.relax();
+  expect(motion.isEnabled()).toBe(false);
+  expect(motion.isRunning()).toBe(true);
+  const first = workers[0];
+  const revision = first.postMessage.mock.calls[0][0].revision;
+  first.onmessage?.({ data: { positions: new Float64Array([2, 3, 4, 5]), revision, settled: true } });
+  expect(settled).toHaveBeenCalledOnce();
+  expect(motion.isRunning()).toBe(false);
+  expect(first.terminate).toHaveBeenCalledOnce();
+  expect(graph.getNodeAttribute('a', 'x')).toBe(2);
+  first.onmessage?.({ data: { positions: new Float64Array([99, 99, 99, 99]), revision, settled: false } });
+  expect(graph.getNodeAttribute('a', 'x')).toBe(2);
+  radius = 4;
+  motion.refreshGeometry();
+  await vi.advanceTimersByTimeAsync(200);
+  expect(workers).toHaveLength(1);
+  motion.relax();
+  motion.setEnabled(false);
+  expect(motion.isRunning()).toBe(false);
+  motion.dispose();
 });

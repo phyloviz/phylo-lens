@@ -2,7 +2,7 @@ import type { LodPreparationOptions } from '../../contracts/graph/LodPreparation
 import type { ClusterId, DatasetId, LayoutVersion, NodeId } from '../../contracts/graph/graphIdentifiers';
 import type { GraphSearchResult } from '../../contracts/graph/search/GraphSearchResult';
 import type { AncillaryData } from '../../contracts/ancillary';
-import type { DragSelection, PngExportOptions } from '../../render/renderer.types';
+import type { DragSelection, PngExportOptions, LayoutMotionState } from '../../render/renderer.types';
 import type { ExpansionResult, ExpansionState } from '../../contracts/expansion';
 import type { AncillaryTableInput } from '../../contracts/ancillary';
 import type { GraphAncillaryResult } from '../../contracts/graph/ancillary/GraphAncillaryResult';
@@ -68,6 +68,10 @@ export type GraphRenderedHandler = (graph: PositionedGraph) => void;
 export type GraphNodeClickedHandler = (state: RenderNodeClickState) => void;
 
 export interface GraphWorkbench {
+  relaxLayout: () => void;
+  stopLayout: () => void;
+  getLayoutMotionState: () => LayoutMotionState;
+  setLayoutMotionHandler: (handler: ((state: LayoutMotionState) => void) | null) => void;
   expandCluster: (clusterId: ClusterId) => Promise<ExpansionResult>;
   collapseCluster: (clusterId: ClusterId) => ExpansionState;
   collapseBranch: (nodeId: NodeId) => ExpansionState;

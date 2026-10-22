@@ -496,3 +496,25 @@ service to support `PUT /api/graph/ancillary`.
 
 Search and focus are available through `view.searchNodes`, `view.focusNode` and
 `view.cancelPendingFocus`. See [search semantics and validation](../../docs/SEARCH.md).
+
+
+## Layout relaxation
+
+Layouts start in manual mode. Zoom changes the camera and level of detail;
+existing nodes retain their arranged coordinates. **Relax layout** runs a finite
+relaxation of the loaded view. **Stop and keep** stops it immediately and disables
+automatic relaxation. **Automatic layout relaxation** opts into relaxation after
+graph or zoom-scale changes. These controls are independent of automatic detail.
+
+```ts
+view.relaxLayout();
+view.stopLayout();
+view.setMotionEnabled(true); // opt into automatic relaxation
+view.setLayoutMotionHandler(({ automatic, running }) => {
+  console.log({ automatic, running });
+});
+```
+
+Arranged positions survive detail changes and ancillary replacement for the open
+dataset session. Reset positions restores the prepared layout. Loading a new
+dataset or reloading the browser clears these edits.

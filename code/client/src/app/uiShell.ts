@@ -122,6 +122,7 @@ export default function createUiShell(options: UiShellOptions): UiShell {
       search.reset();
       region.reset();
       arrangement.reset();
+      arrangement.setReady(false);
       expansion.setReady(false);
       refreshLodControls(false);
     },
@@ -200,6 +201,7 @@ export default function createUiShell(options: UiShellOptions): UiShell {
   function handleGraphRendered(graph: PositionedGraph): void {
     setStatus(buildRenderedStatus(graph));
     lastRenderedGraph = graph;
+    arrangement.setReady(graph.nodes.length > 1);
     expansion.setReady(true);
     loading.updateApplyAncillaryButton();
     ancillary.refreshGraph(graph);

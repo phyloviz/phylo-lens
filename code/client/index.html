@@ -139,12 +139,17 @@
             <section class="control-card motion-card" aria-labelledby="motion-heading">
               <h3 id="motion-heading">Motion and arrangement</h3>
               <label class="checkbox-row">
-                <input id="motion-enabled" type="checkbox" checked />
-                <span>Node motion</span>
+                <input id="motion-enabled" type="checkbox" />
+                <span>Automatic layout relaxation</span>
               </label>
+              <div class="button-grid">
+                <button id="relax-layout" type="button">Relax layout</button>
+                <button id="stop-layout" class="secondary-button" type="button" disabled>Stop and keep</button>
+              </div>
+              <p id="layout-motion-status" class="control-feedback" role="status" aria-live="polite"></p>
               <button class="secondary-button" type="button" id="reset-layout">Reset positions</button>
               <p class="control-feedback" id="drag-status" role="status" aria-live="polite">
-                Direct dragging: connected nodes react while Node motion is on.
+                Direct dragging. Arranged positions are kept for this dataset session.
               </p>
               <details class="help-details">
                 <summary>Advanced branch dragging</summary>
@@ -158,8 +163,9 @@
               <details class="help-details">
                 <summary>Motion, positions and detail changes</summary>
                 <p>
-                  Node motion lets connected nodes react to dragging and settle. Turn it off to arrange nodes precisely.
-                  Reset positions restores the computed layout and turns Node motion off.
+                  Relax layout adjusts the loaded nodes on demand. Automatic layout relaxation also responds to
+                  navigation and dragging. Settled positions are retained during zoom and detail changes. Reset
+                  positions restores the computed layout and disables automatic relaxation.
                 </p>
                 <p>
                   Automatic detail updates change which nodes are loaded as you navigate. Keep detail and expansions

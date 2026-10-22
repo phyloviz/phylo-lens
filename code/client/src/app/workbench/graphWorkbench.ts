@@ -113,6 +113,10 @@ export function createGraphWorkbench(
   });
 
   return {
+    relaxLayout: () => renderer.relaxLayout?.(),
+    stopLayout: () => renderer.stopLayout?.(),
+    getLayoutMotionState: () => renderer.getLayoutMotionState?.() ?? { automatic: false, running: false },
+    setLayoutMotionHandler: handler => renderer.setLayoutMotionHandler?.(handler),
     setMotionEnabled: enabled => renderer.setMotionEnabled?.(enabled),
     isMotionEnabled: () => renderer.isMotionEnabled?.() ?? false,
     setInteractionFeedbackHandler: handler => renderer.setInteractionFeedbackHandler?.(handler),

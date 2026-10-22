@@ -12,7 +12,7 @@ const server = await createServer({
   configFile: false,
   cacheDir: join(tmpdir(), 'phylo-lens-requirements-vite'),
   optimizeDeps: { include: ['d3-force'] },
-  server: { host: '127.0.0.1', port: 0, proxy: { '/api': api, '/health': api } },
+  server: { watch: { ignored: ['**/*'] }, host: '127.0.0.1', port: 0, proxy: { '/api': api, '/health': api } },
 });
 await server.listen();
 let browser;
@@ -37,20 +37,22 @@ try {
     if (!(await page.locator('#workspace-sidebar').isVisible())) await page.locator('#controls-toggle').click();
     await page.locator(`[data-workspace-tab="${name}"]`).click();
   };
-  const load = async name => {
+  const load = async (name, content = '((a:1,b:2)branch:4,sibling:8)root;', count = 5) => {
     await page.locator('#change-data').click();
     await page.locator('#dataset-name-input').fill(name);
     await page.locator('#newick-file-input').setInputFiles({
       name: 'requirements.nwk',
       mimeType: 'text/plain',
-      buffer: Buffer.from('((a:1,b:2)branch:4,sibling:8)root;'),
+      buffer: Buffer.from(content),
     });
     await page.locator('button[type=submit]').click();
     await page.waitForFunction(
-      () =>
-        window.requirementsSigma?.getGraph().order === 5 &&
-        document.querySelector('#status').textContent.includes('Rendered')
+      count =>
+        window.requirementsSigma?.getGraph().order === count &&
+        document.querySelector('#status').textContent.includes('Rendered'),
+      count
     );
+    await page.waitForFunction(name => document.querySelector('#current-dataset').textContent === name, name);
     await page.waitForTimeout(600);
     assert.equal(await page.locator('#explore-tab').getAttribute('aria-selected'), 'true');
     assert.equal(await page.locator('#current-dataset').innerText(), name);
@@ -71,7 +73,8 @@ try {
   await load('requirements-browser');
   console.log('Loaded product tree.');
   await page.locator('#automatic-detail').uncheck();
-  assert.equal(await page.locator('#motion-enabled').isChecked(), true);
+  assert.equal(await page.locator('#motion-enabled').isChecked(), false);
+  await page.locator('#motion-enabled').check();
   await page.locator('#automatic-detail').check();
   await page.locator('#motion-enabled').uncheck();
   assert.equal(await page.locator('#automatic-detail').isChecked(), true);

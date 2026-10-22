@@ -3,6 +3,10 @@ import createArrangementControls from '../src/app/shell/controls/arrangementCont
 
 it('owns arrangement actions and releases listeners and feedback on unmount', () => {
   const workbench = {
+    relaxLayout: vi.fn(),
+    stopLayout: vi.fn(),
+    getLayoutMotionState: () => ({ automatic: true, running: false }),
+    setLayoutMotionHandler: vi.fn(),
     isMotionEnabled: () => true,
     setMotionEnabled: vi.fn(),
     setInteractionFeedbackHandler: vi.fn(),

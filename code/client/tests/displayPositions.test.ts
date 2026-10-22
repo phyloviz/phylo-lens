@@ -79,15 +79,15 @@ it('pads queries by the actual displacement, including off-screen position histo
   expect(positions.ingest(snapshot(node('a', 20))).nodes[0]).toMatchObject({ x: 300, y: -150 });
 });
 
-it('returns shared nodes to server coordinates on a tier change, not an ordinary refresh', () => {
+it('retains shared nodes and anchors through a tier change', () => {
   const positions = new DisplayPositions(),
     graph = snapshot(node('a', 20));
   positions.ingest(graph);
   positions.arrange('a', { x: 50, y: 30 });
   expect(positions.ingest(graph).nodes[0]).toMatchObject({ x: 50, y: 30 });
   const next = positions.ingest({ ...graph, viewMeta: { ...graph.viewMeta, lodLevel: 1 } });
-  expect(next.nodes[0]).toMatchObject({ x: 20, y: 0 });
-  expect(positions.anchor('a')).toEqual({ x: 20, y: 0 });
+  expect(next.nodes[0]).toMatchObject({ x: 50, y: 30 });
+  expect(positions.anchor('a')).toEqual({ x: 50, y: 30 });
 });
 
 it('returns coordinate values without exposing privately stored positions or anchors', () => {
@@ -99,4 +99,15 @@ it('returns coordinate values without exposing privately stored positions or anc
   expect(positions.reference('a')).toEqual({ x: 1, y: 2 });
   Object.assign(positions.arrange('a', { x: 3, y: 4 }), { x: 900 });
   expect(positions.anchor('a')).toEqual({ x: 3, y: 4 });
+});
+
+it('retains edits after the clean history budget is exceeded', () => {
+  const positions = new DisplayPositions();
+  positions.ingest(snapshot(node('edited', 1)));
+  positions.arrange('edited', { x: 12, y: 34 });
+  positions.ingest(
+    snapshot(...Array.from({ length: DisplayPositions.HISTORY_LIMIT + 1 }, (_, i) => node(`clean-${i}`, i)))
+  );
+  positions.ingest(snapshot());
+  expect(positions.ingest(snapshot(node('edited', 1))).nodes[0]).toMatchObject({ x: 12, y: 34 });
 });
