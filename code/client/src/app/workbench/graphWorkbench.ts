@@ -2,7 +2,12 @@ import { type PositionedGraph } from '../../contracts/positioned';
 import { createGraphAncillaryUpdater } from './updateGraphAncillaryData';
 import graphFilters from './graphFilters';
 import { loadGraph } from './loadGraph';
-import { createInitialWorkbenchState, hasGraphSession, getGraphSnapshot } from './graphWorkbench.state';
+import {
+  createInitialWorkbenchState,
+  hasGraphSession,
+  getGraphSnapshot,
+  getGraphSession,
+} from './graphWorkbench.state';
 import type {
   GraphNodeClickedHandler,
   GraphRenderedHandler,
@@ -113,6 +118,22 @@ export function createGraphWorkbench(
   });
 
   return {
+    listComponents: async (page = {}) => {
+      const session = getGraphSession(getState());
+      if (!graphClient.readComponents) return { components: [], nextCursor: null };
+      return graphClient.readComponents({
+        datasetId: session.datasetId,
+        layoutVersion: session.layoutVersion,
+        ...page,
+      });
+    },
+    getComponentId: () => viewportCoordinator?.getComponentId(),
+    selectComponent: component => {
+      navigation.cancelAll();
+      renderer.setHighlightedNodes?.(null);
+      renderer.focusNode?.(null);
+      return requireViewportCoordinator().selectComponent(component);
+    },
     relaxLayout: () => renderer.relaxLayout?.(),
     stopLayout: () => renderer.stopLayout?.(),
     getLayoutMotionState: () => renderer.getLayoutMotionState?.() ?? { automatic: false, running: false },

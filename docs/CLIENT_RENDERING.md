@@ -398,7 +398,7 @@ panning notification, and Motion off. Previous thesis measurements apply to thei
 recorded product commit, not these subsequent changes, and remain untouched.
 
 
-## Manual relaxation and retained positions
+## Manual relaxation and forest view state
 
 The default is manual relaxation. Camera changes do not restart a worker or
 interpolate existing nodes back to prepared coordinates. Detail loading remains
@@ -407,11 +407,31 @@ Explicit relaxation and dragging update a separate position store; canonical
 server coordinates and topology remain immutable. Stop commits current anchors,
 and automatic mode can be enabled explicitly. A settled worker is released.
 
-Positions use a map keyed by canonical node ID. Modified entries remain for the
-dataset session. The
+Positions use a map keyed by canonical node ID, shared between the overview and
+individual tree panels. Modified entries remain for the dataset session. The
 20,000-entry clean-history budget evicts only unmodified off-screen entries;
 it is not a memory limit on edits. For V visible nodes and K retained entries,
 ingestion and displacement padding cost O(V + K); retained position memory is
 O(K). A new dataset clears the store before ingesting any matching node IDs.
 There is currently no browser-reload persistence.
 
+Inactive panels store only cameras, fold intervals and expansion identities.
+They do not retain graph responses, renderers or workers. Returning to a tab
+queries its graph against the current ancillary revision, then restores its
+camera. Request sequence checks discard superseded responses. Component-scoped
+queries apply membership before limits, including search and cluster expansion.
+
+Component summaries are materialized once when preparation publishes. Their
+SQL aggregation joins canonical intervals to positions using indexes; it adds
+one indexed grouping pass, not a pairwise graph traversal. Page reads use an
+index on dataset, version and DFS start, taking O(log C + P) for C components
+and page size P (default 50, maximum 200). Component membership and cluster
+representative indexes support scoped retrieval. Spatial selection, sorting and
+metadata search still incur their existing costs within the selected component;
+this is not a constant-time graph query.
+
+The interaction follows explicit user control and visible system state: manual,
+automatic and running states are distinct, Stop retains the result, and tree tabs
+preserve navigation context. The position store owns coordinate retention, the
+viewport coordinator owns panel state, and the HTTP boundary validates component
+summaries before they enter the viewer.

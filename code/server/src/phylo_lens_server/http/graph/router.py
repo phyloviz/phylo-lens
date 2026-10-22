@@ -34,6 +34,8 @@ from phylo_lens_server.http.graph.responses import (
 from phylo_lens_server.http.graph.schemas import (
     GraphAncillaryRequest,
     GraphAncillaryResponse,
+    GraphComponentsQuery,
+    GraphComponentsResponse,
     GraphPrepareJob,
     GraphPrepareResponse,
     GraphPrepareStatus,
@@ -175,7 +177,7 @@ def read_graph_viewport(
             serialize_ms,
         )
         return response
-    except graph_reads.PreparedLayoutNotFoundError as exc:
+    except (graph_reads.PreparedLayoutNotFoundError, KeyError) as exc:
         raise not_found_error(
             f"Prepared layout for dataset '{query.dataset_id}' was not found."
         ) from exc
@@ -197,7 +199,7 @@ def read_graph_region(
         return graph_region_response_from_result(
             graph_reads.read_graph_region(RegionQuery(**query.model_dump()), store)
         )
-    except graph_reads.PreparedLayoutNotFoundError as exc:
+    except (graph_reads.PreparedLayoutNotFoundError, KeyError) as exc:
         raise not_found_error(
             f"Prepared layout for dataset '{query.dataset_id}' was not found."
         ) from exc
@@ -219,7 +221,7 @@ def search_graph_nodes(
         return graph_search_response_from_result(
             graph_reads.search_graph_nodes(SearchQuery(**query.model_dump()), store)
         )
-    except graph_reads.PreparedLayoutNotFoundError as exc:
+    except (graph_reads.PreparedLayoutNotFoundError, KeyError) as exc:
         raise not_found_error(
             f"Prepared layout for dataset '{query.dataset_id}' was not found."
         ) from exc
@@ -252,3 +254,25 @@ def apply_ancillary_data(
         raise parse_error_to_http(exc) from exc
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.post("/components", response_model=GraphComponentsResponse)
+def read_graph_components(
+    query: GraphComponentsQuery,
+    store: Annotated[LayoutRepository, Depends(get_prepared_layout_store)],
+) -> GraphComponentsResponse:
+    try:
+        version = graph_reads.resolve_layout_version(
+            store, query.dataset_id, query.layout_version
+        )
+        return GraphComponentsResponse.model_validate(
+            store.read_components(
+                dataset_id=query.dataset_id,
+                layout_version=version,
+                after=query.after,
+                limit=query.limit,
+            ),
+            from_attributes=True,
+        )
+    except (graph_reads.PreparedLayoutNotFoundError, KeyError) as exc:
+        raise not_found_error("The requested prepared forest was not found.") from exc

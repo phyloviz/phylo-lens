@@ -47,6 +47,7 @@ export default function bootstrapClientShell(baseUrl = ''): UiShell {
   if (!newickInput) throw new Error(ERR_MISSING_NEWICK_INPUT);
   const elements = {
     form,
+    forestControls: getOptionalElement('forest-controls'),
     workspaceRoot: getOptionalElement('workspace-root'),
     newickInput,
     status: requireElement(ID_STATUS, ERR_MISSING_STATUS),

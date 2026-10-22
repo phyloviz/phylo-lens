@@ -98,6 +98,8 @@ class RegionQuery:
     layout_version: str | None = None
     max_nodes: int | None = None
 
+    component_id: str | None = None
+
 
 @dataclass(frozen=True)
 class ViewportBounds:
@@ -110,6 +112,7 @@ class ViewportBounds:
 @dataclass(frozen=True)
 class ViewportQuery:
     dataset_id: str
+    component_id: str | None = None
     layout_version: str | None = None
     cluster_id: str | None = None
     focus_node_id: str | None = None

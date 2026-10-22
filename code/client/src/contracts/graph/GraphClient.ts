@@ -10,7 +10,10 @@ import type { GraphRegionResult } from './region/GraphRegionResult';
 import type { GraphSearchRequest } from './search/GraphSearchRequest';
 import type { GraphSearchResult } from './search/GraphSearchResult';
 
+import type { GraphComponentsRequest, GraphComponentsResult } from './components';
+
 export interface GraphClient {
+  readComponents?(request: GraphComponentsRequest): Promise<GraphComponentsResult>;
   prepareGraph(request: GraphPrepareRequest, options?: GraphPrepareOptions): Promise<GraphPrepareResult>;
 
   applyAncillaryData(request: GraphAncillaryRequest): Promise<GraphAncillaryResult>;

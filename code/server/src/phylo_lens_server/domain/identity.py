@@ -9,7 +9,7 @@ from phylo_lens_server.domain.sfdp import SfdpOptions, resolve_sfdp_options
 
 from .legacy_metadata import encode_dataset_annotations
 
-LAYOUT_PIPELINE_VERSION = "indexed-rooted-forest-lod-v4"
+LAYOUT_PIPELINE_VERSION = "component-panels-lod-v5"
 LOD_REPRESENTATION_GROWTH_FACTOR = 2.0
 
 

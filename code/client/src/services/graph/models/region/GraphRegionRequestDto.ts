@@ -1,4 +1,5 @@
 export interface GraphRegionRequestDto {
+  component_id?: string;
   dataset_id: string;
   layout_version?: string | null;
   xmin: number;

@@ -123,6 +123,7 @@ class GraphViewportBounds(BaseModel):
 
 
 class GraphViewportQuery(BaseModel):
+    component_id: str | None = Field(default=None, min_length=1)
     dataset_id: str = Field(min_length=1)
     layout_version: str | None = None
     cluster_id: str | None = None
@@ -223,6 +224,7 @@ class GraphViewportResponse(BaseModel):
 
 
 class GraphRegionQuery(BaseModel):
+    component_id: str | None = Field(default=None, min_length=1)
     dataset_id: str = Field(min_length=1)
     layout_version: str | None = None
     xmin: float
@@ -259,6 +261,7 @@ class GraphRegionResponse(BaseModel):
 
 
 class GraphSearchQuery(BaseModel):
+    component_id: str | None = Field(default=None, min_length=1)
     dataset_id: str = Field(min_length=1)
     layout_version: str | None = None
     query: str = Field(min_length=1)
@@ -297,3 +300,27 @@ class GraphAncillaryResponse(BaseModel):
     layout_version: str
     matched_node_count: int = Field(ge=1)
     warnings: list[str] = Field(default_factory=list)
+
+
+class GraphComponentsQuery(BaseModel):
+    dataset_id: str = Field(min_length=1)
+    layout_version: str | None = None
+    after: int | None = Field(default=None, ge=0)
+    limit: int = Field(default=50, ge=1, le=200)
+
+
+class GraphComponent(BaseModel):
+    component_id: str
+    node_count: int
+    dfs_start: int
+    min_x: float
+    max_x: float
+    min_y: float
+    max_y: float
+
+
+class GraphComponentsResponse(BaseModel):
+    dataset_id: str
+    layout_version: str
+    components: list[GraphComponent]
+    next_cursor: int | None = None

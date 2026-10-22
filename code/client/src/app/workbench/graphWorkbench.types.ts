@@ -23,6 +23,8 @@ import type {
 } from '../../render/renderer.types';
 import type { AncillaryInputOptions } from '../../ancillary/ancillaryInput';
 
+import type { GraphComponent, GraphComponentsResult } from '../../contracts/graph/components';
+
 // Public workbench contracts.
 
 // The isolated subgraph plus aggregated ancillary data for a completed region (box)
@@ -68,6 +70,9 @@ export type GraphRenderedHandler = (graph: PositionedGraph) => void;
 export type GraphNodeClickedHandler = (state: RenderNodeClickState) => void;
 
 export interface GraphWorkbench {
+  listComponents: (page?: { after?: number; limit?: number }) => Promise<GraphComponentsResult>;
+  selectComponent: (component: GraphComponent | null) => Promise<PositionedGraph>;
+  getComponentId: () => string | undefined;
   relaxLayout: () => void;
   stopLayout: () => void;
   getLayoutMotionState: () => LayoutMotionState;

@@ -498,7 +498,7 @@ Search and focus are available through `view.searchNodes`, `view.focusNode` and
 `view.cancelPendingFocus`. See [search semantics and validation](../../docs/SEARCH.md).
 
 
-## Layout relaxation
+## Layout relaxation and forest panels
 
 Layouts start in manual mode. Zoom changes the camera and level of detail;
 existing nodes retain their arranged coordinates. **Relax layout** runs a finite
@@ -515,6 +515,30 @@ view.setLayoutMotionHandler(({ automatic, running }) => {
 });
 ```
 
-Arranged positions survive detail changes and ancillary replacement for the open
-dataset session. Reset positions restores the prepared layout. Loading a new
+Arranged positions survive detail changes, tree-tab switches and ancillary
+replacement for the open dataset session. Resetting a tree panel restores that
+component; resetting the forest overview restores all components. Loading a new
 dataset or reloading the browser clears these edits.
+
+The reference demo displays **Forest overview** and paged **Tree** tabs when a
+dataset contains multiple connected components. Each tab retains its camera,
+manual folds and expansion settings. Coordinates are shared between a tree and
+the overview. Appearance settings are shared across tabs. Search, expansion and
+region reads target the active tree. One renderer and at most one layout worker
+serve the active panel.
+
+Host applications can build their own navigation from component summaries:
+
+```ts
+const page = await view.listComponents({ limit: 50 });
+const tree = page.components[0];
+if (tree) await view.selectComponent(tree);
+await view.selectComponent(null); // forest overview
+if (page.nextCursor !== null) {
+  const nextPage = await view.listComponents({ after: page.nextCursor });
+}
+```
+
+Component IDs identify connected trees in the prepared forest. A technical root
+provides their stable identity; it does not imply an evolutionary root. The API
+requires the companion service's `POST /api/graph/components` endpoint.

@@ -218,6 +218,11 @@ export default function createSigmaRenderer(options: SigmaRendererOptions = {}) 
     getDisplayedNodesInBounds,
     setDragSelection,
     resetLayoutEdits,
+    getCameraState: () => readCameraState(sigmaInstance),
+    restoreCameraState: state => {
+      suppressViewChangesFor(16);
+      restoreCameraState(sigmaInstance, state);
+    },
     mount,
     render,
     setViewChangeHandler,
@@ -321,7 +326,7 @@ export default function createSigmaRenderer(options: SigmaRendererOptions = {}) 
     setMotionEnabled(false);
     transitions.cancel();
     dragController.reset();
-    displayPositions.clear();
+    displayPositions.clear(options?.allViews ? undefined : sourceSnapshot?.viewMeta.componentId);
     dragSelection = { kind: 'node' };
     if (!options?.allViews && sourceSnapshot && sigmaInstance)
       applyGraphSnapshot(sourceSnapshot, { preservePositions: false });
@@ -503,7 +508,7 @@ export default function createSigmaRenderer(options: SigmaRendererOptions = {}) 
       return null;
     }
     const bounds = currentViewportBounds();
-    const halo = displayPositions.queryPadding();
+    const halo = displayPositions.queryPadding(sourceSnapshot?.viewMeta.componentId);
     return {
       bounds: {
         xmin: bounds.xmin - halo.x,
@@ -530,6 +535,7 @@ export default function createSigmaRenderer(options: SigmaRendererOptions = {}) 
     const wasTransitioning = transitions.isActive();
     transitions.cancel();
     forceMotionController.stop();
+    const componentChanged = sourceSnapshot?.viewMeta.componentId !== graph.viewMeta.componentId;
     const previousLod = sourceSnapshot?.viewMeta.lodLevel;
     if (options?.preservePositions) captureDisplayPositions();
     sourceSnapshot = graph;
@@ -537,7 +543,9 @@ export default function createSigmaRenderer(options: SigmaRendererOptions = {}) 
     graph = { ...graph, nodes: planned.nodes };
     const lodChanged = previousLod !== undefined && previousLod !== graph.viewMeta.lodLevel;
     const needsTransition =
-      forceMotionController.isEnabled() && (wasTransitioning || lodChanged || planned.origins.size > 0);
+      !componentChanged &&
+      forceMotionController.isEnabled() &&
+      (wasTransitioning || lodChanged || planned.origins.size > 0);
     const targets = needsTransition ? new Map(graph.nodes.map(node => [node.id, { x: node.x, y: node.y }])) : null;
     if (lodChanged) transitions.captureAnchor(graph);
     if (needsTransition) {

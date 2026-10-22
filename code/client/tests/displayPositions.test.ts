@@ -101,6 +101,27 @@ it('returns coordinate values without exposing privately stored positions or anc
   expect(positions.anchor('a')).toEqual({ x: 3, y: 4 });
 });
 
+it('resets only the active component while retaining other arranged positions', () => {
+  const positions = new DisplayPositions();
+  const source = snapshot(
+    ...['a', 'b'].map((id, i) => ({
+      ...node(id, i),
+      attributes: {
+        treeIndex: { componentId: id, parentId: null, depth: 0, start: i, end: i + 1 },
+      },
+    }))
+  );
+  positions.ingest(source);
+  positions.arrange('a', { x: 20, y: 30 });
+  positions.arrange('b', { x: 200, y: 300 });
+  positions.clear('a');
+  expect(positions.ingest(source).nodes.map(n => [n.x, n.y])).toEqual([
+    [0, 0],
+    [200, 300],
+  ]);
+  expect(positions.queryPadding('a')).toEqual({ x: 2, y: 2 });
+});
+
 it('retains edits after the clean history budget is exceeded', () => {
   const positions = new DisplayPositions();
   positions.ingest(snapshot(node('edited', 1)));

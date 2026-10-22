@@ -38,6 +38,11 @@ export default function createGraphNavigation({
   };
 
   return {
+    cancelAll: () => {
+      cancelPendingFocus();
+      regionSequence++;
+      searchSequence++;
+    },
     cancelPendingFocus,
     cancelPendingRegionSelection: () => {
       regionSequence += 1;
@@ -52,6 +57,7 @@ export default function createGraphNavigation({
     const generation = getLoadGeneration();
     const sequence = ++regionSequence;
     const coordinator = getViewportCoordinator();
+    const componentId = coordinator?.getComponentId();
 
     // The server cannot select a rectangle in a deformed layout. Select the loaded
     // display explicitly; its ancillary wheel is built from these same node IDs.
@@ -70,6 +76,7 @@ export default function createGraphNavigation({
     const response = await graphClient.readRegion({
       datasetId: session.datasetId,
       layoutVersion: session.layoutVersion,
+      componentId,
       xmin: bounds.xmin,
       xmax: bounds.xmax,
       ymin: bounds.ymin,
@@ -81,6 +88,7 @@ export default function createGraphNavigation({
       sequence !== regionSequence ||
       generation !== getLoadGeneration() ||
       coordinator !== getViewportCoordinator() ||
+      componentId !== coordinator?.getComponentId() ||
       !hasGraphSession(currentState) ||
       session.layoutVersion !== currentState.session.layoutVersion
     ) {
@@ -103,10 +111,12 @@ export default function createGraphNavigation({
     const generation = getLoadGeneration();
     const sequence = ++searchSequence;
     const coordinator = getViewportCoordinator();
+    const componentId = coordinator?.getComponentId();
 
     const response = await graphClient.searchGraph({
       datasetId: session.datasetId,
       layoutVersion: session.layoutVersion,
+      componentId,
       query: query.query,
       limit: query.limit,
     });
@@ -116,6 +126,7 @@ export default function createGraphNavigation({
       sequence !== searchSequence ||
       generation !== getLoadGeneration() ||
       coordinator !== getViewportCoordinator() ||
+      componentId !== coordinator?.getComponentId() ||
       !hasGraphSession(currentState) ||
       session.layoutVersion !== currentState.session.layoutVersion
     ) {
@@ -135,9 +146,13 @@ export default function createGraphNavigation({
 
     const sequence = focusSequence;
     const coordinator = getViewportCoordinator();
+    const componentId = coordinator?.getComponentId();
 
     const isCurrent = () =>
-      sequence === focusSequence && generation === getLoadGeneration() && getViewportCoordinator() === coordinator;
+      sequence === focusSequence &&
+      generation === getLoadGeneration() &&
+      getViewportCoordinator() === coordinator &&
+      componentId === coordinator?.getComponentId();
     const currentSnapshot = () => getGraphSnapshot(getState()) ?? createEmptyGraph();
 
     // A repeated selection must recenter too: the user may have panned away.
@@ -152,6 +167,7 @@ export default function createGraphNavigation({
         const response = await graphClient.searchGraph({
           datasetId: session.datasetId,
           layoutVersion: session.layoutVersion,
+          componentId,
           query: nodeId,
           limit: DEFAULT_SEARCH_RESULT_LIMIT,
         });

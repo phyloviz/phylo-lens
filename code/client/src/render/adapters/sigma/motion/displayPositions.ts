@@ -1,7 +1,7 @@
 import type { PositionedGraph, PositionedNode } from '../../../../contracts/positioned';
 import type { Point } from '../../../../contracts/Point';
 
-type Entry = { server: Point; display: Point; anchor: Point; inherited: Point; cluster?: string };
+type Entry = { server: Point; display: Point; anchor: Point; inherited: Point; cluster?: string; componentId?: string };
 const zero = (): Point => ({ x: 0, y: 0 });
 const offset = (entry: Entry): Point => ({ x: entry.display.x - entry.server.x, y: entry.display.y - entry.server.y });
 
@@ -15,7 +15,13 @@ export class DisplayPositions {
   private margin = 0;
   static readonly HISTORY_LIMIT = 20_000;
 
-  clear(): void {
+  clear(componentId?: string): void {
+    if (componentId !== undefined) {
+      for (const [id, entry] of this.entries) if (entry.componentId === componentId) this.entries.delete(id);
+      for (const [cluster, id] of this.proxies) if (!this.entries.has(id)) this.proxies.delete(cluster);
+      this.visible = new Set([...this.visible].filter(id => this.entries.has(id)));
+      return;
+    }
     this.entries.clear();
     this.proxies.clear();
     this.visible.clear();
@@ -63,11 +69,12 @@ export class DisplayPositions {
     return new Map([...members].map(([id, p]) => [id, this.constrain(id, { x: p.x + delta.x, y: p.y + delta.y })]));
   }
 
-  queryPadding(): Point {
+  queryPadding(componentId?: string): Point {
     let x = this.margin,
       y = this.margin;
 
     for (const entry of this.entries.values()) {
+      if (componentId !== undefined && entry.componentId !== componentId) continue;
       x = Math.max(x, Math.abs(entry.display.x - entry.server.x) + this.margin);
       y = Math.max(y, Math.abs(entry.display.y - entry.server.y) + this.margin);
     }
@@ -157,6 +164,7 @@ export class DisplayPositions {
         anchor: { x: anchor.x, y: anchor.y },
         inherited,
         cluster,
+        componentId: node.attributes?.treeIndex?.componentId,
       });
       display = this.set(node.id, display);
 

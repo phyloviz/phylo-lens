@@ -22,6 +22,9 @@ function makeFakeWorkbench(
   let regionSelectModeEnabled = false;
 
   return {
+    listComponents: vi.fn(async () => ({ components: [], nextCursor: null })),
+    selectComponent: vi.fn(async () => renderedGraph),
+    getComponentId: vi.fn(() => undefined),
     relaxLayout: vi.fn(),
     stopLayout: vi.fn(),
     getLayoutMotionState: vi.fn(() => ({ automatic: false, running: false })),

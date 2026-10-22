@@ -42,4 +42,5 @@ export type { NodeId, ClusterId, DatasetId, LayoutVersion } from './contracts/gr
 
 export type { Point } from './contracts/Point';
 
+export type { GraphComponent, GraphComponentsRequest, GraphComponentsResult } from './contracts/graph/components';
 export type { LayoutMotionState } from './render/renderer.types';

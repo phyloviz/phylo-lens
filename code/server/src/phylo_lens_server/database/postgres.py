@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 from .schema_files import read_schema_sql
 
-POSTGRES_SCHEMA_VERSION = "indexed-rooted-forest-schema-v3"
+POSTGRES_SCHEMA_VERSION = "component-panels-schema-v4"
 POSTGRES_SCHEMA_VERSION_TABLE = "phylo_lens_schema_version"
 ERR_POSTGRES_SCHEMA_NOT_CURRENT = "Postgres schema is not current. Run 'phylo-lens-init-postgres' before starting API replicas or workers."
 

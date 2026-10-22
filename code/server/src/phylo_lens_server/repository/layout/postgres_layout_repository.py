@@ -5,6 +5,7 @@ from contextlib import contextmanager
 
 from phylo_lens_server.database.postgres import connect
 from phylo_lens_server.database.sql import LayoutSQL
+from phylo_lens_server.domain.components import ComponentsReadResult
 from phylo_lens_server.domain.preparation import (
     ClusterLayout,
     NodeLayoutPosition,
@@ -153,18 +154,39 @@ class PostgresLayoutRepository:
         ymin: float | None,
         ymax: float | None,
         max_lod_level: int | None = None,
+        component_id: str | None = None,
     ) -> dict[int, int]:
         with self._connect() as connection:
             return read_viewport_representation_counts(
                 connection,
                 dataset_id=dataset_id,
                 layout_version=layout_version,
+                component_id=component_id,
                 xmin=xmin,
                 xmax=xmax,
                 ymin=ymin,
                 ymax=ymax,
                 placeholder="%s",
                 max_lod_level=max_lod_level,
+            )
+
+    def read_components(
+        self,
+        *,
+        dataset_id: str,
+        layout_version: str,
+        after: int | None = None,
+        limit: int = 50,
+    ) -> ComponentsReadResult:
+        from .components import read_components
+
+        with self._connect() as connection:
+            return read_components(
+                LayoutSQL(connection, "postgres"),
+                dataset_id=dataset_id,
+                layout_version=layout_version,
+                after=after,
+                limit=limit,
             )
 
     def read_viewport(
@@ -180,12 +202,14 @@ class PostgresLayoutRepository:
         lod_level: int | None = None,
         cluster_id: str | None = None,
         focus_node_id: str | None = None,
+        component_id: str | None = None,
     ) -> ViewportReadResult:
         with self._connect() as connection:
             return viewport_reader.read_viewport(
                 LayoutSQL(connection, "postgres"),
                 dataset_id=dataset_id,
                 layout_version=layout_version,
+                component_id=component_id,
                 xmin=xmin,
                 xmax=xmax,
                 ymin=ymin,
@@ -206,12 +230,14 @@ class PostgresLayoutRepository:
         ymin: float,
         ymax: float,
         max_nodes: int | None = None,
+        component_id: str | None = None,
     ) -> RegionReadResult:
         with self._connect() as connection:
             return region_reader.read_region(
                 LayoutSQL(connection, "postgres"),
                 dataset_id=dataset_id,
                 layout_version=layout_version,
+                component_id=component_id,
                 xmin=xmin,
                 xmax=xmax,
                 ymin=ymin,
@@ -226,12 +252,14 @@ class PostgresLayoutRepository:
         layout_version: str,
         query: str,
         limit: int,
+        component_id: str | None = None,
     ) -> SearchReadResult:
         with self._connect() as connection:
             return search_nodes(
                 connection,
                 dataset_id=dataset_id,
                 layout_version=layout_version,
+                component_id=component_id,
                 query=query,
                 limit=limit,
                 placeholder="%s",

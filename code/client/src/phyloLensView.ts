@@ -54,6 +54,9 @@ export interface PhyloLensAncillaryResult {
 }
 
 export interface PhyloLensView {
+  listComponents: GraphWorkbench['listComponents'];
+  selectComponent: GraphWorkbench['selectComponent'];
+  getComponentId: GraphWorkbench['getComponentId'];
   relaxLayout: GraphWorkbench['relaxLayout'];
   stopLayout: GraphWorkbench['stopLayout'];
   getLayoutMotionState: GraphWorkbench['getLayoutMotionState'];
@@ -106,6 +109,9 @@ export function createPhyloLensView(options: PhyloLensViewOptions): PhyloLensVie
   };
 
   return {
+    listComponents: page => activeWorkbench().listComponents(page),
+    selectComponent: component => activeWorkbench().selectComponent(component),
+    getComponentId: () => activeWorkbench().getComponentId(),
     relaxLayout: () => activeWorkbench().relaxLayout(),
     stopLayout: () => activeWorkbench().stopLayout(),
     getLayoutMotionState: () => activeWorkbench().getLayoutMotionState(),

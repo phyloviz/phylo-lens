@@ -4,6 +4,7 @@ from collections.abc import Callable
 from contextlib import AbstractContextManager
 from typing import Protocol
 
+from phylo_lens_server.domain.components import ComponentsReadResult
 from phylo_lens_server.domain.preparation import (
     ClusterLayout,
     NodeLayoutPosition,
@@ -27,8 +28,22 @@ class AncillaryRevision(Protocol):
 
 class LayoutRepository(Protocol):
     def latest_layout_version(self, dataset_id: str) -> str | None: ...
+    def read_components(
+        self,
+        *,
+        dataset_id: str,
+        layout_version: str,
+        after: int | None = None,
+        limit: int = 50,
+    ) -> ComponentsReadResult: ...
     def search_nodes(
-        self, *, dataset_id: str, layout_version: str, query: str, limit: int
+        self,
+        *,
+        dataset_id: str,
+        layout_version: str,
+        query: str,
+        limit: int,
+        component_id: str | None = None,
     ) -> SearchReadResult: ...
     def read_region(
         self,
@@ -40,6 +55,7 @@ class LayoutRepository(Protocol):
         ymin: float,
         ymax: float,
         max_nodes: int | None = None,
+        component_id: str | None = None,
     ) -> RegionReadResult: ...
     def ancillary_revision(
         self, dataset_id: str, layout_version: str
@@ -54,6 +70,7 @@ class LayoutRepository(Protocol):
         ymin: float | None,
         ymax: float | None,
         max_lod_level: int | None = None,
+        component_id: str | None = None,
     ) -> dict[int, int]: ...
     def read_viewport(
         self,
@@ -68,6 +85,7 @@ class LayoutRepository(Protocol):
         lod_level: int | None = None,
         cluster_id: str | None = None,
         focus_node_id: str | None = None,
+        component_id: str | None = None,
     ) -> ViewportReadResult: ...
     def clear_layout_version(self, dataset_id: str, layout_version: str) -> None: ...
     def save_artifacts(

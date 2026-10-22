@@ -109,11 +109,13 @@ export interface GraphRenderer {
    * rendered node ID: retained on reload/filter/expansion, cleared on a new dataset.
    * Children inherit a moved proxy's offset when expanded; collapse uses the children's mean offset.
    * Dragging is unrestricted; queries include measured display displacement plus a surrounding margin.
-   * Arranged positions survive detail changes for the dataset session.
+   * Arranged positions survive detail and panel changes for the dataset session.
    * Unedited off-screen history is bounded; edits are retained until reset or a new dataset.
    * Reset pauses motion and restores server coordinates. Region selection uses the loaded display.
    */
   resetLayoutEdits?: (options?: { allViews?: boolean }) => void;
+  getCameraState?: () => RenderCameraState | null;
+  restoreCameraState?: (state: RenderCameraState) => void;
   mount: (context: RenderContext) => void;
   unmount: () => void;
   render: (graph: PositionedGraph) => void;
@@ -165,4 +167,11 @@ export interface GraphRenderer {
 
 export interface RendererFactory {
   createRenderer(type: RendererType): GraphRenderer;
+}
+
+export interface RenderCameraState {
+  readonly x?: number;
+  readonly y?: number;
+  readonly ratio?: number;
+  readonly angle?: number;
 }

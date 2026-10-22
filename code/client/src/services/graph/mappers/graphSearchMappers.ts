@@ -7,6 +7,7 @@ import type { GraphSearchResult } from '../../../contracts/graph/search/GraphSea
 export function toGraphSearchRequestDto(request: GraphSearchRequest): GraphSearchRequestDto {
   return {
     dataset_id: request.datasetId,
+    component_id: request.componentId,
     layout_version: request.layoutVersion,
     query: request.query,
     limit: request.limit,

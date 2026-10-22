@@ -20,6 +20,7 @@ class SearchQuery:
     query: str
     limit: int = 25
     layout_version: str | None = None
+    component_id: str | None = None
 
 
 @dataclass(frozen=True)

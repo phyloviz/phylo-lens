@@ -16,6 +16,8 @@ import createArrangementControls, { type ArrangementControlsElements } from './s
 import createPngExportControls, { type PngExportControlsElements } from './shell/controls/pngExportControls';
 import createWorkspaceControls from './shell/controls/workspaceControls';
 
+import forestControls, { type ForestControlsElements } from './shell/controls/forestControls';
+
 export { STATUS_RENDERED_PREFIX } from './shell/status/renderedStatus';
 export { STATUS_RENDERING_PREFIX } from './shell/inputs/graphLoading';
 export { ERR_INVALID_ANCILLARY_JSON } from './shell/inputs/ancillaryPayload';
@@ -33,7 +35,8 @@ export const ERR_STATUS_ELEMENT_REQUIRED = 'Status element is required.';
 export const ERR_RENDER_FORM_REQUIRED = 'Render form is required.';
 export const ERR_NEWICK_INPUT_REQUIRED = 'Newick input is required.';
 
-export type UiShellElements = ArrangementControlsElements &
+export type UiShellElements = ForestControlsElements &
+  ArrangementControlsElements &
   DisplayOptionsControlsElements &
   PngExportControlsElements &
   AncillaryControlsElements &
@@ -108,6 +111,19 @@ export default function createUiShell(options: UiShellOptions): UiShell {
     getAncillaryDistribution: ancillary.getDistribution,
     onSelected: workspace.showRegion,
   });
+  const forest = forestControls(workbench, elements, pending => {
+    if (!pending) {
+      expansion.setReady(lastRenderedGraph !== null);
+      arrangement.setReady((lastRenderedGraph?.nodes.length ?? 0) > 1);
+      return;
+    }
+    arrangement.setReady(false);
+    selectNode(null);
+    search.reset();
+    region.reset();
+    arrangement.reset();
+    expansion.setReady(false);
+  });
   const loading = createGraphLoading({
     workbench,
     elements,
@@ -117,6 +133,7 @@ export default function createUiShell(options: UiShellOptions): UiShell {
     setStatus,
     setFailureStatus,
     onLoadStarted: () => {
+      forest.reset();
       workspace.loadStarted();
       selectNode(null);
       search.reset();
@@ -131,7 +148,10 @@ export default function createUiShell(options: UiShellOptions): UiShell {
       lastRenderedGraph = null;
       ancillary.resetAfterFailure();
     },
-    onLoadCompleted: workspace.loadCompleted,
+    onLoadCompleted: name => {
+      workspace.loadCompleted(name);
+      void forest.load();
+    },
   });
   const pngExport = createPngExportControls({
     workbench,
@@ -148,6 +168,7 @@ export default function createUiShell(options: UiShellOptions): UiShell {
   function mount(): void {
     setStatus(DEFAULT_STATUS_READY);
     workspace.mount();
+    forest.mount();
     loading.mount();
     arrangement.mount();
     expansion.mount();
@@ -179,6 +200,7 @@ export default function createUiShell(options: UiShellOptions): UiShell {
     region.reset();
     bindings.clear();
     workspace.unmount();
+    forest.unmount();
     display.unmount();
     pngExport.unmount();
     expansion.dispose();

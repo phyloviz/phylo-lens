@@ -1117,3 +1117,46 @@ button:disabled {
     padding: 9px;
   }
 }
+
+.forest-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+  padding: 0.65rem 0;
+}
+.forest-controls[hidden] {
+  display: none;
+}
+.forest-tabs {
+  display: flex;
+  flex: 1;
+  gap: 0.35rem;
+  min-width: 0;
+  overflow-x: auto;
+  padding: 0.2rem;
+}
+.forest-tabs button {
+  white-space: nowrap;
+  flex-shrink: 0;
+  background: #fff;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+}
+.forest-tabs [aria-selected='true'] {
+  background: #477b3d;
+  color: #fff;
+  border-color: #477b3d;
+}
+.forest-feedback {
+  font-size: 0.8rem;
+  max-width: 16rem;
+}
+@media (max-width: 600px) {
+  .forest-controls {
+    flex-wrap: wrap;
+  }
+  .forest-feedback {
+    flex-basis: 100%;
+  }
+}

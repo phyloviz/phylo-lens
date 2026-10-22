@@ -319,6 +319,103 @@ try {
   await page.locator('#display-heading').scrollIntoViewIfNeeded();
   await page.locator('#selected-node-label').scrollIntoViewIfNeeded();
   await page.screenshot({ path: join(tmpdir(), 'phylo-lens-sidebar-controls.png') });
+  // One renderer presents disconnected components with independent view state.
+  await load('requirements-forest-panels', '((a:1,b:2)branch:4,sibling:8)root; (d:1,e:1)other; isolated;', 9);
+  await page.locator('#forest-controls [role="tab"]').nth(3).waitFor();
+  assert.equal(await page.locator('#motion-enabled').isChecked(), false);
+  const requests = [];
+  page.on('request', request => {
+    if (request.url().endsWith('/api/graph/viewport')) requests.push(request.postDataJSON());
+  });
+  const treeTab = root => page.locator(`#forest-controls [role="tab"][title="Root: ${root}"]`);
+  await treeTab('root').click();
+  await page.waitForFunction(() => window.requirementsSigma.getGraph().order === 5);
+  await page.waitForTimeout(600);
+  assert.deepEqual(
+    await page.evaluate(() => [
+      ...new Set(window.requirementsSigma.getGraph().mapNodes((_id, a) => a.treeIndex.componentId)),
+    ]),
+    ['root']
+  );
+  assert.equal(requests.at(-1).component_id, 'root');
+  const drag = await page.evaluate(() => {
+    const sigma = window.requirementsSigma;
+    const graph = sigma.getGraph();
+    const p = sigma.graphToViewport(graph.getNodeAttributes('a'));
+    const r = sigma.getContainer().getBoundingClientRect();
+    return { x: r.left + p.x, y: r.top + p.y };
+  });
+  await page.mouse.move(drag.x, drag.y);
+  await page.mouse.down();
+  await page.mouse.move(drag.x + 50, drag.y + 25, { steps: 10 });
+  await page.mouse.up();
+  const arranged = await page.evaluate(() => {
+    const a = window.requirementsSigma.getGraph().getNodeAttributes('a');
+    return { x: a.x, y: a.y };
+  });
+  await page.evaluate(() => window.requirementsSigma.getCamera().setState({ ratio: 0.6, x: 0.4, y: 0.6 }));
+  await page.waitForTimeout(800);
+  assert.deepEqual(
+    await page.evaluate(() => {
+      const a = window.requirementsSigma.getGraph().getNodeAttributes('a');
+      return { x: a.x, y: a.y };
+    }),
+    arranged
+  );
+  const camera = await page.evaluate(() => window.requirementsSigma.getCamera().getState());
+  await treeTab('other').click();
+  await page.waitForFunction(() => window.requirementsSigma.getGraph().order === 3);
+  await page.waitForTimeout(600);
+  assert.deepEqual((await page.evaluate(() => window.requirementsSigma.getGraph().nodes())).sort(), [
+    'd',
+    'e',
+    'other',
+  ]);
+  await page.locator('#search-input').fill('branch');
+  await page.locator('#search-input').press('Enter');
+  await page.waitForFunction(() => document.querySelector('#status').textContent.includes('Search found 0 matches'));
+  await treeTab('root').click();
+  await page.waitForFunction(() => window.requirementsSigma.getGraph().hasNode('a'));
+  await page.waitForTimeout(600);
+  assert.deepEqual(await page.evaluate(() => window.requirementsSigma.getCamera().getState()), camera);
+  assert.deepEqual(
+    await page.evaluate(() => {
+      const a = window.requirementsSigma.getGraph().getNodeAttributes('a');
+      return { x: a.x, y: a.y };
+    }),
+    arranged
+  );
+  await task('explore');
+  await page.locator('#relax-layout').click();
+  await page.waitForFunction(() => document.querySelector('#layout-motion-status').textContent.includes('Relaxing'));
+  await page.waitForFunction(() => !document.querySelector('#relax-layout').disabled, undefined, { timeout: 30000 });
+  assert.equal(await page.locator('#motion-enabled').isChecked(), false);
+  const settled = await page.evaluate(() =>
+    window.requirementsSigma.getGraph().mapNodes((id, a) => ({ id, x: a.x, y: a.y }))
+  );
+  await page.evaluate(() => window.requirementsSigma.getCamera().setState({ ratio: 1.2 }));
+  await page.waitForTimeout(800);
+  assert.deepEqual(
+    await page.evaluate(() => window.requirementsSigma.getGraph().mapNodes((id, a) => ({ id, x: a.x, y: a.y }))),
+    settled
+  );
+  await page.locator('#motion-enabled').check();
+  await page.locator('#stop-layout').click();
+  assert.equal(await page.locator('#motion-enabled').isChecked(), false);
+  await page.locator('#forest-controls [role="tab"]').filter({ hasText: 'Forest overview' }).click();
+  await page.waitForFunction(() => window.requirementsSigma.getGraph().order === 9);
+  await treeTab('isolated').click();
+  await page.waitForFunction(() => window.requirementsSigma.getGraph().order === 1);
+  for (const width of [768, 390, 320]) {
+    await page.setViewportSize({ width, height: 1000 });
+    await page.waitForFunction(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth);
+  }
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  assert.deepEqual(errors, []);
+  console.log(
+    'Forest tabs, scoped search, independent cameras, retained edits, manual settling and explicit stop passed.'
+  );
+
   // A larger tree starts as a partial LoD slice. Fold its root using only the
   // streamed interval, then verify that camera queries continue while folded.
   const total = 4095;

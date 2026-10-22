@@ -1373,4 +1373,77 @@ describe('GraphViewportCoordinator', () => {
     expect(renderer.fitGraphSnapshot).toHaveBeenCalledTimes(fits);
     coordinator.unmount();
   });
+  it('restores each panel camera and folds, scopes reads, and reuses revised ancillary data', async () => {
+    const renderer = createRenderer();
+    let camera = { x: 0.5, y: 0.5, ratio: 1 };
+    renderer.getCameraState = () => ({ ...camera });
+    renderer.restoreCameraState = state => {
+      camera = { ...camera, ...state };
+    };
+    const source = viewportResponse({
+      nodes: viewportResponse().nodes.map((node, i) => ({
+        ...node,
+        isRepresentative: false,
+        memberCount: 1,
+        treeIndex: { componentId: 'root', parentId: i ? 'root' : null, depth: i, start: i, end: 2 },
+      })),
+    });
+    const readViewport = vi.fn(async (request: GraphViewportRequest) => ({
+      ...source,
+      layoutVersion: request.layoutVersion ?? source.layoutVersion,
+    }));
+    const controller = new GraphViewportCoordinator({
+      datasetId: toDatasetId('tree'),
+      client: { readViewport },
+      renderer,
+      nodeCount: 2,
+    });
+    controller.mount();
+    await vi.advanceTimersByTimeAsync(0);
+    const component = { id: 'root', nodeCount: 2, bounds: source.globalBounds! };
+    await controller.selectComponent(component);
+    camera = { x: 0.2, y: 0.3, ratio: 0.4 };
+    controller.collapseBranch(toNodeId('root'));
+    await controller.selectComponent(null);
+    expect(camera).toEqual({ x: 0.5, y: 0.5, ratio: 1 });
+    expect(renderer.appliedGraphs.at(-1)?.nodes).toHaveLength(2);
+    await controller.replaceLayoutVersion(toLayoutVersion('ancillary-2'));
+    await controller.selectComponent(component);
+    expect(camera).toEqual({ x: 0.2, y: 0.3, ratio: 0.4 });
+    expect(renderer.appliedGraphs.at(-1)?.nodes).toHaveLength(1);
+    expect(renderer.appliedGraphs.at(-1)?.viewMeta.componentId).toBe('root');
+    await controller.expandAll();
+    expect(readViewport).toHaveBeenLastCalledWith(
+      expect.objectContaining({ componentId: 'root', layoutVersion: 'ancillary-2' })
+    );
+    controller.unmount();
+  });
+
+  it('ignores an older panel response and leaves the displayed view intact after a failed switch', async () => {
+    const renderer = createRenderer();
+    const pending = deferred<GraphViewportResult>();
+    const readViewport = vi.fn(async () => viewportResponse());
+    const controller = new GraphViewportCoordinator({
+      datasetId: toDatasetId('tree'),
+      client: { readViewport },
+      renderer,
+      nodeCount: 2,
+    });
+    controller.mount();
+    await vi.advanceTimersByTimeAsync(0);
+    readViewport.mockReturnValueOnce(pending.promise);
+    const a = { id: 'a', nodeCount: 2, bounds: viewportResponse().globalBounds! };
+    const old = controller.selectComponent(a);
+    const rejection = expect(old).rejects.toThrow(/superseded/);
+    await controller.selectComponent({ ...a, id: 'b' });
+    pending.resolve(viewportResponse());
+    await rejection;
+    expect(controller.getComponentId()).toBe('b');
+    expect(renderer.appliedGraphs.at(-1)?.viewMeta.componentId).toBe('b');
+    readViewport.mockRejectedValueOnce(new Error('offline'));
+    await expect(controller.selectComponent(a)).rejects.toThrow('offline');
+    expect(controller.getComponentId()).toBe('b');
+    expect(renderer.appliedGraphs.at(-1)?.viewMeta.componentId).toBe('b');
+    controller.unmount();
+  });
 });

@@ -1,4 +1,5 @@
 export interface GraphViewportRequestDto {
+  component_id?: string;
   dataset_id: string;
   layout_version?: string | null;
   cluster_id?: string | null;

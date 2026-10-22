@@ -13,6 +13,8 @@ from phylo_lens_server.repository.layout.metadata_reader import (
     load_metadata_schema,
 )
 
+from .components import component_source
+
 
 def optional_node_bounds_filter(
     *,
@@ -61,6 +63,7 @@ def read_viewport(
     lod_level: int | None = None,
     cluster_id: str | None = None,
     focus_node_id: str | None = None,
+    component_id: str | None = None,
 ) -> ViewportReadResult:
     nodes: tuple[ViewportNode, ...] = ()
     edges: tuple[ViewportEdge, ...] = ()
@@ -68,7 +71,18 @@ def read_viewport(
         connection,
         dataset_id=dataset_id,
         layout_version=layout_version,
+        component_id=component_id,
     )
+    if cluster_id and component_id is not None:
+        belongs = connection.execute(
+            """select 1 from prepared_clusters pc join node_tree_index ti
+                on ti.dataset_id = pc.dataset_id and ti.layout_version = pc.layout_version
+                and ti.node_id = pc.representative_node_id
+                where pc.dataset_id = ? and pc.layout_version = ? and pc.cluster_id = ? and ti.component_id = ?""",
+            (dataset_id, layout_version, cluster_id, component_id),
+        ).fetchone()
+        if belongs is None:
+            raise KeyError("Cluster is outside the selected tree.")
     if cluster_id:
         nodes, total_node_count = _read_cluster_member_nodes(
             connection,
@@ -131,6 +145,7 @@ def read_viewport(
             connection,
             dataset_id=dataset_id,
             layout_version=layout_version,
+            component_id=component_id,
             xmin=xmin,
             xmax=xmax,
             ymin=ymin,
@@ -172,13 +187,20 @@ def read_viewport(
             if edge.source in present_ids and edge.target in present_ids
         )
         truncated = max_nodes is not None and total_node_count > len(ready_nodes)
-        total_node_count += len(neighbors)
+        # The spatial count already includes in-bounds nodes omitted by a cap.
+        # Only boundary neighbors outside the rectangle extend that count.
+        if None not in (xmin, xmax, ymin, ymax):
+            total_node_count += sum(
+                not (xmin <= node.x <= xmax and ymin <= node.y <= ymax)
+                for node in neighbors
+            )
     else:
         nodes = tuple(
             _read_cluster_representatives(
                 connection,
                 dataset_id=dataset_id,
                 layout_version=layout_version,
+                component_id=component_id,
                 cluster_level=cluster_level,
                 xmin=xmin,
                 xmax=xmax,
@@ -191,6 +213,7 @@ def read_viewport(
             connection,
             dataset_id=dataset_id,
             layout_version=layout_version,
+            component_id=component_id,
             cluster_level=cluster_level,
             xmin=xmin,
             xmax=xmax,
@@ -242,7 +265,17 @@ def _read_global_node_bounds(
     *,
     dataset_id: str,
     layout_version: str,
+    component_id: str | None = None,
 ) -> LayoutBounds | None:
+    if component_id is not None:
+        row = connection.execute(
+            """select min_x, max_x, min_y, max_y from forest_components
+                where dataset_id = ? and layout_version = ? and component_id = ?""",
+            (dataset_id, layout_version, component_id),
+        ).fetchone()
+        if row is None:
+            raise KeyError("The requested tree was not found.")
+        return LayoutBounds(row["min_x"], row["max_x"], row["min_y"], row["max_y"])
     row = connection.execute(
         """
         select min(x) as min_x, max(x) as max_x, min(y) as min_y, max(y) as max_y
@@ -297,7 +330,11 @@ def read_positioned_nodes(
     ymin: float | None,
     ymax: float | None,
     max_nodes: int | None = None,
+    component_id: str | None = None,
 ) -> tuple[tuple[ViewportNode, ...], int]:
+    source, component_params = component_source(
+        "node_positions", component_id, node_column="node_id", alias="np"
+    )
     limit_clause = "limit ?" if max_nodes is not None else ""
     limit_params = (max_nodes,) if max_nodes is not None else ()
     bounds_filter, bounds_params = optional_node_bounds_filter(
@@ -306,11 +343,11 @@ def read_positioned_nodes(
         ymin=ymin,
         ymax=ymax,
     )
-    count_params = (dataset_id, layout_version, *bounds_params)
+    count_params = (*component_params, dataset_id, layout_version, *bounds_params)
     total_row = connection.execute(
         f"""
         select count(*) as total_count
-        from node_positions np
+        from {source}
         where np.dataset_id = ?
           and np.layout_version = ?
           {bounds_filter}
@@ -321,7 +358,7 @@ def read_positioned_nodes(
     rows = connection.execute(
         f"""
         select np.node_id, np.cluster_id, np.x, np.y, np.status
-        from node_positions np
+        from {source}
         where np.dataset_id = ?
           and np.layout_version = ?
           {bounds_filter}
@@ -545,7 +582,14 @@ def _read_cluster_representatives(
     ymin: float | None,
     ymax: float | None,
     max_nodes: int | None = None,
+    component_id: str | None = None,
 ) -> tuple[ViewportNode, ...]:
+    source, component_params = component_source(
+        "prepared_clusters",
+        component_id,
+        node_column="representative_node_id",
+        alias=None,
+    )
     limit_clause = "limit ?" if max_nodes is not None else ""
     limit_params = (max_nodes,) if max_nodes is not None else ()
     bounds_filter, bounds_params = optional_cluster_bounds_filter(
@@ -557,7 +601,7 @@ def _read_cluster_representatives(
     rows = connection.execute(
         f"""
         select cluster_id, representative_node_id, x, y, member_count, status
-        from prepared_clusters
+        from {source}
         where dataset_id = ?
           and layout_version = ?
           and lod_level = ?
@@ -567,6 +611,7 @@ def _read_cluster_representatives(
         {limit_clause}
         """,
         (
+            *component_params,
             dataset_id,
             layout_version,
             cluster_level,
@@ -598,7 +643,14 @@ def _count_clusters_for_cluster_level(
     xmax: float | None,
     ymin: float | None,
     ymax: float | None,
+    component_id: str | None = None,
 ) -> int:
+    source, component_params = component_source(
+        "prepared_clusters",
+        component_id,
+        node_column="representative_node_id",
+        alias=None,
+    )
     bounds_filter, bounds_params = optional_cluster_bounds_filter(
         xmin=xmin,
         xmax=xmax,
@@ -608,14 +660,14 @@ def _count_clusters_for_cluster_level(
     row = connection.execute(
         f"""
         select count(*) as total_count
-        from prepared_clusters
+        from {source}
         where dataset_id = ?
           and layout_version = ?
           and lod_level = ?
           and x is not null
           {bounds_filter}
         """,
-        (dataset_id, layout_version, cluster_level, *bounds_params),
+        (*component_params, dataset_id, layout_version, cluster_level, *bounds_params),
     ).fetchone()
     return int(row["total_count"]) if row is not None else 0
 
