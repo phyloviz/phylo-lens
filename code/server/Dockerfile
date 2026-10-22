@@ -43,7 +43,7 @@ RUN apk add --no-cache \
 
 FROM phyloviz/phylolib:1.0.1@sha256:099c4b4db34344e05492bd6eacba9dbc45f0d86087cee6c76c06ba43e3226c2f
 
-ARG VERSION=0.2.4
+ARG VERSION=0.3.0
 ARG GRAPHVIZ_VERSION=12.2.1
 
 LABEL org.opencontainers.image.title="PhyloLens API service" \
