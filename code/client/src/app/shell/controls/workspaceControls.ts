@@ -1,4 +1,5 @@
 import eventBindings from '../events/eventBindings';
+import { tabIndexForKey } from './tabNavigation';
 
 /** Owns navigation and surfaces; graph operations remain in their existing controllers. */
 export default function workspaceControls(root: HTMLElement | undefined) {
@@ -20,6 +21,9 @@ export default function workspaceControls(root: HTMLElement | undefined) {
   const datasetLabel = root?.querySelector<HTMLElement>('#current-dataset');
   const exportOpen = root?.querySelector<HTMLButtonElement>('#open-export');
   const exportDialog = root?.querySelector<HTMLDialogElement>('#export-dialog');
+  const graphRoot = root?.querySelector<HTMLElement>('#graph-root');
+  const inspectorClose = root?.querySelector<HTMLButtonElement>('#inspector-close');
+  const exportClose = root?.querySelector<HTMLButtonElement>('#close-export');
   const loadButton = root?.querySelector<HTMLButtonElement>('#render-form button[type="submit"]');
   let controlsOpen = true;
   let inspectorOpen = true;
@@ -38,28 +42,28 @@ export default function workspaceControls(root: HTMLElement | undefined) {
       if (controlsOpen) tasks.focus();
     });
     bindings.on(inspectorToggle, 'click', () => setInspectorOpen(!inspectorOpen));
-    bindings.on(root?.querySelector<HTMLElement>('#inspector-close'), 'click', () => {
+    bindings.on(inspectorClose, 'click', () => {
       setInspectorOpen(false);
       inspectorToggle?.focus();
     });
     bindings.on(exportOpen, 'click', () => {
-      if (!exportDialog?.open) exportDialog?.showModal();
+      if (exportDialog && !exportDialog.open) exportDialog.showModal();
     });
-    bindings.on(root?.querySelector<HTMLElement>('#close-export'), 'click', () => exportDialog?.close());
+    bindings.on(exportClose, 'click', () => exportDialog?.close());
   }
 
   function loadStarted(): void {
     if (exportDialog?.open) exportDialog.close();
     if (loadButton) loadButton.disabled = true;
     if (exportOpen) exportOpen.disabled = true;
-    root?.querySelector('#graph-root')?.setAttribute('aria-busy', 'true');
+    graphRoot?.setAttribute('aria-busy', 'true');
     if (datasetLabel) datasetLabel.textContent = 'Loading dataset…';
   }
 
   function loadCompleted(name: string): void {
     if (loadButton) loadButton.disabled = false;
     if (exportOpen) exportOpen.disabled = false;
-    root?.querySelector('#graph-root')?.setAttribute('aria-busy', 'false');
+    graphRoot?.setAttribute('aria-busy', 'false');
     if (datasetLabel) {
       datasetLabel.textContent = name;
       datasetLabel.title = name;
@@ -73,7 +77,7 @@ export default function workspaceControls(root: HTMLElement | undefined) {
   function loadFailed(): void {
     if (loadButton) loadButton.disabled = false;
     if (exportOpen) exportOpen.disabled = true;
-    root?.querySelector('#graph-root')?.setAttribute('aria-busy', 'false');
+    graphRoot?.setAttribute('aria-busy', 'false');
     if (datasetLabel) {
       datasetLabel.textContent = 'No dataset loaded';
       datasetLabel.removeAttribute('title');
@@ -133,16 +137,7 @@ export default function workspaceControls(root: HTMLElement | undefined) {
         bindings.on(tab, 'click', () => select(name(tab)));
         bindings.on(tab, 'keydown', event => {
           const index = tabs.indexOf(tab);
-          const next =
-            event.key === 'ArrowRight'
-              ? (index + 1) % tabs.length
-              : event.key === 'ArrowLeft'
-                ? (index + tabs.length - 1) % tabs.length
-                : event.key === 'Home'
-                  ? 0
-                  : event.key === 'End'
-                    ? tabs.length - 1
-                    : null;
+          const next = tabIndexForKey(event.key, index, tabs.length);
           if (next === null) return;
           event.preventDefault();
           const nextTab = tabs[next];

@@ -1446,4 +1446,83 @@ describe('GraphViewportCoordinator', () => {
     expect(renderer.appliedGraphs.at(-1)?.viewMeta.componentId).toBe('b');
     controller.unmount();
   });
+  it('releases a pending panel switch when dragging supersedes its response', async () => {
+    const renderer = createRenderer();
+    const pending = deferred<GraphViewportResult>();
+    const readViewport = vi.fn(async () => viewportResponse());
+    const controller = new GraphViewportCoordinator({
+      datasetId: toDatasetId('tree'),
+      client: { readViewport },
+      renderer,
+      nodeCount: 2,
+    });
+    controller.mount();
+    await vi.advanceTimersByTimeAsync(0);
+    readViewport.mockReturnValueOnce(pending.promise);
+    const switching = controller.selectComponent({
+      id: 'root',
+      nodeCount: 2,
+      bounds: viewportResponse().globalBounds!,
+    });
+    const rejection = expect(switching).rejects.toThrow(/superseded/);
+    renderer.emitManipulation(true);
+    pending.resolve(viewportResponse());
+    await rejection;
+    renderer.emitManipulation(false);
+    expect(controller.getComponentId()).toBeUndefined();
+    await expect(controller.collapseAll()).resolves.toMatchObject({ status: 'complete' });
+    controller.unmount();
+  });
+
+  it('captures the requested component before awaiting its viewport', async () => {
+    const renderer = createRenderer();
+    const pending = deferred<GraphViewportResult>();
+    const readViewport = vi.fn(async () => viewportResponse());
+    const controller = new GraphViewportCoordinator({
+      datasetId: toDatasetId('tree'),
+      client: { readViewport },
+      renderer,
+      nodeCount: 2,
+    });
+    controller.mount();
+    await vi.advanceTimersByTimeAsync(0);
+    readViewport.mockReturnValueOnce(pending.promise);
+    const component = { id: 'root', nodeCount: 2, bounds: { ...viewportResponse().globalBounds! } };
+    const switching = controller.selectComponent(component);
+    component.id = 'changed-by-caller';
+    component.bounds.minX = 123;
+    pending.resolve(viewportResponse());
+    const graph = await switching;
+    expect(controller.getComponentId()).toBe('root');
+    expect(graph.viewMeta.componentId).toBe('root');
+    expect(readViewport).toHaveBeenLastCalledWith(expect.objectContaining({ componentId: 'root' }));
+    controller.unmount();
+  });
+  it('does not let an older response unlock the panel request that replaced it', async () => {
+    const renderer = createRenderer();
+    const first = deferred<GraphViewportResult>();
+    const second = deferred<GraphViewportResult>();
+    const readViewport = vi.fn(async () => viewportResponse());
+    const controller = new GraphViewportCoordinator({
+      datasetId: toDatasetId('tree'),
+      client: { readViewport },
+      renderer,
+      nodeCount: 2,
+    });
+    controller.mount();
+    await vi.advanceTimersByTimeAsync(0);
+    readViewport.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
+    const component = { id: 'a', nodeCount: 2, bounds: viewportResponse().globalBounds! };
+    const old = controller.selectComponent(component);
+    const rejection = expect(old).rejects.toThrow(/superseded/);
+    const latest = controller.selectComponent({ ...component, id: 'b' });
+    first.resolve(viewportResponse());
+    await rejection;
+    await expect(controller.collapseAll()).rejects.toThrow(/Expansion requires/);
+    second.resolve(viewportResponse());
+    await latest;
+    expect(controller.getComponentId()).toBe('b');
+    await expect(controller.expandAll()).resolves.toMatchObject({ status: 'complete' });
+    controller.unmount();
+  });
 });

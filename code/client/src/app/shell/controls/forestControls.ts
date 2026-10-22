@@ -2,12 +2,13 @@ import type { GraphComponent } from '../../../contracts/graph/components';
 import type { GraphWorkbench } from '../../workbench/graphWorkbench';
 import eventBindings from '../events/eventBindings';
 import { toError } from '../../errors';
+import { tabIndexForKey } from './tabNavigation';
 
-export interface ForestControlsElements {
+export type ForestControlsElements = {
   readonly forestControls?: HTMLElement;
   readonly graphRoot?: HTMLElement;
   readonly searchInput?: HTMLInputElement;
-}
+};
 
 /** Pages contain summaries only. Exactly one renderer owns the active panel. */
 export default function forestControls(
@@ -17,9 +18,9 @@ export default function forestControls(
 ) {
   const root = elements.forestControls;
   const bindings = eventBindings();
-  let generation = 0,
-    busy = false,
-    cursor: number | null = null;
+  let generation = 0;
+  let busy = false;
+  let cursor: number | null = null;
   let components: GraphComponent[] = [];
   const list = document.createElement('div');
   list.className = 'forest-tabs';
@@ -34,7 +35,7 @@ export default function forestControls(
   return {
     mount,
     reset,
-    load: () => loadPage(false),
+    load: () => loadPage(),
     unmount: () => {
       reset();
       bindings.clear();
@@ -42,19 +43,15 @@ export default function forestControls(
     },
   };
 
-  function mount() {
+  function mount(): void {
     if (!root) return;
     root.replaceChildren(list, more, feedback);
-    bindings.on(more, 'click', () => void loadPage(components.length > 0));
+    bindings.on(more, 'click', () => void loadPage(cursor ?? undefined));
     bindings.on(list, 'keydown', event => {
       const tabs = [...list.querySelectorAll<HTMLButtonElement>('[role="tab"]')];
-      const index = tabs.indexOf(document.activeElement as HTMLButtonElement);
-      let next: number;
-      if (event.key === 'ArrowRight') next = (index + 1) % tabs.length;
-      else if (event.key === 'ArrowLeft') next = (index + tabs.length - 1) % tabs.length;
-      else if (event.key === 'Home') next = 0;
-      else if (event.key === 'End') next = tabs.length - 1;
-      else return;
+      const index = tabs.findIndex(tab => tab === document.activeElement);
+      const next = tabIndexForKey(event.key, index, tabs.length);
+      if (next === null) return;
       event.preventDefault();
       tabs[next]?.focus();
     });
@@ -64,7 +61,7 @@ export default function forestControls(
       void select(target.dataset.componentId);
     });
   }
-  function reset() {
+  function reset(): void {
     generation++;
     busy = false;
     components = [];
@@ -80,15 +77,16 @@ export default function forestControls(
     feedback.textContent = '';
     more.hidden = true;
   }
-  async function loadPage(append: boolean) {
-    if (!root || busy || (append && cursor === null)) return;
+  async function loadPage(after?: number): Promise<void> {
+    if (!root || busy) return;
     const current = generation;
     busy = true;
     more.disabled = true;
     try {
-      const page = await workbench.listComponents(append ? { after: cursor! } : {});
+      const page = await workbench.listComponents(after === undefined ? {} : { after });
       if (current !== generation) return;
-      components = append ? [...components, ...page.components] : [...page.components];
+      if (after === undefined) components = [...page.components];
+      else components.push(...page.components);
       cursor = page.nextCursor;
       root.hidden = components.length <= 1 && cursor === null;
       render();
@@ -107,7 +105,8 @@ export default function forestControls(
       }
     }
   }
-  function render() {
+  function render(): void {
+    if (!root) return;
     list.replaceChildren();
     const active = workbench.getComponentId();
     const options: Array<{ id?: string; label: string }> = [
@@ -123,13 +122,14 @@ export default function forestControls(
       tab.id = `forest-tab-${index}`;
       tab.setAttribute('role', 'tab');
       tab.setAttribute('aria-controls', 'graph-root');
-      tab.setAttribute('aria-selected', String(option.id === active));
-      tab.tabIndex = option.id === active ? 0 : -1;
+      const selected = option.id === active;
+      tab.setAttribute('aria-selected', String(selected));
+      tab.tabIndex = selected ? 0 : -1;
       tab.textContent = option.label;
       tab.title = option.id ? `Root: ${option.id}` : option.label;
       if (option.id !== undefined) tab.dataset.componentId = option.id;
       list.append(tab);
-      if (option.id === active && !root?.hidden) {
+      if (selected && !root.hidden) {
         elements.graphRoot?.setAttribute('role', 'tabpanel');
         elements.graphRoot?.setAttribute('aria-labelledby', tab.id);
       }
@@ -137,11 +137,11 @@ export default function forestControls(
     more.textContent = 'More trees';
     more.hidden = cursor === null;
   }
-  async function select(id?: string) {
-    if (busy || id === workbench.getComponentId()) return;
+  async function select(id?: string): Promise<void> {
+    if (!root || busy || id === workbench.getComponentId()) return;
     const current = generation;
     busy = true;
-    root?.setAttribute('aria-busy', 'true');
+    root.setAttribute('aria-busy', 'true');
     list.querySelectorAll<HTMLButtonElement>('button').forEach(tab => {
       tab.disabled = true;
     });
@@ -164,7 +164,7 @@ export default function forestControls(
       if (current === generation) {
         busy = false;
         onSwitch(false);
-        root?.removeAttribute('aria-busy');
+        root.removeAttribute('aria-busy');
         more.disabled = false;
         list.querySelectorAll<HTMLButtonElement>('button').forEach(tab => {
           tab.disabled = false;

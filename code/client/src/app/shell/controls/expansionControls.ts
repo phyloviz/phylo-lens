@@ -1,5 +1,10 @@
 import { toError } from '../../errors';
-import { reduceExpansionControls, type ExpansionControlAction, type ExpansionControlState } from './expansionState';
+import {
+  reduceExpansionControls,
+  type ExpansionControlAction,
+  type ExpansionControlState,
+  type ExpansionSelection,
+} from './expansionState';
 import { toClusterId, toNodeId } from '../../../contracts/graph/graphIdentifiers';
 import type { GraphWorkbench } from '../../workbench/graphWorkbench.types';
 import type { RenderNodeClickState } from '../../../render/renderer.types';
@@ -7,7 +12,7 @@ import type { ExpansionState, ExpansionResult } from '../../../contracts/expansi
 import type { PositionedGraph } from '../../../contracts/positioned';
 import eventBindings from '../events/eventBindings';
 
-export interface ExpansionControlsElements {
+export type ExpansionControlsElements = {
   expandSelected?: HTMLButtonElement;
   collapseSelected?: HTMLButtonElement;
   expandAll?: HTMLButtonElement;
@@ -15,7 +20,7 @@ export interface ExpansionControlsElements {
   keepExpanded?: HTMLInputElement;
   feedback?: HTMLElement;
   selectionLabel?: HTMLElement;
-}
+};
 
 export function expansionControls(
   workbench: Pick<
@@ -39,7 +44,6 @@ export function expansionControls(
   };
   const available = Object.values(elements).some(Boolean);
   const selection = () => (state.kind === 'unavailable' ? null : state.selected);
-  const clusterId = () => selection()?.clusterId ?? toClusterId('');
 
   function update() {
     if (!available) return;
@@ -47,26 +51,19 @@ export function expansionControls(
     const busy = state.kind === 'updating';
     const failure = state.kind === 'ready' ? state.failure : null;
     const expansion = ready ? workbench.getExpansionState() : null;
-    const expanded = expansion?.expandedClusterIds.includes(clusterId()) ?? false;
     const selected = selection();
-    if (elements.selectionLabel)
-      elements.selectionLabel.textContent = selected?.nodeId
-        ? `Selected: ${selected.nodeId} · ${selected.manuallyCollapsed ? 'Collapsed branch' : selected.collapsible ? 'Internal node' : selected.expandable || expanded ? 'Automatic group' : 'Leaf node'}`
-        : 'Select a node in the graph or search results.';
-    const target =
-      selected?.manuallyCollapsed || selected?.collapsible
-        ? 'branch'
-        : selected?.expandable || expanded
-          ? 'group'
-          : 'selection';
-    if (elements.expandSelected) elements.expandSelected.textContent = `Expand ${target}`;
-    if (elements.collapseSelected) elements.collapseSelected.textContent = `Collapse ${target}`;
+    const expanded =
+      selected !== null && expansion !== null && expansion.expandedClusterIds.includes(selected.clusterId);
+    const description = describeSelection(selected, expanded);
+    if (elements.selectionLabel) elements.selectionLabel.textContent = description.label;
+    if (elements.expandSelected) elements.expandSelected.textContent = `Expand ${description.target}`;
+    if (elements.collapseSelected) elements.collapseSelected.textContent = `Collapse ${description.target}`;
     if (elements.expandSelected)
       elements.expandSelected.disabled =
-        !ready || busy || (expanded && selection()?.manuallyCollapsed !== true) || selection()?.expandable !== true;
+        !ready || busy || (expanded && selected?.manuallyCollapsed !== true) || selected?.expandable !== true;
     if (elements.collapseSelected)
       elements.collapseSelected.disabled =
-        !ready || busy || selection()?.manuallyCollapsed === true || (!expanded && selection()?.collapsible !== true);
+        !ready || busy || selected?.manuallyCollapsed === true || (!expanded && selected?.collapsible !== true);
     for (const button of [elements.expandAll, elements.collapseAll]) if (button) button.disabled = !ready || busy;
     if (elements.keepExpanded) {
       elements.keepExpanded.disabled = !ready || busy;
@@ -77,14 +74,20 @@ export function expansionControls(
   }
 
   function show(state: ExpansionState) {
-    if (!elements.feedback) return;
-    elements.feedback.textContent = state.partial
-      ? `Partial result: ${state.renderedNodeCount} nodes shown${state.maxNodes === undefined ? '' : ` (limit ${state.maxNodes})`}. Some nodes remain unavailable in this view.`
-      : state.manuallyCollapsedBranchCount
-        ? `${state.manuallyCollapsedBranchCount} ${state.manuallyCollapsedBranchCount === 1 ? 'branch' : 'branches'} manually collapsed. Expand a marked node to restore its descendants.`
-        : state.allExpanded
-          ? `All nodes expanded: ${state.renderedNodeCount}.`
-          : `${state.expandedClusterIds.length} groups explicitly expanded.`;
+    const feedback = elements.feedback;
+    if (!feedback) return;
+    if (state.partial) {
+      const limit = state.maxNodes === undefined ? '' : ` (limit ${state.maxNodes})`;
+      feedback.textContent = `Partial result: ${state.renderedNodeCount} nodes shown${limit}. Some nodes remain unavailable in this view.`;
+    } else if (state.manuallyCollapsedBranchCount) {
+      const count = state.manuallyCollapsedBranchCount;
+      const noun = count === 1 ? 'branch' : 'branches';
+      feedback.textContent = `${count} ${noun} manually collapsed. Expand a marked node to restore its descendants.`;
+    } else if (state.allExpanded) {
+      feedback.textContent = `All nodes expanded: ${state.renderedNodeCount}.`;
+    } else {
+      feedback.textContent = `${state.expandedClusterIds.length} groups explicitly expanded.`;
+    }
   }
 
   async function run(action: () => ExpansionState | Promise<ExpansionResult>): Promise<void> {
@@ -111,17 +114,17 @@ export function expansionControls(
       bindings.on(elements.expandSelected, 'click', () => {
         void run(() => {
           const selected = selection();
-          return selected?.manuallyCollapsed && selected.nodeId
-            ? workbench.expandBranch(toNodeId(selected.nodeId))
-            : workbench.expandCluster(clusterId());
+          if (!selected) throw new Error('Select a node before expanding.');
+          if (selected.manuallyCollapsed && selected.nodeId) return workbench.expandBranch(toNodeId(selected.nodeId));
+          return workbench.expandCluster(selected.clusterId);
         });
       });
       bindings.on(elements.collapseSelected, 'click', () => {
         void run(() => {
           const selected = selection();
-          return selected?.collapsible && selected.nodeId
-            ? workbench.collapseBranch(toNodeId(selected.nodeId))
-            : workbench.collapseCluster(clusterId());
+          if (!selected) throw new Error('Select a node before collapsing.');
+          if (selected.collapsible && selected.nodeId) return workbench.collapseBranch(toNodeId(selected.nodeId));
+          return workbench.collapseCluster(selected.clusterId);
         });
       });
       bindings.on(elements.expandAll, 'click', () => {
@@ -130,10 +133,13 @@ export function expansionControls(
       bindings.on(elements.collapseAll, 'click', () => {
         void run(() => workbench.collapseAll());
       });
-      bindings.on(elements.keepExpanded, 'change', () => {
-        const keep = elements.keepExpanded!.checked;
-        void run(() => workbench.setKeepExpanded(keep));
-      });
+      const keepExpanded = elements.keepExpanded;
+      if (keepExpanded) {
+        bindings.on(keepExpanded, 'change', () => {
+          const keep = keepExpanded.checked;
+          void run(() => workbench.setKeepExpanded(keep));
+        });
+      }
       update();
     },
     select(state: RenderNodeClickState) {
@@ -182,4 +188,23 @@ export function expansionControls(
       bindings.clear();
     },
   };
+}
+
+function describeSelection(selected: ExpansionSelection, expanded: boolean): { label: string; target: string } {
+  if (!selected?.nodeId) {
+    return { label: 'Select a node in the graph or search results.', target: 'selection' };
+  }
+  let kind = 'Leaf node';
+  let target = 'selection';
+  if (selected.manuallyCollapsed) {
+    kind = 'Collapsed branch';
+    target = 'branch';
+  } else if (selected.collapsible) {
+    kind = 'Internal node';
+    target = 'branch';
+  } else if (selected.expandable || expanded) {
+    kind = 'Automatic group';
+    target = 'group';
+  }
+  return { label: `Selected: ${selected.nodeId} · ${kind}`, target };
 }

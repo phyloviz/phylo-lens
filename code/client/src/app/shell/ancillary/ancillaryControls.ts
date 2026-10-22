@@ -125,13 +125,14 @@ export default function createAncillaryControls(options: AncillaryControlsOption
 
   function prepareVisualMapping(mapping: VisualMappingOptions): VisualMappingOptions {
     sizeFields.reset(mapping.size?.field);
-    fields.setSelection(
-      mapping.pie?.enabled !== false && mapping.pie?.fields?.length
-        ? mapping.pie.fields
-        : mapping.colorField
-          ? [mapping.colorField]
-          : []
-    );
+    const pie = mapping.pie;
+    if (pie && pie.enabled !== false && pie.fields?.length) {
+      fields.setSelection(pie.fields);
+    } else if (mapping.colorField) {
+      fields.setSelection([mapping.colorField]);
+    } else {
+      fields.setSelection([]);
+    }
     palette.reset();
     palette.setBaseVisualMapping(mapping);
     return palette.getCurrentVisualMapping();

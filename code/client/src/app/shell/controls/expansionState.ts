@@ -1,6 +1,6 @@
 import type { ClusterId } from '../../../contracts/graph/graphIdentifiers';
 
-type Selection = {
+export type ExpansionSelection = {
   readonly clusterId: ClusterId;
   readonly nodeId?: string;
   readonly expandable: boolean;
@@ -9,13 +9,13 @@ type Selection = {
 } | null;
 export type ExpansionControlState =
   | { readonly kind: 'unavailable' }
-  | { readonly kind: 'ready'; readonly selected: Selection; readonly failure: string | null }
-  | { readonly kind: 'updating'; readonly selected: Selection };
+  | { readonly kind: 'ready'; readonly selected: ExpansionSelection; readonly failure: string | null }
+  | { readonly kind: 'updating'; readonly selected: ExpansionSelection };
 
 export type ExpansionControlAction =
   | { readonly kind: 'unavailable' }
   | { readonly kind: 'ready' }
-  | { readonly kind: 'selected'; readonly selected: Selection }
+  | { readonly kind: 'selected'; readonly selected: ExpansionSelection }
   | { readonly kind: 'started' }
   | { readonly kind: 'finished'; readonly failure: string | null };
 

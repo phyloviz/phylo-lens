@@ -10,8 +10,7 @@ import type { GraphViewportRequest } from '../../../contracts/graph/viewport/Gra
 import type { GraphViewportResult } from '../../../contracts/graph/viewport/GraphViewportResult';
 import type { PositionedGraph } from '../../../contracts/positioned';
 import type { GraphComponent } from '../../../contracts/graph/components';
-import type { RenderCameraState } from '../../../render/renderer.types';
-import type { GraphRenderer } from '../../../render/renderer.types';
+import type { GraphRenderer, RenderCameraState } from '../../../render/renderer.types';
 import {
   notifySnapshotApplied,
   type SnapshotApplicationReason,
@@ -56,6 +55,16 @@ export type ViewportRefreshOptions = {
   readonly fitToResponse?: boolean;
 };
 
+type SavedPanelState = {
+  readonly camera: RenderCameraState | null;
+  readonly folds: ManualBranches;
+  readonly keepExpanded: boolean;
+  readonly allExpanded: boolean;
+  readonly expansionLodLevel: number | undefined;
+  readonly viewLodLevel: number;
+  readonly expandedClusterIds: readonly ClusterId[];
+};
+
 export const VIEWPORT_INITIAL_FIT_DURATION_MS = 300;
 export const ERR_VIEWPORT_COORDINATOR_UNMOUNTED = 'Viewport sync was unmounted before the initial viewport loaded.';
 
@@ -80,19 +89,12 @@ export class GraphViewportCoordinator {
 
   // Inactive panels retain interaction state, not graph payloads or workers.
   private component: GraphComponent | null = null;
-  private switchingPanel = false;
-  private readonly panels = new Map<
-    string | null,
-    {
-      camera: RenderCameraState | null;
-      folds: ManualBranches;
-      keepExpanded: boolean;
-      allExpanded: boolean;
-      lodLevel: number | undefined;
-      viewLodLevel: number;
-      clusters: ClusterId[];
-    }
-  >();
+  private panelSwitchSequence: number | null = null;
+  private readonly panels = new Map<string | null, SavedPanelState>();
+
+  private get switchingPanel(): boolean {
+    return this.panelSwitchSequence !== null;
+  }
 
   // Current viewport
   private layoutVersion?: LayoutVersion | null;
@@ -219,51 +221,65 @@ export class GraphViewportCoordinator {
   }
 
   async selectComponent(component: GraphComponent | null): Promise<PositionedGraph> {
-    if (!this.mounted || !this.loadedInitialViewport || this.replacingLayout || this.manipulating)
+    const currentGraph = this.currentGraph;
+    const baseResponse = this.baseResponse;
+    if (
+      !this.mounted ||
+      !this.loadedInitialViewport ||
+      !currentGraph ||
+      !baseResponse ||
+      this.replacingLayout ||
+      this.manipulating
+    ) {
       throw new Error('Load a tree and finish the current interaction before changing panels.');
-    if (!this.switchingPanel && component?.id === this.component?.id) return this.currentGraph!;
-    const previous = this.component;
+    }
+    if (!this.switchingPanel && component?.id === this.component?.id) return currentGraph;
+
+    const nextComponent = component && { ...component, bounds: { ...component.bounds } };
     if (!this.switchingPanel) {
-      this.panels.set(previous?.id ?? null, {
+      this.panels.set(this.component?.id ?? null, {
         camera: this.renderer.getCameraState?.() ?? null,
         folds: this.manualFolds,
         keepExpanded: this.keepExpanded,
         allExpanded: this.allExpanded,
-        lodLevel: this.expansionLodLevel,
-        viewLodLevel: this.baseResponse?.lodLevel ?? 0,
-        clusters: [...this.expandedPatches.keys()],
+        expansionLodLevel: this.expansionLodLevel,
+        viewLodLevel: baseResponse.lodLevel ?? 0,
+        expandedClusterIds: [...this.expandedPatches.keys()],
       });
     }
     const sequence = this.beginExpansion();
-    this.switchingPanel = true;
-    const saved = this.panels.get(component?.id ?? null);
+    this.panelSwitchSequence = sequence;
+    const saved = this.panels.get(nextComponent?.id ?? null);
+    const expandedClusterIds = saved?.expandedClusterIds ?? [];
+    const nodeCount = nextComponent?.nodeCount ?? this.preparedNodeCount;
+    const smallTree = nodeCount !== null && nodeCount <= this.smallTreeThreshold;
+    const initialLodLevel = smallTree ? this.lodTierCount - 1 : 0;
     const request: GraphViewportRequest = {
       datasetId: this.datasetId,
       layoutVersion: this.layoutVersion,
-      componentId: component?.id,
-      lodLevel:
-        saved?.viewLodLevel ??
-        ((component?.nodeCount ?? this.preparedNodeCount ?? Infinity) <= this.smallTreeThreshold
-          ? this.lodTierCount - 1
-          : 0),
+      componentId: nextComponent?.id,
+      lodLevel: saved?.viewLodLevel ?? initialLodLevel,
       ...(this.maxNodes === undefined ? {} : { maxNodes: this.maxNodes }),
     };
     try {
-      const [response, ...patches] = await Promise.all([
+      const [response, patches] = await Promise.all([
         this.client.readViewport(request),
-        ...(saved?.clusters ?? []).map(id =>
-          this.readCluster(id, undefined, this.layoutVersion, component?.id ?? null)
+        Promise.all(
+          expandedClusterIds.map(async clusterId => ({
+            clusterId,
+            response: await this.readCluster(clusterId, undefined, this.layoutVersion, nextComponent?.id ?? null),
+          }))
         ),
       ]);
       if (!this.isCurrentRequest(sequence)) throw new Error('Tree panel selection was superseded.');
-      this.component = component ? { ...component, bounds: { ...component.bounds } } : null;
+      this.component = nextComponent;
       this.manualFolds = saved?.folds ?? new ManualBranches();
       this.keepExpanded = saved?.keepExpanded ?? false;
       this.allExpanded = saved?.allExpanded ?? false;
-      this.expansionLodLevel = saved?.lodLevel;
+      this.expansionLodLevel = saved?.expansionLodLevel;
       this.priorityNodeId = null;
       this.expandedPatches.clear();
-      patches.forEach((patch, i) => this.expandedPatches.set(saved!.clusters[i], patch));
+      for (const patch of patches) this.expandedPatches.set(patch.clusterId, patch.response);
       this.baseResponse = response;
       this.lastViewportRequest = request;
       this.lastRequestedLodLevel = request.lodLevel;
@@ -274,17 +290,16 @@ export class GraphViewportCoordinator {
       this.applyGraph(graph, 'viewport_sync');
       if (saved?.camera) this.renderer.restoreCameraState?.(saved.camera);
       else this.cancelFit = this.renderer.fitGraphSnapshot?.(graph) ?? null;
-      this.onGraphApplied?.(graph, response);
-      this.switchingPanel = false;
+      this.panelSwitchSequence = null;
       this.suppressCameraRefreshUntil = Date.now() + VIEWPORT_INITIAL_FIT_DURATION_MS;
-      this.scheduleViewportRefreshForCamera();
+      this.onGraphApplied?.(graph, response);
+      if (this.isCurrentRequest(sequence)) this.scheduleViewportRefreshForCamera();
       return graph;
-    } catch (error) {
-      if (this.isCurrentRequest(sequence)) {
-        this.component = previous;
-        this.switchingPanel = false;
-      }
-      throw error;
+    } finally {
+      // Manipulation can supersede this request without starting another switch.
+      // Only its owner may release the pending state; an older response must not
+      // unlock a newer panel request.
+      if (this.panelSwitchSequence === sequence) this.panelSwitchSequence = null;
     }
   }
 
@@ -430,7 +445,7 @@ export class GraphViewportCoordinator {
     if (focusNodeId) {
       const target = response.nodes.find(node => node.id === focusNodeId && !node.isRepresentative);
       if (!target) throw new Error('The requested profile is unavailable in this cluster.');
-      if (target?.treeIndex) this.manualFolds.reveal(target.treeIndex);
+      if (target.treeIndex) this.manualFolds.reveal(target.treeIndex);
       this.priorityNodeId = focusNodeId;
     }
     this.expandedPatches.set(clusterId, response);

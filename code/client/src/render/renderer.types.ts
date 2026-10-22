@@ -169,9 +169,9 @@ export interface RendererFactory {
   createRenderer(type: RendererType): GraphRenderer;
 }
 
-export interface RenderCameraState {
+export type RenderCameraState = {
   readonly x?: number;
   readonly y?: number;
   readonly ratio?: number;
   readonly angle?: number;
-}
+};

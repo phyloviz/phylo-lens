@@ -14,7 +14,6 @@ export type ArrangementControlsElements = {
 
 type ArrangementWorkbench = Pick<
   GraphWorkbench,
-  | 'isMotionEnabled'
   | 'setMotionEnabled'
   | 'setInteractionFeedbackHandler'
   | 'setDragSelection'
@@ -52,12 +51,15 @@ export default function createArrangementControls(
     if (motionInput) motionInput.checked = state.automatic;
     if (elements.relaxLayoutButton) elements.relaxLayoutButton.disabled = !ready || state.running;
     if (elements.stopLayoutButton) elements.stopLayoutButton.disabled = !state.running && !state.automatic;
-    if (elements.layoutMotionStatus)
-      elements.layoutMotionStatus.textContent = state.running
-        ? 'Relaxing the loaded view…'
-        : state.automatic
-          ? 'Automatic relaxation enabled. Settled positions are retained.'
-          : 'Manual layout. Zoom preserves positions; use Relax layout when needed.';
+    const status = elements.layoutMotionStatus;
+    if (!status) return;
+    if (state.running) {
+      status.textContent = 'Relaxing the loaded view…';
+    } else if (state.automatic) {
+      status.textContent = 'Automatic relaxation enabled. Settled positions are retained.';
+    } else {
+      status.textContent = 'Manual layout. Zoom preserves positions; use Relax layout when needed.';
+    }
   }
 
   function mount(): void {
@@ -72,10 +74,9 @@ export default function createArrangementControls(
       refresh();
     });
     if (motionInput) {
-      motionInput.checked = workbench.isMotionEnabled?.() ?? false;
       bindings.on(motionInput, 'change', () => workbench.setMotionEnabled(motionInput.checked));
     }
-    workbench.setInteractionFeedbackHandler?.(message => {
+    workbench.setInteractionFeedbackHandler(message => {
       if (dragStatus) dragStatus.textContent = message;
     });
     bindings.on(branchRootButton, 'click', () => {
@@ -107,7 +108,7 @@ export default function createArrangementControls(
 
   function unmount(): void {
     bindings.clear();
-    workbench.setInteractionFeedbackHandler?.(null);
+    workbench.setInteractionFeedbackHandler(null);
     workbench.setLayoutMotionHandler(null);
   }
 }

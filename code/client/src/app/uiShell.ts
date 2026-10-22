@@ -178,7 +178,9 @@ export default function createUiShell(options: UiShellOptions): UiShell {
     ancillary.mount();
     display.mount();
     pngExport.mount();
-    bindings.on(automaticDetailInput, 'change', () => handleLodPlaybackChange(!automaticDetailInput!.checked));
+    if (automaticDetailInput) {
+      bindings.on(automaticDetailInput, 'change', () => handleLodPlaybackChange(!automaticDetailInput.checked));
+    }
     bindings.on(searchInput, 'input', search.reset);
     bindings.on(searchInput, 'keydown', event => {
       if (event.key !== 'Enter' || event.isComposing) return;

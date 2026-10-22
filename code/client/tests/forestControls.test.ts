@@ -33,6 +33,13 @@ it('pages tree tabs and restores controls after a failed switch', async () => {
   expect(client.listComponents).toHaveBeenLastCalledWith({ after: 5 });
   const overview = root.querySelector<HTMLButtonElement>('[role="tab"]')!;
   overview.focus();
+  overview.dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true }));
+  expect(document.activeElement?.textContent).toContain('Tree 2');
+  document.activeElement!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }));
+  expect(document.activeElement).toBe(overview);
+  const unrelated = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
+  overview.dispatchEvent(unrelated);
+  expect(unrelated.defaultPrevented).toBe(false);
   overview.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
   expect(document.activeElement?.textContent).toContain('Tree 1');
   (document.activeElement as HTMLButtonElement).click();

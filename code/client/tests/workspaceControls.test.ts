@@ -30,6 +30,14 @@ it('supports keyboard task navigation and preserves data input and per-task scro
   expect(drawer.scrollTop).toBe(80);
   data.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', cancelable: true }));
   expect(document.activeElement).toBe(appearance);
+  appearance.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', cancelable: true }));
+  expect(document.activeElement).toBe(explore);
+  explore.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', cancelable: true }));
+  expect(document.activeElement).toBe(data);
+  const unrelated = new KeyboardEvent('keydown', { key: 'Tab', cancelable: true });
+  data.dispatchEvent(unrelated);
+  expect(unrelated.defaultPrevented).toBe(false);
+  expect(document.activeElement).toBe(data);
   expect(document.querySelectorAll('.workspace-tabs [tabindex="0"]')).toHaveLength(1);
   data.click();
   expect(input.value).toBe('my analysis');
