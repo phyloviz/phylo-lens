@@ -1,12 +1,14 @@
-import type { GraphComponentsRequest, GraphComponentsResult } from '../../contracts/graph/components';
+import type { GraphComponent, GraphComponentsRequest, GraphComponentsResult } from '../../contracts/graph/components';
 import type { HttpClient } from '../httpClient';
 import { isRecord, isString, isFiniteNumber } from '../../validation/guards';
+import { GRAPH_ROUTES } from './graphRoutes';
+import { GRAPH_API_ERRORS } from './graphErrors';
 
 export async function readGraphComponents(
   http: HttpClient,
   request: GraphComponentsRequest
 ): Promise<GraphComponentsResult> {
-  const response: unknown = await http.post('/api/graph/components', {
+  const response: unknown = await http.post(GRAPH_ROUTES.components, {
     dataset_id: request.datasetId,
     layout_version: request.layoutVersion,
     after: request.after,
@@ -17,38 +19,47 @@ export async function readGraphComponents(
     response.dataset_id !== request.datasetId ||
     !isString(response.layout_version) ||
     (request.layoutVersion != null && response.layout_version !== request.layoutVersion) ||
-    !Array.isArray(response.components) ||
-    !(
-      response.next_cursor === null ||
-      (isFiniteNumber(response.next_cursor) &&
-        Number.isSafeInteger(response.next_cursor) &&
-        response.next_cursor >= 0 &&
-        (request.after === undefined || response.next_cursor > request.after))
-    )
+    !Array.isArray(response.components)
   ) {
-    throw new Error('Invalid forest component response.');
+    throw new Error(GRAPH_API_ERRORS.invalidComponentsResponse);
   }
-  const components = response.components.map((value: unknown) => {
-    if (
-      !isRecord(value) ||
-      !isString(value.component_id) ||
-      !value.component_id ||
-      !isFiniteNumber(value.node_count) ||
-      !Number.isSafeInteger(value.node_count) ||
-      value.node_count < 1 ||
-      !isFiniteNumber(value.min_x) ||
-      !isFiniteNumber(value.max_x) ||
-      !isFiniteNumber(value.min_y) ||
-      !isFiniteNumber(value.max_y) ||
-      value.min_x > value.max_x ||
-      value.min_y > value.max_y
-    )
-      throw new Error('Invalid forest component response.');
-    return {
-      id: value.component_id,
-      nodeCount: value.node_count,
-      bounds: { minX: value.min_x, maxX: value.max_x, minY: value.min_y, maxY: value.max_y },
-    };
-  });
-  return { components, nextCursor: response.next_cursor };
+  return {
+    components: response.components.map(parseComponent),
+    nextCursor: parseNextCursor(response.next_cursor, request.after),
+  };
+}
+
+function parseNextCursor(value: unknown, after?: number): number | null {
+  if (value === null) return null;
+  if (!isFiniteNumber(value) || !Number.isSafeInteger(value) || value < 0) {
+    throw new Error(GRAPH_API_ERRORS.invalidComponentsResponse);
+  }
+  if (after !== undefined && value <= after) {
+    throw new Error(GRAPH_API_ERRORS.invalidComponentsResponse);
+  }
+  return value;
+}
+
+function parseComponent(value: unknown): GraphComponent {
+  if (
+    !isRecord(value) ||
+    !isString(value.component_id) ||
+    !value.component_id ||
+    !isFiniteNumber(value.node_count) ||
+    !Number.isSafeInteger(value.node_count) ||
+    value.node_count < 1 ||
+    !isFiniteNumber(value.min_x) ||
+    !isFiniteNumber(value.max_x) ||
+    !isFiniteNumber(value.min_y) ||
+    !isFiniteNumber(value.max_y) ||
+    value.min_x > value.max_x ||
+    value.min_y > value.max_y
+  ) {
+    throw new Error(GRAPH_API_ERRORS.invalidComponentsResponse);
+  }
+  return {
+    id: value.component_id,
+    nodeCount: value.node_count,
+    bounds: { minX: value.min_x, maxX: value.max_x, minY: value.min_y, maxY: value.max_y },
+  };
 }

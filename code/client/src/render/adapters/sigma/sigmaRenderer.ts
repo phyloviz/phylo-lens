@@ -200,10 +200,7 @@ export default function createSigmaRenderer(options: SigmaRendererOptions = {}) 
   return {
     kind: RendererType.Sigma,
     relaxLayout: () => forceMotionController.relax(),
-    stopLayout: () => {
-      sigmaGraph?.forEachNode((id, attributes) => displayPositions.arrange(id, { x: attributes.x, y: attributes.y }));
-      setMotionEnabled(false);
-    },
+    stopLayout: () => setMotionEnabled(false),
     getLayoutMotionState,
     setLayoutMotionHandler: (handler: ((state: LayoutMotionState) => void) | null) => {
       motionHandler = handler;

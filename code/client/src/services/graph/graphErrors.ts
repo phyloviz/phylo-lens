@@ -18,4 +18,6 @@ export const GRAPH_API_ERRORS = {
   invalidPrepareRequest: 'Invalid graph prepare request contract.',
 
   invalidAncillaryResponse: 'Invalid graph ancillary response contract.',
+
+  invalidComponentsResponse: 'Invalid forest component response.',
 } as const;

@@ -122,7 +122,7 @@ export class DisplayPositions {
       let inherited = existing?.inherited ?? zero();
       let display = existing?.display ?? node;
 
-      if (!previous.has(node.id) && parent && proxyId !== node.id && previous.has(proxyId!)) {
+      if (!previous.has(node.id) && parent && proxyId !== undefined && proxyId !== node.id && previous.has(proxyId)) {
         const shift = offset(parent);
         const residual = existing ? offset(existing) : zero();
 
@@ -178,8 +178,7 @@ export class DisplayPositions {
     this.visible = new Set(graph.nodes.map(n => n.id));
     // Keep edits for this dataset session. Only unedited off-screen cache entries
     // are expendable; changing detail or panels must never discard arranged nodes.
-    for (const id of this.entries.keys()) {
-      const entry = this.entries.get(id)!;
+    for (const [id, entry] of this.entries) {
       const edited = Math.hypot(entry.display.x - entry.server.x, entry.display.y - entry.server.y) > 1e-9;
       if (!this.visible.has(id) && !edited && this.entries.size > DisplayPositions.HISTORY_LIMIT)
         this.entries.delete(id);

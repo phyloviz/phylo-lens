@@ -6,4 +6,5 @@ export const GRAPH_ROUTES = {
   region: '/api/graph/region',
   search: '/api/graph/search',
   ancillary: '/api/graph/ancillary',
+  components: '/api/graph/components',
 } as const;
