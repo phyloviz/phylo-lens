@@ -15,6 +15,7 @@ from phylo_lens_server.domain.revisions import AncillaryReplacement, AncillarySo
 from phylo_lens_server.domain.search import SearchReadResult
 from phylo_lens_server.domain.views import (
     LayoutStatus,
+    NodeAnnotationKey,
     RegionReadResult,
     ViewportReadResult,
 )
@@ -86,6 +87,7 @@ class LayoutRepository(Protocol):
         cluster_id: str | None = None,
         focus_node_id: str | None = None,
         component_id: str | None = None,
+        known_annotations: frozenset[NodeAnnotationKey] = frozenset(),
     ) -> ViewportReadResult: ...
     def clear_layout_version(self, dataset_id: str, layout_version: str) -> None: ...
     def save_artifacts(

@@ -1,4 +1,5 @@
 import sqlite3
+from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -8,6 +9,7 @@ from phylo_lens_server.http.graph.schemas import NormalizeRequest
 from phylo_lens_server.main import create_app
 from phylo_lens_server.pipeline import layout
 from phylo_lens_server.pipeline.ingestion import ingest_dataset
+from phylo_lens_server.repository.layout import metadata_reader
 from phylo_lens_server.repository.layout.components import component_source
 from phylo_lens_server.repository.layout.sqlite_layout_repository import (
     SQLiteLayoutRepository,
@@ -248,3 +250,70 @@ def test_coarse_clusters_and_adaptive_counts_remain_in_one_component(
         assert any("prepared_clusters_representative_idx" in row[3] for row in plan), (
             plan
         )
+
+
+def test_viewport_reuses_only_known_annotations_without_loading_them_again(forest):
+    client, _, base = forest
+    first = client.post("/api/graph/viewport", json=base).json()
+    keys = [
+        {
+            "node_id": node["id"],
+            "cluster_id": node["cluster_id"],
+            "is_representative": node["is_representative"],
+        }
+        for node in first["nodes"]
+    ]
+    with patch.object(
+        metadata_reader,
+        "load_cluster_distributions",
+        side_effect=AssertionError("Annotations loaded twice"),
+    ):
+        repeated = client.post(
+            "/api/graph/viewport", json={**base, "known_annotations": keys}
+        ).json()
+    for original, cached in zip(first["nodes"], repeated["nodes"], strict=True):
+        assert cached.pop("annotations_cached") is True
+        assert not cached["ancillary_distribution"]
+        assert not cached["isolates"]
+        assert "metadata" not in cached and "tree_index" not in cached
+        for field in ("metadata", "tree_index", "isolates", "ancillary_distribution"):
+            if field in original:
+                cached[field] = original[field]
+        assert cached == original
+    assert repeated["edges"] == first["edges"]
+    wrong_identity = {**keys[0], "is_representative": not keys[0]["is_representative"]}
+    fresh = client.post(
+        "/api/graph/viewport", json={**base, "known_annotations": [wrong_identity]}
+    ).json()
+    assert all("annotations_cached" not in node for node in fresh["nodes"])
+    unpinned = {"dataset_id": base["dataset_id"], "known_annotations": keys}
+    assert client.post("/api/graph/viewport", json=unpinned).status_code == 422
+
+
+def test_compressed_viewport_preserves_annotation_values_and_counts(forest):
+    client, _, base = forest
+    revision = client.put(
+        "/api/graph/ancillary",
+        json={
+            **base,
+            "ancillary_data": {
+                "content": "id,country\na," + "Portugal" * 1000 + "\nb,Spain\n",
+                "join_column": "id",
+            },
+        },
+    )
+    assert revision.status_code == 200, revision.text
+    query = {**base, "layout_version": revision.json()["layout_version"]}
+    plain = client.post(
+        "/api/graph/viewport", json=query, headers={"Accept-Encoding": "identity"}
+    )
+    compressed = client.post(
+        "/api/graph/viewport", json=query, headers={"Accept-Encoding": "gzip"}
+    )
+    assert compressed.headers["Content-Encoding"] == "gzip"
+    assert int(compressed.headers["Content-Length"]) < len(plain.content) / 5
+    assert compressed.json() == plain.json()
+    assert any(
+        node.get("metadata", {}).get("country") == "Portugal" * 1000
+        for node in plain.json()["nodes"]
+    )

@@ -107,6 +107,7 @@ def node_response(node: ViewportNode) -> GraphViewportNode:
         else None,
         isolates=[GraphIsolate.model_validate(isolate) for isolate in node.isolates],
         ancillary_distribution=list(node.ancillary_distribution),
+        annotations_cached=True if node.annotations_cached else None,
     )
 
 

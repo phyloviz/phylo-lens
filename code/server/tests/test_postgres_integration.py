@@ -9,6 +9,7 @@ import pytest
 from phylo_lens_server.database import postgres
 from phylo_lens_server.domain.identity import layout_version_for_dataset
 from phylo_lens_server.domain.preparation import PreparationSummary
+from phylo_lens_server.domain.views import NodeAnnotationKey
 from phylo_lens_server.http.graph.schemas import NormalizeRequest
 from phylo_lens_server.jobs.durable import DurablePrepareJobRegistry
 from phylo_lens_server.pipeline import layout
@@ -81,6 +82,26 @@ def test_postgres_preparation_reads_and_transactional_replacement(stores, monkey
             **base, xmin=None, xmax=None, ymin=None, ymax=None, lod_level=level
         )
         ids = {node.node_id for node in view.nodes}
+        cached = store.read_viewport(
+            **base,
+            xmin=None,
+            xmax=None,
+            ymin=None,
+            ymax=None,
+            lod_level=level,
+            known_annotations=frozenset(
+                NodeAnnotationKey(node.node_id, node.cluster_id, node.is_representative)
+                for node in view.nodes
+            ),
+        )
+        assert cached.edges == view.edges
+        assert [node.node_id for node in cached.nodes] == [
+            node.node_id for node in view.nodes
+        ]
+        assert all(
+            node.annotations_cached and not node.ancillary_distribution
+            for node in cached.nodes
+        )
         assert all(edge.source in ids and edge.target in ids for edge in view.edges)
         assert (
             len(view.nodes)

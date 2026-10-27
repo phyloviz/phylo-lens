@@ -15,6 +15,7 @@ from phylo_lens_server.domain.preparation import (
 from phylo_lens_server.domain.search import SearchReadResult
 from phylo_lens_server.domain.views import (
     LayoutStatus,
+    NodeAnnotationKey,
     RegionReadResult,
     ViewportReadResult,
 )
@@ -203,6 +204,7 @@ class PostgresLayoutRepository:
         cluster_id: str | None = None,
         focus_node_id: str | None = None,
         component_id: str | None = None,
+        known_annotations: frozenset[NodeAnnotationKey] = frozenset(),
     ) -> ViewportReadResult:
         with self._connect() as connection:
             return viewport_reader.read_viewport(
@@ -218,6 +220,7 @@ class PostgresLayoutRepository:
                 lod_level=lod_level,
                 cluster_id=cluster_id,
                 focus_node_id=focus_node_id,
+                known_annotations=known_annotations,
             )
 
     def read_region(

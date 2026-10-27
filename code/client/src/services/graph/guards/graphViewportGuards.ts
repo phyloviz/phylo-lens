@@ -42,6 +42,7 @@ export function isGraphViewportNodeDto(value: unknown): value is GraphViewportNo
     isGraphLayoutStatus(value.layout_status) &&
     isFiniteNumber(value.member_count) &&
     isBoolean(value.is_representative) &&
+    isOptionalBoolean(value.annotations_cached) &&
     (value.tree_index == null || isTreeIndexDto(value.tree_index)) &&
     (value.metadata == null || isAncillaryData(value.metadata)) &&
     (value.ancillary_distribution === undefined ||

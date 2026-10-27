@@ -13,6 +13,13 @@ LayoutStatus = Literal["pending", "refining", "ready", "degraded", "failed"]
 
 
 @dataclass(frozen=True)
+class NodeAnnotationKey:
+    node_id: str
+    cluster_id: str
+    is_representative: bool
+
+
+@dataclass(frozen=True)
 class LayoutBounds:
     min_x: float
     max_x: float
@@ -33,6 +40,7 @@ class ViewportNode:
     isolates: tuple[Isolate, ...] = ()
     ancillary_distribution: tuple[AncillaryObservation, ...] = ()
     tree_index: TreeInterval | None = None
+    annotations_cached: bool = False
 
     def __post_init__(self) -> None:
         if self.metadata is not None:
@@ -126,6 +134,7 @@ class ViewportQuery:
     lod_target_representations: int | None = None
     lod_selection_bounds: ViewportBounds | None = None
     previous_lod_level: int | None = None
+    known_annotations: frozenset[NodeAnnotationKey] = frozenset()
 
 
 """Choose among existing structural tiers; never discard representations."""

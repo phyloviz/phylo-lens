@@ -80,6 +80,83 @@ function makeJsonResponse(payload: unknown, status = 200): Response {
 }
 
 describe('graphClient', () => {
+  it('reuses full annotations and tree intervals while accepting fresh geometry and forwarding cancellation', async () => {
+    const full = {
+      ...VIEWPORT_FIXTURE,
+      nodes: [
+        {
+          ...VIEWPORT_FIXTURE.nodes[0],
+          metadata: { country: 'PT', profile_count: 4 },
+          ancillary_distribution: [
+            { values: { country: 'PT', year: 2020 }, count: 3 },
+            { values: { country: 'ES', year: 2021 }, count: 1 },
+          ],
+          tree_index: { component_id: 'cluster_1', parent_id: null, depth: 0, start: 0, end: 4 },
+        },
+      ],
+    };
+    const referenced = {
+      ...VIEWPORT_FIXTURE,
+      nodes: [{ ...VIEWPORT_FIXTURE.nodes[0], x: 42, annotations_cached: true }],
+    };
+    const fetchImpl = vi.fn<typeof fetch>(async (): Promise<Response> =>
+      makeJsonResponse(fetchImpl.mock.calls.length === 1 ? full : referenced)
+    );
+    const client = createGraphClient({ baseUrl: BASE_URL, fetchImpl });
+    const request = { datasetId: toDatasetId('tree'), layoutVersion: toLayoutVersion('abc123') };
+    const first = await client.readViewport(request);
+    const controller = new AbortController();
+    const next = await client.readViewport(request, { annotationsFrom: first, signal: controller.signal });
+    expect(next.nodes[0]).toEqual({ ...first.nodes[0], x: 42 });
+    expect(next.nodes[0]?.ancillaryDistribution).toBe(first.nodes[0]?.ancillaryDistribution);
+    expect(fetchImpl.mock.calls[1]?.[1]?.signal).toBe(controller.signal);
+    expect(JSON.parse(String(fetchImpl.mock.calls[1]?.[1]?.body)).known_annotations).toEqual([
+      { node_id: 'cluster_1', cluster_id: 'cluster_1', is_representative: true },
+    ]);
+  });
+
+  it('never offers annotations from another dataset, revision or an unpinned request', async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async (): Promise<Response> => makeJsonResponse(VIEWPORT_FIXTURE));
+    const client = createGraphClient({ baseUrl: BASE_URL, fetchImpl });
+    const first = await client.readViewport({ datasetId: toDatasetId('tree') });
+    for (const request of [
+      { datasetId: toDatasetId('tree') },
+      { datasetId: toDatasetId('other'), layoutVersion: toLayoutVersion('abc123') },
+      { datasetId: toDatasetId('tree'), layoutVersion: toLayoutVersion('new-revision') },
+    ]) {
+      await client.readViewport(request, { annotationsFrom: first });
+      expect(JSON.parse(String(fetchImpl.mock.lastCall?.[1]?.body)).known_annotations).toBeUndefined();
+    }
+    // Older services may ignore the reuse hint and return complete annotations.
+    const full = await client.readViewport(
+      { datasetId: toDatasetId('tree'), layoutVersion: toLayoutVersion('abc123') },
+      { annotationsFrom: first }
+    );
+    expect(full).toEqual(first);
+  });
+
+  it.each([{ id: 'another-node' }, { cluster_id: 'another-tier' }, { is_representative: false }])(
+    'rejects annotation references for a different identity: %j',
+    async change => {
+      const fetchImpl = vi.fn(async () =>
+        makeJsonResponse(
+          fetchImpl.mock.calls.length === 1
+            ? VIEWPORT_FIXTURE
+            : {
+                ...VIEWPORT_FIXTURE,
+                nodes: [{ ...VIEWPORT_FIXTURE.nodes[0], ...change, annotations_cached: true }],
+              }
+        )
+      );
+      const client = createGraphClient({ baseUrl: BASE_URL, fetchImpl });
+      const request = { datasetId: toDatasetId('tree'), layoutVersion: toLayoutVersion('abc123') };
+      const first = await client.readViewport(request);
+      await expect(client.readViewport(request, { annotationsFrom: first })).rejects.toThrow(
+        GRAPH_API_ERRORS.invalidViewportResponse
+      );
+    }
+  );
+
   it('normalizes trailing slashes before constructing service and graph URLs', async () => {
     const responses = [
       makeJsonResponse(SERVICE_INFO_FIXTURE),

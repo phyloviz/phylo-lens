@@ -318,6 +318,23 @@ bounds.
 | `lod_target_representations` | positive integer or null | no | `null` | Optional viewport complexity target for tier selection; never limits retrieval |
 | `lod_selection_bounds` | object `{xmin,xmax,ymin,ymax}` or null | no | request bounds | Ordered finite visible bounds used for selection, separately from padded retrieval bounds |
 | `previous_lod_level` | integer ≥ 0 or null | no | `null` | Previous effective tier for 15% density hysteresis against its zoom-adjusted target |
+| `known_annotations` | object array | no | `[]` | Annotation identities retained by the caller for this exact dataset and explicit layout version |
+
+Each `known_annotations` entry contains `node_id`, `cluster_id`, and
+`is_representative`. Reuse requires an explicit `layout_version`; an unpinned
+request with annotation hints returns `422`. A matching returned node has
+`annotations_cached: true` and omits its static metadata and tree interval;
+`isolates` and `ancillary_distribution` are empty. Restore those four fields from
+the matching retained node before consuming the response. Coordinates, membership
+counts and edges always come from the new response. Without a matching hint the
+service returns complete annotations, preserving API v1 behavior for other clients.
+
+The browser borrows only its current viewport's annotations. It does not retain
+an accumulating dataset-wide cache, and never reuses across ancillary revisions,
+datasets or different node/cluster/representative identities. Obsolete automatic
+viewport reads are aborted when camera input, dragging, expansion, replacement or
+unmount supersedes them; request sequence checks still guard hosts that ignore
+abort signals. Clients accepting gzip receive losslessly compressed JSON.
 
 When `lod_level` is omitted, the service uses a minimal fallback rule:
 `zoom < 1.0` selects tier `0`; otherwise the finest path is requested. The

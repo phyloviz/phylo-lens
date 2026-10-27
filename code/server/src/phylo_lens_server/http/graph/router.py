@@ -15,7 +15,12 @@ from phylo_lens_server.domain.revisions import (
     AncillaryUpdate,
 )
 from phylo_lens_server.domain.search import SearchQuery
-from phylo_lens_server.domain.views import RegionQuery, ViewportBounds, ViewportQuery
+from phylo_lens_server.domain.views import (
+    NodeAnnotationKey,
+    RegionQuery,
+    ViewportBounds,
+    ViewportQuery,
+)
 from phylo_lens_server.http.errors import (
     domain_validation_error_to_http,
     not_found_error,
@@ -149,7 +154,10 @@ def read_graph_viewport(
         read_started = perf_counter()
         bounds = query.lod_selection_bounds
         internal_query = ViewportQuery(
-            **query.model_dump(exclude={"lod_selection_bounds"}),
+            **query.model_dump(exclude={"lod_selection_bounds", "known_annotations"}),
+            known_annotations=frozenset(
+                NodeAnnotationKey(**key.model_dump()) for key in query.known_annotations
+            ),
             lod_selection_bounds=ViewportBounds(**bounds.model_dump())
             if bounds
             else None,

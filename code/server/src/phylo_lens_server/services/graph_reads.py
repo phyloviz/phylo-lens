@@ -60,6 +60,11 @@ def read_graph_viewport(
         lod_level=lod_level,
         cluster_id=query.cluster_id,
         focus_node_id=query.focus_node_id,
+        **(
+            {"known_annotations": query.known_annotations}
+            if query.known_annotations and query.layout_version
+            else {}
+        ),
     )
     return replace(result, lod_level=lod_level, zoom=query.zoom)
 
