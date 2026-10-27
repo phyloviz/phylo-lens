@@ -178,7 +178,8 @@ describe('GraphViewportCoordinator', () => {
     expect(folded.nodes.find(node => node.id === 'a-branch')?.attributes).toMatchObject({
       isBranchCollapsed: true,
       isClusterProxy: undefined,
-      type: 'border',
+      type: 'triangle',
+      color: '#7c3aed',
       collapsedBranchCount: 1,
     });
     renderer.emitViewChange();
@@ -289,6 +290,50 @@ describe('GraphViewportCoordinator', () => {
     expect(controller.getExpansionState().expandedClusterIds).toEqual(['group']);
     controller.expandBranch(inner.id);
     expect(renderer.appliedGraphs.at(-1)?.nodes.map(n => n.id)).toEqual(['branch', 'inner', 'leaf']);
+    expect(readViewport).toHaveBeenCalledTimes(2);
+    controller.unmount();
+  });
+
+  it('restores the original LoD representative and its edges when a group is collapsed', async () => {
+    const renderer = createRenderer();
+    const [template] = viewportResponse().nodes;
+    const root = {
+      ...template,
+      id: toNodeId('branch'),
+      clusterId: toClusterId('group'),
+      treeIndex: { componentId: 'root', parentId: 'root', depth: 1, start: 1, end: 3 },
+    };
+    const leaf = {
+      ...root,
+      id: toNodeId('leaf'),
+      treeIndex: { ...root.treeIndex, parentId: 'branch', depth: 2, start: 2, end: 3 },
+    };
+    const outside = { ...template, id: toNodeId('outside'), clusterId: toClusterId('outside') };
+    const boundary = { id: toNodeId('boundary'), source: outside.id, target: root.id, distance: 4 };
+    const base = viewportResponse({
+      nodes: [outside, { ...root, isRepresentative: true, memberCount: 2 }],
+      edges: [{ ...boundary, isMeta: true }],
+    });
+    const patch = viewportResponse({
+      nodes: [outside, root, leaf],
+      edges: [boundary, { id: toNodeId('inside'), source: root.id, target: leaf.id, distance: 2 }],
+      totalNodeCount: 2,
+    });
+    const readViewport = vi.fn(async (request: GraphViewportRequest) => (request.clusterId ? patch : base));
+    const controller = new GraphViewportCoordinator({
+      datasetId: toDatasetId('tree'),
+      client: { readViewport },
+      renderer,
+    });
+    controller.mount();
+    await vi.advanceTimersByTimeAsync(0);
+    const original = renderer.appliedGraphs.at(-1)!;
+    await controller.expandCluster(toClusterId('group'));
+    expect(renderer.appliedGraphs.at(-1)?.nodes.map(node => node.id)).toEqual(['outside', 'branch', 'leaf']);
+    controller.collapseCluster(toClusterId('group'));
+    expect(renderer.appliedGraphs.at(-1)).toEqual(original);
+    expect(controller.getExpansionState()).toMatchObject({ expandedClusterIds: [] });
+    expect(controller.getExpansionState().manuallyCollapsedBranchCount).toBeUndefined();
     expect(readViewport).toHaveBeenCalledTimes(2);
     controller.unmount();
   });

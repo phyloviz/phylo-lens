@@ -104,7 +104,11 @@ try {
   );
   assert.equal(
     await page.evaluate(() => window.requirementsSigma.getGraph().getNodeAttribute('branch', 'type')),
-    'border'
+    'triangle'
+  );
+  assert.equal(
+    await page.evaluate(() => window.requirementsSigma.getGraph().getNodeAttribute('branch', 'color')),
+    '#7c3aed'
   );
   assert.equal(
     await page.evaluate(() => window.requirementsSigma.getGraph().getNodeAttribute('branch', 'label')),
@@ -483,7 +487,36 @@ try {
   await page.locator('#expand-selected').click();
   await page.waitForFunction(() => window.requirementsSigma.getGraph().order > 1);
   assert.ok((await page.evaluate(() => window.requirementsSigma.getGraph().order)) < total);
+  await page.waitForTimeout(600);
+  const group = await page.evaluate(() => {
+    const graph = window.requirementsSigma.getGraph();
+    const id = graph.findNode((_id, attributes) => attributes.isClusterProxy === true);
+    return id ? { id, clusterId: graph.getNodeAttribute(id, 'clusterId'), count: graph.order } : null;
+  });
+  assert.ok(group, 'The streamed view must contain an expandable LoD group.');
+  await clickNode(group.id);
+  assert.equal(await page.locator('#expand-selected').textContent(), 'Expand group');
+  await page.locator('#expand-selected').click();
+  await page.waitForFunction(count => window.requirementsSigma.getGraph().order > count, group.count);
+  await page.waitForTimeout(500);
+  const member = await page.evaluate(
+    clusterId =>
+      window.requirementsSigma
+        .getGraph()
+        .findNode((_id, attributes) => attributes.clusterId === clusterId && attributes.canCollapseBranch === true),
+    group.clusterId
+  );
+  assert.ok(member, 'The expanded group must contain an internal member.');
+  await clickNode(member);
+  assert.equal(await page.locator('#collapse-selected').textContent(), 'Collapse group');
+  await page.locator('#collapse-selected').click();
+  await page.waitForFunction(({ id, count }) => {
+    const graph = window.requirementsSigma.getGraph();
+    return graph.order === count && graph.hasNode(id) && graph.getNodeAttribute(id, 'isClusterProxy') === true;
+  }, group);
+  assert.equal(await page.locator('#expansion-feedback').textContent(), '0 groups explicitly expanded.');
   assert.deepEqual(errors, []);
+  console.log('Expanded LoD group restores its representative without creating a manual branch fold.');
   console.log('Streamed collapse, configurable preparation, and live viewport refresh passed.');
   console.log(
     'Browser requirements passed: manual branches, display bounds, grayscale, palette lifecycle, node selection, and branch dragging.'
