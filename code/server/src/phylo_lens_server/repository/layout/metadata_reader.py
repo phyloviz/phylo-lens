@@ -72,6 +72,7 @@ def attach_node_metadata(
     layout_version: str,
     nodes: tuple[ViewportNode, ...],
     known_annotations: frozenset[NodeAnnotationKey] = frozenset(),
+    known_observations: frozenset[str] | None = None,
 ) -> tuple[ViewportNode, ...]:
     if not nodes:
         return nodes
@@ -90,6 +91,7 @@ def attach_node_metadata(
                     dataset_id=dataset_id,
                     layout_version=layout_version,
                     nodes=missing,
+                    known_observations=known_observations,
                 )
             )
             return tuple(
@@ -126,6 +128,7 @@ def attach_node_metadata(
         layout_version=layout_version,
         cluster_ids=cluster_ids,
         placeholder="?",
+        known_observations=known_observations,
     )
     predicate, parameters = connection.membership(
         "node_id", {node.node_id for node in nodes}

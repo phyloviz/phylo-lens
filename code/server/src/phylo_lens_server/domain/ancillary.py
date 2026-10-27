@@ -48,3 +48,5 @@ class AncillaryObservation(FrozenValue):
 
     values: ReadonlyAncillaryData = Field(default_factory=dict)
     count: PositiveCount
+    reference_id: str | None = None
+    values_cached: bool | None = None

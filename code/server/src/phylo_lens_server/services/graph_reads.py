@@ -61,6 +61,11 @@ def read_graph_viewport(
         cluster_id=query.cluster_id,
         focus_node_id=query.focus_node_id,
         **(
+            {"known_observations": query.known_observations}
+            if query.known_observations is not None and query.layout_version
+            else {}
+        ),
+        **(
             {"known_annotations": query.known_annotations}
             if query.known_annotations and query.layout_version
             else {}

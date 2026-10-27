@@ -8,10 +8,11 @@ import {
   isBoolean,
   isArrayOf,
   isOptionalBoolean,
+  isOptionalString,
 } from '../../../validation/guards';
 import { isGraphLayoutStatus, isOptionalGraphMetadataSchema } from './graphDataGuards';
 import type { GraphViewportNodeDto } from '../models/viewport/GraphViewportNodeDto';
-import type { AncillaryObservation } from '../../../contracts/ancillary';
+import type { AncillaryObservationDto } from '../models/viewport/GraphViewportNodeDto';
 import type { GraphIsolateDto } from '../models/viewport/GraphIsolateDto';
 import type { GraphViewportEdgeDto } from '../models/viewport/GraphViewportEdgeDto';
 
@@ -48,9 +49,11 @@ export function isGraphViewportNodeDto(value: unknown): value is GraphViewportNo
     (value.ancillary_distribution === undefined ||
       isArrayOf(
         value.ancillary_distribution,
-        (row): row is AncillaryObservation =>
+        (row): row is AncillaryObservationDto =>
           isRecord(row) &&
           isAncillaryData(row.values) &&
+          isOptionalString(row.reference_id) &&
+          isOptionalBoolean(row.values_cached) &&
           isFiniteNumber(row.count) &&
           Number.isSafeInteger(row.count) &&
           row.count > 0

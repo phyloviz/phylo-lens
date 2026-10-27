@@ -154,7 +154,16 @@ def read_graph_viewport(
         read_started = perf_counter()
         bounds = query.lod_selection_bounds
         internal_query = ViewportQuery(
-            **query.model_dump(exclude={"lod_selection_bounds", "known_annotations"}),
+            **query.model_dump(
+                exclude={
+                    "lod_selection_bounds",
+                    "known_annotations",
+                    "known_observations",
+                }
+            ),
+            known_observations=frozenset(query.known_observations)
+            if query.known_observations is not None
+            else None,
             known_annotations=frozenset(
                 NodeAnnotationKey(**key.model_dump()) for key in query.known_annotations
             ),

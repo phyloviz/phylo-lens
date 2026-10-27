@@ -135,6 +135,7 @@ class ViewportQuery:
     lod_selection_bounds: ViewportBounds | None = None
     previous_lod_level: int | None = None
     known_annotations: frozenset[NodeAnnotationKey] = frozenset()
+    known_observations: frozenset[str] | None = None
 
 
 """Choose among existing structural tiers; never discard representations."""

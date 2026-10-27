@@ -8,7 +8,7 @@ import { toGraphViewportRequestDto, toGraphViewportResult } from './mappers/grap
 import { isGraphViewportResponseDto } from './guards/graphViewportGuards';
 import { GRAPH_API_ERRORS } from './graphErrors';
 import type { GraphViewportReadOptions } from '../../contracts/graph/viewport/GraphViewportReadOptions';
-import { reusableAnnotations, restoreViewportAnnotations } from './viewportAnnotations';
+import { reusableAnnotations, reusableObservations, restoreViewportAnnotations } from './viewportAnnotations';
 
 export async function readGraphViewport(
   http: HttpClient,
@@ -16,7 +16,9 @@ export async function readGraphViewport(
   options: GraphViewportReadOptions = {}
 ): Promise<GraphViewportResult> {
   const known = reusableAnnotations(request, options.annotationsFrom);
+  const observations = reusableObservations(known);
   const dto = toGraphViewportRequestDto(request);
+  if (request.layoutVersion) dto.known_observations = [...observations.keys()];
   if (known.size) {
     dto.known_annotations = [...known.values()].map(node => ({
       node_id: node.id,
@@ -32,5 +34,5 @@ export async function readGraphViewport(
     throw new Error(GRAPH_API_ERRORS.invalidViewportResponse);
   }
 
-  return restoreViewportAnnotations(toGraphViewportResult(response), response, known, request);
+  return restoreViewportAnnotations(toGraphViewportResult(response), response, known, request, observations);
 }

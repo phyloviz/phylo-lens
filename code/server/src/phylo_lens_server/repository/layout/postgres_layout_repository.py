@@ -205,6 +205,7 @@ class PostgresLayoutRepository:
         focus_node_id: str | None = None,
         component_id: str | None = None,
         known_annotations: frozenset[NodeAnnotationKey] = frozenset(),
+        known_observations: frozenset[str] | None = None,
     ) -> ViewportReadResult:
         with self._connect() as connection:
             return viewport_reader.read_viewport(
@@ -221,6 +222,7 @@ class PostgresLayoutRepository:
                 cluster_id=cluster_id,
                 focus_node_id=focus_node_id,
                 known_annotations=known_annotations,
+                known_observations=known_observations,
             )
 
     def read_region(

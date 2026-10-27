@@ -66,6 +66,7 @@ def read_viewport(
     focus_node_id: str | None = None,
     component_id: str | None = None,
     known_annotations: frozenset[NodeAnnotationKey] = frozenset(),
+    known_observations: frozenset[str] | None = None,
 ) -> ViewportReadResult:
     nodes: tuple[ViewportNode, ...] = ()
     edges: tuple[ViewportEdge, ...] = ()
@@ -120,6 +121,7 @@ def read_viewport(
             layout_version=layout_version,
             nodes=tuple(nodes),
             known_annotations=known_annotations,
+            known_observations=known_observations,
         )
         return ViewportReadResult(
             dataset_id=dataset_id,
@@ -239,6 +241,7 @@ def read_viewport(
         layout_version=layout_version,
         nodes=nodes,
         known_annotations=known_annotations,
+        known_observations=known_observations,
     )
     metadata_schema = load_metadata_schema(
         connection,

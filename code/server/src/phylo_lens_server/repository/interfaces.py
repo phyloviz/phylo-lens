@@ -88,6 +88,7 @@ class LayoutRepository(Protocol):
         focus_node_id: str | None = None,
         component_id: str | None = None,
         known_annotations: frozenset[NodeAnnotationKey] = frozenset(),
+        known_observations: frozenset[str] | None = None,
     ) -> ViewportReadResult: ...
     def clear_layout_version(self, dataset_id: str, layout_version: str) -> None: ...
     def save_artifacts(

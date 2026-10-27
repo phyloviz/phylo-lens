@@ -20,5 +20,10 @@ export interface GraphViewportNodeDto {
   } | null;
   metadata?: AncillaryData | null;
   isolates?: GraphIsolateDto[];
-  ancillary_distribution?: AncillaryObservation[];
+  ancillary_distribution?: AncillaryObservationDto[];
 }
+
+export type AncillaryObservationDto = Omit<AncillaryObservation, 'referenceId'> & {
+  readonly reference_id?: string;
+  readonly values_cached?: boolean;
+};

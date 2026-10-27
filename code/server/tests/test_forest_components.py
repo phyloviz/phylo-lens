@@ -1,4 +1,6 @@
+import json
 import sqlite3
+from collections import Counter
 from unittest.mock import patch
 
 import pytest
@@ -317,3 +319,66 @@ def test_compressed_viewport_preserves_annotation_values_and_counts(forest):
         node.get("metadata", {}).get("country") == "Portugal" * 1000
         for node in plain.json()["nodes"]
     )
+
+
+def test_observation_values_reuse_across_tiers_preserves_joint_category_counts(forest):
+    from phylo_lens_server.domain.lod import LodOptions
+
+    client, store, _ = forest
+    dataset = ingest_dataset(
+        NormalizeRequest(
+            format="newick",
+            dataset_name="observation-reuse",
+            content="(((a:1,b:1)x:1,(c:1,d:1)y:1)z:1,e:1)root;",
+            metadata_schema=[
+                {"key": "country", "type": "string"},
+                {"key": "year", "type": "number"},
+            ],
+            metadata_by_node_id={
+                "a": {"country": "PT", "year": 2020},
+                "b": {"country": "PT", "year": 2021},
+                "c": {"country": "ES", "year": 2020},
+            },
+        ).to_domain()
+    ).dataset
+    prepared = PreparationService(store).prepare_dataset(
+        dataset, lod_options=LodOptions(small_component_threshold=0)
+    )
+    base = {
+        "dataset_id": dataset.dataset_id,
+        "layout_version": prepared.artifacts.layout_version,
+    }
+    levels = sorted({cluster.lod_level for cluster in prepared.artifacts.clusters})
+    assert len(levels) > 1
+    known = {}
+    reused_count = 0
+    for level in levels + list(reversed(levels)):
+        query = {**base, "lod_level": level}
+        original = client.post("/api/graph/viewport", json=query).json()
+        compact = client.post(
+            "/api/graph/viewport", json={**query, "known_observations": list(known)}
+        ).json()
+        assert compact["edges"] == original["edges"]
+        next_known = {}
+        for expected, node in zip(original["nodes"], compact["nodes"], strict=True):
+            assert node["id"] == expected["id"]
+            for observation in node["ancillary_distribution"]:
+                reference = observation["reference_id"]
+                if observation.get("values_cached"):
+                    reused_count += 1
+                    observation["values"] = known[reference]
+                next_known[reference] = observation["values"]
+
+            def histogram(observations):
+                counts = Counter()
+                for observation in observations:
+                    counts[json.dumps(observation["values"], sort_keys=True)] += (
+                        observation["count"]
+                    )
+                return counts
+
+            assert histogram(node["ancillary_distribution"]) == histogram(
+                expected["ancillary_distribution"]
+            )
+        known = next_known
+    assert reused_count > 0

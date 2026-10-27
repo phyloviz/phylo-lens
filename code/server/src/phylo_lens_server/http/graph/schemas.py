@@ -145,10 +145,13 @@ class GraphViewportQuery(BaseModel):
     lod_selection_bounds: GraphViewportBounds | None = None
     previous_lod_level: int | None = Field(default=None, ge=0)
     known_annotations: list[GraphNodeAnnotationKey] = Field(default_factory=list)
+    known_observations: list[str] | None = None
 
     @model_validator(mode="after")
     def validate_bounds(self) -> GraphViewportQuery:
-        if self.known_annotations and not self.layout_version:
+        if (
+            self.known_annotations or self.known_observations is not None
+        ) and not self.layout_version:
             raise ValueError("Annotation reuse requires an explicit layout_version.")
         xmin = self.xmin
         xmax = self.xmax

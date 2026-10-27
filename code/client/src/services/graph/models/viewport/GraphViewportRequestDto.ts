@@ -1,4 +1,5 @@
 export interface GraphViewportRequestDto {
+  known_observations?: readonly string[];
   known_annotations?: readonly {
     readonly node_id: string;
     readonly cluster_id: string;
