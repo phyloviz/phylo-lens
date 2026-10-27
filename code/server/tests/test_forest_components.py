@@ -382,3 +382,27 @@ def test_observation_values_reuse_across_tiers_preserves_joint_category_counts(f
             )
         known = next_known
     assert reused_count > 0
+
+
+def test_profile_isolate_values_can_reuse_the_same_observation_dictionary(forest):
+    client, store, base = forest
+    with sqlite3.connect(store.path) as connection:
+        connection.execute(
+            "insert into profile_isolates(dataset_id, layout_version, node_id, isolate_id, metadata_json) values (?, ?, ?, ?, ?)",
+            (
+                base["dataset_id"],
+                base["layout_version"],
+                "a",
+                "original-a",
+                json.dumps({"country": "PT", "year": 2020}),
+            ),
+        )
+    original = client.post("/api/graph/viewport", json=base).json()
+    compact = client.post(
+        "/api/graph/viewport",
+        json={**base, "known_observations": ["isolate:original-a"]},
+    ).json()
+    before = next(node for node in original["nodes"] if node["id"] == "a")["isolates"]
+    after = next(node for node in compact["nodes"] if node["id"] == "a")["isolates"]
+    assert before == [{"id": "original-a", "metadata": {"country": "PT", "year": 2020}}]
+    assert after == [{"id": "original-a", "metadata": {}, "metadata_cached": True}]

@@ -62,7 +62,10 @@ export function isGraphViewportNodeDto(value: unknown): value is GraphViewportNo
       isArrayOf(
         value.isolates,
         (isolate): isolate is GraphIsolateDto =>
-          isRecord(isolate) && isString(isolate.id) && isAncillaryData(isolate.metadata)
+          isRecord(isolate) &&
+          isString(isolate.id) &&
+          isAncillaryData(isolate.metadata) &&
+          isOptionalBoolean(isolate.metadata_cached)
       ))
   );
 }

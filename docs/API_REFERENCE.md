@@ -340,6 +340,11 @@ The reference representation can contain repeated equal public values; sum row
 counts when grouping categories. Omitting this option retains the original
 fully aggregated observation representation.
 
+The same dictionary covers original isolates when a finer tier reveals individual
+profiles. An isolate with `metadata_cached: true` retains its ID and restores its
+metadata from `isolate:<id>` in the retained values. Complete metadata is returned
+when that identity was not offered by the caller.
+
 The browser borrows only its current viewport's annotations. It does not retain
 an accumulating dataset-wide cache, and never reuses across ancillary revisions,
 datasets or different node/cluster/representative identities. Obsolete automatic

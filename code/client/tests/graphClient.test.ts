@@ -80,6 +80,39 @@ function makeJsonResponse(payload: unknown, status = 200): Response {
 }
 
 describe('graphClient', () => {
+  it('restores original isolate values when a cluster becomes an individual profile', async () => {
+    const values = { country: 'PT', year: 2020 };
+    const replies = [
+      {
+        ...VIEWPORT_FIXTURE,
+        nodes: [
+          { ...VIEWPORT_FIXTURE.nodes[0], ancillary_distribution: [{ values, count: 1, reference_id: 'isolate:a' }] },
+        ],
+      },
+      {
+        ...VIEWPORT_FIXTURE,
+        nodes: [
+          {
+            ...VIEWPORT_FIXTURE.nodes[0],
+            cluster_id: 'new-tier',
+            is_representative: false,
+            member_count: 1,
+            isolates: [{ id: 'a', metadata: {}, metadata_cached: true }],
+          },
+        ],
+      },
+    ];
+    const client = createGraphClient({
+      baseUrl: BASE_URL,
+      fetchImpl: vi.fn(async () => makeJsonResponse(replies.shift())),
+    });
+    const request = { datasetId: toDatasetId('tree'), layoutVersion: toLayoutVersion('abc123') };
+    const first = await client.readViewport(request);
+    const next = await client.readViewport(request, { annotationsFrom: first });
+    expect(next.nodes[0]?.isolates).toEqual([{ id: 'a', ancillaryData: values }]);
+    expect(next.nodes[0]?.isolates?.[0].ancillaryData).toBe(first.nodes[0]?.ancillaryDistribution?.[0].values);
+  });
+
   it('reuses canonical fallback values stored in profile summaries without losing their fields', async () => {
     const replies = [
       {

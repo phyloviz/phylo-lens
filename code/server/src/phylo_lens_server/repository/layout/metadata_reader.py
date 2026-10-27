@@ -121,6 +121,7 @@ def attach_node_metadata(
         dataset_id=dataset_id,
         layout_version=layout_version,
         node_ids={node.node_id for node in nodes if node.member_count == 1},
+        known_observations=known_observations,
     )
     distributions = load_cluster_distributions(
         connection,

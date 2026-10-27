@@ -178,6 +178,7 @@ class GraphIsolate(BaseModel):
 
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
     id: str = Field(min_length=1)
+    metadata_cached: bool | None = None
     metadata: dict[str, str | float | bool | None] = Field(
         default_factory=dict, validation_alias="ancillary_data"
     )

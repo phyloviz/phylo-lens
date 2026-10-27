@@ -43,24 +43,30 @@ export function restoreViewportAnnotations(
   request: GraphViewportRequest,
   observations: ReadonlyMap<string, AncillaryData>
 ): GraphViewportResult {
+  const matchingLayout = result.datasetId === request.datasetId && result.layoutVersion === request.layoutVersion;
+  function retainedValues(reference: string | undefined): AncillaryData {
+    const values = reference === undefined ? undefined : observations.get(reference);
+    if (!values || !matchingLayout) throw new Error(GRAPH_API_ERRORS.invalidViewportResponse);
+    return values;
+  }
   return {
     ...result,
     nodes: result.nodes.map((node, index) => {
       if (!response.nodes[index].annotations_cached) {
         return {
           ...node,
+          isolates: node.isolates?.map((isolate, isolateIndex) => {
+            if (!response.nodes[index].isolates?.[isolateIndex].metadata_cached) return isolate;
+            return { ...isolate, ancillaryData: retainedValues(`isolate:${isolate.id}`) };
+          }),
           ancillaryDistribution: node.ancillaryDistribution?.map((row, rowIndex) => {
             if (!response.nodes[index].ancillary_distribution?.[rowIndex].values_cached) return row;
-            const values = row.referenceId === undefined ? undefined : observations.get(row.referenceId);
-            if (!values || result.datasetId !== request.datasetId || result.layoutVersion !== request.layoutVersion) {
-              throw new Error(GRAPH_API_ERRORS.invalidViewportResponse);
-            }
-            return { ...row, values };
+            return { ...row, values: retainedValues(row.referenceId) };
           }),
         };
       }
       const previous = known.get(annotationKey(node.id, node.clusterId, node.isRepresentative));
-      if (!previous || result.datasetId !== request.datasetId || result.layoutVersion !== request.layoutVersion) {
+      if (!previous || !matchingLayout) {
         throw new Error(GRAPH_API_ERRORS.invalidViewportResponse);
       }
       return {

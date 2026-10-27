@@ -12,6 +12,12 @@ from .tree_index import TreeInterval
 LayoutStatus = Literal["pending", "refining", "ready", "degraded", "failed"]
 
 
+class ViewportIsolate(Isolate):
+    """A read projection may reference already retained isolate metadata."""
+
+    metadata_cached: bool | None = None
+
+
 @dataclass(frozen=True)
 class NodeAnnotationKey:
     node_id: str
