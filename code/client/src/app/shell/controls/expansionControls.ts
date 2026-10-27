@@ -123,6 +123,8 @@ export function expansionControls(
         void run(() => {
           const selected = selection();
           if (!selected) throw new Error('Select a node before collapsing.');
+          if (workbench.getExpansionState().expandedClusterIds.includes(selected.clusterId))
+            return workbench.collapseCluster(selected.clusterId);
           if (selected.collapsible && selected.nodeId) return workbench.collapseBranch(toNodeId(selected.nodeId));
           return workbench.collapseCluster(selected.clusterId);
         });
@@ -199,12 +201,12 @@ function describeSelection(selected: ExpansionSelection, expanded: boolean): { l
   if (selected.manuallyCollapsed) {
     kind = 'Collapsed branch';
     target = 'branch';
+  } else if (selected.expandable || expanded) {
+    kind = expanded ? 'Expanded group' : 'Automatic group';
+    target = 'group';
   } else if (selected.collapsible) {
     kind = 'Internal node';
     target = 'branch';
-  } else if (selected.expandable || expanded) {
-    kind = 'Automatic group';
-    target = 'group';
   }
   return { label: `Selected: ${selected.nodeId} · ${kind}`, target };
 }

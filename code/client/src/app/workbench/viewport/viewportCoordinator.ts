@@ -108,6 +108,7 @@ export class GraphViewportCoordinator {
   private mounted = false;
   private debounceTimer: number | null = null;
   private requestSequence = 0;
+  private viewportAbort: AbortController | null = null;
   private pendingFocusSequence: number | null = null;
   private pendingViewportReads = 0;
 
@@ -142,7 +143,7 @@ export class GraphViewportCoordinator {
     this.manipulating = active;
     if (active) {
       this.refreshAfterManipulation ||= this.debounceTimer !== null || this.pendingViewportReads > 0;
-      this.requestSequence += 1;
+      this.invalidateViewportRequest();
       if (this.debounceTimer !== null) window.clearTimeout(this.debounceTimer);
       this.debounceTimer = null;
       this.cancelFit?.();
@@ -205,7 +206,7 @@ export class GraphViewportCoordinator {
       this.cancelFit();
       this.cancelFit = null;
     }
-    this.requestSequence += 1;
+    this.invalidateViewportRequest();
     if (this.initialViewportAwaited) {
       this.rejectInitialViewport(new Error(ERR_VIEWPORT_COORDINATOR_UNMOUNTED));
     }
@@ -330,7 +331,7 @@ export class GraphViewportCoordinator {
     this.replacingLayout = true;
     this.nextForcedLodLevel = undefined;
     this.fitNextResponse = false;
-    const sequence = ++this.requestSequence;
+    const sequence = this.invalidateViewportRequest();
     if (this.debounceTimer !== null) {
       window.clearTimeout(this.debounceTimer);
       this.debounceTimer = null;
@@ -402,13 +403,13 @@ export class GraphViewportCoordinator {
     this.keepExpanded = keep;
     if (!keep) this.expansionLodLevel = undefined;
     else this.expansionLodLevel = this.baseResponse?.lodLevel ?? 0;
-    this.requestSequence += 1;
+    this.invalidateViewportRequest();
     this.refreshNow();
     return this.getExpansionState();
   }
 
   cancelPendingFocus(): void {
-    if (this.pendingFocusSequence === this.requestSequence) this.requestSequence += 1;
+    if (this.pendingFocusSequence === this.requestSequence) this.invalidateViewportRequest();
     this.pendingFocusSequence = null;
   }
 
@@ -557,11 +558,19 @@ export class GraphViewportCoordinator {
     return this.mounted && sequence === this.requestSequence;
   }
 
+  private invalidateViewportRequest(): number {
+    // Invalidate first: abort listeners may settle synchronously in host clients.
+    this.requestSequence += 1;
+    this.viewportAbort?.abort();
+    this.viewportAbort = null;
+    return this.requestSequence;
+  }
+
   private beginExpansion(): number {
     if (this.debounceTimer !== null) window.clearTimeout(this.debounceTimer);
     this.debounceTimer = null;
     this.cancelFit?.();
-    return ++this.requestSequence;
+    return this.invalidateViewportRequest();
   }
 
   private expansionResult(status?: 'superseded'): ExpansionResult {
@@ -649,7 +658,7 @@ export class GraphViewportCoordinator {
       window.clearTimeout(this.debounceTimer);
     }
     // Invalidate immediately: an old response can arrive during the debounce window.
-    this.requestSequence += 1;
+    this.invalidateViewportRequest();
     this.debounceTimer = window.setTimeout(() => {
       this.debounceTimer = null;
       void this.loadViewport();
@@ -662,7 +671,9 @@ export class GraphViewportCoordinator {
       return;
     }
     this.pendingViewportReads += 1;
-    const sequence = ++this.requestSequence;
+    const sequence = this.invalidateViewportRequest();
+    const controller = new AbortController();
+    this.viewportAbort = controller;
     const pinned = this.keepExpanded && this.expansionLodLevel !== undefined;
     const finestTier =
       (this.keepExpanded && this.allExpanded) ||
@@ -693,7 +704,10 @@ export class GraphViewportCoordinator {
     this.lastRequestedLodLevel = request.lodLevel;
 
     try {
-      let response = await this.client.readViewport(request);
+      let response = await this.client.readViewport(request, {
+        signal: controller.signal,
+        annotationsFrom: this.baseResponse,
+      });
       if (!this.isCurrentRequest(sequence)) {
         return;
       }
@@ -741,6 +755,7 @@ export class GraphViewportCoordinator {
       this.onError?.(failure);
     } finally {
       this.pendingViewportReads -= 1;
+      if (this.viewportAbort === controller) this.viewportAbort = null;
     }
   }
 

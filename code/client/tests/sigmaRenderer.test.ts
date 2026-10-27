@@ -665,6 +665,34 @@ describe('sigmaRenderer', () => {
     renderer.unmount();
   });
 
+  it('renders manual folds as violet triangles without treating them as LoD aggregates', () => {
+    document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
+    const renderer = createSigmaRenderer();
+    renderer.mount({ container: requireContainer() });
+    renderer.render({
+      nodes: [
+        { id: 'root', x: 0, y: 0 },
+        { id: 'fold', x: 0, y: 10, attributes: { isBranchCollapsed: true, type: 'triangle' } },
+        { id: 'group', x: 10, y: 0, attributes: { isClusterProxy: true, memberCount: 5 } },
+      ],
+      edges: [{ id: 'root-fold', source: 'root', target: 'fold' }],
+      viewMeta: { layout: 'server', lodLevel: 0 },
+    });
+    expect(lastGraph?.getNodeAttribute('fold', 'type')).toBe('triangle');
+    expect(lastGraph?.getNodeAttribute('fold', 'color')).toBe('#7c3aed');
+    expect(lastGraph?.getNodeAttribute('group', 'color')).toBe('#f59e0b');
+    expect(lastGraph?.getNodeAttribute('fold', 'triangleRotation')).toBeCloseTo(-Math.PI / 2);
+    expect(renderer.getInteractiveAggregateTargets().map(target => target.clusterId)).toEqual(['group']);
+    renderer.focusNode('fold');
+    const reducer = lastSigmaOptions?.nodeReducer as
+      ((id: string, data: Record<string, unknown>) => Record<string, unknown>) | undefined;
+    expect(reducer?.('fold', lastGraph!.getNodeAttributes('fold')).type).toBe('triangle');
+    expect(reducer?.('fold', lastGraph!.getNodeAttributes('fold')).color).toBe('#7c3aed');
+    renderer.focusNode(null);
+    expect(lastGraph?.getNodeAttribute('fold', 'color')).toBe('#7c3aed');
+    renderer.unmount();
+  });
+
   it('keeps cluster proxy triangle tips aligned while force motion moves nodes', () => {
     document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
 

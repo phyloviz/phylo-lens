@@ -1,5 +1,6 @@
 import type { PositionedGraph, PositionedNode } from '../../../contracts/positioned';
 import type { TreeIndex } from '../../../contracts/graph/TreeIndex';
+import { MANUAL_BRANCH_COLOR } from '../../../render/mapping/clusterNodes';
 
 type Fold = TreeIndex & { readonly rootId: string };
 
@@ -74,8 +75,9 @@ export class ManualBranches {
           collapsedBranchCount: count,
           ...(count > 0
             ? {
-                type: 'border',
-                borderColor: '#0f766e',
+                type: 'triangle',
+                color: MANUAL_BRANCH_COLOR,
+                triangleRotation: 0,
                 label: node.attributes?.label ? `${node.id} (+${count})` : '',
                 forceLabel: Boolean(node.attributes?.label),
               }

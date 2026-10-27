@@ -8,7 +8,9 @@ import pytest
 
 from phylo_lens_server.database import postgres
 from phylo_lens_server.domain.identity import layout_version_for_dataset
+from phylo_lens_server.domain.lod import LodOptions
 from phylo_lens_server.domain.preparation import PreparationSummary
+from phylo_lens_server.domain.views import NodeAnnotationKey
 from phylo_lens_server.http.graph.schemas import NormalizeRequest
 from phylo_lens_server.jobs.durable import DurablePrepareJobRegistry
 from phylo_lens_server.pipeline import layout
@@ -70,7 +72,9 @@ def test_postgres_preparation_reads_and_transactional_replacement(stores, monkey
         ).to_domain(),
         include_summary_schema=True,
     ).dataset
-    result = PreparationService(store).prepare_dataset(dataset)
+    result = PreparationService(store).prepare_dataset(
+        dataset, lod_options=LodOptions(small_component_threshold=0)
+    )
     base = {
         "dataset_id": dataset.dataset_id,
         "layout_version": result.artifacts.layout_version,
@@ -81,6 +85,64 @@ def test_postgres_preparation_reads_and_transactional_replacement(stores, monkey
             **base, xmin=None, xmax=None, ymin=None, ymax=None, lod_level=level
         )
         ids = {node.node_id for node in view.nodes}
+        with_references = store.read_viewport(
+            **base,
+            xmin=None,
+            xmax=None,
+            ymin=None,
+            ymax=None,
+            lod_level=level,
+            known_observations=frozenset(),
+        )
+        references = {
+            row.reference_id
+            for node in with_references.nodes
+            for row in node.ancillary_distribution
+        }
+        if references:
+            reused = store.read_viewport(
+                **base,
+                xmin=None,
+                xmax=None,
+                ymin=None,
+                ymax=None,
+                lod_level=level,
+                known_observations=frozenset(references),
+            )
+            assert all(
+                row.values_cached
+                for node in reused.nodes
+                for row in node.ancillary_distribution
+            )
+            assert sum(
+                row.count
+                for node in reused.nodes
+                for row in node.ancillary_distribution
+            ) == sum(
+                row.count
+                for node in with_references.nodes
+                for row in node.ancillary_distribution
+            )
+        cached = store.read_viewport(
+            **base,
+            xmin=None,
+            xmax=None,
+            ymin=None,
+            ymax=None,
+            lod_level=level,
+            known_annotations=frozenset(
+                NodeAnnotationKey(node.node_id, node.cluster_id, node.is_representative)
+                for node in view.nodes
+            ),
+        )
+        assert cached.edges == view.edges
+        assert [node.node_id for node in cached.nodes] == [
+            node.node_id for node in view.nodes
+        ]
+        assert all(
+            node.annotations_cached and not node.ancillary_distribution
+            for node in cached.nodes
+        )
         assert all(edge.source in ids and edge.target in ids for edge in view.edges)
         assert (
             len(view.nodes)

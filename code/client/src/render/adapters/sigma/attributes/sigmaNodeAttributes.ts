@@ -8,13 +8,13 @@ import {
   PHYLOVIZ_NODE_SELECTED_COLOR,
   SIGMA_DEFAULT_NODE_SIZE,
   SIGMA_NODE_TYPE_DEFAULT,
-  SIGMA_NODE_TYPE_BORDER,
   SIGMA_NODE_TYPE_PIECHART,
   SIGMA_NODE_TYPE_TRIANGLE,
 } from '../sigmaRendering.constants';
 import { isUnionNode, UNION_NODE_COLOR, UNION_NODE_SIZE } from '../../../mapping/unionNodes';
 import type { SigmaRendererOptions } from '../sigmaRenderer.types';
 import { derivePhylovizNodeColor } from './sigmaStyle';
+import { MANUAL_BRANCH_COLOR } from '../../../mapping/clusterNodes';
 
 /** Initial renders derive styles; viewport snapshots already contain prepared styles. */
 export function addPositionedNodes(
@@ -33,7 +33,10 @@ export function addPositionedNodes(
         x: node.x,
         y: node.y,
         size: node.size,
-        color: node.attributes?.isClusterProxy === true ? derivePositionedNodeColor(node) : node.color,
+        color:
+          node.attributes?.isClusterProxy === true || node.attributes?.isBranchCollapsed === true
+            ? derivePositionedNodeColor(node)
+            : node.color,
       });
     }
   });
@@ -52,14 +55,10 @@ function addPositionedNode(
     pieAttributes[key] = pieValueForKey(key, node.attributes, displayedPieKeys, unionNode);
   });
   const hasPieData = Object.values(pieAttributes).some(value => value > 0);
-  const isClusterProxy = node.attributes?.isClusterProxy === true;
-  const nodeType = isClusterProxy
-    ? SIGMA_NODE_TYPE_TRIANGLE
-    : node.attributes?.isBranchCollapsed === true
-      ? SIGMA_NODE_TYPE_BORDER
-      : !unionNode && hasPieData && pieSliceKeys.length > 0
-        ? SIGMA_NODE_TYPE_PIECHART
-        : SIGMA_NODE_TYPE_DEFAULT;
+  const isSummary = node.attributes?.isClusterProxy === true || node.attributes?.isBranchCollapsed === true;
+  let nodeType = SIGMA_NODE_TYPE_DEFAULT;
+  if (isSummary) nodeType = SIGMA_NODE_TYPE_TRIANGLE;
+  else if (!unionNode && hasPieData && pieSliceKeys.length > 0) nodeType = SIGMA_NODE_TYPE_PIECHART;
   const nodeSize = unionNode ? UNION_NODE_SIZE : (node.size ?? SIGMA_DEFAULT_NODE_SIZE);
 
   graph.addNode(node.id, {
@@ -70,7 +69,6 @@ function addPositionedNode(
     ...pieAttributes,
     type: nodeType,
     color: derivePositionedNodeColor(node),
-    borderColor: node.attributes?.isBranchCollapsed === true ? '#0f766e' : undefined,
     label:
       rendererOptions.label?.enabled === false || rendererOptions.display?.nodeLabels === false
         ? ''
@@ -134,6 +132,7 @@ function deriveOtherPieValue(attributes: PositionedNode['attributes'], displayed
 }
 
 export function derivePositionedNodeColor(node: PositionedNode): string {
+  if (node.attributes?.isBranchCollapsed === true) return MANUAL_BRANCH_COLOR;
   if (isUnionNode(node.id, node.attributes)) {
     return UNION_NODE_COLOR;
   }
@@ -158,14 +157,14 @@ export function applyClusterTriangleRotations(graph: Graph, edges: readonly Posi
     const source = graph.getNodeAttributes(edge.source);
     const target = graph.getNodeAttributes(edge.target);
 
-    if (source.isClusterProxy === true) {
+    if (source.isClusterProxy === true || source.isBranchCollapsed === true) {
       graph.setNodeAttribute(
         edge.source,
         'triangleRotation',
         Math.atan2(Number(target.y) - Number(source.y), Number(target.x) - Number(source.x))
       );
     }
-    if (target.isClusterProxy === true) {
+    if (target.isClusterProxy === true || target.isBranchCollapsed === true) {
       graph.setNodeAttribute(
         edge.target,
         'triangleRotation',

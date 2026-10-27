@@ -917,7 +917,7 @@ export default function createSigmaRenderer(options: SigmaRendererOptions = {}) 
       size: attributes.size,
     };
     sigmaGraph.mergeNodeAttributes(selectedNodeId, {
-      color: PHYLOVIZ_NODE_SELECTED_COLOR,
+      color: attributes.isBranchCollapsed === true ? attributes.color : PHYLOVIZ_NODE_SELECTED_COLOR,
       size: Math.max(size * 1.35, size + 2),
     });
   }

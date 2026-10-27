@@ -1,3 +1,4 @@
+import type { GraphClient } from '../src/contracts/graph/GraphClient';
 import { deferred } from './helpers/state';
 import { toDatasetId, toLayoutVersion, toNodeId, toClusterId } from '../src/contracts/graph/graphIdentifiers';
 import { nodeAnnotations } from './fixtures/graph';
@@ -6,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { GraphViewportRequest } from '../src/contracts/graph/viewport/GraphViewportRequest';
 import type { GraphViewportResult } from '../src/contracts/graph/viewport/GraphViewportResult';
+import type { GraphViewportReadOptions } from '../src/contracts/graph/viewport/GraphViewportReadOptions';
 import { GraphViewportCoordinator } from '../src/app/workbench/viewport/viewportCoordinator';
 import type { PositionedGraph } from '../src/contracts/positioned';
 import type { GraphRenderer, RenderViewportRequestState, RenderViewportState } from '../src/render/renderer.types';
@@ -176,7 +178,8 @@ describe('GraphViewportCoordinator', () => {
     expect(folded.nodes.find(node => node.id === 'a-branch')?.attributes).toMatchObject({
       isBranchCollapsed: true,
       isClusterProxy: undefined,
-      type: 'border',
+      type: 'triangle',
+      color: '#7c3aed',
       collapsedBranchCount: 1,
     });
     renderer.emitViewChange();
@@ -291,6 +294,50 @@ describe('GraphViewportCoordinator', () => {
     controller.unmount();
   });
 
+  it('restores the original LoD representative and its edges when a group is collapsed', async () => {
+    const renderer = createRenderer();
+    const [template] = viewportResponse().nodes;
+    const root = {
+      ...template,
+      id: toNodeId('branch'),
+      clusterId: toClusterId('group'),
+      treeIndex: { componentId: 'root', parentId: 'root', depth: 1, start: 1, end: 3 },
+    };
+    const leaf = {
+      ...root,
+      id: toNodeId('leaf'),
+      treeIndex: { ...root.treeIndex, parentId: 'branch', depth: 2, start: 2, end: 3 },
+    };
+    const outside = { ...template, id: toNodeId('outside'), clusterId: toClusterId('outside') };
+    const boundary = { id: toNodeId('boundary'), source: outside.id, target: root.id, distance: 4 };
+    const base = viewportResponse({
+      nodes: [outside, { ...root, isRepresentative: true, memberCount: 2 }],
+      edges: [{ ...boundary, isMeta: true }],
+    });
+    const patch = viewportResponse({
+      nodes: [outside, root, leaf],
+      edges: [boundary, { id: toNodeId('inside'), source: root.id, target: leaf.id, distance: 2 }],
+      totalNodeCount: 2,
+    });
+    const readViewport = vi.fn(async (request: GraphViewportRequest) => (request.clusterId ? patch : base));
+    const controller = new GraphViewportCoordinator({
+      datasetId: toDatasetId('tree'),
+      client: { readViewport },
+      renderer,
+    });
+    controller.mount();
+    await vi.advanceTimersByTimeAsync(0);
+    const original = renderer.appliedGraphs.at(-1)!;
+    await controller.expandCluster(toClusterId('group'));
+    expect(renderer.appliedGraphs.at(-1)?.nodes.map(node => node.id)).toEqual(['outside', 'branch', 'leaf']);
+    controller.collapseCluster(toClusterId('group'));
+    expect(renderer.appliedGraphs.at(-1)).toEqual(original);
+    expect(controller.getExpansionState()).toMatchObject({ expandedClusterIds: [] });
+    expect(controller.getExpansionState().manuallyCollapsedBranchCount).toBeUndefined();
+    expect(readViewport).toHaveBeenCalledTimes(2);
+    controller.unmount();
+  });
+
   it('keeps a fulfilled initial load fulfilled after unmount', async () => {
     const renderer = createRenderer();
     const controller = new GraphViewportCoordinator({
@@ -378,13 +425,15 @@ describe('GraphViewportCoordinator', () => {
     expect(readViewport.mock.calls[0][0]).not.toHaveProperty('lodTargetRepresentations');
     renderer.emitViewChange();
     await vi.advanceTimersByTimeAsync(1000);
-    expect(readViewport).toHaveBeenLastCalledWith(
+    expect(vi.mocked(readViewport).mock.calls.at(-1)?.[0]).toEqual(
       expect.objectContaining({ lodLevel: 3, lodTargetRepresentations: 200, previousLodLevel: 0 })
     );
     expect(renderer.appliedGraphs.at(-1)?.viewMeta.lodLevel).toBe(1);
     renderer.emitViewChange();
     await vi.advanceTimersByTimeAsync(1000);
-    expect(readViewport).toHaveBeenLastCalledWith(expect.objectContaining({ lodLevel: 3, previousLodLevel: 1 }));
+    expect(vi.mocked(readViewport).mock.calls.at(-1)?.[0]).toEqual(
+      expect.objectContaining({ lodLevel: 3, previousLodLevel: 1 })
+    );
     controller.setKeepExpanded(true);
     await vi.advanceTimersByTimeAsync(0);
     expect(readViewport.mock.calls.at(-1)?.[0].lodLevel).toBe(1);
@@ -415,7 +464,7 @@ describe('GraphViewportCoordinator', () => {
     expect(readViewport.mock.calls[0][0].lodLevel).toBe(7);
     renderer.emitViewChange();
     await vi.advanceTimersByTimeAsync(1000);
-    expect(readViewport).toHaveBeenLastCalledWith(
+    expect(vi.mocked(readViewport).mock.calls.at(-1)?.[0]).toEqual(
       expect.objectContaining({ lodLevel: 7, lodTargetRepresentations: 16, xmin: -20 })
     );
     controller.unmount();
@@ -504,7 +553,7 @@ describe('GraphViewportCoordinator', () => {
       ancillaryData: { country: 'PT' },
     });
     expect(renderer.fitGraphSnapshot).toHaveBeenCalledTimes(fits);
-    expect(readViewport).toHaveBeenLastCalledWith(
+    expect(vi.mocked(readViewport).mock.calls.at(-1)?.[0]).toEqual(
       expect.objectContaining({ layoutVersion: toLayoutVersion('metadata-1') })
     );
     controller.unmount();
@@ -539,7 +588,7 @@ describe('GraphViewportCoordinator', () => {
 
   it('loads viewport responses and applies renderer-neutral graph snapshots', async () => {
     const renderer = createRenderer();
-    const readViewport = vi.fn(async () => viewportResponse());
+    const readViewport = vi.fn<GraphClient['readViewport']>(async () => viewportResponse());
     const onGraphApplied = vi.fn();
     const controller = new GraphViewportCoordinator({
       datasetId: toDatasetId('tree'),
@@ -553,7 +602,7 @@ describe('GraphViewportCoordinator', () => {
     controller.mount();
     await vi.advanceTimersByTimeAsync(0);
 
-    expect(readViewport).toHaveBeenCalledWith(
+    expect(vi.mocked(readViewport).mock.calls.map(call => call[0])).toContainEqual(
       expect.objectContaining({
         datasetId: toDatasetId('tree'),
         layoutVersion: toLayoutVersion('layout-0'),
@@ -696,7 +745,7 @@ describe('GraphViewportCoordinator', () => {
 
   it('keeps very large cluster representatives visually bounded', async () => {
     const renderer = createRenderer();
-    const readViewport = vi.fn(async () =>
+    const readViewport = vi.fn<GraphClient['readViewport']>(async () =>
       viewportResponse({
         nodes: [
           {
@@ -727,7 +776,7 @@ describe('GraphViewportCoordinator', () => {
 
   it('reads a bounded viewport when the renderer reports a camera change', async () => {
     const renderer = createRenderer();
-    const readViewport = vi.fn(async () => viewportResponse());
+    const readViewport = vi.fn<GraphClient['readViewport']>(async () => viewportResponse());
     const controller = new GraphViewportCoordinator({
       datasetId: toDatasetId('tree'),
       client: { readViewport },
@@ -746,7 +795,7 @@ describe('GraphViewportCoordinator', () => {
     renderer.emitViewChange();
     await vi.advanceTimersByTimeAsync(60);
 
-    expect(readViewport).toHaveBeenCalledWith(
+    expect(vi.mocked(readViewport).mock.calls.map(call => call[0])).toContainEqual(
       expect.objectContaining({
         datasetId: toDatasetId('tree'),
         xmin: expect.any(Number),
@@ -760,7 +809,7 @@ describe('GraphViewportCoordinator', () => {
 
   it('loads known small datasets at the finest tier', async () => {
     const renderer = createRenderer();
-    const readViewport = vi.fn(async () => viewportResponse());
+    const readViewport = vi.fn<GraphClient['readViewport']>(async () => viewportResponse());
     const controller = new GraphViewportCoordinator({
       datasetId: toDatasetId('tree'),
       client: { readViewport },
@@ -774,7 +823,7 @@ describe('GraphViewportCoordinator', () => {
     controller.mount();
     await vi.advanceTimersByTimeAsync(0);
 
-    expect(readViewport).toHaveBeenCalledWith(
+    expect(vi.mocked(readViewport).mock.calls.map(call => call[0])).toContainEqual(
       expect.objectContaining({
         datasetId: toDatasetId('tree'),
         lodLevel: 3,
@@ -786,7 +835,7 @@ describe('GraphViewportCoordinator', () => {
 
   it('keeps medium datasets at coarse LoD even when they fit within the node budget', async () => {
     const renderer = createRenderer();
-    const readViewport = vi.fn(async () => viewportResponse());
+    const readViewport = vi.fn<GraphClient['readViewport']>(async () => viewportResponse());
     const controller = new GraphViewportCoordinator({
       datasetId: toDatasetId('tree'),
       client: { readViewport },
@@ -800,7 +849,7 @@ describe('GraphViewportCoordinator', () => {
     controller.mount();
     await vi.advanceTimersByTimeAsync(0);
 
-    expect(readViewport).toHaveBeenCalledWith(
+    expect(vi.mocked(readViewport).mock.calls.map(call => call[0])).toContainEqual(
       expect.objectContaining({
         datasetId: toDatasetId('tree'),
         lodLevel: 0,
@@ -851,7 +900,11 @@ describe('GraphViewportCoordinator', () => {
   it('invalidates an in-flight viewport as soon as a newer camera query is scheduled', async () => {
     const renderer = createRenderer();
     const pending: Array<(response: GraphViewportResult) => void> = [];
-    const readViewport = vi.fn(() => new Promise<GraphViewportResult>(resolve => pending.push(resolve)));
+    const signals: AbortSignal[] = [];
+    const readViewport = vi.fn((_request: GraphViewportRequest, options?: GraphViewportReadOptions) => {
+      if (options?.signal) signals.push(options.signal);
+      return new Promise<GraphViewportResult>(resolve => pending.push(resolve));
+    });
     const controller = new GraphViewportCoordinator({
       datasetId: toDatasetId('tree'),
       client: { readViewport },
@@ -870,12 +923,15 @@ describe('GraphViewportCoordinator', () => {
     viewportState = { ...viewportState, bounds: { xmin: 100, xmax: 200, ymin: -200, ymax: -100 } };
     renderer.emitViewChange();
     pending.shift()!(viewportResponse({ nodes: [] }));
+    expect(signals[1]?.aborted).toBe(true);
     await Promise.resolve();
     expect(renderer.appliedGraphs).toHaveLength(applied);
     await vi.advanceTimersByTimeAsync(120);
     pending.shift()!(viewportResponse({ nodes: [] }));
     await Promise.resolve();
     expect(renderer.appliedGraphs).toHaveLength(applied + 1);
+    expect(signals[2]?.aborted).toBe(false);
+    expect(readViewport.mock.calls[2]?.[1]?.annotationsFrom).toMatchObject({ layoutVersion: 'layout-1' });
     controller.unmount();
   });
 
@@ -898,7 +954,7 @@ describe('GraphViewportCoordinator', () => {
     renderer.emitViewChange();
     await vi.advanceTimersByTimeAsync(500);
     expect(readViewport).toHaveBeenCalledTimes(requests + 1);
-    expect(readViewport).toHaveBeenLastCalledWith(expect.objectContaining({ xmin: 50, xmax: 250 }));
+    expect(vi.mocked(readViewport).mock.calls.at(-1)?.[0]).toEqual(expect.objectContaining({ xmin: 50, xmax: 250 }));
     controller.unmount();
   });
 
@@ -952,13 +1008,13 @@ describe('GraphViewportCoordinator', () => {
     viewportState = { ...viewportState, cameraRatio: 2 };
     renderer.emitViewChange();
     await vi.advanceTimersByTimeAsync(120);
-    expect(readViewport).toHaveBeenLastCalledWith(expect.objectContaining({ lodLevel: 2 }));
+    expect(vi.mocked(readViewport).mock.calls.at(-1)?.[0]).toEqual(expect.objectContaining({ lodLevel: 2 }));
     expect(renderer.appliedGraphs.at(-1)?.nodes.map(node => node.id)).toContain('a1');
     controller.collapseCluster(toClusterId('cluster-a'));
     expect(renderer.appliedGraphs.at(-1)?.nodes.map(node => node.id)).not.toContain('a1');
     controller.setKeepExpanded(false);
     await vi.advanceTimersByTimeAsync(0);
-    expect(readViewport).toHaveBeenLastCalledWith(expect.objectContaining({ lodLevel: 0 }));
+    expect(vi.mocked(readViewport).mock.calls.at(-1)?.[0]).toEqual(expect.objectContaining({ lodLevel: 0 }));
     controller.unmount();
   });
 
@@ -1035,7 +1091,9 @@ describe('GraphViewportCoordinator', () => {
     await vi.advanceTimersByTimeAsync(0);
     const result = await controller.expandAll();
     expect(result).toMatchObject({ status: 'partial', allExpanded: false, renderedNodeCount: 3, maxNodes: 3 });
-    expect(readViewport).toHaveBeenLastCalledWith(expect.objectContaining({ lodLevel: 3, maxNodes: 3 }));
+    expect(vi.mocked(readViewport).mock.calls.at(-1)?.[0]).toEqual(
+      expect.objectContaining({ lodLevel: 3, maxNodes: 3 })
+    );
     expect(readViewport.mock.calls.at(-1)?.[0]).not.toHaveProperty('xmin');
     controller.unmount();
   });
@@ -1094,11 +1152,11 @@ describe('GraphViewportCoordinator', () => {
     expect(readViewport).toHaveBeenCalledTimes(requests);
     await controller.replaceLayoutVersion(toLayoutVersion('ancillary-2'));
     expect(controller.getExpansionState().allExpanded).toBe(true);
-    expect(readViewport).toHaveBeenLastCalledWith(
+    expect(vi.mocked(readViewport).mock.calls.at(-1)?.[0]).toEqual(
       expect.objectContaining({ lodLevel: 3, layoutVersion: toLayoutVersion('ancillary-2') })
     );
     expect(await controller.collapseAll()).toMatchObject({ allExpanded: false, expandedClusterIds: [] });
-    expect(readViewport).toHaveBeenLastCalledWith(expect.objectContaining({ lodLevel: 0 }));
+    expect(vi.mocked(readViewport).mock.calls.at(-1)?.[0]).toEqual(expect.objectContaining({ lodLevel: 0 }));
     controller.unmount();
   });
 
@@ -1129,7 +1187,7 @@ describe('GraphViewportCoordinator', () => {
   it('does not refresh from camera changes while paused but refreshes predictably on resume', async () => {
     let paused = false;
     const renderer = createRenderer();
-    const readViewport = vi.fn(async () => viewportResponse());
+    const readViewport = vi.fn<GraphClient['readViewport']>(async () => viewportResponse());
     const controller = new GraphViewportCoordinator({
       datasetId: toDatasetId('tree'),
       client: { readViewport },
@@ -1155,7 +1213,7 @@ describe('GraphViewportCoordinator', () => {
   });
 
   it('fails predictably when a renderer cannot apply graph snapshots', async () => {
-    const readViewport = vi.fn(async () => viewportResponse());
+    const readViewport = vi.fn<GraphClient['readViewport']>(async () => viewportResponse());
     const onError = vi.fn();
     const renderer: GraphRenderer = {
       mount: vi.fn(),
@@ -1197,7 +1255,9 @@ describe('GraphViewportCoordinator', () => {
     await controller.expandCluster(toClusterId('cluster-a'));
     await Promise.resolve();
 
-    expect(readViewport).toHaveBeenLastCalledWith(expect.objectContaining({ clusterId: toClusterId('cluster-a') }));
+    expect(vi.mocked(readViewport).mock.calls.at(-1)?.[0]).toEqual(
+      expect.objectContaining({ clusterId: toClusterId('cluster-a') })
+    );
     expect(
       renderer.appliedGraphs
         .at(-1)
@@ -1258,7 +1318,9 @@ describe('GraphViewportCoordinator', () => {
     await Promise.resolve();
 
     expect(readViewport).toHaveBeenCalledOnce();
-    expect(readViewport).toHaveBeenCalledWith(expect.objectContaining({ clusterId: toClusterId('cluster-b') }));
+    expect(vi.mocked(readViewport).mock.calls.map(call => call[0])).toContainEqual(
+      expect.objectContaining({ clusterId: toClusterId('cluster-b') })
+    );
   });
 
   it('labels viewport, expansion, and local collapse applications with monotonic sequences', async () => {
@@ -1413,7 +1475,7 @@ describe('GraphViewportCoordinator', () => {
     expect(renderer.appliedGraphs.at(-1)?.nodes).toHaveLength(1);
     expect(renderer.appliedGraphs.at(-1)?.viewMeta.componentId).toBe('root');
     await controller.expandAll();
-    expect(readViewport).toHaveBeenLastCalledWith(
+    expect(vi.mocked(readViewport).mock.calls.at(-1)?.[0]).toEqual(
       expect.objectContaining({ componentId: 'root', layoutVersion: 'ancillary-2' })
     );
     controller.unmount();
@@ -1422,7 +1484,7 @@ describe('GraphViewportCoordinator', () => {
   it('ignores an older panel response and leaves the displayed view intact after a failed switch', async () => {
     const renderer = createRenderer();
     const pending = deferred<GraphViewportResult>();
-    const readViewport = vi.fn(async () => viewportResponse());
+    const readViewport = vi.fn<GraphClient['readViewport']>(async () => viewportResponse());
     const controller = new GraphViewportCoordinator({
       datasetId: toDatasetId('tree'),
       client: { readViewport },
@@ -1449,7 +1511,7 @@ describe('GraphViewportCoordinator', () => {
   it('releases a pending panel switch when dragging supersedes its response', async () => {
     const renderer = createRenderer();
     const pending = deferred<GraphViewportResult>();
-    const readViewport = vi.fn(async () => viewportResponse());
+    const readViewport = vi.fn<GraphClient['readViewport']>(async () => viewportResponse());
     const controller = new GraphViewportCoordinator({
       datasetId: toDatasetId('tree'),
       client: { readViewport },
@@ -1477,7 +1539,7 @@ describe('GraphViewportCoordinator', () => {
   it('captures the requested component before awaiting its viewport', async () => {
     const renderer = createRenderer();
     const pending = deferred<GraphViewportResult>();
-    const readViewport = vi.fn(async () => viewportResponse());
+    const readViewport = vi.fn<GraphClient['readViewport']>(async () => viewportResponse());
     const controller = new GraphViewportCoordinator({
       datasetId: toDatasetId('tree'),
       client: { readViewport },
@@ -1495,14 +1557,14 @@ describe('GraphViewportCoordinator', () => {
     const graph = await switching;
     expect(controller.getComponentId()).toBe('root');
     expect(graph.viewMeta.componentId).toBe('root');
-    expect(readViewport).toHaveBeenLastCalledWith(expect.objectContaining({ componentId: 'root' }));
+    expect(vi.mocked(readViewport).mock.calls.at(-1)?.[0]).toEqual(expect.objectContaining({ componentId: 'root' }));
     controller.unmount();
   });
   it('does not let an older response unlock the panel request that replaced it', async () => {
     const renderer = createRenderer();
     const first = deferred<GraphViewportResult>();
     const second = deferred<GraphViewportResult>();
-    const readViewport = vi.fn(async () => viewportResponse());
+    const readViewport = vi.fn<GraphClient['readViewport']>(async () => viewportResponse());
     const controller = new GraphViewportCoordinator({
       datasetId: toDatasetId('tree'),
       client: { readViewport },

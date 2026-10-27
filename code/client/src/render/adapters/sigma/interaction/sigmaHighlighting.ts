@@ -49,9 +49,9 @@ export default function applySigmaHighlighting({
     const baseSize = typeof data.size === 'number' ? data.size : 5;
     return {
       ...nextData,
-      color: PHYLOVIZ_NODE_SELECTED_COLOR,
+      color: data.isBranchCollapsed === true ? data.color : PHYLOVIZ_NODE_SELECTED_COLOR,
       size: Math.max(baseSize * SELECTED_NODE_SCALE_FACTOR, baseSize + SELECTED_NODE_SIZE_BOOST),
-      ...(representative
+      ...(representative || data.isBranchCollapsed === true
         ? {}
         : {
             type: SIGMA_NODE_TYPE_BORDER,

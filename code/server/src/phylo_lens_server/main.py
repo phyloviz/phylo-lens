@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 
 from phylo_lens_server.http.errors import unexpected_server_error
@@ -95,6 +96,10 @@ def create_app() -> FastAPI:
     )
 
     app.include_router(graph_router)
+
+    # Annotation-rich viewports are highly repetitive. Compress the wire response
+    # without changing any observation, category count or API representation.
+    app.add_middleware(GZipMiddleware, minimum_size=1024, compresslevel=5)
 
     app.get(ROUTE_HEALTH)(health)
 

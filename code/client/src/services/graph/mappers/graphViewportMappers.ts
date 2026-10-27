@@ -62,6 +62,7 @@ export function toGraphViewportNode(dto: GraphViewportNodeDto): GraphViewportNod
     ancillaryDistribution: dto.ancillary_distribution?.map(observation => ({
       values: { ...observation.values },
       count: observation.count,
+      ...(observation.reference_id === undefined ? {} : { referenceId: observation.reference_id }),
     })),
   };
 }

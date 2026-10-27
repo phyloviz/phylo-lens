@@ -12,6 +12,19 @@ from .tree_index import TreeInterval
 LayoutStatus = Literal["pending", "refining", "ready", "degraded", "failed"]
 
 
+class ViewportIsolate(Isolate):
+    """A read projection may reference already retained isolate metadata."""
+
+    metadata_cached: bool | None = None
+
+
+@dataclass(frozen=True)
+class NodeAnnotationKey:
+    node_id: str
+    cluster_id: str
+    is_representative: bool
+
+
 @dataclass(frozen=True)
 class LayoutBounds:
     min_x: float
@@ -33,6 +46,7 @@ class ViewportNode:
     isolates: tuple[Isolate, ...] = ()
     ancillary_distribution: tuple[AncillaryObservation, ...] = ()
     tree_index: TreeInterval | None = None
+    annotations_cached: bool = False
 
     def __post_init__(self) -> None:
         if self.metadata is not None:
@@ -126,6 +140,8 @@ class ViewportQuery:
     lod_target_representations: int | None = None
     lod_selection_bounds: ViewportBounds | None = None
     previous_lod_level: int | None = None
+    known_annotations: frozenset[NodeAnnotationKey] = frozenset()
+    known_observations: frozenset[str] | None = None
 
 
 """Choose among existing structural tiers; never discard representations."""

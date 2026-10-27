@@ -53,7 +53,8 @@ def test_isolate_uses_ancillary_data_in_domain_and_metadata_only_on_v1_wire():
         layout_status="ready",
         isolates=[isolate],
     )
-    assert node.model_dump(by_alias=True)["isolates"] == [
+    # Viewport HTTP responses exclude optional fields whose value is None.
+    assert node.model_dump(by_alias=True, exclude_none=True)["isolates"] == [
         {"id": "original-id", "metadata": {"country": "PT"}}
     ]
 
