@@ -1,5 +1,6 @@
 import { DEFAULT_COLOR_PALETTE } from './colorMapping';
 import type { PieMappingOptions } from './pieMapping';
+import { resolveGroupSize, type GroupSizeMappingOptions } from './groupSize';
 
 export { UNION_NODE_COLOR, UNION_NODE_SIZE } from './unionNodes';
 export {
@@ -30,6 +31,7 @@ export type SizeMappingOptions = {
 export type VisualMappingOptions = {
   readonly colorField?: string;
   readonly size?: SizeMappingOptions;
+  readonly groupSize?: GroupSizeMappingOptions;
   readonly palette?: readonly string[];
   readonly pie?: PieMappingOptions;
 };
@@ -38,6 +40,10 @@ export type VisualMappingOptions = {
 export function copyVisualMapping(mapping: VisualMappingOptions): VisualMappingOptions {
   const copy = { ...mapping };
   if (mapping.size) copy.size = Object.freeze({ ...mapping.size });
+  if (mapping.groupSize) {
+    resolveGroupSize(mapping.groupSize);
+    copy.groupSize = Object.freeze({ ...mapping.groupSize });
+  }
   if (mapping.palette) copy.palette = Object.freeze([...mapping.palette]);
   if (mapping.pie) {
     const pie = { ...mapping.pie };

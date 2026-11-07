@@ -60,7 +60,8 @@ export default function createAncillaryWheels(options: AncillaryWheelsOptions) {
     if (details) details.open = Boolean(keepIdsOpen);
     const distribution = document.createElement('div');
     options.selectedNodeContainer.append(distribution);
-    renderDistribution(distribution, graph, new Set([nodeId]), `Node '${nodeId}'`);
+    const subject = node.attributes?.isBranchCollapsed === true ? `Root node '${nodeId}' only` : `Node '${nodeId}'`;
+    renderDistribution(distribution, graph, new Set([nodeId]), subject);
   }
 
   function resetSelectedNode(): void {

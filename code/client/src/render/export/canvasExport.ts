@@ -7,7 +7,13 @@ type LegendItem = { readonly label: string; readonly color: string; readonly cou
 export async function exportCanvasLayersAsPng(
   canvases: Iterable<HTMLCanvasElement>,
   documentRef: Document = document,
-  options?: { width: number; height: number; scale?: number; legend?: readonly LegendItem[] }
+  options?: {
+    width: number;
+    height: number;
+    scale?: number;
+    legend?: readonly LegendItem[];
+    notes?: readonly string[];
+  }
 ): Promise<Blob> {
   const layers = Array.from(canvases).filter(canvas => canvas.width > 0 && canvas.height > 0);
   const source = layers[0];
@@ -26,8 +32,13 @@ export async function exportCanvasLayersAsPng(
       (text, index) => ({ text, color: index === 0 ? item.color : undefined })
     )
   );
+  const notes = (options?.notes ?? []).flatMap(note =>
+    wrapText(context, note, Math.max(1, output.width - padding * 2))
+  );
+  const legendRows = rows.length ? rows.length + 1 : 0;
+  const totalRows = legendRows + notes.length;
   const graphHeight = options?.height ?? source.height;
-  output.height = graphHeight + (rows.length ? padding * 2 + rowHeight * (rows.length + 1) : 0);
+  output.height = graphHeight + (totalRows ? padding * 2 + rowHeight * totalRows : 0);
   if (options && output.width * output.height > 32_000_000)
     throw new Error('PNG including its legend exceeds 32 million pixels; reduce the export scale.');
   if (options) {
@@ -35,9 +46,11 @@ export async function exportCanvasLayersAsPng(
     context.fillRect(0, 0, output.width, output.height);
   }
   for (const layer of layers) context.drawImage(layer, 0, 0, output.width, graphHeight);
-  if (rows.length) {
+  if (totalRows) {
     context.font = font;
     context.textBaseline = 'middle';
+  }
+  if (rows.length) {
     context.fillStyle = '#0f172a';
     context.fillText('Rendered slice — observations', padding, graphHeight + padding + rowHeight / 2);
     rows.forEach((row, index) => {
@@ -50,6 +63,10 @@ export async function exportCanvasLayersAsPng(
       context.fillText(row.text, padding * 2, y);
     });
   }
+  notes.forEach((text, index) => {
+    context.fillStyle = '#0f172a';
+    context.fillText(text, padding, graphHeight + padding + rowHeight * (legendRows + index + 0.5));
+  });
   return new Promise((resolve, reject) => {
     output.toBlob(blob => (blob ? resolve(blob) : reject(new Error(ERR_PNG_ENCODING_FAILED))), 'image/png');
   });

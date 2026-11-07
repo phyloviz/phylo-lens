@@ -1,3 +1,4 @@
+export const AUTOMATIC_GROUP_COLOR = '#f59e0b';
 export const MANUAL_BRANCH_COLOR = '#7c3aed';
 
 export function isClusterRepresentative(attributes?: Record<string, unknown>): boolean {

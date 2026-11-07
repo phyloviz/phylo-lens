@@ -103,20 +103,24 @@ describe('viewportSnapshot', () => {
     for (const node of graph.nodes) expect(node.size).toBeCloseTo(expectedRadius);
   });
 
-  it.each(['linear', 'log'] as const)('retains compact triangle sizing with an explicit %s mapping', scale => {
-    const graph = graphSnapshotFromViewportResponse(
-      viewportResponse([
-        viewportNode('cluster', {
-          memberCount: 97_000,
-          isRepresentative: true,
-          annotations: decodeApiMetadata({ profile_count: 100_000 }),
-        }),
-      ]),
-      { visualMapping: { size: { field: 'profile_count', scale } } }
-    );
-    expect(graph.nodes[0]?.size).toBe(6);
-    expect(graph.nodes[0]?.attributes?.type).toBe('triangle');
-  });
+  it.each(['linear', 'log'] as const)(
+    'keeps group sizes bounded independently of an explicit %s profile mapping',
+    scale => {
+      const graph = graphSnapshotFromViewportResponse(
+        viewportResponse([
+          viewportNode('cluster', {
+            memberCount: 97_000,
+            isRepresentative: true,
+            annotations: decodeApiMetadata({ profile_count: 100_000 }),
+          }),
+        ]),
+        { visualMapping: { size: { field: 'profile_count', scale } } }
+      );
+      expect(graph.nodes[0]?.size).toBeGreaterThan(11);
+      expect(graph.nodes[0]?.size).toBeLessThanOrEqual(12);
+      expect(graph.nodes[0]?.attributes?.type).toBe('triangle');
+    }
+  );
 
   it('resolves default size fields per node rather than from its visible neighbors', () => {
     const distance = viewportNode('distance', { annotations: decodeApiMetadata({ distance: 10 }) });
@@ -181,7 +185,7 @@ describe('viewportSnapshot', () => {
     );
 
     expect(graph.nodes.find(node => node.id === 'leaf')?.size).toBe(3);
-    expect(graph.nodes.find(node => node.id === 'cluster-huge')?.size).toBeLessThanOrEqual(6);
+    expect(graph.nodes.find(node => node.id === 'cluster-huge')?.size).toBeLessThanOrEqual(12);
   });
 
   it('keeps labels available even for dense slices', () => {

@@ -19,16 +19,25 @@ that project's dependencies and Chromium before running the scripts. For example
 ```sh
 node tests/browser/elasticMotion.mjs
 node tests/browser/viewportReadability.mjs
+node tests/browser/visualStability.mjs
 ```
+
+`visualStability.mjs` uses real Sigma rendering and a real layout worker with
+controlled coarse/detailed snapshots. It checks default aggregate size bounds,
+actual footprint accounting, stationary cameras with automatic motion on/off,
+continuous wheel navigation, unchanged paused positions and unchanged edge
+endpoints/distances/widths. It requires no API service. `STABILITY_REPORT` can
+save its diagnostic JSON.
 
 `node tests/browser/meetingRequirements.mjs` verifies manual collapse/expand,
 distance-label intervals, grayscale edges, palette reset and lifecycle, removal
 of the redundant node selector, and real pointer-driven branch dragging against
 the product UI. Start a local API service first; `REQUIREMENTS_API_URL` defaults
 to `http://127.0.0.1:8128`. Use an isolated service data directory. The script
-creates and closes its own Vite server and browser, and writes a screenshot to
-`REQUIREMENTS_SCREENSHOT` (default `phylo-lens-requirements.png` in the system
-temporary directory).
+creates and closes its own Vite server and browser, with a disposable dependency
+cache. It writes `phylo-lens-manual-branch.png` and
+`phylo-lens-sidebar-controls.png` in the system temporary directory, or
+`phylo-lens-requirements-failure.png` when a scenario fails.
 
 The same browser sequence checks Enter-to-search without reloading the dataset,
 selected-node actions after search, independent display checkboxes, invalid
@@ -36,6 +45,12 @@ distance intervals, numeric size-field choices and both scales, a real PNG
 download, and horizontal fit at 1440, 768, 390 and 320 pixels. These are functional
 and layout checks; they do not measure task completion time or discoverability
 with users. The Vite cache is separate from the development preview.
+
+The sequence checks the group legend, exact hover/inspector node counts and the
+unavailable whole-branch isolate total. Unit tests separately protect known zero
+versus missing isolate counts, structural-junction summary styles, and wrapping
+publication captions without resizing graph content. These checks do not replace
+the [researcher walkthrough](../../../docs/validation/researcher-walkthrough.md).
 
 Task navigation preserves files and settings, and a successful load opens Explore.
 The browser sequence also exercises keyboard tab navigation, contextual inspector

@@ -1,15 +1,8 @@
 import type Graph from 'graphology';
 import type Sigma from 'sigma';
-import type { PositionedGraph } from '../../../../contracts/positioned';
 import type { DisplayPositions } from './displayPositions';
 import type { Point } from '../../../../contracts/Point';
 import type createSigmaForceMotion from './sigmaForceMotion';
-import { isString } from '../../../../validation/guards';
-
-type TransitionAnchor = {
-  readonly ids: readonly string[];
-  readonly screen: Point;
-};
 
 type SigmaTransitionsOptions = {
   readonly getGraph: () => Graph | null;
@@ -22,19 +15,15 @@ type SigmaTransitionsOptions = {
 
 const TRANSITION_DURATION_MS = 240;
 
+// Animate node positions in the prepared coordinate frame. The camera belongs
+// to user navigation and explicit fits, never to a changing aggregate centroid.
 export default function createSigmaTransitions(options: SigmaTransitionsOptions) {
   let frameId: number | null = null;
   let active = false;
   let sequence = 0;
-  let zoomPointer: Point | null = null;
-  let anchor: TransitionAnchor | null = null;
 
   return {
     isActive: () => active,
-    setZoomPointer: (point: Point) => {
-      zoomPointer = { ...point };
-    },
-    captureAnchor,
     start,
     cancel,
   };
@@ -43,45 +32,8 @@ export default function createSigmaTransitions(options: SigmaTransitionsOptions)
     sequence += 1;
     if (frameId !== null) cancelAnimationFrame(frameId);
     frameId = null;
-    anchor = null;
     active = false;
     options.motion.suspend(false);
-  }
-
-  // Capture focus before the renderer replaces the old graph's nodes.
-  function captureAnchor(next: PositionedGraph): void {
-    const graph = options.getGraph();
-    const sigma = options.getSigma();
-    anchor = null;
-    if (!graph || !sigma) return;
-
-    const dimensions = sigma.getDimensions();
-    const focus = zoomPointer ?? { x: dimensions.width / 2, y: dimensions.height / 2 };
-    const nextIds = new Set(next.nodes.map(node => node.id));
-    const nextClusters = new Map<string, string[]>();
-
-    for (const node of next.nodes) {
-      const cluster = node.attributes?.clusterId;
-      if (isString(cluster)) {
-        const ids = nextClusters.get(cluster) ?? [];
-        ids.push(node.id);
-        nextClusters.set(cluster, ids);
-      }
-    }
-
-    let nearestDistance = Infinity;
-    graph.forEachNode((id, attributes) => {
-      const ids = nextIds.has(id) ? [id] : (nextClusters.get(attributes.clusterId) ?? []);
-      if (!ids.length) return; // Never guess parentage between unrelated levels.
-
-      const screen = sigma.graphToViewport({ x: attributes.x, y: attributes.y });
-      const distance = Math.hypot(screen.x - focus.x, screen.y - focus.y);
-
-      if (distance < nearestDistance) {
-        anchor = { ids, screen };
-        nearestDistance = distance;
-      }
-    });
   }
 
   function start(targets: ReadonlyMap<string, Point>): void {
@@ -122,15 +74,12 @@ export default function createSigmaTransitions(options: SigmaTransitionsOptions)
 
       options.getSigma()?.refresh();
       if (currentSequence !== sequence) return;
-      preserveFocus(graph);
-      if (currentSequence !== sequence) return;
 
       if (progress < 1) {
         frameId = requestAnimationFrame(tick);
       } else {
         frameId = null;
         active = false;
-        anchor = null;
         options.motion.start(graph);
         options.motion.suspend(false);
         options.onManipulationChanged(false);
@@ -138,25 +87,5 @@ export default function createSigmaTransitions(options: SigmaTransitionsOptions)
       }
     };
     frameId = requestAnimationFrame(tick);
-  }
-
-  function preserveFocus(graph: Graph): void {
-    const sigma = options.getSigma();
-    if (!anchor || !sigma) return;
-
-    const { ids, screen } = anchor;
-    const point = ids.reduce(
-      (sum, id) => {
-        const attributes = graph.getNodeAttributes(id);
-        return { x: sum.x + attributes.x / ids.length, y: sum.y + attributes.y / ids.length };
-      },
-      { x: 0, y: 0 }
-    );
-    const camera = sigma.getCamera();
-    const cameraState = camera.getState();
-    const projection = { cameraState };
-    const current = sigma.viewportToFramedGraph(sigma.graphToViewport(point, projection), projection);
-    const desired = sigma.viewportToFramedGraph(screen, projection);
-    camera.setState({ x: cameraState.x + current.x - desired.x, y: cameraState.y + current.y - desired.y });
   }
 }

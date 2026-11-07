@@ -8,14 +8,16 @@ export const STATUS_DEGRADED_LAYOUT_WARNING = '⚠ This stored layout was prepar
 
 export function buildRenderedStatus(graph: PositionedGraph): string {
   const parts = [
-    `${graph.nodes.length} visible ${graph.nodes.length === 1 ? 'node' : 'nodes'}`,
+    `${graph.nodes.length} ${graph.nodes.length === 1 ? 'symbol' : 'symbols'} drawn`,
     `${graph.edges.length} edges`,
     detailLevelLabel(graph),
   ];
   const isolateCounts = graph.nodes.map(node => {
     return readNodeAnnotations(node.attributes).profileSummary.isolateCount;
   });
-  if (
+  if (graph.nodes.some(node => node.attributes?.isBranchCollapsed === true)) {
+    parts.push('branch isolate totals unavailable');
+  } else if (
     isolateCounts.length > 0 &&
     isolateCounts.every(
       (count): count is number => typeof count === 'number' && Number.isSafeInteger(count) && count > 0

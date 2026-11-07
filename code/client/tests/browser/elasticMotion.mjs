@@ -93,6 +93,9 @@ try {
   await page.waitForTimeout(300);
   const paused = await screenPoint();
   assert.ok(Math.hypot(paused.x - pausedEnd.x, paused.y - pausedEnd.y) < 1, 'Paused dragging was constrained');
+  const arrangedPositions = await page.evaluate(() =>
+    window.motionFixture.graph.mapNodes((id, a) => ({ id, x: a.x, y: a.y }))
+  );
   const focusBefore = await page.evaluate(() => {
     const { renderer: r, snapshot } = window.motionFixture;
     const p = window.motionFixture.sigma.graphToViewport(window.motionFixture.graph.getNodeAttributes('0'));
@@ -109,11 +112,11 @@ try {
     'LoD transition moved the zoom focus'
   );
   assert.ok(
-    await page.evaluate(() => {
-      const { renderer: r, snapshot } = window.motionFixture;
+    await page.evaluate(arranged => {
+      const { renderer: r } = window.motionFixture;
       return (
         !r.isMotionEnabled() &&
-        snapshot.nodes.every(
+        arranged.every(
           n =>
             Math.hypot(
               window.motionFixture.graph.getNodeAttribute(n.id, 'x') - n.x,
@@ -121,13 +124,13 @@ try {
             ) < 1e-6
         )
       );
-    }),
-    'LoD did not restore server positions or preserve Pause'
+    }, arrangedPositions),
+    'LoD changed saved positions or resumed automatic motion'
   );
   await page.evaluate(() => window.motionFixture.renderer.resetLayoutEdits());
   assert.deepEqual(errors, []);
   console.log(
-    'PASS: initial layout, real worker, direct/paused dragging, settling, LoD focus, server return and reset.'
+    'PASS: initial layout, real worker, direct/paused dragging, settling, LoD focus, retained arrangements and reset.'
   );
 } finally {
   await browser?.close();

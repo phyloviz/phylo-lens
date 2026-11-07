@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { ManualBranches } from '../src/app/workbench/viewport/manualBranches';
 import type { PositionedGraph, PositionedNode } from '../src/contracts/positioned';
+import { graphSnapshotFromViewportResponse } from '../src/app/workbench/viewport/viewportSnapshot';
+import { toDatasetId, toLayoutVersion, toNodeId, toClusterId } from '../src/contracts/graph/graphIdentifiers';
+import { decodeApiMetadata } from '../src/ancillary/apiMetadata';
 
 function node(id: string, start: number, end: number, parentId: string | null = 'root', proxy = false): PositionedNode {
   return {
@@ -23,6 +26,45 @@ function graph(nodes: readonly PositionedNode[]): PositionedGraph {
 }
 
 describe('ManualBranches', () => {
+  it('uses the full subtree count and the same configurable size as a LoD group, then restores the node', () => {
+    const folds = new ManualBranches();
+    const root = { ...node('root', 0, 100, null), size: 3 };
+    const options = { minimumSize: 7, areaPerNode: 2 };
+    folds.collapse(root);
+    const folded = folds.apply(graph([root]), options).nodes[0];
+    const automatic = graphSnapshotFromViewportResponse(
+      {
+        datasetId: toDatasetId('size-test'),
+        layoutVersion: toLayoutVersion('v1'),
+        lodLevel: 0,
+        zoom: 1,
+        layoutStatus: 'ready',
+        truncated: false,
+        totalNodeCount: 100,
+        ancillarySchema: [],
+        edges: [],
+        nodes: [
+          {
+            id: toNodeId('group'),
+            clusterId: toClusterId('group'),
+            x: 0,
+            y: 0,
+            annotations: decodeApiMetadata({}),
+            layoutStatus: 'ready',
+            memberCount: 100,
+            isRepresentative: true,
+          },
+        ],
+      },
+      { visualMapping: { groupSize: options } }
+    ).nodes[0];
+    expect(folded.size).toBeCloseTo(automatic.size!);
+    expect(folded.attributes?.size).toBeCloseTo(folded.size!);
+    expect(folded.attributes?.collapsedBranchCount).toBe(99);
+    folds.expand(root.id);
+    expect(folds.apply(graph([root]), options).nodes[0].size).toBe(3);
+  });
+
   it('retains nested intentions and computes the full subtree count from a partial slice', () => {
     const folds = new ManualBranches();
     const root = node('root', 0, 100, null);

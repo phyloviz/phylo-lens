@@ -743,7 +743,7 @@ describe('GraphViewportCoordinator', () => {
     expect(onGraphApplied).toHaveBeenCalledOnce();
   });
 
-  it('keeps very large cluster representatives visually bounded', async () => {
+  it('honors a configured visual ceiling for very large cluster representatives', async () => {
     const renderer = createRenderer();
     const readViewport = vi.fn<GraphClient['readViewport']>(async () =>
       viewportResponse({
@@ -766,12 +766,14 @@ describe('GraphViewportCoordinator', () => {
       datasetId: toDatasetId('tree'),
       client: { readViewport },
       renderer,
+      getRenderSettings: () => ({ visualMapping: { groupSize: { maximumSize: 20 } } }),
     });
 
     controller.mount();
     await vi.advanceTimersByTimeAsync(0);
 
-    expect(renderer.appliedGraphs[0]?.nodes[0]?.size).toBeLessThanOrEqual(6);
+    expect(renderer.appliedGraphs[0]?.nodes[0]?.size).toBeGreaterThan(19);
+    expect(renderer.appliedGraphs[0]?.nodes[0]?.size).toBeLessThanOrEqual(20);
   });
 
   it('reads a bounded viewport when the renderer reports a camera change', async () => {

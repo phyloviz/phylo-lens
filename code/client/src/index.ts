@@ -16,6 +16,7 @@ export type { LodPreparationOptions } from './contracts/graph/LodPreparationOpti
 export type { TreeIndex } from './contracts/graph/TreeIndex';
 export type { SfdpOptions } from './contracts/graph/SfdpOptions';
 export type { VisualMappingOptions } from './render/mapping/visualMapping';
+export type { GroupSizeMappingOptions } from './render/mapping/groupSize';
 
 export type {
   AncillaryData,

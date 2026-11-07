@@ -378,7 +378,8 @@ export class GraphViewportCoordinator {
       return;
     }
     this.currentGraph = this.manualFolds.apply(
-      graphSnapshotWithDisplayOptions(this.composeUnfoldedGraph(), displayOptions)
+      graphSnapshotWithDisplayOptions(this.composeUnfoldedGraph(), displayOptions),
+      this.getRenderSettings?.().visualMapping?.groupSize
     );
     this.applyGraph(this.currentGraph, 'viewport_sync');
     this.onGraphApplied?.(this.currentGraph);
@@ -578,7 +579,10 @@ export class GraphViewportCoordinator {
   }
 
   private composeGraph(): PositionedGraph {
-    this.currentGraph = this.manualFolds.apply(this.composeUnfoldedGraph());
+    this.currentGraph = this.manualFolds.apply(
+      this.composeUnfoldedGraph(),
+      this.getRenderSettings?.().visualMapping?.groupSize
+    );
     return this.currentGraph;
   }
 

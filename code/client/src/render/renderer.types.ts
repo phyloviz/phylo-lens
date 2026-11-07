@@ -77,6 +77,7 @@ export interface PngExportOptions {
   readonly edgeIds?: readonly string[];
   /** Font size in logical pixels before scaling (6–72). */
   readonly edgeLabelSize?: number;
+  /** Include category observations and aggregate-symbol explanations in publication exports unless false. */
   readonly includeLegend?: boolean;
 }
 

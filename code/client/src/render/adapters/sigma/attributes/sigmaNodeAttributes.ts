@@ -59,7 +59,7 @@ function addPositionedNode(
   let nodeType = SIGMA_NODE_TYPE_DEFAULT;
   if (isSummary) nodeType = SIGMA_NODE_TYPE_TRIANGLE;
   else if (!unionNode && hasPieData && pieSliceKeys.length > 0) nodeType = SIGMA_NODE_TYPE_PIECHART;
-  const nodeSize = unionNode ? UNION_NODE_SIZE : (node.size ?? SIGMA_DEFAULT_NODE_SIZE);
+  const nodeSize = unionNode && !isSummary ? UNION_NODE_SIZE : (node.size ?? SIGMA_DEFAULT_NODE_SIZE);
 
   graph.addNode(node.id, {
     x: node.x,
@@ -133,12 +133,9 @@ function deriveOtherPieValue(attributes: PositionedNode['attributes'], displayed
 
 export function derivePositionedNodeColor(node: PositionedNode): string {
   if (node.attributes?.isBranchCollapsed === true) return MANUAL_BRANCH_COLOR;
+  if (node.attributes?.isClusterProxy === true) return PHYLOVIZ_CLUSTER_COLOR;
   if (isUnionNode(node.id, node.attributes)) {
     return UNION_NODE_COLOR;
-  }
-
-  if (node.attributes?.isClusterProxy === true) {
-    return PHYLOVIZ_CLUSTER_COLOR;
   }
 
   if (isTruthyAttribute(node.attributes, ['selected', 'is_selected'])) {
