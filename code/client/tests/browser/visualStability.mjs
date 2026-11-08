@@ -83,8 +83,8 @@ try {
         renderer.applyGraphSnapshot(window.stabilityViews[view]);
         return { point, camera };
       }, view);
-      await waitForView(page);
       await observeUnchanged(page, () => window.motionFixture.sigma.getCamera().getState());
+      await waitForView(page);
       const after = await page.evaluate(view => {
         const { sigma } = window.motionFixture;
         const graph = sigma.getGraph();
@@ -134,8 +134,8 @@ try {
       renderer.applyGraphSnapshot(window.stabilityViews.coarse);
       return point;
     });
-    await waitForView(page);
     await observeUnchanged(page, () => window.motionFixture.sigma.getCamera().getState());
+    await waitForView(page);
     const after = await page.evaluate(() => window.motionFixture.sigma.graphToViewport({ x: 2, y: 0 }));
     wheelSamples.push({ delta, cameraDriftPx: Math.hypot(before.x - after.x, before.y - after.y) });
   }
