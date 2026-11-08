@@ -91,6 +91,12 @@ export async function loadGraph(
 
     assertCurrentLoad(isCurrentLoad);
 
+    if (preparedGraph.distanceCutoff !== request.distanceCutoff) {
+      throw new Error(
+        'The graph service did not confirm the requested distance cutoff. Update the service before using this option.'
+      );
+    }
+
     const session = createGraphSession(preparedGraph, sessionOptions);
 
     dispatch({

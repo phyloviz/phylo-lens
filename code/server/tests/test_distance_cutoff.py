@@ -112,6 +112,9 @@ def test_cut_components_survive_persistence_and_all_detail_tiers(tmp_path, monke
         ).to_domain()
     ).dataset
     prepared = service.prepare_dataset(cut, lod_options=policy)
+    from phylo_lens_server.domain.preparation import PreparationSummary
+
+    assert PreparationSummary.from_result(prepared, ()).distance_cutoff == 2.5
     assert len({cluster.lod_level for cluster in prepared.artifacts.clusters}) > 1
     app = create_app()
     app.dependency_overrides[get_prepared_layout_store] = lambda: store

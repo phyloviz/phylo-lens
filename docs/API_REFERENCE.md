@@ -140,6 +140,11 @@ Normalizes input and submits preparation of a persisted layout.
 | `metadata_by_node_id` | object | no | `{}` | Direct metadata keyed by canonical node ID |
 | `ancillary_data` | `AncillaryDataRequest \| null` | no | `null` | CSV/TSV metadata joined to nodes |
 
+The preparation result echoes the applied `distance_cutoff` (omitted when none).
+Clients must verify it matches the requested value before labeling a view or
+export as cut. An older API may ignore unknown request fields; missing
+confirmation must be treated as unsupported rather than as a successful cut.
+
 `AncillaryField`:
 
 | Field | Type |
