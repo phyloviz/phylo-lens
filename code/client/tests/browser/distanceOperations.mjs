@@ -1,34 +1,18 @@
+import { browserHarness, waitForView, observeProductRenderer } from './browserHarness.mjs';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { createServer } from 'vite';
-import { chromium } from './browserRuntime.mjs';
 
 const api = process.env.REQUIREMENTS_API_URL ?? 'http://127.0.0.1:8128';
-const cacheDir = await mkdtemp(join(tmpdir(), 'phylo-lens-distance-vite-'));
-const server = await createServer({
-  root: fileURLToPath(new URL('../../', import.meta.url)),
-  configFile: false,
-  cacheDir,
-  optimizeDeps: { include: ['d3-force', 'sigma', 'graphology'] },
-  server: { host: '127.0.0.1', port: 0, proxy: { '/api': api, '/health': api } },
-});
-let browser;
+const { page, errors, close, url } = await browserHarness({ api, viewport: { width: 1440, height: 1000 } });
 try {
-  await server.listen();
-  browser = await chromium.launch({ headless: true, args: ['--enable-unsafe-swiftshader', '--no-sandbox'] });
-  const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
-  const errors = [];
-  page.on('pageerror', error => errors.push(String(error)));
+  await observeProductRenderer(page);
   await page.route('**/src/main.ts', route =>
     route.fulfill({
       contentType: 'text/javascript',
       body: 'import "/tests/browser/meetingRequirements.ts";',
     })
   );
-  await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/`);
+  await page.goto(`${url}/`);
   await page.waitForFunction(() => window.requirementsShell);
   const content = '((a:0,b:2.5)branch:3,c:4)root;';
   const load = async (cutoff, edgeCount) => {
@@ -39,6 +23,7 @@ try {
       .setInputFiles({ name: 'distances.nwk', mimeType: 'text/plain', buffer: Buffer.from(content) });
     await page.locator('#distance-cutoff').fill(cutoff);
     const request = page.waitForRequest(request => request.url().endsWith('/api/graph/prepare'));
+    const animations = await page.evaluate(() => window.requirementsView.completedAnimations);
     await page.locator('button[type=submit]').click();
     assert.equal((await request).postDataJSON().distance_cutoff, cutoff === '' ? undefined : Number(cutoff));
     await page.waitForFunction(edgeCount => {
@@ -49,6 +34,8 @@ try {
         document.querySelector('#status').textContent.includes('Rendered')
       );
     }, edgeCount);
+    await page.waitForFunction(before => window.requirementsView.completedAnimations > before, animations);
+    await waitForView(page);
   };
   await load('2.5', 2);
   await page.waitForFunction(() => document.querySelectorAll('#forest-controls [role=tab]').length === 4);
@@ -86,8 +73,7 @@ try {
   await page.keyboard.press('Escape');
   await load('', 4);
   assert.ok(!(await page.locator('#status').textContent()).includes('cutoff'));
-  // Observe the known initial-fit window before measuring an unrelated action.
-  await page.waitForTimeout(600);
+  await waitForView(page);
   const arrangement = await page.evaluate(() => ({
     camera: window.requirementsSigma.getCamera().getState(),
     nodes: window.requirementsSigma.getGraph().mapNodes((id, a) => [id, a.x, a.y]),
@@ -168,7 +154,5 @@ try {
     'Distance cutoff: decimal/equal/zero thresholds, isolated-node panels, PNG caption and original-tree restoration passed.'
   );
 } finally {
-  await browser?.close();
-  await server.close();
-  await rm(cacheDir, { recursive: true, force: true });
+  await close();
 }

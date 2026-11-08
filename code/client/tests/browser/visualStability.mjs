@@ -1,25 +1,10 @@
+import { browserHarness, waitForView, observeUnchanged } from './browserHarness.mjs';
 import assert from 'node:assert/strict';
-import { fileURLToPath } from 'node:url';
 import { writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { createServer } from 'vite';
-import { chromium } from './browserRuntime.mjs';
 
-const server = await createServer({
-  root: fileURLToPath(new URL('../../', import.meta.url)),
-  configFile: false,
-  cacheDir: join(tmpdir(), 'phylo-lens-visual-stability-vite'),
-  optimizeDeps: { include: ['d3-force'] },
-  server: { host: '127.0.0.1', port: 0 },
-});
-await server.listen();
-const browser = await chromium.launch({ headless: true, args: ['--enable-unsafe-swiftshader', '--no-sandbox'] });
-const page = await browser.newPage({ viewport: { width: 1200, height: 800 } });
-const errors = [];
-page.on('pageerror', error => errors.push(String(error)));
+const { page, errors, close, url } = await browserHarness({});
 try {
-  await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/tests/browser/elasticMotion.html`);
+  await page.goto(`${url}/tests/browser/elasticMotion.html`);
   await page.waitForFunction(() => window.motionFixture);
   await page.evaluate(async () => {
     const { graphSnapshotFromViewportResponse } = await import('/src/app/workbench/viewport/viewportSnapshot.ts');
@@ -98,7 +83,8 @@ try {
         renderer.applyGraphSnapshot(window.stabilityViews[view]);
         return { point, camera };
       }, view);
-      await page.waitForTimeout(450);
+      await observeUnchanged(page, () => window.motionFixture.sigma.getCamera().getState());
+      await waitForView(page);
       const after = await page.evaluate(view => {
         const { sigma } = window.motionFixture;
         const graph = sigma.getGraph();
@@ -136,19 +122,20 @@ try {
   await page.mouse.move(box.x + box.width * 0.6, box.y + box.height * 0.5);
   for (const delta of [-20, 20]) {
     await page.evaluate(() => window.motionFixture.renderer.applyGraphSnapshot(window.stabilityViews.detailed));
-    await page.waitForTimeout(40);
+    await waitForView(page);
     for (let i = 0; i < 6; i++) {
       await page.mouse.wheel(0, delta);
       await page.waitForTimeout(30);
     }
-    await page.waitForTimeout(350);
+    await waitForView(page);
     const before = await page.evaluate(() => {
       const { sigma, renderer } = window.motionFixture;
       const point = sigma.graphToViewport({ x: 2, y: 0 });
       renderer.applyGraphSnapshot(window.stabilityViews.coarse);
       return point;
     });
-    await page.waitForTimeout(450);
+    await observeUnchanged(page, () => window.motionFixture.sigma.getCamera().getState());
+    await waitForView(page);
     const after = await page.evaluate(() => window.motionFixture.sigma.graphToViewport({ x: 2, y: 0 }));
     wheelSamples.push({ delta, cameraDriftPx: Math.hypot(before.x - after.x, before.y - after.y) });
   }
@@ -169,6 +156,5 @@ try {
     assert.deepEqual(errors, []);
   }
 } finally {
-  await browser.close();
-  await server.close();
+  await close();
 }
