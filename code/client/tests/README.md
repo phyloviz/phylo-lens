@@ -15,6 +15,20 @@ stubs reject unconfigured operations; tests supply scenario-specific results.
 Controlled promises use `helpers/state.ts`. See the
 [test strategy](../../../docs/validation/test-strategy.md) for the rationale.
 
+Suites with several responsibilities are grouped by subject:
+
+- `render/sigma/`: lifecycle, viewport geometry, interaction, motion, node/edge
+  presentation and pies. Pure camera/attribute checks need no renderer fixture.
+- `workbench/viewport/`: request ownership, detail policy, expansion, revisions,
+  focus, component panels and observation boundaries.
+- `ui/`: loading, appearance, interaction and lifecycle.
+
+Each group's small `harness.ts` registers setup and unconditional cleanup. Data
+and expected results stay in the scenarios; viewport response builders are in
+that group's `fixtures.ts`. Module mocks remain at the Sigma boundary, and every
+test receives fresh state. Public-view tests associate each workbench double with
+its own container, so simultaneous views never share method spies.
+
 `freezeInput` is for small, plain test fixtures. It helps detect accidental writes
 to reducer inputs and graph calculations. It does not imply that production
 graphs should be recursively frozen.

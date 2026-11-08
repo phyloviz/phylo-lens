@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Any
-
 import pytest
 
 from phylo_lens_server.database import postgres, schema_files
@@ -11,6 +9,7 @@ from phylo_lens_server.http.graph.schemas import NormalizeRequest
 from phylo_lens_server.jobs.durable import DurablePrepareJobRegistry
 from phylo_lens_server.pipeline.ingestion import ingest_dataset
 from phylo_lens_server.repository.jobs import postgres as job_store
+from tests.support.durable_store import RecordingDurableStore
 
 
 def test_durable_prepare_job_from_row_normalizes_json_fields() -> None:
@@ -82,52 +81,6 @@ def test_schema_roots_include_installed_target_layout() -> None:
     )
 
 
-class RecordingDurableStore:
-    def __init__(self, snapshot) -> None:
-        self.snapshot_record = snapshot
-        self.schema_asserted = False
-        self.submitted: list[tuple[str, tuple[str, ...], int | None]] = []
-
-    def create_schema(self) -> None:
-        raise NotImplementedError
-
-    def assert_schema_current(self) -> None:
-        self.schema_asserted = True
-
-    def submit(
-        self,
-        dataset,
-        warnings=(),
-        *,
-        sfdp_options=None,
-        lod_options=None,
-        max_active_jobs=None,
-    ) -> str:
-        self.submitted.append((dataset.dataset_id, warnings, max_active_jobs))
-        return "job-1"
-
-    def claim_next(self, *, worker_id: str, lease_seconds: int):
-        return None
-
-    def heartbeat(self, *, job_id: str, worker_id: str, lease_seconds: int) -> bool:
-        return True
-
-    def mark_ready(
-        self,
-        *,
-        job_id: str,
-        worker_id: str,
-        result: dict[str, Any],
-    ) -> bool:
-        return True
-
-    def mark_failed(self, *, job_id: str, worker_id: str, error: str) -> bool:
-        return True
-
-    def snapshot(self, job_id: str):
-        return self.snapshot_record
-
-
 def test_durable_prepare_job_registry_submits_and_maps_ready_snapshot() -> None:
     dataset = ingest_dataset(
         NormalizeRequest(
@@ -148,14 +101,15 @@ def test_durable_prepare_job_registry_submits_and_maps_ready_snapshot() -> None:
         "warnings": ["note"],
     }
     store = RecordingDurableStore(
-        job_store.DurablePrepareJob(
+        snapshot_record=job_store.DurablePrepareJob(
             job_id="job-1",
             dataset_id="durable-tree",
             layout_version="abc",
             status="ready",
             warnings=("note",),
             result=PreparationSummary.model_validate(result_payload),
-        )
+        ),
+        submit_result="job-1",
     )
     registry = DurablePrepareJobRegistry(store, max_active_jobs=2)
 
