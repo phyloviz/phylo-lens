@@ -4,6 +4,7 @@ on:
   pull_request:
     branches:
       - main
+      - 'fix/gf/**'
   push:
     branches:
       - main
@@ -319,6 +320,27 @@ jobs:
           python -m pip install -e 'eval[test,dev]'
           (cd eval && python -m ruff check src tests && python -m ruff format --check src tests)
           PYTHONPATH=eval/src:code/server/src python -m pytest -q eval/tests --basetemp="$RUNNER_TEMP/phylo-lens-eval-tests"
+
+      - name: Check distance operations in the app
+        run: |
+          PHYLO_LENS_PREPARED_LAYOUT_STORE_DIR="$RUNNER_TEMP/distance-operation-layouts" \
+            python -m uvicorn phylo_lens_server.main:app --host 127.0.0.1 --port 8128 \
+            > "$RUNNER_TEMP/distance-operation-api.log" 2>&1 &
+          distance_api_pid=$!
+          trap 'kill "$distance_api_pid"' EXIT
+          python - <<'PY'
+          import time
+          import urllib.request
+          for attempt in range(100):
+              try:
+                  urllib.request.urlopen('http://127.0.0.1:8128/health', timeout=1).close()
+                  break
+              except OSError:
+                  time.sleep(0.2)
+          else:
+              raise RuntimeError('Distance-operation API did not start')
+          PY
+          (cd code/client && node tests/browser/distanceOperations.mjs)
 
       - name: Preserve evaluation failure diagnostics
         if: failure()

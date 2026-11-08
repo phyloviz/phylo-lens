@@ -40,6 +40,7 @@ export const GRAPH_VIEWER_BASE_EDGE_SIZE = 1;
 export const GRAPH_VIEWER_TRIANGLE_NODE_TYPE = 'triangle';
 
 export interface ViewportRenderSettings {
+  distanceCutoff?: number;
   visualMapping?: VisualMappingOptions;
   filterState?: AncillaryFilterState;
   displayOptions?: GraphDisplayOptions;
@@ -71,6 +72,7 @@ export function graphSnapshotFromViewportResponse(
       .filter(edge => liveNodeIds.has(edge.source) && liveNodeIds.has(edge.target))
       .map(edge => positionedEdgeFromViewportEdge(edge, displayOptions)),
     viewMeta: {
+      ...(settings?.distanceCutoff === undefined ? {} : { distanceCutoff: settings.distanceCutoff }),
       layout: 'server',
       lodLevel: response.lodLevel ?? 0,
       sliceNodeCount: nodes.length,

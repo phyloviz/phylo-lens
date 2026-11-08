@@ -376,6 +376,14 @@
                   ></textarea>
                 </label>
 
+                <label>
+                  Maximum tree-edge distance (optional)
+                  <input id="distance-cutoff" type="number" min="0" step="any" placeholder="Keep all tree edges" />
+                </label>
+                <p class="field-help">
+                  On load, edges above this value are removed to form separate trees. Equal values are kept. Clear the
+                  value and reload to restore the original tree. Loading rebuilds the layout.
+                </p>
                 <details class="help-details">
                   <summary>Advanced preparation</summary>
                   <div class="details-body">

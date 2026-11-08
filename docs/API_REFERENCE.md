@@ -133,6 +133,7 @@ Normalizes input and submits preparation of a persisted layout.
 | `format` | `"newick" \| "typing_data"` | yes | — | Input family |
 | `dataset_name` | non-empty `string` | no | `"dataset"` | Dataset identifier and layout namespace |
 | `content` | non-empty `string` | yes | — | Newick text or allelic-profile matrix |
+| `distance_cutoff` | finite number ≥ 0 or `null` | no | `null` | Keep tree edges at or below this value before layout and LoD; retain every node and rebuild component roots. Requires known distances on all edges. |
 | `options.allow_self_loops` | `boolean` | no | `false` | Permit self-loop edges during domain validation |
 | `lod_options.small_component_threshold` | integer ≥ 0 | no | `64` | Components with this many canonical nodes or fewer stay explicit at every prepared tier; zero disables protection. |
 | `metadata_schema` | `AncillaryField[]` | no | `[]` | Declared public metadata types |

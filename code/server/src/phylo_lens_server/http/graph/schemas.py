@@ -46,6 +46,7 @@ class NormalizeRequest(BaseModel):
     ancillary_data: AncillaryDataRequest | None = None
     sfdp_options: SfdpOptions = Field(default_factory=SfdpOptions)
     lod_options: LodOptions = Field(default_factory=LodOptions)
+    distance_cutoff: float | None = Field(default=None, ge=0, allow_inf_nan=False)
 
     @model_validator(mode="before")
     @classmethod
@@ -76,6 +77,7 @@ class NormalizeRequest(BaseModel):
             else None,
             sfdp_options=self.sfdp_options,
             lod_options=self.lod_options,
+            distance_cutoff=self.distance_cutoff,
         )
 
 

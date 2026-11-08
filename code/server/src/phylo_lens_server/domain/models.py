@@ -51,6 +51,7 @@ class DatasetSource(FrozenValue):
     generated_at: str = Field(min_length=1)
     provenance: str | None = None
     rooting_strategy: str = Field(min_length=1)
+    distance_cutoff: float | None = Field(default=None, ge=0, allow_inf_nan=False)
 
 
 class Isolate(FrozenValue):
@@ -107,7 +108,11 @@ class Dataset(FrozenValue):
             raise ValueError(
                 "Every tree component requires exactly one technical root."
             )
-        if self.source.format == SourceFormat.TYPING_DATA and len(components) != 1:
+        if (
+            self.source.format == SourceFormat.TYPING_DATA
+            and self.source.distance_cutoff is None
+            and len(components) != 1
+        ):
             raise ValueError("A goeBURST Full MST must be one connected tree.")
         expected_strategy = (
             GOEBURST_ROOTING_STRATEGY

@@ -101,6 +101,7 @@ class PrepareInput:
     ancillary_data: AncillaryTable | None = None
     sfdp_options: SfdpOptions = field(default_factory=SfdpOptions)
     lod_options: LodOptions = field(default_factory=LodOptions)
+    distance_cutoff: float | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(
