@@ -30,6 +30,31 @@ Optional response fields with `None` values are omitted on graph routes.
 | `POST` | `/api/graph/region` | `GraphRegionQuery` | `GraphRegionResponse` | `200` |
 | `POST` | `/api/graph/search` | `GraphSearchQuery` | `GraphSearchResponse` | `200` |
 | `PUT` | `/api/graph/ancillary` | `GraphAncillaryRequest` | `GraphAncillaryResponse` | `200` |
+| `POST` | `/api/graph/connections` | `GraphConnectionsRequest` | `GraphConnectionsResponse` | `200` |
+
+## Additional distance connections
+
+`POST /api/graph/connections` accepts `dataset_id`, an explicit published
+`layout_version`, the original `format` and `content`, a finite nonnegative
+`threshold`, and an optional positive integer `max_connections` (default 50,000).
+Typing thresholds must be whole numbers. The original typing input must match
+the loaded source; canonical node IDs are checked, but this is not an allele
+provenance authentication endpoint.
+
+The response contains the same dataset/version, `metric` (`allelic` or
+`patristic`), `threshold`, and `edges` with `id`, `source`, `target` and `distance`.
+Edges are additional links between named nodes in the same prepared component;
+tree edges, self-links and unnamed structural junctions are excluded. Threshold
+equality and distinct zero-distance pairs are included. No tree tables or
+positions are changed. Newick uses persisted branch weights; typing uses the
+same retained-locus policy as preparation.
+
+A missing layout or forest index returns `404`. Invalid sources, missing branch
+distances, fractional allelic thresholds and exceeded connection limits return
+`422` with an explanatory `detail`. Exceeding the limit returns no partial edge
+list. See [distance-operation decisions](DISTANCE_OPERATIONS.md) for query cost,
+data ownership and overlay semantics, and the [user guide](USER_GUIDE.md) for
+examples.
 
 ## Prepare lifecycle
 

@@ -7,15 +7,21 @@ export const STATUS_RENDERED_PREFIX = 'Rendered';
 export const STATUS_DEGRADED_LAYOUT_WARNING = '⚠ This stored layout was prepared by an earlier service version';
 
 export function buildRenderedStatus(graph: PositionedGraph): string {
+  const connections = graph.viewMeta.distanceConnections;
+  const treeEdges = graph.edges.filter(edge => edge.attributes?.isDistanceConnection !== true).length;
   const parts = [
     `${graph.nodes.length} ${graph.nodes.length === 1 ? 'symbol' : 'symbols'} drawn`,
-    `${graph.edges.length} edges`,
+    connections ? `${treeEdges} tree edges` : `${graph.edges.length} edges`,
     detailLevelLabel(graph),
   ];
   const isolateCounts = graph.nodes.map(node => {
     return readNodeAnnotations(node.attributes).profileSummary.isolateCount;
   });
   if (graph.viewMeta.distanceCutoff !== undefined) parts.push(`tree-edge cutoff ≤ ${graph.viewMeta.distanceCutoff}`);
+  if (connections)
+    parts.push(
+      `${connections.visibleCount}/${connections.totalCount} additional ${connections.metric === 'allelic' ? 'allelic' : 'tree-path'} connections, distance ≤ ${connections.threshold}`
+    );
   if (graph.nodes.some(node => node.attributes?.isBranchCollapsed === true)) {
     parts.push('branch isolate totals unavailable');
   } else if (

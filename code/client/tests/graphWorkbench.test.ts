@@ -11,6 +11,44 @@ import type { GraphPrepareResult } from '../src/contracts/graph/prepare/GraphPre
 import type { GraphViewportResult } from '../src/contracts/graph/viewport/GraphViewportResult';
 import type { GraphRenderer, RenderViewportRequestState, RendererFactory } from '../src/render/renderer.types';
 import type { PositionedGraph } from '../src/contracts/positioned';
+import type { DistanceConnectionsResult } from '../src/contracts/graph/connections';
+
+it('uses the owned loaded source and leaves the previous overlay intact when a query fails', async () => {
+  const read = vi
+    .fn<NonNullable<GraphClient['readDistanceConnections']>>()
+    .mockResolvedValue({ metric: 'patristic', threshold: 2, edges: [] });
+  const { workbench, renderer } = createWorkbenchHarness({ readDistanceConnections: read });
+  const input = { content: '(a:1)b;', format: 'newick' as const, datasetName: 'tree' };
+  await workbench.loadGraph(input);
+  input.content = '(changed:9)other;';
+  await workbench.setDistanceConnections({ threshold: 2 });
+  expect(read.mock.calls[0][0]).toMatchObject({ content: '(a:1)b;', datasetId: 'tree', layoutVersion: 'layout-1' });
+  const applied = renderer.applyGraphSnapshot.mock.calls.at(-1)?.[0];
+  expect(applied?.viewMeta.distanceConnections?.threshold).toBe(2);
+  read.mockRejectedValueOnce(new Error('Connection limit exceeded'));
+  await expect(workbench.setDistanceConnections({ threshold: 100 })).rejects.toThrow('limit');
+  expect(renderer.applyGraphSnapshot.mock.calls.at(-1)?.[0]).toBe(applied);
+  const clear = await workbench.setDistanceConnections(null);
+  expect(clear.viewMeta.distanceConnections).toBeUndefined();
+  expect(read).toHaveBeenCalledTimes(2);
+  workbench.dispose();
+});
+
+it('aborts an obsolete connection query and rejects late results after a new load', async () => {
+  const pending = deferred<DistanceConnectionsResult>();
+  const read = vi.fn<NonNullable<GraphClient['readDistanceConnections']>>().mockReturnValue(pending.promise);
+  const { workbench, renderer } = createWorkbenchHarness({ readDistanceConnections: read });
+  await workbench.loadGraph({ content: '(a:1)b;', format: 'newick' });
+  const result = workbench.setDistanceConnections({ threshold: 2 });
+  const rejection = expect(result).rejects.toThrow('superseded');
+  const signal = read.mock.calls[0][1]?.signal;
+  await workbench.loadGraph({ content: '(different:1)tree;', format: 'newick' });
+  expect(signal?.aborted).toBe(true);
+  pending.resolve({ metric: 'patristic', threshold: 2, edges: [] });
+  await rejection;
+  expect(renderer.applyGraphSnapshot.mock.calls.at(-1)?.[0].viewMeta.distanceConnections).toBeUndefined();
+  workbench.dispose();
+});
 
 function deferred<T>() {
   let resolve: (value: T) => void = () => undefined;

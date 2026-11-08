@@ -12,8 +12,13 @@ import type { GraphSearchRequest } from './search/GraphSearchRequest';
 import type { GraphSearchResult } from './search/GraphSearchResult';
 
 import type { GraphComponentsRequest, GraphComponentsResult } from './components';
+import type { DistanceConnectionsRequest, DistanceConnectionsResult } from './connections';
 
 export interface GraphClient {
+  readDistanceConnections?(
+    request: DistanceConnectionsRequest,
+    options?: { signal?: AbortSignal }
+  ): Promise<DistanceConnectionsResult>;
   readComponents?(request: GraphComponentsRequest): Promise<GraphComponentsResult>;
   prepareGraph(request: GraphPrepareRequest, options?: GraphPrepareOptions): Promise<GraphPrepareResult>;
 

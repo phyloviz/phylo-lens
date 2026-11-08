@@ -7,11 +7,13 @@ import { readGraphRegion } from './graphRegionService';
 import { searchGraph } from './graphSearchService';
 
 import { readGraphComponents } from './graphComponentsService';
+import { readDistanceConnections } from './graphConnectionsService';
 
 export function createGraphClient(options: HttpClientOptions): GraphClient {
   const http = createHttpClient(options);
 
   return {
+    readDistanceConnections: (request, options) => readDistanceConnections(http, request, options),
     readComponents: request => readGraphComponents(http, request),
     prepareGraph: (request, options) => prepareGraph(http, request, options),
     applyAncillaryData: request => applyAncillaryData(http, request),

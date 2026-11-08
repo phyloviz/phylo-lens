@@ -30,6 +30,8 @@ import {
   graphSnapshotWithDisplayOptions,
   type ViewportRenderSettings,
 } from './viewportSnapshot';
+import { DistanceConnectionOverlay } from './distanceConnections';
+import type { DistanceConnectionsResult } from '../../../contracts/graph/connections';
 
 export type GraphViewportCoordinatorOptions = {
   readonly datasetId: DatasetId;
@@ -69,6 +71,15 @@ export const VIEWPORT_INITIAL_FIT_DURATION_MS = 300;
 export const ERR_VIEWPORT_COORDINATOR_UNMOUNTED = 'Viewport sync was unmounted before the initial viewport loaded.';
 
 export class GraphViewportCoordinator {
+  private distanceConnections: DistanceConnectionOverlay | null = null;
+
+  setDistanceConnections(connections: DistanceConnectionsResult | null): PositionedGraph {
+    this.distanceConnections = connections === null ? null : new DistanceConnectionOverlay(connections);
+    const graph = this.composeGraph();
+    this.applyGraph(graph, 'viewport_sync', null, true);
+    this.onGraphApplied?.(graph);
+    return graph;
+  }
   // Configuration and collaborators
   private readonly datasetId: DatasetId;
   private readonly client: Pick<GraphClient, 'readViewport'>;
@@ -381,6 +392,7 @@ export class GraphViewportCoordinator {
       graphSnapshotWithDisplayOptions(this.composeUnfoldedGraph(), displayOptions),
       this.getRenderSettings?.().visualMapping?.groupSize
     );
+    if (this.distanceConnections) this.currentGraph = this.distanceConnections.apply(this.currentGraph);
     this.applyGraph(this.currentGraph, 'viewport_sync');
     this.onGraphApplied?.(this.currentGraph);
   }
@@ -583,6 +595,7 @@ export class GraphViewportCoordinator {
       this.composeUnfoldedGraph(),
       this.getRenderSettings?.().visualMapping?.groupSize
     );
+    if (this.distanceConnections) this.currentGraph = this.distanceConnections.apply(this.currentGraph);
     return this.currentGraph;
   }
 

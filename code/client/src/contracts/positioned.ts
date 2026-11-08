@@ -36,6 +36,12 @@ export type PositionedGraph = {
   readonly edges: readonly PositionedEdge[];
   readonly viewMeta: {
     readonly distanceCutoff?: number;
+    readonly distanceConnections?: {
+      readonly metric: 'allelic' | 'patristic';
+      readonly threshold: number;
+      readonly totalCount: number;
+      readonly visibleCount: number;
+    };
     readonly componentId?: string;
     readonly layout: LayoutMode;
     readonly lodLevel: number;
