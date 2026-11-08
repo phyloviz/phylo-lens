@@ -19,6 +19,7 @@ export function distanceConnectionsControls(
   const bindings = eventBindings();
   let ready = false;
   let busy = false;
+  let failure: string | null = null;
   let sequence = 0;
   let sourceFormat: SourceFormat | null = null;
   let graph: PositionedGraph | null = null;
@@ -43,6 +44,10 @@ export function distanceConnectionsControls(
   function refresh(next: PositionedGraph | null): void {
     graph = next;
     if (busy || !elements.connectionFeedback) return;
+    if (failure !== null) {
+      elements.connectionFeedback.textContent = failure;
+      return;
+    }
     const connections = graph?.viewMeta.distanceConnections;
     elements.connectionFeedback.textContent = connections
       ? `${connections.visibleCount} of ${connections.totalCount} additional connections visible at distance ≤ ${connections.threshold}. Grouped or hidden endpoints are omitted.`
@@ -52,6 +57,7 @@ export function distanceConnectionsControls(
   async function apply(): Promise<void> {
     if (!ready || busy) return;
     const current = ++sequence;
+    failure = null;
     try {
       const raw = elements.connectionThreshold?.value.trim();
       const threshold = raw ? Number(raw) : NaN;
@@ -73,15 +79,14 @@ export function distanceConnectionsControls(
       if (elements.connectionFeedback) elements.connectionFeedback.textContent = 'Computing additional connections…';
       const next = await workbench.setDistanceConnections({ threshold, maxConnections: limit });
       if (current !== sequence) return;
-      busy = false;
-      refresh(next);
+      graph = next;
     } catch (error) {
-      if (current === sequence && elements.connectionFeedback)
-        elements.connectionFeedback.textContent = error instanceof Error ? error.message : String(error);
+      if (current === sequence) failure = error instanceof Error ? error.message : String(error);
     } finally {
       if (current === sequence) {
         busy = false;
         update();
+        refresh(graph);
       }
     }
   }
@@ -90,13 +95,16 @@ export function distanceConnectionsControls(
     if (!ready) return;
     const current = ++sequence;
     busy = false;
+    failure = null;
     update();
     try {
       const next = await workbench.setDistanceConnections(null);
       if (current === sequence) refresh(next);
     } catch (error) {
-      if (current === sequence && elements.connectionFeedback)
-        elements.connectionFeedback.textContent = error instanceof Error ? error.message : String(error);
+      if (current === sequence) {
+        failure = error instanceof Error ? error.message : String(error);
+        refresh(graph);
+      }
     }
   }
 
@@ -111,6 +119,7 @@ export function distanceConnectionsControls(
       sourceFormat = format;
       ready = format !== null;
       busy = false;
+      failure = null;
       refresh(null);
       update();
     },

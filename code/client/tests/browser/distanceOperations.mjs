@@ -109,6 +109,15 @@ try {
   await page.waitForFunction(() =>
     document.querySelector('#connection-feedback').textContent.includes('No partial overlay')
   );
+  await waitForView(page);
+  const refreshed = page.waitForResponse(response => response.url().endsWith('/api/graph/viewport'));
+  await page.evaluate(() => {
+    const camera = window.requirementsSigma.getCamera();
+    camera.setState({ x: camera.getState().x + 0.01 });
+  });
+  await refreshed;
+  await waitForView(page);
+  assert.match(await page.locator('#connection-feedback').textContent(), /No partial overlay/);
   assert.equal(await page.evaluate(() => window.requirementsSigma.getGraph().size), 6);
   // A manual fold omits its descendants' links instead of fabricating group distances.
   await page.locator('#search-input').fill('branch');

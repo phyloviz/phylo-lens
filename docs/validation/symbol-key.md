@@ -7,6 +7,10 @@ through the keyboard-accessible **About symbols** disclosure. Its open state
 survives streamed updates. Exact available counts remain in hover and inspection,
 and publication exports retain their interpretation notes.
 
+Changing key content can resize the canvas and cause a viewport refresh.
+Connection-query errors therefore remain until another explicit query, removal
+or dataset load; a redraw must not replace an actionable error with normal counts.
+
 Nielsen's [usability heuristics](https://www.nngroup.com/articles/ten-usability-heuristics/)
 motivate recognition, familiar wording and limiting irrelevant information.
 [Progressive disclosure](https://www.nngroup.com/articles/progressive-disclosure/)

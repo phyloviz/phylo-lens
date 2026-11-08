@@ -82,6 +82,8 @@ The default limit is **50,000 additional connections** across the loaded forest.
 You can change it before applying. If more qualify, the operation reports this
 and retains your previous overlay. It never silently shows an incomplete
 selection. Larger thresholds can make computation and rendering expensive.
+An error remains visible while the view updates; apply again, remove connections
+or load a dataset to clear it.
 Connections are computed only when requested, not on every zoom. A new dataset
 load clears them. No persistence across browser reloads is promised.
 
