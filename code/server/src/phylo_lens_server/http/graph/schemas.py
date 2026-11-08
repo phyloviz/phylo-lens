@@ -110,6 +110,7 @@ HARD_MAX_SEARCH_LIMIT = 500
 
 
 class GraphPrepareResponse(BaseModel):
+    distance_cutoff: float | None = Field(default=None, ge=0, allow_inf_nan=False)
     dataset_id: str
     layout_version: str
     node_count: int = Field(ge=0)

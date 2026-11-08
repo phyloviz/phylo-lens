@@ -44,6 +44,7 @@ export function copyGraphPrepareRequestDto(dto: GraphPrepareRequestDto): GraphPr
 
 function toGraphPrepareResult(dto: GraphPrepareResponseDto): GraphPrepareResult {
   return {
+    ...(dto.distance_cutoff == null ? {} : { distanceCutoff: dto.distance_cutoff }),
     datasetId: toDatasetId(dto.dataset_id),
     layoutVersion: toLayoutVersion(dto.layout_version),
     nodeCount: dto.node_count,

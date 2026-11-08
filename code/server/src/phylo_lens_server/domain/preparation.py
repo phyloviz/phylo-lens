@@ -126,6 +126,7 @@ class PreparationSummary(FrozenValue):
     technical_roots: tuple[str, ...] = ()
     layout_status: LayoutStatus
     warnings: tuple[str, ...] = ()
+    distance_cutoff: float | None = None
 
     @classmethod
     def from_result(
@@ -142,4 +143,5 @@ class PreparationSummary(FrozenValue):
             technical_roots=result.artifacts.dataset.technical_roots,
             layout_status=result.layout_status,
             warnings=warnings,
+            distance_cutoff=result.artifacts.dataset.source.distance_cutoff,
         )
