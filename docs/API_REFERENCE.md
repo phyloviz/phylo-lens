@@ -318,6 +318,39 @@ bounds.
 | `lod_target_representations` | positive integer or null | no | `null` | Optional viewport complexity target for tier selection; never limits retrieval |
 | `lod_selection_bounds` | object `{xmin,xmax,ymin,ymax}` or null | no | request bounds | Ordered finite visible bounds used for selection, separately from padded retrieval bounds |
 | `previous_lod_level` | integer ≥ 0 or null | no | `null` | Previous effective tier for 15% density hysteresis against its zoom-adjusted target |
+| `known_annotations` | object array | no | `[]` | Annotation identities retained by the caller for this exact dataset and explicit layout version |
+| `known_observations` | string array or null | no | `null` | Opt into stable observation references; list retained source-row identities for this exact layout |
+
+Each `known_annotations` entry contains `node_id`, `cluster_id`, and
+`is_representative`. Reuse requires an explicit `layout_version`; an unpinned
+request with annotation hints returns `422`. A matching returned node has
+`annotations_cached: true` and omits its static metadata and tree interval;
+`isolates` and `ancillary_distribution` are empty. Restore those four fields from
+the matching retained node before consuming the response. Coordinates, membership
+counts and edges always come from the new response. Without a matching hint the
+service returns complete annotations, preserving API v1 behavior for other clients.
+
+With `known_observations: []`, distribution rows also include a `reference_id`.
+Supply retained IDs on later requests to reuse values across different LoD tiers:
+a matching row has `values_cached: true`, empty `values`, and its new cluster-local
+`count`. Restore only `values` from the retained row; always use the newly returned
+count. Missing references receive complete values. Source identities distinguish
+isolate rows from canonical-node fallbacks, and are scoped to the explicit layout.
+The reference representation can contain repeated equal public values; sum row
+counts when grouping categories. Omitting this option retains the original
+fully aggregated observation representation.
+
+The same dictionary covers original isolates when a finer tier reveals individual
+profiles. An isolate with `metadata_cached: true` retains its ID and restores its
+metadata from `isolate:<id>` in the retained values. Complete metadata is returned
+when that identity was not offered by the caller.
+
+The browser borrows only its current viewport's annotations. It does not retain
+an accumulating dataset-wide cache, and never reuses across ancillary revisions,
+datasets or different node/cluster/representative identities. Obsolete automatic
+viewport reads are aborted when camera input, dragging, expansion, replacement or
+unmount supersedes them; request sequence checks still guard hosts that ignore
+abort signals. Clients accepting gzip receive losslessly compressed JSON.
 
 When `lod_level` is omitted, the service uses a minimal fallback rule:
 `zoom < 1.0` selects tier `0`; otherwise the finest path is requested. The

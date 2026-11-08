@@ -15,7 +15,7 @@ export function createGraphClient(options: HttpClientOptions): GraphClient {
     readComponents: request => readGraphComponents(http, request),
     prepareGraph: (request, options) => prepareGraph(http, request, options),
     applyAncillaryData: request => applyAncillaryData(http, request),
-    readViewport: request => readGraphViewport(http, request),
+    readViewport: (request, options) => readGraphViewport(http, request, options),
     readRegion: request => readGraphRegion(http, request),
     searchGraph: request => searchGraph(http, request),
   };

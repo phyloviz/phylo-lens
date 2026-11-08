@@ -1,5 +1,6 @@
 import { distanceEdgeColor, showsDistanceLabel } from '../../../render/mapping/edgeMapping';
 import { isClusterRepresentative } from '../../../render/mapping/clusterNodes';
+import { groupSizeForCount, resolveGroupSize, type ResolvedGroupSizeMapping } from '../../../render/mapping/groupSize';
 import type { AncillaryObservation } from '../../../contracts/ancillary';
 import { ancillaryValues } from '../../../ancillary/ancillaryAccess';
 import type { GraphViewportEdge } from '../../../contracts/graph/viewport/GraphViewportEdge';
@@ -33,9 +34,6 @@ import {
 } from '../../../render/mapping/pieMapping';
 
 export const DEFAULT_GRAPH_VIEWER_NODE_SIZE = DEFAULT_NODE_SIZE;
-export const GRAPH_VIEWER_REPRESENTATIVE_BASE_SIZE = 3.5;
-export const GRAPH_VIEWER_REPRESENTATIVE_LOG_SIZE_FACTOR = 0.55;
-export const GRAPH_VIEWER_REPRESENTATIVE_MAX_SIZE = 6;
 export const GRAPH_VIEWER_NODE_COLOR = '#64748b';
 export const GRAPH_VIEWER_EDGE_COLOR = '#94a3b8';
 export const GRAPH_VIEWER_BASE_EDGE_SIZE = 1;
@@ -48,6 +46,7 @@ export interface ViewportRenderSettings {
 }
 
 interface ResolvedViewportVisuals {
+  groupSize: ResolvedGroupSizeMapping;
   colorField: string | undefined;
   sizeField?: string;
   scale: SizeScale;
@@ -160,7 +159,7 @@ function buildGraphViewportNodeAttributes(
       ? resolvePieCategoryColor(distribution[0], visuals.palette, visuals.categoryColors?.[distribution[0].category])
       : GRAPH_VIEWER_NODE_COLOR;
   const size = isRepresentative
-    ? nodeSizeForMemberCount(node.memberCount)
+    ? groupSizeForCount(node.memberCount, visuals.groupSize)
     : deriveSize(
         nodeValue(node, visuals.sizeField ?? resolveDefaultSizeField(profileCount(node) !== undefined)),
         visuals.scale
@@ -225,6 +224,7 @@ function resolveViewportVisuals(settings?: ViewportRenderSettings): ResolvedView
   const pie = mapping.pie && mapping.pie.enabled !== false ? mapping.pie : undefined;
 
   return {
+    groupSize: resolveGroupSize(mapping.groupSize),
     colorField,
     sizeField,
     scale,
@@ -243,15 +243,6 @@ function nodeValue(node: GraphViewportNode, field: string) {
 
 function profileCount(node: GraphViewportNode): number | undefined {
   return node.annotations.profileSummary.isolateCount ?? (node.isolates?.length || undefined);
-}
-
-function nodeSizeForMemberCount(memberCount: number): number {
-  const safeMemberCount = Math.max(1, memberCount);
-  if (safeMemberCount === 1) {
-    return DEFAULT_GRAPH_VIEWER_NODE_SIZE;
-  }
-  const boost = Math.log2(safeMemberCount) * GRAPH_VIEWER_REPRESENTATIVE_LOG_SIZE_FACTOR;
-  return Math.min(GRAPH_VIEWER_REPRESENTATIVE_MAX_SIZE, GRAPH_VIEWER_REPRESENTATIVE_BASE_SIZE + boost);
 }
 
 function nodeObservations(node: GraphViewportNode): readonly AncillaryObservation[] {

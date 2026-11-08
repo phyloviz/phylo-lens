@@ -8,10 +8,11 @@ import {
   isBoolean,
   isArrayOf,
   isOptionalBoolean,
+  isOptionalString,
 } from '../../../validation/guards';
 import { isGraphLayoutStatus, isOptionalGraphMetadataSchema } from './graphDataGuards';
 import type { GraphViewportNodeDto } from '../models/viewport/GraphViewportNodeDto';
-import type { AncillaryObservation } from '../../../contracts/ancillary';
+import type { AncillaryObservationDto } from '../models/viewport/GraphViewportNodeDto';
 import type { GraphIsolateDto } from '../models/viewport/GraphIsolateDto';
 import type { GraphViewportEdgeDto } from '../models/viewport/GraphViewportEdgeDto';
 
@@ -42,14 +43,17 @@ export function isGraphViewportNodeDto(value: unknown): value is GraphViewportNo
     isGraphLayoutStatus(value.layout_status) &&
     isFiniteNumber(value.member_count) &&
     isBoolean(value.is_representative) &&
+    isOptionalBoolean(value.annotations_cached) &&
     (value.tree_index == null || isTreeIndexDto(value.tree_index)) &&
     (value.metadata == null || isAncillaryData(value.metadata)) &&
     (value.ancillary_distribution === undefined ||
       isArrayOf(
         value.ancillary_distribution,
-        (row): row is AncillaryObservation =>
+        (row): row is AncillaryObservationDto =>
           isRecord(row) &&
           isAncillaryData(row.values) &&
+          isOptionalString(row.reference_id) &&
+          isOptionalBoolean(row.values_cached) &&
           isFiniteNumber(row.count) &&
           Number.isSafeInteger(row.count) &&
           row.count > 0
@@ -58,7 +62,10 @@ export function isGraphViewportNodeDto(value: unknown): value is GraphViewportNo
       isArrayOf(
         value.isolates,
         (isolate): isolate is GraphIsolateDto =>
-          isRecord(isolate) && isString(isolate.id) && isAncillaryData(isolate.metadata)
+          isRecord(isolate) &&
+          isString(isolate.id) &&
+          isAncillaryData(isolate.metadata) &&
+          isOptionalBoolean(isolate.metadata_cached)
       ))
   );
 }

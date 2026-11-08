@@ -3,6 +3,7 @@ import type { AncillaryData, AncillaryObservation } from '../../../../contracts/
 import type { GraphIsolateDto } from './GraphIsolateDto';
 
 export interface GraphViewportNodeDto {
+  annotations_cached?: boolean;
   id: string;
   cluster_id: string;
   x: number;
@@ -19,5 +20,10 @@ export interface GraphViewportNodeDto {
   } | null;
   metadata?: AncillaryData | null;
   isolates?: GraphIsolateDto[];
-  ancillary_distribution?: AncillaryObservation[];
+  ancillary_distribution?: AncillaryObservationDto[];
 }
+
+export type AncillaryObservationDto = Omit<AncillaryObservation, 'referenceId'> & {
+  readonly reference_id?: string;
+  readonly values_cached?: boolean;
+};

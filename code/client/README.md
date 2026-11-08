@@ -68,6 +68,11 @@ layers; it does not trigger a browser download or change the view state. SVG is
 not currently exposed because faithfully reproducing Sigma's WebGL/custom-program
 rendering as vector geometry requires a separate vector renderer.
 
+Publication exports with `includeLegend` enabled also explain the aggregate
+symbols present in the rendered slice: compressed triangle sizes encode node
+counts, and manually folded branches retain only their root node's ancillary
+data. Setting `includeLegend: false` omits both category and symbol explanations.
+
 ## Public package surface
 
 The package root exports:
@@ -345,6 +350,11 @@ interface VisualMappingOptions {
     field?: string;
     scale?: "linear" | "log";
   };
+  groupSize?: {
+    minimumSize?: number;
+    areaPerNode?: number;
+    maximumSize?: number;
+  };
   palette?: string[];
   pie?: {
     enabled?: boolean;
@@ -369,6 +379,17 @@ slate color. Metadata names such as `region`, `selected` or `founder` do not
 implicitly enable coloring in server viewport snapshots. LoD clusters retain
 their structural triangle styling. When no size field is requested, the client
 prefers `profile_count` when available and otherwise uses `distance`.
+
+LoD groups and manually collapsed branches share a bounded count-to-area mapping.
+Defaults are `minimumSize: 6`, `maximumSize: 12` and `areaPerNode: 1`, at reference
+zoom. Additional area initially grows with canonical node count, then gradually
+compresses towards the maximum. This keeps large groups readable without a hard
+count cutoff or unbounded glyph growth. It is a compressed visual encoding, not
+an exact proportional-area chart. Manual folds include their retained root in
+the count. Counts and sizes are independent of the visible slice. All sizes
+still follow camera zoom; detail selection and collision spacing account for
+their rendered footprint. Colors distinguish automatic groups (amber) from
+manually collapsed branches (violet). LoD animations preserve the camera.
 
 In the demo, selecting a Pie Field enables metadata coloring and shows the
 active field above each distribution. Selecting `None — neutral nodes` clears

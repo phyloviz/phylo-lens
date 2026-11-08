@@ -427,7 +427,10 @@
         <div id="status" role="status" aria-live="polite"></div>
         <section id="forest-controls" class="forest-controls" aria-label="Forest views" hidden></section>
         <div class="view-workspace" data-inspector-open="true">
-          <section class="canvas-card"><div id="graph-root" aria-label="Graph render container"></div></section>
+          <section class="canvas-card">
+            <div id="graph-legend" class="graph-legend" role="note" aria-label="Graph symbols"></div>
+            <div id="graph-root" aria-label="Graph render container" aria-describedby="graph-symbol-help"></div>
+          </section>
           <aside id="workspace-inspector" class="inspector" aria-label="Graph inspector">
             <div class="inspector-heading">
               <h2>Inspector</h2>
@@ -555,6 +558,7 @@
               Exports the current view of the loaded slice with its category legend. Increasing the resolution redraws
               the figure; it does not load more nodes or expand groups. Labels can overlap in dense trees or clip at the
               image boundary. Legend counts describe the loaded slice, including nodes outside the visible frame.
+              Manually collapsed branches contribute only their root node's ancillary data.
             </p>
           </details>
         </section>

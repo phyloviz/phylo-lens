@@ -1,4 +1,7 @@
+import json
 import sqlite3
+from collections import Counter
+from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -8,6 +11,7 @@ from phylo_lens_server.http.graph.schemas import NormalizeRequest
 from phylo_lens_server.main import create_app
 from phylo_lens_server.pipeline import layout
 from phylo_lens_server.pipeline.ingestion import ingest_dataset
+from phylo_lens_server.repository.layout import metadata_reader
 from phylo_lens_server.repository.layout.components import component_source
 from phylo_lens_server.repository.layout.sqlite_layout_repository import (
     SQLiteLayoutRepository,
@@ -248,3 +252,157 @@ def test_coarse_clusters_and_adaptive_counts_remain_in_one_component(
         assert any("prepared_clusters_representative_idx" in row[3] for row in plan), (
             plan
         )
+
+
+def test_viewport_reuses_only_known_annotations_without_loading_them_again(forest):
+    client, _, base = forest
+    first = client.post("/api/graph/viewport", json=base).json()
+    keys = [
+        {
+            "node_id": node["id"],
+            "cluster_id": node["cluster_id"],
+            "is_representative": node["is_representative"],
+        }
+        for node in first["nodes"]
+    ]
+    with patch.object(
+        metadata_reader,
+        "load_cluster_distributions",
+        side_effect=AssertionError("Annotations loaded twice"),
+    ):
+        repeated = client.post(
+            "/api/graph/viewport", json={**base, "known_annotations": keys}
+        ).json()
+    for original, cached in zip(first["nodes"], repeated["nodes"], strict=True):
+        assert cached.pop("annotations_cached") is True
+        assert not cached["ancillary_distribution"]
+        assert not cached["isolates"]
+        assert "metadata" not in cached and "tree_index" not in cached
+        for field in ("metadata", "tree_index", "isolates", "ancillary_distribution"):
+            if field in original:
+                cached[field] = original[field]
+        assert cached == original
+    assert repeated["edges"] == first["edges"]
+    wrong_identity = {**keys[0], "is_representative": not keys[0]["is_representative"]}
+    fresh = client.post(
+        "/api/graph/viewport", json={**base, "known_annotations": [wrong_identity]}
+    ).json()
+    assert all("annotations_cached" not in node for node in fresh["nodes"])
+    unpinned = {"dataset_id": base["dataset_id"], "known_annotations": keys}
+    assert client.post("/api/graph/viewport", json=unpinned).status_code == 422
+
+
+def test_compressed_viewport_preserves_annotation_values_and_counts(forest):
+    client, _, base = forest
+    revision = client.put(
+        "/api/graph/ancillary",
+        json={
+            **base,
+            "ancillary_data": {
+                "content": "id,country\na," + "Portugal" * 1000 + "\nb,Spain\n",
+                "join_column": "id",
+            },
+        },
+    )
+    assert revision.status_code == 200, revision.text
+    query = {**base, "layout_version": revision.json()["layout_version"]}
+    plain = client.post(
+        "/api/graph/viewport", json=query, headers={"Accept-Encoding": "identity"}
+    )
+    compressed = client.post(
+        "/api/graph/viewport", json=query, headers={"Accept-Encoding": "gzip"}
+    )
+    assert compressed.headers["Content-Encoding"] == "gzip"
+    assert int(compressed.headers["Content-Length"]) < len(plain.content) / 5
+    assert compressed.json() == plain.json()
+    assert any(
+        node.get("metadata", {}).get("country") == "Portugal" * 1000
+        for node in plain.json()["nodes"]
+    )
+
+
+def test_observation_values_reuse_across_tiers_preserves_joint_category_counts(forest):
+    from phylo_lens_server.domain.lod import LodOptions
+
+    client, store, _ = forest
+    dataset = ingest_dataset(
+        NormalizeRequest(
+            format="newick",
+            dataset_name="observation-reuse",
+            content="(((a:1,b:1)x:1,(c:1,d:1)y:1)z:1,e:1)root;",
+            metadata_schema=[
+                {"key": "country", "type": "string"},
+                {"key": "year", "type": "number"},
+            ],
+            metadata_by_node_id={
+                "a": {"country": "PT", "year": 2020},
+                "b": {"country": "PT", "year": 2021},
+                "c": {"country": "ES", "year": 2020},
+            },
+        ).to_domain()
+    ).dataset
+    prepared = PreparationService(store).prepare_dataset(
+        dataset, lod_options=LodOptions(small_component_threshold=0)
+    )
+    base = {
+        "dataset_id": dataset.dataset_id,
+        "layout_version": prepared.artifacts.layout_version,
+    }
+    levels = sorted({cluster.lod_level for cluster in prepared.artifacts.clusters})
+    assert len(levels) > 1
+    known = {}
+    reused_count = 0
+    for level in levels + list(reversed(levels)):
+        query = {**base, "lod_level": level}
+        original = client.post("/api/graph/viewport", json=query).json()
+        compact = client.post(
+            "/api/graph/viewport", json={**query, "known_observations": list(known)}
+        ).json()
+        assert compact["edges"] == original["edges"]
+        next_known = {}
+        for expected, node in zip(original["nodes"], compact["nodes"], strict=True):
+            assert node["id"] == expected["id"]
+            for observation in node["ancillary_distribution"]:
+                reference = observation["reference_id"]
+                if observation.get("values_cached"):
+                    reused_count += 1
+                    observation["values"] = known[reference]
+                next_known[reference] = observation["values"]
+
+            def histogram(observations):
+                counts = Counter()
+                for observation in observations:
+                    counts[json.dumps(observation["values"], sort_keys=True)] += (
+                        observation["count"]
+                    )
+                return counts
+
+            assert histogram(node["ancillary_distribution"]) == histogram(
+                expected["ancillary_distribution"]
+            )
+        known = next_known
+    assert reused_count > 0
+
+
+def test_profile_isolate_values_can_reuse_the_same_observation_dictionary(forest):
+    client, store, base = forest
+    with sqlite3.connect(store.path) as connection:
+        connection.execute(
+            "insert into profile_isolates(dataset_id, layout_version, node_id, isolate_id, metadata_json) values (?, ?, ?, ?, ?)",
+            (
+                base["dataset_id"],
+                base["layout_version"],
+                "a",
+                "original-a",
+                json.dumps({"country": "PT", "year": 2020}),
+            ),
+        )
+    original = client.post("/api/graph/viewport", json=base).json()
+    compact = client.post(
+        "/api/graph/viewport",
+        json={**base, "known_observations": ["isolate:original-a"]},
+    ).json()
+    before = next(node for node in original["nodes"] if node["id"] == "a")["isolates"]
+    after = next(node for node in compact["nodes"] if node["id"] == "a")["isolates"]
+    assert before == [{"id": "original-a", "metadata": {"country": "PT", "year": 2020}}]
+    assert after == [{"id": "original-a", "metadata": {}, "metadata_cached": True}]

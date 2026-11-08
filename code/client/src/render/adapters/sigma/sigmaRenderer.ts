@@ -3,6 +3,7 @@ import type { LayoutMotionState } from '../../renderer.types';
 import Sigma from 'sigma';
 
 import { isClusterRepresentative } from '../../mapping/clusterNodes';
+import { nodeTooltip } from '../../../components/node-summary/nodeSummary';
 import type { GraphLayoutBounds } from '../../../contracts/graph/viewport/GraphLayoutBounds';
 import { DisplayPositions } from './motion/displayPositions';
 import type { Point } from '../../../contracts/Point';
@@ -104,6 +105,7 @@ export default function createSigmaRenderer(options: SigmaRendererOptions = {}) 
   let suppressNodeClicksUntil = 0;
   let lastRenderedGraph: PositionedGraph | null = null;
   let selectedNodeId: string | null = null;
+  let hoveredNodeId: string | null = null;
   let selectedClusterStyle: { id: string; color: unknown; size: unknown } | null = null;
 
   const { forceMotion, ...renderOptions } = options;
@@ -245,9 +247,7 @@ export default function createSigmaRenderer(options: SigmaRendererOptions = {}) 
     cancelFit = null;
   }
 
-  function trackZoomPointer(event: WheelEvent): void {
-    const rect = containerElement?.getBoundingClientRect();
-    if (rect) transitions.setZoomPointer({ x: event.clientX - rect.left, y: event.clientY - rect.top });
+  function interruptTransitionForWheel(): void {
     if (transitions.isActive()) {
       captureDisplayPositions();
       transitions.cancel();
@@ -355,6 +355,7 @@ export default function createSigmaRenderer(options: SigmaRendererOptions = {}) 
     }
 
     transitions.cancel();
+    clearNodeTooltip();
     dragController.reset();
     sourceSnapshot = graph;
     maxGlyphSize = 0;
@@ -465,6 +466,7 @@ export default function createSigmaRenderer(options: SigmaRendererOptions = {}) 
 
   // Drop container and graph references when renderer is detached.
   function unmount(): void {
+    clearNodeTooltip();
     containerResizeObserver?.disconnect();
     containerResizeObserver = null;
     transitions.cancel();
@@ -544,7 +546,6 @@ export default function createSigmaRenderer(options: SigmaRendererOptions = {}) 
       forceMotionController.isEnabled() &&
       (wasTransitioning || lodChanged || planned.origins.size > 0);
     const targets = needsTransition ? new Map(graph.nodes.map(node => [node.id, { x: node.x, y: node.y }])) : null;
-    if (lodChanged) transitions.captureAnchor(graph);
     if (needsTransition) {
       const previousPositions = new Map<string, Point>();
       sigmaGraph.forEachNode((id, attributes) => previousPositions.set(id, { x: attributes.x, y: attributes.y }));
@@ -567,6 +568,7 @@ export default function createSigmaRenderer(options: SigmaRendererOptions = {}) 
     }
 
     addPositionedNodes(sigmaGraph, graph.nodes);
+    refreshNodeTooltip();
     addPositionedEdges(sigmaGraph, graph);
     updateClusterTriangleRotations();
     syncPieProgramsFromGraph();
@@ -707,7 +709,7 @@ export default function createSigmaRenderer(options: SigmaRendererOptions = {}) 
   }
 
   function bindSigmaHandlers(): void {
-    containerElement?.addEventListener('wheel', trackZoomPointer, { capture: true, passive: true });
+    containerElement?.addEventListener('wheel', interruptTransitionForWheel, { capture: true, passive: true });
     for (const event of ['pointerdown', 'wheel', 'touchstart']) {
       containerElement?.addEventListener(event, cancelCameraFit, { capture: true, passive: true });
     }
@@ -721,6 +723,10 @@ export default function createSigmaRenderer(options: SigmaRendererOptions = {}) 
     sigma?.on?.('clickNode', emitNodeClick);
     sigma?.off?.('doubleClickNode', emitNodeDoubleClick);
     sigma?.on?.('doubleClickNode', emitNodeDoubleClick);
+    sigma?.off?.('enterNode', emitNodeEnter);
+    sigma?.on?.('enterNode', emitNodeEnter);
+    sigma?.off?.('leaveNode', emitNodeLeave);
+    sigma?.on?.('leaveNode', emitNodeLeave);
     sigma?.off?.('clickStage', clearNodeSelection);
     sigma?.on?.('clickStage', clearNodeSelection);
     dragController.bind();
@@ -729,7 +735,7 @@ export default function createSigmaRenderer(options: SigmaRendererOptions = {}) 
   }
 
   function unbindSigmaHandlers(): void {
-    containerElement?.removeEventListener('wheel', trackZoomPointer, true);
+    containerElement?.removeEventListener('wheel', interruptTransitionForWheel, true);
     cancelCameraFit();
     for (const event of ['pointerdown', 'wheel', 'touchstart']) {
       containerElement?.removeEventListener(event, cancelCameraFit, true);
@@ -739,6 +745,8 @@ export default function createSigmaRenderer(options: SigmaRendererOptions = {}) 
     sigmaInstance?.off?.('clickStage', clearNodeSelection);
     sigmaInstance?.off?.('clickNode', emitNodeClick);
     sigmaInstance?.off?.('doubleClickNode', emitNodeDoubleClick);
+    sigmaInstance?.off?.('enterNode', emitNodeEnter);
+    sigmaInstance?.off?.('leaveNode', emitNodeLeave);
     sigmaInstance?.off('resize', handleCameraUpdated);
     sigmaInstance?.getCamera()?.off?.('updated', handleCameraUpdated);
   }
@@ -844,6 +852,28 @@ export default function createSigmaRenderer(options: SigmaRendererOptions = {}) 
     }
   }
 
+  function emitNodeEnter(payload: NodeClickPayload): void {
+    hoveredNodeId = clickedNodeId(payload) ?? null;
+    refreshNodeTooltip();
+  }
+
+  function emitNodeLeave(payload: NodeClickPayload): void {
+    if (clickedNodeId(payload) === hoveredNodeId) clearNodeTooltip();
+  }
+
+  function refreshNodeTooltip(): void {
+    if (!containerElement || !hoveredNodeId || !sigmaGraph?.hasNode(hoveredNodeId)) {
+      clearNodeTooltip();
+      return;
+    }
+    containerElement.title = nodeTooltip(hoveredNodeId, sigmaGraph.getNodeAttributes(hoveredNodeId));
+  }
+
+  function clearNodeTooltip(): void {
+    hoveredNodeId = null;
+    containerElement?.removeAttribute('title');
+  }
+
   function emitNodeClick(payload: NodeClickPayload): void {
     if (Date.now() < suppressNodeClicksUntil) {
       return;
@@ -917,7 +947,7 @@ export default function createSigmaRenderer(options: SigmaRendererOptions = {}) 
       size: attributes.size,
     };
     sigmaGraph.mergeNodeAttributes(selectedNodeId, {
-      color: PHYLOVIZ_NODE_SELECTED_COLOR,
+      color: attributes.isBranchCollapsed === true ? attributes.color : PHYLOVIZ_NODE_SELECTED_COLOR,
       size: Math.max(size * 1.35, size + 2),
     });
   }

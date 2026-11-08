@@ -38,3 +38,11 @@ export function readNodeIsolates(attributes: Readonly<Record<string, unknown>> |
     (record): record is Isolate => isRecord(record) && isString(record.id) && isAncillaryData(record.ancillaryData)
   );
 }
+
+/** Missing isolate information is unknown, not zero and not a node count. */
+export function readNodeIsolateCount(attributes: Readonly<Record<string, unknown>> | undefined): number | undefined {
+  const reported = readNodeAnnotations(attributes).profileSummary.isolateCount;
+  if (typeof reported === 'number' && Number.isSafeInteger(reported) && reported >= 0) return reported;
+  const isolates = readNodeIsolates(attributes);
+  return isolates.length > 0 ? isolates.length : undefined;
+}

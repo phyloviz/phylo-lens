@@ -84,7 +84,7 @@ function createWorkbenchHarness(overrides: Partial<GraphClient> = {}) {
   };
   const graphClient = {
     prepareGraph: vi.fn(async () => prepareResponse()),
-    readViewport: vi.fn(async () => viewportResponse()),
+    readViewport: vi.fn<GraphClient['readViewport']>(async () => viewportResponse()),
     applyAncillaryData: vi.fn(async () => {
       throw new Error('Unexpected ancillary update');
     }),
@@ -145,7 +145,7 @@ describe('graphWorkbench navigation', () => {
         events.push('prepare');
         return prepareResponse();
       }),
-      readViewport: vi.fn(async () => {
+      readViewport: vi.fn<GraphClient['readViewport']>(async () => {
         events.push('viewport');
         return viewportResponse();
       }),
@@ -179,7 +179,7 @@ describe('graphWorkbench navigation', () => {
 
   it('keeps initial display options when constructing the viewport session', async () => {
     const { renderer, workbench } = createWorkbenchHarness({
-      readViewport: vi.fn(async () => ({
+      readViewport: vi.fn<GraphClient['readViewport']>(async () => ({
         ...viewportResponse(),
         edges: [{ id: toNodeId('tree-edge'), source: toNodeId('tree'), target: toNodeId('tree'), distance: 3 }],
       })),
@@ -210,7 +210,7 @@ describe('graphWorkbench navigation', () => {
 
   it('applies display options to the live viewport without another request', async () => {
     const { graphClient, renderer, workbench } = createWorkbenchHarness({
-      readViewport: vi.fn(async () => ({
+      readViewport: vi.fn<GraphClient['readViewport']>(async () => ({
         ...viewportResponse(),
         edges: [{ id: toNodeId('tree-edge'), source: toNodeId('tree'), target: toNodeId('tree'), distance: 3 }],
       })),
@@ -246,7 +246,7 @@ describe('graphWorkbench navigation', () => {
 
   it('rejects loadGraph when the first viewport fails', async () => {
     const { renderer, workbench } = createWorkbenchHarness({
-      readViewport: vi.fn(async () => {
+      readViewport: vi.fn<GraphClient['readViewport']>(async () => {
         throw new Error('viewport failed');
       }),
     });
@@ -358,7 +358,7 @@ describe('graphWorkbench navigation', () => {
         throw new Error('Unexpected ancillary update');
       }),
       searchGraph: vi.fn(),
-      readViewport: vi.fn(async () => ({
+      readViewport: vi.fn<GraphClient['readViewport']>(async () => ({
         datasetId: toDatasetId('tree'),
         layoutVersion: toLayoutVersion('layout-1'),
         lodLevel: null,
@@ -399,7 +399,7 @@ describe('graphWorkbench navigation', () => {
     expect(renderer.centerOnNode).toHaveBeenCalledWith('missing-node');
     expect(renderer.centerOnCoordinates).toHaveBeenCalledWith(42, 84);
     await Promise.resolve();
-    expect(graphClient.readViewport).toHaveBeenCalledWith(
+    expect(vi.mocked(graphClient.readViewport).mock.calls.map(call => call[0])).toContainEqual(
       expect.objectContaining({
         clusterId: toClusterId('cluster-42'),
         focusNodeId: 'missing-node',
@@ -516,7 +516,7 @@ describe('graphWorkbench navigation', () => {
 
       viewHandlers.at(-1)?.();
       await vi.advanceTimersByTimeAsync(60);
-      expect(graphClient.readViewport).toHaveBeenCalledWith(
+      expect(vi.mocked(graphClient.readViewport).mock.calls.map(call => call[0])).toContainEqual(
         expect.objectContaining({
           datasetId: toDatasetId('second-tree'),
         })
@@ -552,7 +552,7 @@ it('applies ancillary data without preparation or camera fitting and updates sub
   });
   expect(graphClient.prepareGraph).toHaveBeenCalledTimes(1);
   expect(renderer.fitGraphSnapshot).toHaveBeenCalledTimes(fits);
-  expect(readViewport).toHaveBeenLastCalledWith(
+  expect(vi.mocked(readViewport).mock.calls.at(-1)?.[0]).toEqual(
     expect.objectContaining({ layoutVersion: toLayoutVersion('metadata-1') })
   );
   expect(renderer.applyGraphSnapshot).toHaveBeenLastCalledWith(
@@ -617,7 +617,7 @@ it('captures load settings before preparation while retaining caller ownership',
   const prepared = deferred<GraphPrepareResult>();
   const { workbench, graphClient } = createWorkbenchHarness({
     prepareGraph: vi.fn(() => prepared.promise),
-    readViewport: vi.fn(async () => ({
+    readViewport: vi.fn<GraphClient['readViewport']>(async () => ({
       ...viewportResponse(),
       nodes: [{ ...viewportResponse().nodes[0], annotations: nodeAnnotations({ country: 'PT', year: 2020 }) }],
     })),
@@ -639,7 +639,9 @@ it('captures load settings before preparation while retaining caller ownership',
     const graph = await pending;
     expect(graph.nodes[0].color).toBe(deriveColor('PT', ['#123456']));
     expect(graph.nodes[0].attributes?.label).toBe('');
-    expect(graphClient.readViewport).toHaveBeenCalledWith(expect.objectContaining({ maxNodes: 25 }));
+    expect(vi.mocked(graphClient.readViewport).mock.calls.map(call => call[0])).toContainEqual(
+      expect.objectContaining({ maxNodes: 25 })
+    );
     expect(Object.isFrozen(options.visualMapping.pie.fields)).toBe(false);
   } finally {
     workbench.dispose();

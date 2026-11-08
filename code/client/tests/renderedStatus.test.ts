@@ -44,4 +44,23 @@ describe('rendered status', () => {
     Object.assign(data.viewMeta, { layoutWarnings: ['Graphviz could not compute a layout.'] });
     expect(buildRenderedStatus(data)).toContain(data.viewMeta.layoutWarnings![0]);
   });
+
+  it('counts drawn representations and does not present root-only isolate counts as branch totals', () => {
+    const data = graph([2, 1]);
+    const folded = {
+      ...data,
+      nodes: data.nodes.map((node, i) =>
+        i === 0
+          ? {
+              ...node,
+              attributes: { ...node.attributes, isBranchCollapsed: true, collapsedBranchCount: 30 },
+            }
+          : node
+      ),
+    };
+    const status = buildRenderedStatus(folded);
+    expect(status).toContain('2 symbols drawn');
+    expect(status).toContain('branch isolate totals unavailable');
+    expect(status).not.toContain('3 isolates represented');
+  });
 });

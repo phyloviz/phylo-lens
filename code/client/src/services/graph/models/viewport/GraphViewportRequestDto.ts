@@ -1,4 +1,10 @@
 export interface GraphViewportRequestDto {
+  known_observations?: readonly string[];
+  known_annotations?: readonly {
+    readonly node_id: string;
+    readonly cluster_id: string;
+    readonly is_representative: boolean;
+  }[];
   component_id?: string;
   dataset_id: string;
   layout_version?: string | null;

@@ -4,6 +4,7 @@ from phylo_lens_server.database.sql import LayoutSQL
 from phylo_lens_server.domain.summaries import aggregate_layout_status
 from phylo_lens_server.domain.views import (
     LayoutBounds,
+    NodeAnnotationKey,
     ViewportEdge,
     ViewportNode,
     ViewportReadResult,
@@ -64,6 +65,8 @@ def read_viewport(
     cluster_id: str | None = None,
     focus_node_id: str | None = None,
     component_id: str | None = None,
+    known_annotations: frozenset[NodeAnnotationKey] = frozenset(),
+    known_observations: frozenset[str] | None = None,
 ) -> ViewportReadResult:
     nodes: tuple[ViewportNode, ...] = ()
     edges: tuple[ViewportEdge, ...] = ()
@@ -117,6 +120,8 @@ def read_viewport(
             dataset_id=dataset_id,
             layout_version=layout_version,
             nodes=tuple(nodes),
+            known_annotations=known_annotations,
+            known_observations=known_observations,
         )
         return ViewportReadResult(
             dataset_id=dataset_id,
@@ -235,6 +240,8 @@ def read_viewport(
         dataset_id=dataset_id,
         layout_version=layout_version,
         nodes=nodes,
+        known_annotations=known_annotations,
+        known_observations=known_observations,
     )
     metadata_schema = load_metadata_schema(
         connection,

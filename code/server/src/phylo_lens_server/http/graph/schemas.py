@@ -122,6 +122,12 @@ class GraphViewportBounds(BaseModel):
         return self
 
 
+class GraphNodeAnnotationKey(BaseModel):
+    node_id: str = Field(min_length=1)
+    cluster_id: str = Field(min_length=1)
+    is_representative: bool
+
+
 class GraphViewportQuery(BaseModel):
     component_id: str | None = Field(default=None, min_length=1)
     dataset_id: str = Field(min_length=1)
@@ -138,9 +144,15 @@ class GraphViewportQuery(BaseModel):
     lod_target_representations: int | None = Field(default=None, ge=1)
     lod_selection_bounds: GraphViewportBounds | None = None
     previous_lod_level: int | None = Field(default=None, ge=0)
+    known_annotations: list[GraphNodeAnnotationKey] = Field(default_factory=list)
+    known_observations: list[str] | None = None
 
     @model_validator(mode="after")
     def validate_bounds(self) -> GraphViewportQuery:
+        if (
+            self.known_annotations or self.known_observations is not None
+        ) and not self.layout_version:
+            raise ValueError("Annotation reuse requires an explicit layout_version.")
         xmin = self.xmin
         xmax = self.xmax
         ymin = self.ymin
@@ -166,6 +178,7 @@ class GraphIsolate(BaseModel):
 
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
     id: str = Field(min_length=1)
+    metadata_cached: bool | None = None
     metadata: dict[str, str | float | bool | None] = Field(
         default_factory=dict, validation_alias="ancillary_data"
     )
@@ -192,6 +205,7 @@ class GraphViewportNode(BaseModel):
     metadata: dict[str, str | float | bool | None] | None = None
     isolates: list[GraphIsolate] = Field(default_factory=list)
     ancillary_distribution: list[AncillaryObservation] = Field(default_factory=list)
+    annotations_cached: bool | None = None
 
 
 class GraphViewportEdge(BaseModel):

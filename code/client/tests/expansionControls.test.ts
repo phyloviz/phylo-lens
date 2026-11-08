@@ -67,7 +67,7 @@ describe('expansion controls', () => {
   });
 });
 
-it('routes indexed members and manual markers by node ID within an expanded group', async () => {
+it('restores an expanded LoD group instead of folding its selected internal member', async () => {
   const group = toClusterId('shared-group');
   const state = {
     keepExpanded: false,
@@ -88,20 +88,55 @@ it('routes indexed members and manual markers by node ID within an expanded grou
   };
   const expandSelected = document.createElement('button');
   const collapseSelected = document.createElement('button');
-  const controls = expansionControls(workbench, { expandSelected, collapseSelected });
+  const selectionLabel = document.createElement('p');
+  const controls = expansionControls(workbench, { expandSelected, collapseSelected, selectionLabel });
   controls.mount();
   controls.setReady(true);
   controls.select({ nodeId: 'internal', attributes: { clusterId: group, canCollapseBranch: true } });
+  expect(collapseSelected.textContent).toBe('Collapse group');
+  expect(selectionLabel.textContent).toContain('Expanded group');
   expect(collapseSelected.disabled).toBe(false);
   collapseSelected.click();
   await Promise.resolve();
-  expect(workbench.collapseBranch).toHaveBeenCalledWith('internal');
-  expect(workbench.collapseCluster).not.toHaveBeenCalled();
+  expect(workbench.collapseCluster).toHaveBeenCalledWith(group);
+  expect(workbench.collapseBranch).not.toHaveBeenCalled();
   controls.select({ nodeId: 'internal', attributes: { clusterId: group, isBranchCollapsed: true } });
+  expect(expandSelected.textContent).toBe('Expand branch');
   expect(expandSelected.disabled).toBe(false);
   expandSelected.click();
   await Promise.resolve();
   expect(workbench.expandBranch).toHaveBeenCalledWith('internal');
   expect(workbench.expandCluster).not.toHaveBeenCalled();
+  controls.dispose();
+});
+
+it('folds an ordinary internal node by canonical node ID', async () => {
+  const state = {
+    keepExpanded: false,
+    expandedClusterIds: [],
+    allExpanded: false,
+    partial: false,
+    renderedNodeCount: 3,
+  };
+  const workbench = {
+    getExpansionState: () => state,
+    setKeepExpanded: vi.fn(),
+    expandAll: vi.fn(),
+    collapseAll: vi.fn(),
+    expandCluster: vi.fn(),
+    collapseCluster: vi.fn(),
+    expandBranch: vi.fn(),
+    collapseBranch: vi.fn(() => state),
+  };
+  const collapseSelected = document.createElement('button');
+  const controls = expansionControls(workbench, { collapseSelected });
+  controls.mount();
+  controls.setReady(true);
+  controls.select({ nodeId: 'internal', attributes: { clusterId: 'single-internal', canCollapseBranch: true } });
+  expect(collapseSelected.textContent).toBe('Collapse branch');
+  collapseSelected.click();
+  await Promise.resolve();
+  expect(workbench.collapseBranch).toHaveBeenCalledWith('internal');
+  expect(workbench.collapseCluster).not.toHaveBeenCalled();
   controls.dispose();
 });

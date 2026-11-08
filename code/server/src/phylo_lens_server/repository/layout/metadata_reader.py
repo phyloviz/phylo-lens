@@ -11,6 +11,7 @@ from phylo_lens_server.domain.summaries import (
 from phylo_lens_server.domain.tree_index import TreeInterval
 from phylo_lens_server.domain.views import (
     AncillaryField,
+    NodeAnnotationKey,
     ViewportNode,
 )
 from phylo_lens_server.repository.layout.ancillary_distribution import (
@@ -70,9 +71,35 @@ def attach_node_metadata(
     dataset_id: str,
     layout_version: str,
     nodes: tuple[ViewportNode, ...],
+    known_annotations: frozenset[NodeAnnotationKey] = frozenset(),
+    known_observations: frozenset[str] | None = None,
 ) -> tuple[ViewportNode, ...]:
     if not nodes:
         return nodes
+
+    def key(node: ViewportNode) -> NodeAnnotationKey:
+        return NodeAnnotationKey(node.node_id, node.cluster_id, node.is_representative)
+
+    if known_annotations:
+        missing = tuple(node for node in nodes if key(node) not in known_annotations)
+        if len(missing) != len(nodes):
+            # Load only new identities. Existing annotations belong to the same
+            # explicit immutable layout, including the canonical tree interval.
+            loaded = iter(
+                attach_node_metadata(
+                    connection,
+                    dataset_id=dataset_id,
+                    layout_version=layout_version,
+                    nodes=missing,
+                    known_observations=known_observations,
+                )
+            )
+            return tuple(
+                replace(node, annotations_cached=True)
+                if key(node) in known_annotations
+                else next(loaded)
+                for node in nodes
+            )
     node_ids = {node.node_id for node in nodes if not node.is_representative}
     cluster_ids = {node.cluster_id for node in nodes if node.is_representative}
     node_metadata = load_metadata_rows(
@@ -94,6 +121,7 @@ def attach_node_metadata(
         dataset_id=dataset_id,
         layout_version=layout_version,
         node_ids={node.node_id for node in nodes if node.member_count == 1},
+        known_observations=known_observations,
     )
     distributions = load_cluster_distributions(
         connection,
@@ -101,6 +129,7 @@ def attach_node_metadata(
         layout_version=layout_version,
         cluster_ids=cluster_ids,
         placeholder="?",
+        known_observations=known_observations,
     )
     predicate, parameters = connection.membership(
         "node_id", {node.node_id for node in nodes}

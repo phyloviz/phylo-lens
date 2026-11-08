@@ -32,6 +32,8 @@ export type AncillaryTableInput = {
 export type AncillaryObservation = {
   readonly values: AncillaryData;
   readonly count: number;
+  /** Stable source-row identity within one immutable layout, when supplied. */
+  readonly referenceId?: string;
 };
 
 export type AncillaryDataInput = {

@@ -10,6 +10,7 @@ import { formatDistanceLabel } from './attributes/sigmaLabels';
 import { calculateAncillaryDistribution } from '../../../ancillary/ancillaryDistribution';
 import { exportCanvasLayersAsPng } from '../../export/canvasExport';
 import { showsDistanceLabel } from '../../mapping/edgeMapping';
+import { GROUP_SIZE_EXPLANATION } from '../../../components/node-summary/nodeSummary';
 
 /** A separate renderer provides real high-resolution labels without resizing the live view. */
 export async function exportSigmaPublication(
@@ -81,11 +82,21 @@ export async function exportSigmaPublication(
       options.includeLegend === false
         ? undefined
         : calculateAncillaryDistribution(snapshot, { palette: rendererOptions.piechart?.palette })?.categories;
+    const notes: string[] = [];
+    if (options.includeLegend !== false) {
+      const automatic = snapshot.nodes.some(node => node.attributes?.isClusterProxy === true);
+      const manual = snapshot.nodes.some(node => node.attributes?.isBranchCollapsed === true);
+      if (automatic) notes.push('Amber triangles: automatic groups (LoD).');
+      if (manual) notes.push('Violet triangles: manually collapsed branches.');
+      if (automatic || manual) notes.push(GROUP_SIZE_EXPLANATION);
+      if (manual) notes.push('Ancillary data for manually collapsed branches describes their root nodes only.');
+    }
     return await exportCanvasLayersAsPng(container.querySelectorAll('canvas'), document, {
       width,
       height,
       scale,
       legend,
+      notes,
     });
   } finally {
     renderer?.kill();

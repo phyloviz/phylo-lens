@@ -2,16 +2,18 @@ import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { mkdtemp, rm } from 'node:fs/promises';
 import { createServer } from 'vite';
 import { chromium } from './browserRuntime.mjs';
 
 // Run against an isolated local service: REQUIREMENTS_API_URL defaults to port 8128.
 const api = process.env.REQUIREMENTS_API_URL ?? 'http://127.0.0.1:8128';
+const cacheDir = await mkdtemp(join(tmpdir(), 'phylo-lens-requirements-vite-'));
 const server = await createServer({
   root: fileURLToPath(new URL('../../', import.meta.url)),
   configFile: false,
-  cacheDir: join(tmpdir(), 'phylo-lens-requirements-vite'),
-  optimizeDeps: { include: ['d3-force'] },
+  cacheDir,
+  optimizeDeps: { include: ['d3-force', 'sigma', 'graphology'] },
   server: { watch: { ignored: ['**/*'] }, host: '127.0.0.1', port: 0, proxy: { '/api': api, '/health': api } },
 });
 await server.listen();
@@ -23,6 +25,9 @@ try {
   page.setDefaultTimeout(15000);
   const errors = [];
   page.on('pageerror', error => errors.push(String(error)));
+  page.on('console', message => {
+    if (message.type() === 'error') console.error(message.text());
+  });
   await page.route('**/src/main.ts', route =>
     route.fulfill({
       contentType: 'text/javascript',
@@ -71,6 +76,8 @@ try {
     await page.waitForTimeout(300);
   };
   await load('requirements-browser');
+  assert.ok(await page.locator('#graph-legend').isVisible());
+  assert.ok((await page.locator('#graph-legend').textContent()).includes('not an exact ratio or isolate count'));
   console.log('Loaded product tree.');
   await page.locator('#automatic-detail').uncheck();
   assert.equal(await page.locator('#motion-enabled').isChecked(), false);
@@ -104,12 +111,32 @@ try {
   );
   assert.equal(
     await page.evaluate(() => window.requirementsSigma.getGraph().getNodeAttribute('branch', 'type')),
-    'border'
+    'triangle'
+  );
+  assert.equal(
+    await page.evaluate(() => window.requirementsSigma.getGraph().getNodeAttribute('branch', 'color')),
+    '#7c3aed'
   );
   assert.equal(
     await page.evaluate(() => window.requirementsSigma.getGraph().getNodeAttribute('branch', 'label')),
     'branch (+2)'
   );
+  assert.deepEqual(await page.locator('#ancillary-selected-node-wheel .node-counts dd').allTextContents(), [
+    '3 (root + 2 hidden)',
+    'Unavailable',
+    'Unavailable in this view',
+  ]);
+  const hoverPoint = await page.evaluate(() => {
+    const sigma = window.requirementsSigma;
+    const point = sigma.graphToViewport(sigma.getGraph().getNodeAttributes('branch'));
+    const bounds = sigma.getContainer().getBoundingClientRect();
+    return { x: bounds.left + point.x, y: bounds.top + point.y };
+  });
+  await page.mouse.move(hoverPoint.x, hoverPoint.y);
+  await page.waitForFunction(() =>
+    document.querySelector('#graph-root').title.includes('Nodes represented: 3 (root + 2 hidden)')
+  );
+  assert.ok((await page.locator('#graph-root').getAttribute('title')).includes('Branch isolate total: Unavailable'));
   await page.screenshot({ path: join(tmpdir(), 'phylo-lens-manual-branch.png') });
   await page.locator('#expand-selected').click();
   await page.waitForFunction(() => window.requirementsSigma.getGraph().order === 5);
@@ -483,7 +510,57 @@ try {
   await page.locator('#expand-selected').click();
   await page.waitForFunction(() => window.requirementsSigma.getGraph().order > 1);
   assert.ok((await page.evaluate(() => window.requirementsSigma.getGraph().order)) < total);
+  await page.waitForTimeout(600);
+  const group = await page.evaluate(() => {
+    const graph = window.requirementsSigma.getGraph();
+    const id = graph.findNode((_id, attributes) => attributes.isClusterProxy === true);
+    return id ? { id, clusterId: graph.getNodeAttribute(id, 'clusterId'), count: graph.order } : null;
+  });
+  assert.ok(group, 'The streamed view must contain an expandable LoD group.');
+  await clickNode(group.id);
+  assert.equal(await page.locator('#expand-selected').textContent(), 'Expand group');
+  await page.locator('#expand-selected').click();
+  await page.waitForFunction(count => window.requirementsSigma.getGraph().order > count, group.count);
+  await page.waitForTimeout(500);
+  const member = await page.evaluate(
+    clusterId =>
+      window.requirementsSigma
+        .getGraph()
+        .findNode((_id, attributes) => attributes.clusterId === clusterId && attributes.canCollapseBranch === true),
+    group.clusterId
+  );
+  assert.ok(member, 'The expanded group must contain an internal member.');
+  await clickNode(member);
+  assert.equal(await page.locator('#collapse-selected').textContent(), 'Collapse group');
+  await page.locator('#collapse-selected').click();
+  await page.waitForFunction(({ id, count }) => {
+    const graph = window.requirementsSigma.getGraph();
+    return graph.order === count && graph.hasNode(id) && graph.getNodeAttribute(id, 'isClusterProxy') === true;
+  }, group);
+  assert.equal(await page.locator('#expansion-feedback').textContent(), '0 groups explicitly expanded.');
+  await task('explore');
+  await page.locator('#motion-enabled').check();
+  for (const factor of [0.8, 1.25]) {
+    const refreshed = page.waitForResponse(response => response.url().endsWith('/api/graph/viewport'));
+    const intended = await page.evaluate(async factor => {
+      const camera = window.requirementsSigma.getCamera();
+      const start = camera.getState();
+      for (let i = 1; i <= 5; i++) {
+        camera.setState({ x: start.x, y: start.y, ratio: start.ratio * factor ** i });
+        await new Promise(resolve => setTimeout(resolve, 40));
+      }
+      return { x: start.x, y: start.y, ratio: start.ratio * factor ** 5 };
+    }, factor);
+    await refreshed;
+    await page.waitForTimeout(1200);
+    const actual = await page.evaluate(() => window.requirementsSigma.getCamera().getState());
+    for (const key of ['x', 'y', 'ratio'])
+      assert.ok(Math.abs(actual[key] - intended[key]) < 1e-9, `Automatic LoD changed camera ${key}`);
+  }
+  await page.locator('#motion-enabled').uncheck();
   assert.deepEqual(errors, []);
+  console.log('Rapid zoom on the 4,095-node tree preserves the requested camera with automatic motion enabled.');
+  console.log('Expanded LoD group restores its representative without creating a manual branch fold.');
   console.log('Streamed collapse, configurable preparation, and live viewport refresh passed.');
   console.log(
     'Browser requirements passed: manual branches, display bounds, grayscale, palette lifecycle, node selection, and branch dragging.'
@@ -521,4 +598,5 @@ try {
 } finally {
   await browser?.close();
   await server.close();
+  await rm(cacheDir, { recursive: true, force: true });
 }

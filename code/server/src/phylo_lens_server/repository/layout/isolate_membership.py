@@ -4,11 +4,20 @@ import json
 
 from phylo_lens_server.domain.models import Isolate
 from phylo_lens_server.domain.search import SearchMatch, identifier_score
+from phylo_lens_server.domain.views import ViewportIsolate
 
 from .components import component_source
 
 
-def load_isolates(connection, *, dataset_id, layout_version, node_ids, placeholder="?"):
+def load_isolates(
+    connection,
+    *,
+    dataset_id,
+    layout_version,
+    node_ids,
+    placeholder="?",
+    known_observations=None,
+):
     if not node_ids:
         return {}
     ids = sorted(node_ids)
@@ -21,11 +30,18 @@ def load_isolates(connection, *, dataset_id, layout_version, node_ids, placehold
     ).fetchall()
     result = {}
     for row in rows:
-        result.setdefault(row["node_id"], []).append(
-            Isolate(
+        if (
+            known_observations is not None
+            and "isolate:" + row["isolate_id"] in known_observations
+        ):
+            isolate = ViewportIsolate(
+                id=row["isolate_id"], ancillary_data={}, metadata_cached=True
+            )
+        else:
+            isolate = Isolate(
                 id=row["isolate_id"], ancillary_data=json.loads(row["metadata_json"])
             )
-        )
+        result.setdefault(row["node_id"], []).append(isolate)
     return {key: tuple(value) for key, value in result.items()}
 
 

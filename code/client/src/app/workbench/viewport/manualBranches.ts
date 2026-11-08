@@ -1,5 +1,7 @@
 import type { PositionedGraph, PositionedNode } from '../../../contracts/positioned';
 import type { TreeIndex } from '../../../contracts/graph/TreeIndex';
+import { MANUAL_BRANCH_COLOR } from '../../../render/mapping/clusterNodes';
+import { groupSizeForCount, resolveGroupSize, type GroupSizeMappingOptions } from '../../../render/mapping/groupSize';
 
 type Fold = TreeIndex & { readonly rootId: string };
 
@@ -55,7 +57,8 @@ export class ManualBranches {
     if (changed) this.rebuild();
   }
 
-  apply(graph: PositionedGraph): PositionedGraph {
+  apply(graph: PositionedGraph, options?: GroupSizeMappingOptions): PositionedGraph {
+    const groupSize = resolveGroupSize(options);
     const nodes: PositionedNode[] = [];
     for (const node of graph.nodes) {
       const index = node.attributes?.treeIndex;
@@ -65,8 +68,10 @@ export class ManualBranches {
       // appearance; the choice becomes visible again when that tier is refined.
       const ordinary = node.attributes?.isClusterProxy !== true;
       const count = ordinary && fold?.rootId === node.id ? fold.end - fold.start - 1 : 0;
+      const size = count > 0 ? groupSizeForCount(count + 1, groupSize) : node.size;
       nodes.push({
         ...node,
+        size,
         attributes: {
           ...node.attributes,
           canCollapseBranch: ordinary && index !== undefined && index.end - index.start > 1,
@@ -74,8 +79,10 @@ export class ManualBranches {
           collapsedBranchCount: count,
           ...(count > 0
             ? {
-                type: 'border',
-                borderColor: '#0f766e',
+                type: 'triangle',
+                color: MANUAL_BRANCH_COLOR,
+                size,
+                triangleRotation: 0,
                 label: node.attributes?.label ? `${node.id} (+${count})` : '',
                 forceLabel: Boolean(node.attributes?.label),
               }

@@ -8,7 +8,13 @@ from phylo_lens_server.domain.legacy_metadata import is_summary_key
 
 
 def load_cluster_distributions(
-    connection, *, dataset_id, layout_version, cluster_ids, placeholder="?"
+    connection,
+    *,
+    dataset_id,
+    layout_version,
+    cluster_ids,
+    placeholder="?",
+    known_observations=None,
 ):
     if not cluster_ids:
         return {}
@@ -16,6 +22,8 @@ def load_cluster_distributions(
     rows = connection.execute(
         f"""select cm.cluster_id,
                    coalesce(pi.metadata_json, nm.metadata_json, '{{}}') as data,
+                   min(case when pi.isolate_id is not null then 'isolate:' || pi.isolate_id
+                            else 'node:' || cm.node_id end) as reference_id,
                    count(*) as frequency
             from cluster_members cm
             left join profile_isolates pi
@@ -29,6 +37,34 @@ def load_cluster_distributions(
             group by cm.cluster_id, coalesce(pi.metadata_json, nm.metadata_json, '{{}}')""",
         (dataset_id, layout_version, *ids),
     ).fetchall()
+    if known_observations is not None:
+        # The source identity is stable across tiers in an immutable layout.
+        # Group counts stay local to each cluster; only the row values are reused.
+        distributions = {}
+        for row in rows:
+            reference = row["reference_id"]
+            cached = reference in known_observations
+            values = (
+                {}
+                if cached
+                else {
+                    key: value
+                    for key, value in json.loads(row["data"]).items()
+                    if not is_summary_key(key)
+                }
+            )
+            distributions.setdefault(row["cluster_id"], []).append(
+                AncillaryObservation(
+                    values=values,
+                    count=row["frequency"],
+                    reference_id=reference,
+                    values_cached=True if cached else None,
+                )
+            )
+        return {
+            cluster: tuple(observations)
+            for cluster, observations in distributions.items()
+        }
     counts = {}
     for row in rows:
         data = {

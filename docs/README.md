@@ -20,6 +20,7 @@ release information across several files.
 | Inspect subtree indexing, fold complexity and measurements | [Indexed branch operations](TREE_INDEX.md) |
 | Configure CI, npm publication, and multi-platform Docker releases | [Release and CI](RELEASE.md) |
 | Track researcher feedback, acceptance criteria and delivery dependencies | [Feedback backlog](feedback/README.md) |
+| Run a public-example formative evaluation of counts and navigation | [Researcher walkthrough kit](validation/researcher-walkthrough.md) |
 
 Component-specific setup is documented in:
 

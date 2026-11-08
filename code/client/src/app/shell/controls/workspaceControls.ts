@@ -1,5 +1,6 @@
 import eventBindings from '../events/eventBindings';
 import { tabIndexForKey } from './tabNavigation';
+import { renderGraphLegend } from '../../../components/graph-legend/graphLegend';
 
 /** Owns navigation and surfaces; graph operations remain in their existing controllers. */
 export default function workspaceControls(root: HTMLElement | undefined) {
@@ -31,6 +32,7 @@ export default function workspaceControls(root: HTMLElement | undefined) {
   return { mount, unmount, loadStarted, loadCompleted, loadFailed, selectNode, showRegion };
 
   function mount(): void {
+    renderGraphLegend(root?.querySelector('#graph-legend'));
     tasks.mount();
     inspector.mount();
     bindings.on(changeData, 'click', () => {

@@ -202,7 +202,7 @@ describe('uiShell', () => {
     await shell.renderCurrentInput();
 
     expect(status.textContent).toContain('Rendered');
-    expect(status.textContent).toContain('1 visible node');
+    expect(status.textContent).toContain('1 symbol drawn');
     expect(status.textContent).toContain('detail level 1/3');
     expect(status.textContent).not.toContain('LoD zoom');
     shell.unmount();

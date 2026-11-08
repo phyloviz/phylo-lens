@@ -17,7 +17,7 @@ export const PHYLOVIZ_NODE_COMMON_COLOR = '#93c5fd';
 export const PHYLOVIZ_NODE_SELECTED_COLOR = '#dc2626';
 export const PHYLOVIZ_NODE_SELECTED_BORDER_COLOR = '#ffffff';
 
-export const PHYLOVIZ_CLUSTER_COLOR = '#f59e0b';
+export const PHYLOVIZ_CLUSTER_COLOR = AUTOMATIC_GROUP_COLOR;
 
 // Nodes outside an active region selection are dimmed to this muted grey so the
 // selected set reads as highlighted without recoloring the selected nodes.
@@ -34,3 +34,4 @@ export const SIGMA_NODE_TYPE_DEFAULT = 'circle';
 export const SIGMA_NODE_TYPE_BORDER = 'border';
 export const SIGMA_NODE_TYPE_TRIANGLE = 'triangle';
 export const SIGMA_NODE_TYPE_PIECHART = 'piechart';
+import { AUTOMATIC_GROUP_COLOR } from '../../mapping/clusterNodes';

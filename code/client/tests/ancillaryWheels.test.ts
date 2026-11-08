@@ -79,7 +79,7 @@ describe('ancillary node inspection', () => {
     const { wheels, selected } = fixture();
     wheels.renderSelectedNode('profile');
     expect(selected.textContent).toContain('Profile: profile');
-    expect(selected.textContent).toContain('2 isolates');
+    expect([...selected.querySelectorAll('.node-counts dd')].map(value => value.textContent)).toEqual(['1', '2']);
     const details = selected.querySelector('details')!;
     expect(details.querySelectorAll('li')).toHaveLength(0);
     details.open = true;
@@ -118,7 +118,7 @@ describe('ancillary node inspection', () => {
     setFields([]);
     wheels.refreshSelectedNode();
     expect(selected.querySelector('.wheel-chart')).toBeNull();
-    expect(selected.textContent).toContain('2 isolates');
+    expect([...selected.querySelectorAll('.node-counts dd')].map(value => value.textContent)).toEqual(['1', '2']);
     wheels.resetSelectedNode();
     wheels.refreshSelectedNode();
     expect(selected.textContent).toBe('Choose a node');
@@ -148,8 +148,47 @@ describe('ancillary node inspection', () => {
       viewMeta: { layout: 'server', lodLevel: 1 },
     });
     wheels.renderSelectedNode('cluster');
-    expect(selected.textContent).toContain('Cluster: cluster');
-    expect(selected.textContent).toContain('3 nodes · 7 isolates');
+    expect(selected.textContent).toContain('Automatic group (LoD): cluster');
+    expect([...selected.querySelectorAll('.node-counts dt')].map(value => value.textContent)).toEqual([
+      'Nodes represented',
+      'Isolates represented',
+    ]);
+    expect([...selected.querySelectorAll('.node-counts dd')].map(value => value.textContent)).toEqual(['3', '7']);
     expect(selected.querySelector('details')).toBeNull();
+  });
+
+  it('scopes manual-fold isolates, IDs and pies to the root rather than inventing a branch total', () => {
+    const { wheels, selected, setGraph, setFields } = fixture();
+    setGraph({
+      nodes: [
+        {
+          id: 'root',
+          x: 0,
+          y: 0,
+          attributes: {
+            isBranchCollapsed: true,
+            collapsedBranchCount: 40,
+            memberCount: 1,
+            metadata: { profile_count: 2, country: 'Portugal' },
+            isolates: [
+              { id: 'root-A', ancillaryData: { country: 'Portugal' } },
+              { id: 'root-B', ancillaryData: { country: 'Portugal' } },
+            ],
+          },
+        },
+      ],
+      edges: [],
+      viewMeta: { layout: 'server', lodLevel: 0 },
+    });
+    setFields(['country']);
+    wheels.renderSelectedNode('root');
+    expect([...selected.querySelectorAll('.node-counts dd')].map(value => value.textContent)).toEqual([
+      '41 (root + 40 hidden)',
+      '2',
+      'Unavailable in this view',
+    ]);
+    expect(selected.textContent).toContain('Root node isolate IDs (2)');
+    expect(selected.textContent).toContain("Root node 'root' only");
+    expect(selected.textContent).toContain('Ancillary data and isolate IDs here describe the root node only.');
   });
 });

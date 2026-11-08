@@ -28,6 +28,8 @@ let sigmaScaleSize: ((size: number) => number) | undefined;
 let lastStageClickHandler: (() => void) | null = null;
 let lastNodeClickHandler: ((payload: { node?: string; event?: { node?: string } }) => void) | null = null;
 let lastNodeDoubleClickHandler: ((payload: { node?: string; event?: { node?: string } }) => void) | null = null;
+let lastNodeEnterHandler: ((payload: { node?: string }) => void) | null = null;
+let lastNodeLeaveHandler: ((payload: { node?: string }) => void) | null = null;
 let shouldThrowOnPieProgram = false;
 let pieProgramInputs: Array<{
   slices: Array<{ color: { value: string }; value: { attribute: string } }>;
@@ -126,6 +128,8 @@ vi.mock('sigma', () => {
       if (event === 'doubleClickNode') {
         lastNodeDoubleClickHandler = handler;
       }
+      if (event === 'enterNode') lastNodeEnterHandler = handler;
+      if (event === 'leaveNode') lastNodeLeaveHandler = handler;
       return this;
     }
 
@@ -142,6 +146,8 @@ vi.mock('sigma', () => {
       if (event === 'doubleClickNode' && lastNodeDoubleClickHandler === handler) {
         lastNodeDoubleClickHandler = null;
       }
+      if (event === 'enterNode' && lastNodeEnterHandler === handler) lastNodeEnterHandler = null;
+      if (event === 'leaveNode' && lastNodeLeaveHandler === handler) lastNodeLeaveHandler = null;
       return this;
     }
 
@@ -255,6 +261,8 @@ describe('sigmaRenderer', () => {
     lastStageClickHandler = null;
     lastNodeClickHandler = null;
     lastNodeDoubleClickHandler = null;
+    lastNodeEnterHandler = null;
+    lastNodeLeaveHandler = null;
     animationFrameCallback = null;
     animationFrameId = 0;
     graphToViewportPoint = point => point;
@@ -372,6 +380,42 @@ describe('sigmaRenderer', () => {
     expect(renderer.getViewportState()?.representationSpacingPx).toBe(42);
     renderer.render(finer);
     expect(renderer.getViewportState()?.representationSpacingPx).toBe(8);
+    renderer.unmount();
+  });
+
+  it('accounts for the real triangle footprint in the stable detail budget', () => {
+    const renderer = createSigmaRenderer({ forceMotion: { enabled: false } });
+    renderer.mount({ container: document.createElement('div') });
+    sigmaScaleSize = size => size;
+    const snapshot = {
+      nodes: [
+        {
+          id: 'group',
+          x: 0,
+          y: 0,
+          size: 12,
+          attributes: { type: 'triangle', isClusterProxy: true, memberCount: 90_000 },
+        },
+      ],
+      edges: [],
+      viewMeta: { layout: 'server' as const, lodLevel: 0 },
+    };
+    renderer.render(snapshot);
+    expect(lastGraph?.getNodeAttribute('group', 'size')).toBe(12);
+    expect(renderer.getViewportState()?.representationSpacingPx).toBeCloseTo(2 * 12 * 1.35 + 2);
+    renderer.applyGraphSnapshot({
+      ...snapshot,
+      nodes: [
+        {
+          id: 'group',
+          x: 0,
+          y: 0,
+          size: 10,
+          attributes: { type: 'triangle', isBranchCollapsed: true, memberCount: 1 },
+        },
+      ],
+    });
+    expect(renderer.getViewportState()?.representationSpacingPx).toBeCloseTo(2 * 12 * 1.35 + 2);
     renderer.unmount();
   });
 
@@ -625,6 +669,53 @@ describe('sigmaRenderer', () => {
     renderer.unmount();
   });
 
+  it('shows exact scoped hover counts, refreshes them across snapshots and clears stale tooltips', () => {
+    const container = requireContainer();
+    const renderer = createSigmaRenderer();
+    renderer.mount({ container });
+    const snapshot = {
+      nodes: [
+        {
+          id: 'group',
+          x: 0,
+          y: 0,
+          size: 8,
+          attributes: { isClusterProxy: true, memberCount: 3, metadata: { profile_count: 7 } },
+        },
+      ],
+      edges: [],
+      viewMeta: { layout: 'server' as const, lodLevel: 0 },
+    };
+    renderer.render(snapshot);
+    lastNodeEnterHandler?.({ node: 'group' });
+    expect(container.title).toContain('Automatic group (LoD): group');
+    expect(container.title).toContain('Nodes represented: 3');
+    expect(container.title).toContain('Isolates represented: 7');
+    renderer.applyGraphSnapshot({
+      ...snapshot,
+      nodes: [
+        {
+          id: 'group',
+          x: 0,
+          y: 0,
+          size: 8,
+          attributes: { isBranchCollapsed: true, collapsedBranchCount: 99, metadata: { profile_count: 2 } },
+        },
+      ],
+    });
+    expect(container.title).toContain('Nodes represented: 100 (root + 99 hidden)');
+    expect(container.title).toContain('Root node isolates: 2');
+    expect(container.title).toContain('Branch isolate total: Unavailable');
+    lastNodeLeaveHandler?.({ node: 'group' });
+    expect(container.hasAttribute('title')).toBe(false);
+    lastNodeEnterHandler?.({ node: 'group' });
+    renderer.applyGraphSnapshot({ ...snapshot, nodes: [] });
+    expect(container.hasAttribute('title')).toBe(false);
+    renderer.unmount();
+    expect(lastNodeEnterHandler).toBeNull();
+    expect(lastNodeLeaveHandler).toBeNull();
+  });
+
   it('registers node programs for selected nodes and expandable cluster proxies', () => {
     document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
 
@@ -662,6 +753,64 @@ describe('sigmaRenderer', () => {
     expect(lastGraph?.getNodeAttribute('cluster', 'type')).toBe('triangle');
     expect(lastGraph?.getNodeAttribute('cluster', 'triangleRotation')).toBeCloseTo(-Math.PI / 2);
 
+    renderer.unmount();
+  });
+
+  it('keeps summary markers visible and distinct when their roots are structural junctions', () => {
+    const renderer = createSigmaRenderer();
+    renderer.mount({ container: requireContainer() });
+    const snapshot = {
+      nodes: [
+        { id: 'union_1', x: 0, y: 0, size: 0, color: '#ffffff' },
+        {
+          id: 'union_2',
+          x: 10,
+          y: 0,
+          size: 9,
+          attributes: { isClusterProxy: true, memberCount: 37, type: 'triangle' },
+        },
+        { id: 'union_3', x: 0, y: 10, size: 8, attributes: { isBranchCollapsed: true, type: 'triangle' } },
+      ],
+      edges: [],
+      viewMeta: { layout: 'server' as const, lodLevel: 0 },
+    };
+    renderer.render(snapshot);
+    const check = () => {
+      expect(lastGraph?.getNodeAttributes('union_1')).toMatchObject({ size: 0, color: '#ffffff' });
+      expect(lastGraph?.getNodeAttributes('union_2')).toMatchObject({ size: 9, color: '#f59e0b', type: 'triangle' });
+      expect(lastGraph?.getNodeAttributes('union_3')).toMatchObject({ size: 8, color: '#7c3aed', type: 'triangle' });
+    };
+    check();
+    renderer.applyGraphSnapshot(snapshot);
+    check();
+    renderer.unmount();
+  });
+
+  it('renders manual folds as violet triangles without treating them as LoD aggregates', () => {
+    document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
+    const renderer = createSigmaRenderer();
+    renderer.mount({ container: requireContainer() });
+    renderer.render({
+      nodes: [
+        { id: 'root', x: 0, y: 0 },
+        { id: 'fold', x: 0, y: 10, attributes: { isBranchCollapsed: true, type: 'triangle' } },
+        { id: 'group', x: 10, y: 0, attributes: { isClusterProxy: true, memberCount: 5 } },
+      ],
+      edges: [{ id: 'root-fold', source: 'root', target: 'fold' }],
+      viewMeta: { layout: 'server', lodLevel: 0 },
+    });
+    expect(lastGraph?.getNodeAttribute('fold', 'type')).toBe('triangle');
+    expect(lastGraph?.getNodeAttribute('fold', 'color')).toBe('#7c3aed');
+    expect(lastGraph?.getNodeAttribute('group', 'color')).toBe('#f59e0b');
+    expect(lastGraph?.getNodeAttribute('fold', 'triangleRotation')).toBeCloseTo(-Math.PI / 2);
+    expect(renderer.getInteractiveAggregateTargets().map(target => target.clusterId)).toEqual(['group']);
+    renderer.focusNode('fold');
+    const reducer = lastSigmaOptions?.nodeReducer as
+      ((id: string, data: Record<string, unknown>) => Record<string, unknown>) | undefined;
+    expect(reducer?.('fold', lastGraph!.getNodeAttributes('fold')).type).toBe('triangle');
+    expect(reducer?.('fold', lastGraph!.getNodeAttributes('fold')).color).toBe('#7c3aed');
+    renderer.focusNode(null);
+    expect(lastGraph?.getNodeAttribute('fold', 'color')).toBe('#7c3aed');
     renderer.unmount();
   });
 
@@ -1580,6 +1729,34 @@ describe('sigmaRenderer', () => {
 
     expect(forceMotionStarts).toBe(2);
 
+    renderer.unmount();
+  });
+
+  it('does not recenter the camera during a moving LoD transition or overwrite newer navigation', () => {
+    vi.spyOn(performance, 'now').mockReturnValue(0);
+    const renderer = createSigmaRenderer({ forceMotion: { enabled: true } });
+    renderer.mount({ container: document.createElement('div') });
+    const viewMeta = { layout: 'server' as const, lodLevel: 0, globalBounds: { minX: 0, maxX: 12, minY: -2, maxY: 4 } };
+    renderer.render({
+      nodes: [
+        { id: 'anchor', x: 2, y: 0 },
+        { id: 'proxy', x: 6, y: 0, attributes: { isClusterProxy: true, clusterId: 'group' } },
+      ],
+      edges: [],
+      viewMeta,
+    });
+    renderer.applyGraphSnapshot({
+      nodes: [
+        { id: 'anchor', x: 2, y: 0 },
+        { id: 'm1', x: 6, y: 0, attributes: { clusterId: 'group' } },
+        { id: 'm2', x: 7, y: 1, attributes: { clusterId: 'group' } },
+      ],
+      edges: [],
+      viewMeta: { ...viewMeta, lodLevel: 1 },
+    });
+    lastCamera?.setState({ x: 0.6, y: 0.4, ratio: 0.3 });
+    animationFrameCallback?.(1000);
+    expect(lastCamera?.state).toMatchObject({ x: 0.6, y: 0.4, ratio: 0.3 });
     renderer.unmount();
   });
 

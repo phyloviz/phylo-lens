@@ -36,8 +36,13 @@ export function createHttpClient({ baseUrl, fetchImpl = safeFetch }: HttpClientO
     return request<TResponse>(path);
   }
 
-  function post<TRequest, TResponse>(path: string, body: TRequest): Promise<TResponse> {
+  function post<TRequest, TResponse>(
+    path: string,
+    body: TRequest,
+    options: Pick<RequestInit, 'signal'> = {}
+  ): Promise<TResponse> {
     return request<TResponse>(path, {
+      ...options,
       method: 'POST',
       body: JSON.stringify(body),
     });
