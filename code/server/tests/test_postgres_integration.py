@@ -136,15 +136,29 @@ def schema_objects(store):
 
 def test_runtime_schema_checks_do_not_initialize_or_repair_the_database(
     uninitialized_jobs,
+    monkeypatch,
 ):
     store = uninitialized_jobs
+    connect = postgres.connect
+
+    def read_only_connection(dsn):
+        connection = connect(dsn)
+        connection.execute("set transaction read only")
+        return connection
+
+    def validate_without_writes():
+        # The engine rejects any attempted DDL/DML, even if object names stay the same.
+        with monkeypatch.context() as validation:
+            validation.setattr(postgres, "connect", read_only_connection)
+            store.assert_schema_current()
+
     before = schema_objects(store)
     with pytest.raises(RuntimeError, match="schema is not current"):
-        store.assert_schema_current()
+        validate_without_writes()
     assert schema_objects(store) == before == []
 
     store.create_schema()
-    store.assert_schema_current()
+    validate_without_writes()
     initialized = schema_objects(store)
     assert initialized
     store.create_schema()
@@ -152,7 +166,7 @@ def test_runtime_schema_checks_do_not_initialize_or_repair_the_database(
     with store._connect() as connection:
         connection.execute("update phylo_lens_schema_version set checksum = 'outdated'")
     with pytest.raises(RuntimeError, match="schema is not current"):
-        store.assert_schema_current()
+        validate_without_writes()
     assert schema_objects(store) == initialized
     with store._connect() as connection:
         assert (
