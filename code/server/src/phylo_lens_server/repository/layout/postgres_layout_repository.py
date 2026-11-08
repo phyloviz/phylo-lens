@@ -171,6 +171,14 @@ class PostgresLayoutRepository:
                 max_lod_level=max_lod_level,
             )
 
+    def read_connection_context(self, dataset_id: str, layout_version: str):
+        from .connection_context import read_connection_context
+
+        with self._connect() as connection:
+            return read_connection_context(
+                LayoutSQL(connection, "postgres"), dataset_id, layout_version
+            )
+
     def read_components(
         self,
         *,

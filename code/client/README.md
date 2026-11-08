@@ -80,6 +80,15 @@ rejected for this operation. Loading rebuilds layout and manual arrangements;
 the active cutoff is included in publication legends. See the
 [user guide](../../docs/USER_GUIDE.md) for distance units and examples.
 
+After loading, `await view.setDistanceConnections({ threshold: 2 })` adds links
+within each current forest component. Typing input uses differing retained loci;
+Newick uses summed branch-path lengths between named nodes. The optional
+`maxConnections` defaults to 50,000. Exceeding it rejects the replacement and
+keeps the previous overlay. `await view.setDistanceConnections(null)` removes
+the extra links without a server read. Connections are drawn only for ordinary
+visible endpoints; they do not change tree topology, branch ownership or springs.
+The original input is retained for this session to support explicit queries.
+
 ## Public package surface
 
 The package root exports:

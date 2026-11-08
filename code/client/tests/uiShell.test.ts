@@ -22,6 +22,7 @@ function makeFakeWorkbench(
   let regionSelectModeEnabled = false;
 
   return {
+    setDistanceConnections: vi.fn(async () => renderedGraph),
     listComponents: vi.fn(async () => ({ components: [], nextCursor: null })),
     selectComponent: vi.fn(async () => renderedGraph),
     getComponentId: vi.fn(() => undefined),

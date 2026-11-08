@@ -21,6 +21,7 @@ import { GraphViewportCoordinator } from './viewport/viewportCoordinator';
 import type { SnapshotAppliedObserver } from './internalSnapshotObserver';
 import type { GraphWorkbenchAction } from './graphWorkbench.actions';
 import { reduceGraphWorkbenchState } from './graphWorkbench.reducer';
+import type { GraphInput } from './graphWorkbench.types';
 
 export type {
   GraphInput,
@@ -54,6 +55,16 @@ export function createGraphWorkbench(
   let loadGeneration = 0;
   let snapshotSequence = 0;
   let disposed = false;
+  let sourceInput: GraphInput | null = null;
+  let connectionRequest = 0;
+  let connectionAbort: AbortController | null = null;
+
+  function cancelConnections(): number {
+    const sequence = ++connectionRequest;
+    connectionAbort?.abort();
+    connectionAbort = null;
+    return sequence;
+  }
 
   const replaceViewportCoordinator = (coordinator: GraphViewportCoordinator | null) => {
     viewportCoordinator?.unmount();
@@ -118,6 +129,40 @@ export function createGraphWorkbench(
   });
 
   return {
+    setDistanceConnections: async connectionOptions => {
+      const coordinator = requireViewportCoordinator();
+      const sequence = cancelConnections();
+      if (connectionOptions === null) return coordinator.setDistanceConnections(null);
+      if (!sourceInput || !graphClient.readDistanceConnections)
+        throw new Error('Distance connections require the original loaded input and a supporting graph service.');
+      const session = getGraphSession(getState());
+      const layoutVersion = session.layoutVersion;
+      const abort = new AbortController();
+      connectionAbort = abort;
+      try {
+        const result = await graphClient.readDistanceConnections(
+          {
+            ...sourceInput,
+            datasetId: session.datasetId,
+            layoutVersion,
+            threshold: connectionOptions.threshold,
+            maxConnections: connectionOptions.maxConnections,
+          },
+          { signal: abort.signal }
+        );
+        if (
+          disposed ||
+          sequence !== connectionRequest ||
+          viewportCoordinator !== coordinator ||
+          !hasGraphSession(getState()) ||
+          getGraphSession(getState()).layoutVersion !== layoutVersion
+        )
+          throw new Error('Distance connections were superseded by a newer dataset or layout.');
+        return coordinator.setDistanceConnections(result);
+      } finally {
+        if (connectionAbort === abort) connectionAbort = null;
+      }
+    },
     listComponents: async (page = {}) => {
       const session = getGraphSession(getState());
       if (!graphClient.readComponents) return { components: [], nextCursor: null };
@@ -152,6 +197,8 @@ export function createGraphWorkbench(
     setKeepExpanded: keep => requireViewportCoordinator().setKeepExpanded(keep),
     getExpansionState: () => requireViewportCoordinator().getExpansionState(),
     loadGraph: (input, loadOptions) => {
+      cancelConnections();
+      sourceInput = Object.freeze({ ...input });
       const generation = ++loadGeneration;
       navigation.cancelPendingRegionSelection();
 
@@ -172,7 +219,7 @@ export function createGraphWorkbench(
           onGraphRendered: graph => graphRenderedHandler?.(graph),
           onError: error => errorHandler?.(error),
         },
-        input,
+        sourceInput,
         loadOptions
       );
     },
@@ -231,6 +278,8 @@ export function createGraphWorkbench(
     },
 
     dispose: () => {
+      cancelConnections();
+      sourceInput = null;
       disposed = true;
       loadGeneration += 1;
       renderer.setViewChangeHandler?.(null);

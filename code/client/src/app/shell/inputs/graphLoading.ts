@@ -43,7 +43,7 @@ type GraphLoadingOptions = {
   readonly getDisplayOptions: () => GraphDisplayOptions;
   readonly onLoadStarted: () => void;
   readonly onLoadFailed: () => void;
-  readonly onLoadCompleted?: (name: string) => void;
+  readonly onLoadCompleted?: (name: string, format: SourceFormat) => void;
   readonly setStatus: (message: string) => void;
   readonly setFailureStatus: (message: string) => void;
 };
@@ -194,7 +194,7 @@ export default function createGraphLoading(options: GraphLoadingOptions) {
       );
       if (sequence === loadSequence) {
         const fileName = (format === SOURCE_FORMAT_TYPING_DATA ? typingFileInput : newickFileInput)?.files?.[0]?.name;
-        options.onLoadCompleted?.(datasetName || fileName || 'Untitled dataset');
+        options.onLoadCompleted?.(datasetName || fileName || 'Untitled dataset', format);
       }
     } catch (error) {
       if (sequence !== loadSequence) return;

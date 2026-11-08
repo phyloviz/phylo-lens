@@ -1,0 +1,1 @@
+export const DISTANCE_CONNECTION_COLOR = '#2563eb';

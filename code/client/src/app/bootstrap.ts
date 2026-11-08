@@ -112,6 +112,12 @@ export default function bootstrapClientShell(baseUrl = ''): UiShell {
     maxNodesInput: getInput(ID_MAX_NODES_INPUT),
     smallComponentThresholdInput: getInput('small-component-threshold'),
     distanceCutoffInput: getInput('distance-cutoff'),
+    connectionThreshold: getInput('connection-threshold'),
+    connectionLimit: getInput('connection-limit'),
+    applyConnections: getButton('apply-connections'),
+    clearConnections: getButton('clear-connections'),
+    connectionMetric: getOptionalElement('connection-metric'),
+    connectionFeedback: getOptionalElement('connection-feedback'),
 
     searchInput: getInput(ID_SEARCH_INPUT),
     searchButton: getButton(ID_SEARCH_BUTTON),
