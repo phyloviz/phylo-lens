@@ -1,50 +1,28 @@
+import { browserHarness, waitForView, observeUnchanged } from './browserHarness.mjs';
 import assert from 'node:assert/strict';
-import { fileURLToPath } from 'node:url';
-import { createServer } from 'vite';
-// Reuse the evaluation workspace's installed browser runtime when the client
-// workspace has no Playwright dependency; no package installation is needed.
-const { chromium } = await import('playwright').catch(
-  () => import('../../../../eval/browser/node_modules/playwright/index.mjs')
-);
-const server = await createServer({
-  root: fileURLToPath(new URL('../../', import.meta.url)),
-  configFile: false,
-  server: { host: '127.0.0.1', port: 0 },
-});
-await server.listen();
-let browser;
+const { page, errors, close, url } = await browserHarness({});
 try {
-  browser = await chromium.launch({ headless: true, args: ['--enable-unsafe-swiftshader', '--no-sandbox'] });
-  const page = await browser.newPage({ viewport: { width: 1200, height: 800 } });
-  const errors = [];
-  page.on('pageerror', e => errors.push(String(e)));
-  await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/tests/browser/elasticMotion.html?crowded`);
+  await page.goto(`${url}/tests/browser/elasticMotion.html?crowded`);
   await page.waitForFunction(() => window.motionFixture);
-  const clearance = () =>
-    page.evaluate(() => {
-      const r = window.motionFixture.renderer,
-        nodes = window.motionFixture.graph.mapNodes((id, a) => ({
-          id,
-          p: window.motionFixture.sigma.graphToViewport(a),
-          radius: window.motionFixture.sigma.scaleSize(a.size),
-        }));
-      let minimum = Infinity;
-      for (let i = 0; i < nodes.length; i++)
-        for (let j = i + 1; j < nodes.length; j++)
-          minimum = Math.min(
-            minimum,
-            Math.hypot(nodes[i].p.x - nodes[j].p.x, nodes[i].p.y - nodes[j].p.y) - nodes[i].radius - nodes[j].radius
-          );
-      return minimum;
-    });
-  await page.waitForTimeout(3000);
-  assert.ok((await clearance()) > 0.5, 'Crowded glyphs still overlap after settling');
+  const glyphsAreSeparated = () => {
+    const { graph, sigma, renderer } = window.motionFixture;
+    if (renderer.isManipulating() || renderer.getLayoutMotionState().running || sigma.getCamera().isAnimated())
+      return false;
+    const nodes = graph.mapNodes((_id, a) => ({ p: sigma.graphToViewport(a), radius: sigma.scaleSize(a.size) }));
+    return nodes.every((a, i) =>
+      nodes.slice(i + 1).every(b => Math.hypot(a.p.x - b.p.x, a.p.y - b.p.y) - a.radius - b.radius > 0.5)
+    );
+  };
+  const checkClearance = async () => {
+    await waitForView(page);
+    await page.waitForFunction(glyphsAreSeparated, undefined, { timeout: 30000 });
+    assert.ok(await page.evaluate(glyphsAreSeparated), 'Settled glyphs overlap');
+  };
+  await checkClearance();
   await page.evaluate(() => window.motionFixture.sigma.getCamera().setState({ ratio: 4 }));
-  await page.waitForTimeout(3000);
-  assert.ok((await clearance()) > 0.5, 'Zoom-out left overlapping glyphs');
+  await checkClearance();
   await page.evaluate(() => window.motionFixture.sigma.getCamera().setState({ ratio: 0.25 }));
-  await page.waitForTimeout(3000);
-  assert.ok((await clearance()) > 0.5, 'Zoom-in did not reheat settled collision handling');
+  await checkClearance();
   const pan = await page.evaluate(() => {
     const r = window.motionFixture.renderer;
     let events = 0;
@@ -63,7 +41,7 @@ try {
     window.motionFixture.sigma.getCamera().setState({ ratio: 2 });
   });
   const paused = await page.evaluate(() => window.motionFixture.graph.mapNodes((_id, a) => [a.x, a.y]));
-  await page.waitForTimeout(500);
+  await observeUnchanged(page, () => window.motionFixture.graph.mapNodes((_id, a) => [a.x, a.y]), 500);
   assert.deepEqual(
     await page.evaluate(() => window.motionFixture.graph.mapNodes((_id, a) => [a.x, a.y])),
     paused,
@@ -74,6 +52,5 @@ try {
     'PASS: 53 crowded nodes, projected collision clearance, zoom-out scaling, zoom reheating, pan notification and Motion off.'
   );
 } finally {
-  await browser?.close();
-  await server.close();
+  await close();
 }

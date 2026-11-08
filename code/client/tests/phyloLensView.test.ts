@@ -1,5 +1,5 @@
 import { toDatasetId, toLayoutVersion, toClusterId, toNodeId } from '../src/contracts/graph/graphIdentifiers';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   prepareGraph: vi.fn(),
@@ -32,46 +32,39 @@ vi.mock('../src/render/rendererFactory', () => ({
   })),
 }));
 
-vi.mock('../src/app/workbench/graphWorkbench', () => ({
-  ERR_GRAPH_LOAD_SUPERSEDED: 'Graph load was superseded by a newer load.',
-  createGraphWorkbench: vi.fn(() => ({
-    expandAll: mocks.expandAll,
-    collapseAll: mocks.collapseAll,
-    expandCluster: mocks.expandCluster,
-    collapseCluster: mocks.collapseCluster,
-    collapseBranch: mocks.collapseBranch,
-    expandBranch: mocks.expandBranch,
-    getExpansionState: mocks.getExpansionState,
-    setKeepExpanded: mocks.setKeepExpanded,
-    setInteractionFeedbackHandler: vi.fn(),
-    setMotionEnabled: vi.fn(),
-    isMotionEnabled: vi.fn(() => true),
-    setErrorHandler: vi.fn(),
-    setNodeClickedHandler: vi.fn(),
-    setGraphRenderedHandler: vi.fn(),
-    loadGraph: mocks.loadGraph,
-    exportPng: mocks.exportPng,
-    updateVisualMapping: mocks.updateVisualMapping,
-    applyAncillaryData: mocks.applyAncillaryData,
-    dispose: mocks.dispose,
-  })),
-}));
+vi.mock('../src/app/workbench/graphWorkbench', async () => {
+  const { workbenchFake } = await import('./doubles/workbenchFake');
+  return {
+    ERR_GRAPH_LOAD_SUPERSEDED: 'Graph load was superseded by a newer load.',
+    createGraphWorkbench: vi.fn(() => ({
+      ...workbenchFake(),
+      expandAll: mocks.expandAll,
+      collapseAll: mocks.collapseAll,
+      expandCluster: mocks.expandCluster,
+      collapseCluster: mocks.collapseCluster,
+      collapseBranch: mocks.collapseBranch,
+      expandBranch: mocks.expandBranch,
+      getExpansionState: mocks.getExpansionState,
+      setKeepExpanded: mocks.setKeepExpanded,
+      loadGraph: mocks.loadGraph,
+      exportPng: mocks.exportPng,
+      updateVisualMapping: mocks.updateVisualMapping,
+      applyAncillaryData: mocks.applyAncillaryData,
+      dispose: mocks.dispose,
+    })),
+  };
+});
 
 import { createGraphWorkbench } from '../src/app/workbench/graphWorkbench';
 import { createPhyloLensView } from '../src/index';
 import { ERR_PHYLO_LENS_VIEW_DISPOSED } from '../src/phyloLensView';
 
-describe('createPhyloLensView', () => {
-  beforeEach(() => {
-    mocks.prepareGraph.mockReset();
-    mocks.loadGraph.mockReset();
-    mocks.exportPng.mockReset();
-    mocks.updateVisualMapping.mockReset();
-    mocks.applyAncillaryData.mockReset();
-    mocks.dispose.mockReset();
-    mocks.createRenderer.mockReset();
-  });
+beforeEach(() => {
+  Object.values(mocks).forEach(mock => mock.mockReset());
+  vi.mocked(createGraphWorkbench).mockClear();
+});
 
+describe('createPhyloLensView', () => {
   it('creates the existing workbench stack and loads Newick content', async () => {
     const container = document.createElement('div');
     const view = createPhyloLensView({

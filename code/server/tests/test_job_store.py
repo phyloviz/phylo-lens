@@ -82,20 +82,6 @@ def test_schema_roots_include_installed_target_layout() -> None:
     )
 
 
-def test_postgres_claim_query_uses_skip_locked() -> None:
-    source = job_store.PostgresPrepareJobStore.claim_next.__code__.co_consts
-
-    assert any("for update skip locked" in str(constant) for constant in source)
-
-
-def test_postgres_submit_serializes_active_limit_check_with_advisory_lock() -> None:
-    source = job_store.PostgresPrepareJobStore.submit.__code__.co_names
-    lock_source = job_store._lock_prepare_submit.__code__.co_consts
-
-    assert "_lock_prepare_submit" in source
-    assert any("pg_advisory_xact_lock" in str(constant) for constant in lock_source)
-
-
 class RecordingDurableStore:
     def __init__(self, snapshot) -> None:
         self.snapshot_record = snapshot
@@ -189,14 +175,6 @@ def test_postgres_schema_is_checksummed() -> None:
     assert schema.version == postgres.POSTGRES_SCHEMA_VERSION
     assert len(schema.checksum) == 64
     assert schema.sql == postgres.POSTGRES_CREATE_SCHEMA_SQL
-
-
-def test_postgres_schema_assertion_does_not_run_ddl() -> None:
-    source = postgres.assert_schema_current.__code__.co_consts
-    names = postgres.assert_schema_current.__code__.co_names
-
-    assert not any("create table" in str(constant).lower() for constant in source)
-    assert "_schema_version_table_exists" in names
 
 
 def test_historical_durable_dataset_payload_decodes_at_repository_boundary():

@@ -9,6 +9,12 @@ filtering, ancillary distributions and renderer lifecycle. Keep DTO fixtures in
 service tests; application tests use camelCase models and branded identifiers.
 Use typed mocks for the methods a collaborator actually needs.
 
+Shared boundary doubles live in `tests/doubles`: Sigma, motion workers, recording
+renderers, graph clients and UI workbenches. Each factory owns fresh state. Client
+stubs reject unconfigured operations; tests supply scenario-specific results.
+Controlled promises use `helpers/state.ts`. See the
+[test strategy](../../../docs/validation/test-strategy.md) for the rationale.
+
 `freezeInput` is for small, plain test fixtures. It helps detect accidental writes
 to reducer inputs and graph calculations. It does not imply that production
 graphs should be recursively frozen.
@@ -21,6 +27,15 @@ node tests/browser/elasticMotion.mjs
 node tests/browser/viewportReadability.mjs
 node tests/browser/visualStability.mjs
 ```
+
+`browserHarness.mjs` owns an isolated cache, server and browser, including cleanup
+when startup fails. Readiness waits for completion or measured geometry. The
+remaining wheel delay defines the scroll stimulus; sampled observation windows
+check that paused positions and cameras stay unchanged.
+
+CI also runs `meetingRequirements.mjs --smoke` against its temporary API. This
+selects the real load/search/fold/metadata/drag/download path; omit `--smoke` for
+the full forest, responsive-layout and large-tree sequence below.
 
 `REQUIREMENTS_API_URL=http://127.0.0.1:8128 node tests/browser/distanceOperations.mjs`
 uses an isolated live service to exercise decimal, equal and zero cutoff values,

@@ -496,13 +496,22 @@ def test_layout_fails_when_sfdp_is_missing_without_circular_fallback(
     )
 
 
-def test_tree_layout_scales_to_large_chains_quickly() -> None:
+def test_tree_layout_covers_every_node_of_a_large_chain() -> None:
     dataset = _varied_chain_dataset(1_000)
     artifacts = prepare_layout_artifacts(dataset)
     cluster_layouts, node_positions = compute_prepared_layouts(artifacts)
 
-    assert cluster_layouts
-    assert node_positions
+    from math import isfinite
+
+    expected = {node.id for node in dataset.nodes}
+    assert len(node_positions) == len(expected) == 1_000
+    assert {position.node_id for position in node_positions} == expected
+    assert all(
+        isfinite(position.x) and isfinite(position.y) for position in node_positions
+    )
+    assert {cluster.cluster_id for cluster in cluster_layouts} == {
+        cluster.cluster_id for cluster in artifacts.clusters
+    }
 
 
 def test_ghost_layout_uses_global_coordinates_for_clusters_and_members() -> None:

@@ -1,79 +1,25 @@
 import { centerCameraOnCoordinates } from '../src/render/adapters/sigma/camera/sigmaCameraState';
-import { createElasticSimulation } from '../src/render/adapters/sigma/motion/elasticSimulation';
-import type { MotionCommand, MotionFrame } from '../src/render/adapters/sigma/motion/elastic.worker';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-let lastSigmaOptions: Record<string, unknown> | null = null;
-let lastGraph: Graph | null = null;
-let lastCustomBBox: {
-  x: [number, number];
-  y: [number, number];
-} | null = null;
-let customBBoxCalls = 0;
-let lastCamera: {
-  state: { x?: number; y?: number; ratio?: number };
-  handler: (() => void) | null;
-  setState: (state: { x?: number; y?: number; ratio?: number }) => void;
-  getState: () => { x?: number; y?: number; ratio?: number };
-  on: (event: string, handler: () => void) => void;
-  off: (event: string, handler: () => void) => void;
-} | null = null;
-let downHandler: ((payload: { node: string; event: { x: number; y: number } }) => void) | null = null;
-const mouseHandlers = new Map<string, Set<(payload: { x: number; y: number }) => void>>();
-let emitMotion: ((positions: number[]) => void) | undefined;
-let pumpMotion: ((iterations: number) => void) | undefined;
-let lastResizeHandler: (() => void) | null = null;
-let sigmaDimensions = { width: 300, height: 200 };
-let sigmaScaleSize: ((size: number) => number) | undefined;
-let lastStageClickHandler: (() => void) | null = null;
-let lastNodeClickHandler: ((payload: { node?: string; event?: { node?: string } }) => void) | null = null;
-let lastNodeDoubleClickHandler: ((payload: { node?: string; event?: { node?: string } }) => void) | null = null;
-let lastNodeEnterHandler: ((payload: { node?: string }) => void) | null = null;
-let lastNodeLeaveHandler: ((payload: { node?: string }) => void) | null = null;
+import { createSigmaDoubles } from './doubles/sigmaFake';
+import { createMotionWorkerDoubles } from './doubles/motionWorkerFake';
+
+let sigmaDoubles: ReturnType<typeof createSigmaDoubles>;
+let motionDoubles: ReturnType<typeof createMotionWorkerDoubles>;
+const sigma = () => sigmaDoubles.instances.at(-1)!;
+const motion = () => motionDoubles.instances.at(-1)!;
+const commands = () =>
+  motionDoubles.instances.flatMap(worker => worker.postMessage.mock.calls.map(([command]) => command));
+const starts = () => commands().filter(command => command.type === 'start');
+const kills = () => motionDoubles.instances.reduce((count, worker) => count + worker.terminate.mock.calls.length, 0);
 let shouldThrowOnPieProgram = false;
-let pieProgramInputs: Array<{
-  slices: Array<{ color: { value: string }; value: { attribute: string } }>;
-}> = [];
-let forceMotionStarts = 0;
-let forceMotionKills = 0;
-let sigmaConstructions = 0;
-let scheduledRenders = 0;
-let lastForceMotionSettings: Record<string, number> | null = null;
-let workerCommands: MotionCommand[] = [];
+let pieProgramInputs: Array<{ slices: Array<{ color: { value: string }; value: { attribute: string } }> }> = [];
 let animationFrameCallback: FrameRequestCallback | null = null;
 let animationFrameId = 0;
-let graphToViewportPoint = (point: { x: number; y: number }) => point;
-let viewportToFramedGraphPoint = (point: { x: number; y: number }) => point;
 
 vi.mock('../src/render/adapters/sigma/motion/elastic.worker?worker&inline', () => ({
-  default: class {
-    onmessage: ((event: { data: MotionFrame }) => void) | null = null;
-    simulation: ReturnType<typeof createElasticSimulation> | undefined;
-    revision = 0;
-    constructor() {
-      emitMotion = positions =>
-        this.onmessage?.({
-          data: { positions: new Float64Array(positions), revision: this.revision, settled: false },
-        });
-      pumpMotion = iterations => {
-        this.simulation!.tick(iterations);
-        this.onmessage?.({
-          data: { positions: this.simulation!.positions(), revision: this.revision, settled: false },
-        });
-      };
-    }
-    postMessage(data: MotionCommand) {
-      workerCommands.push(data);
-      this.revision = data.revision;
-      if (data.type === 'start') {
-        forceMotionStarts++;
-        lastForceMotionSettings = { ...data.settings };
-        this.simulation = createElasticSimulation(data.graph, data.settings);
-      } else this.simulation?.pin(data.points, data.released);
-    }
-    terminate() {
-      forceMotionKills++;
-    }
+  default: function () {
+    return new motionDoubles.Worker();
   },
 }));
 
@@ -87,137 +33,13 @@ vi.mock('@sigma/node-piechart', () => ({
   },
 }));
 
-vi.mock('sigma', () => {
-  class FakeSigma {
-    private readonly camera = {
-      state: { ratio: 1 } as { x?: number; y?: number; ratio?: number },
-      handler: null as (() => void) | null,
-      setState: (state: { x?: number; y?: number; ratio?: number }) => {
-        this.camera.state = { ...this.camera.state, ...state };
-      },
-      getState: () => this.camera.state,
-      on: (event: string, handler: () => void) => {
-        if (event === 'updated') {
-          this.camera.handler = handler;
-        }
-      },
-      off: (event: string, handler: () => void) => {
-        if (event === 'updated' && this.camera.handler === handler) {
-          this.camera.handler = null;
-        }
-      },
-    };
+vi.mock('sigma', () => ({
+  default: function (...args: ConstructorParameters<ReturnType<typeof createSigmaDoubles>['Sigma']>) {
+    return new sigmaDoubles.Sigma(...args);
+  },
+}));
 
-    constructor(graph?: Graph, _container?: unknown, options?: Record<string, unknown>) {
-      lastCustomBBox = null;
-      lastSigmaOptions = options ?? null;
-      lastGraph = graph ?? null;
-      lastCamera = this.camera;
-      sigmaConstructions += 1;
-    }
-
-    on(event: string, handler: (payload?: { node?: string; event?: { node?: string } }) => void) {
-      if (event === 'resize') lastResizeHandler = handler;
-      if (event === 'downNode') downHandler = handler as unknown as typeof downHandler;
-      if (event === 'clickStage') {
-        lastStageClickHandler = handler as () => void;
-      }
-      if (event === 'clickNode') {
-        lastNodeClickHandler = handler;
-      }
-      if (event === 'doubleClickNode') {
-        lastNodeDoubleClickHandler = handler;
-      }
-      if (event === 'enterNode') lastNodeEnterHandler = handler;
-      if (event === 'leaveNode') lastNodeLeaveHandler = handler;
-      return this;
-    }
-
-    off(event: string, handler: (payload?: { node?: string; event?: { node?: string } }) => void) {
-      if (event === 'resize' && lastResizeHandler === handler) lastResizeHandler = null;
-      if (event === 'clickStage' && lastStageClickHandler === handler) {
-        lastResizeHandler = null;
-        sigmaDimensions = { width: 300, height: 200 };
-        lastStageClickHandler = null;
-      }
-      if (event === 'clickNode' && lastNodeClickHandler === handler) {
-        lastNodeClickHandler = null;
-      }
-      if (event === 'doubleClickNode' && lastNodeDoubleClickHandler === handler) {
-        lastNodeDoubleClickHandler = null;
-      }
-      if (event === 'enterNode' && lastNodeEnterHandler === handler) lastNodeEnterHandler = null;
-      if (event === 'leaveNode' && lastNodeLeaveHandler === handler) lastNodeLeaveHandler = null;
-      return this;
-    }
-
-    getMouseCaptor() {
-      return {
-        on: (event: string, handler: (payload: { x: number; y: number }) => void) =>
-          mouseHandlers.set(event, new Set([...(mouseHandlers.get(event) ?? []), handler])),
-        off: (event: string, handler: (payload: { x: number; y: number }) => void) =>
-          mouseHandlers.get(event)?.delete(handler),
-      };
-    }
-    getCamera() {
-      return this.camera;
-    }
-
-    refresh() {
-      return undefined;
-    }
-
-    getSetting(key: string) {
-      return lastSigmaOptions?.[key];
-    }
-
-    setSetting(key: string, value: unknown) {
-      if (lastSigmaOptions) {
-        lastSigmaOptions[key] = value;
-      }
-      return this;
-    }
-
-    scheduleRender() {
-      scheduledRenders++;
-      return this;
-    }
-
-    graphToViewport(point: { x: number; y: number }) {
-      return graphToViewportPoint(point);
-    }
-
-    viewportToFramedGraph(point: { x: number; y: number }) {
-      return viewportToFramedGraphPoint(point);
-    }
-
-    viewportToGraph(point: { x: number; y: number }) {
-      return point;
-    }
-
-    getDimensions() {
-      return sigmaDimensions;
-    }
-
-    get scaleSize() {
-      return sigmaScaleSize;
-    }
-
-    setCustomBBox(bounds: { x: [number, number]; y: [number, number] } | null) {
-      lastCustomBBox = bounds;
-      customBBoxCalls += 1;
-      return this;
-    }
-
-    kill() {
-      return undefined;
-    }
-  }
-
-  return { default: FakeSigma };
-});
-
-import createSigmaRenderer, {
+import realSigmaRenderer, {
   SIGMA_MAX_LOD_ZOOM,
   sigmaCameraToViewportState,
   sigmaCameraToSemanticViewState,
@@ -233,6 +55,13 @@ import {
 import type { GraphNodeAttributes, PositionedGraph } from '../src/contracts/positioned';
 import { freezeInput } from './helpers/state';
 
+const renderers = new Set<ReturnType<typeof realSigmaRenderer>>();
+function createSigmaRenderer(...args: Parameters<typeof realSigmaRenderer>) {
+  const renderer = realSigmaRenderer(...args);
+  renderers.add(renderer);
+  return renderer;
+}
+
 const CONTAINER_ID = 'graph-root';
 
 function requireContainer(): HTMLElement {
@@ -245,28 +74,13 @@ function requireContainer(): HTMLElement {
 
 describe('sigmaRenderer', () => {
   beforeEach(() => {
-    workerCommands = [];
-    sigmaScaleSize = undefined;
+    sigmaDoubles = createSigmaDoubles();
+    motionDoubles = createMotionWorkerDoubles(true);
     document.body.innerHTML = `<div id="${CONTAINER_ID}"></div>`;
-    downHandler = null;
-    mouseHandlers.clear();
     shouldThrowOnPieProgram = false;
     pieProgramInputs = [];
-    forceMotionStarts = 0;
-    forceMotionKills = 0;
-    sigmaConstructions = 0;
-    lastCustomBBox = null;
-    customBBoxCalls = 0;
-    lastForceMotionSettings = null;
-    lastStageClickHandler = null;
-    lastNodeClickHandler = null;
-    lastNodeDoubleClickHandler = null;
-    lastNodeEnterHandler = null;
-    lastNodeLeaveHandler = null;
     animationFrameCallback = null;
     animationFrameId = 0;
-    graphToViewportPoint = point => point;
-    viewportToFramedGraphPoint = point => point;
     vi.spyOn(window, 'requestAnimationFrame').mockImplementation(callback => {
       animationFrameCallback = callback;
       animationFrameId += 1;
@@ -278,25 +92,31 @@ describe('sigmaRenderer', () => {
   });
 
   afterEach(() => {
+    renderers.forEach(renderer => renderer.unmount());
+    renderers.clear();
+    motionDoubles.instances.forEach(worker => worker.terminate());
     vi.restoreAllMocks();
   });
 
-  it('mounts, renders, and unmounts with a valid container', () => {
-    document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
-
-    const renderer = createSigmaRenderer();
-
-    renderer.mount({ container: requireContainer() });
-    renderer.render({
-      nodes: [
-        { id: 'root', x: 0, y: 0 },
-        { id: 'a', x: 80, y: 100 },
-      ],
-      edges: [{ id: 'e_root_a_1', source: 'root', target: 'a' }],
-      viewMeta: { layout: 'force', lodLevel: 0 },
-    });
-
-    renderer.unmount();
+  it('keeps independent views alive when another renderer is disposed', () => {
+    const first = createSigmaRenderer({ forceMotion: { enabled: false } });
+    first.mount({ container: document.createElement('div') });
+    first.render({ nodes: [{ id: 'first', x: 0, y: 0 }], edges: [], viewMeta: { layout: 'server', lodLevel: 0 } });
+    const firstSigma = sigma();
+    const second = createSigmaRenderer({ forceMotion: { enabled: false } });
+    second.mount({ container: document.createElement('div') });
+    second.render({ nodes: [{ id: 'second', x: 1, y: 1 }], edges: [], viewMeta: { layout: 'server', lodLevel: 0 } });
+    const secondSigma = sigma();
+    const changed = vi.fn();
+    second.setViewChangeHandler(changed);
+    first.unmount();
+    secondSigma.dimensions = { width: 640, height: 480 };
+    secondSigma.emit('resize', {});
+    expect(firstSigma.disposed).toBe(true);
+    expect(secondSigma.disposed).toBe(false);
+    expect(secondSigma.graph.nodes()).toEqual(['second']);
+    expect(second.getViewportState()?.pixelSize).toEqual({ width: 640, height: 480 });
+    expect(changed).toHaveBeenCalledOnce();
   });
 
   it('resizes with its host panel and disconnects the container observer on unmount', () => {
@@ -318,13 +138,13 @@ describe('sigmaRenderer', () => {
       const container = requireContainer();
       renderer.mount({ container });
       expect(observe).toHaveBeenCalledWith(container);
-      const before = scheduledRenders;
+      const before = sigma().scheduledRenders;
       notify?.([], {} as ResizeObserver);
-      expect(scheduledRenders).toBe(before + 1);
+      expect(sigma().scheduledRenders).toBe(before + 1);
       renderer.unmount();
       expect(disconnect).toHaveBeenCalledTimes(1);
       notify?.([], {} as ResizeObserver);
-      expect(scheduledRenders).toBe(before + 1);
+      expect(sigma().scheduledRenders).toBe(before + 1);
     } finally {
       vi.unstubAllGlobals();
     }
@@ -334,9 +154,9 @@ describe('sigmaRenderer', () => {
     const first = createSigmaRenderer({ forceMotion: { enabled: false } });
     const second = createSigmaRenderer({ forceMotion: { enabled: false } });
     first.mount({ container: document.createElement('div') });
-    const firstGraph = lastGraph!;
+    const firstGraph = sigma().graph!;
     second.mount({ container: document.createElement('div') });
-    const secondGraph = lastGraph!;
+    const secondGraph = sigma().graph!;
 
     const { render, unmount } = first;
     render({ nodes: [{ id: 'a', x: 1, y: 2 }], edges: [], viewMeta: { layout: 'server', lodLevel: 0 } });
@@ -356,18 +176,18 @@ describe('sigmaRenderer', () => {
     renderer.render({ nodes: [{ id: 'a', x: 0, y: 0 }], edges: [], viewMeta: { layout: 'server', lodLevel: 0 } });
     const handler = vi.fn();
     renderer.setViewChangeHandler(handler);
-    sigmaDimensions = { width: 600, height: 400 };
-    lastResizeHandler?.();
+    sigma().dimensions = { width: 600, height: 400 };
+    sigma().handler('resize')?.({});
     expect(handler).toHaveBeenCalledTimes(1);
     expect(renderer.getViewportState()?.pixelSize).toEqual({ width: 600, height: 400 });
     renderer.unmount();
-    expect(lastResizeHandler).toBeNull();
+    expect(sigma().handler('resize')).toBeNull();
   });
 
   it('keeps a stable footprint budget across tiers and resets it for a new render', () => {
     const renderer = createSigmaRenderer({ forceMotion: { enabled: false } });
     renderer.mount({ container: document.createElement('div') });
-    sigmaScaleSize = size => size;
+    sigma().scaleSize = size => size;
     const snapshot = {
       nodes: [{ id: 'a', x: 0, y: 0, size: 20 }],
       edges: [],
@@ -386,7 +206,7 @@ describe('sigmaRenderer', () => {
   it('accounts for the real triangle footprint in the stable detail budget', () => {
     const renderer = createSigmaRenderer({ forceMotion: { enabled: false } });
     renderer.mount({ container: document.createElement('div') });
-    sigmaScaleSize = size => size;
+    sigma().scaleSize = size => size;
     const snapshot = {
       nodes: [
         {
@@ -401,7 +221,7 @@ describe('sigmaRenderer', () => {
       viewMeta: { layout: 'server' as const, lodLevel: 0 },
     };
     renderer.render(snapshot);
-    expect(lastGraph?.getNodeAttribute('group', 'size')).toBe(12);
+    expect(sigma().graph?.getNodeAttribute('group', 'size')).toBe(12);
     expect(renderer.getViewportState()?.representationSpacingPx).toBeCloseTo(2 * 12 * 1.35 + 2);
     renderer.applyGraphSnapshot({
       ...snapshot,
@@ -424,7 +244,7 @@ describe('sigmaRenderer', () => {
 
     const renderer = createSigmaRenderer();
     renderer.mount({ container: requireContainer() });
-    lastCamera?.setState({ ratio: 2 });
+    sigma().camera?.setState({ ratio: 2 });
 
     expect(renderer.getViewportState()).toEqual({
       bounds: { xmin: 0, xmax: 300, ymin: 0, ymax: 200 },
@@ -452,8 +272,8 @@ describe('sigmaRenderer', () => {
     renderer.setNodeClickHandler(clickHandler);
     renderer.setNodeDoubleClickHandler(doubleClickHandler);
 
-    lastNodeClickHandler?.({ node: 'cluster-a' });
-    lastNodeDoubleClickHandler?.({ node: 'cluster-a' });
+    sigma().handler('clickNode')?.({ node: 'cluster-a' });
+    sigma().handler('doubleClickNode')?.({ node: 'cluster-a' });
 
     expect(clickHandler).toHaveBeenCalledWith({
       nodeId: 'cluster-a',
@@ -469,7 +289,7 @@ describe('sigmaRenderer', () => {
 
   it('provides real Sigma-derived hit coordinates for interactive aggregate triangles', () => {
     document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
-    graphToViewportPoint = point => ({ x: point.x + 100, y: point.y + 50 });
+    sigmaDoubles.defaults.graphToViewport = point => ({ x: point.x + 100, y: point.y + 50 });
 
     const renderer = createSigmaRenderer();
     renderer.mount({ container: requireContainer() });
@@ -521,8 +341,8 @@ describe('sigmaRenderer', () => {
       },
     });
 
-    lastCamera?.handler?.();
-    lastNodeClickHandler?.({ node: 'a' });
+    sigma().camera.emit('updated', undefined);
+    sigma().handler('clickNode')?.({ node: 'a' });
 
     expect(viewHandler).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -535,7 +355,7 @@ describe('sigmaRenderer', () => {
       attributes: expect.objectContaining({ pie__country__value__portugal: 1 }),
     });
 
-    expect(lastCustomBBox).toEqual({ x: [-1000, 1000], y: [-500, 500] });
+    expect(sigma().customBBox).toEqual({ x: [-1000, 1000], y: [-500, 500] });
     renderer.unmount();
   });
 
@@ -559,9 +379,9 @@ describe('sigmaRenderer', () => {
 
     renderer.setHighlightedNodes(new Set(['a', 'b']));
 
-    const nodeReducer = lastSigmaOptions?.nodeReducer as
+    const nodeReducer = sigma().settings?.nodeReducer as
       ((id: string, data: Record<string, unknown>) => Record<string, unknown>) | undefined;
-    const edgeReducer = lastSigmaOptions?.edgeReducer as
+    const edgeReducer = sigma().settings?.edgeReducer as
       ((id: string, data: Record<string, unknown>) => Record<string, unknown>) | undefined;
     expect(typeof nodeReducer).toBe('function');
     // Highlighted node is untouched; outside node is dimmed and delabeled.
@@ -583,8 +403,8 @@ describe('sigmaRenderer', () => {
 
     // Clearing removes the reducers.
     renderer.setHighlightedNodes(null);
-    expect(lastSigmaOptions?.nodeReducer).toBeNull();
-    expect(lastSigmaOptions?.edgeReducer).toBeNull();
+    expect(sigma().settings?.nodeReducer).toBeNull();
+    expect(sigma().settings?.edgeReducer).toBeNull();
 
     renderer.unmount();
   });
@@ -603,7 +423,7 @@ describe('sigmaRenderer', () => {
       viewMeta: { layout: 'force', lodLevel: 0 },
     });
 
-    expect(forceMotionStarts).toBe(1);
+    expect(starts().length).toBe(1);
 
     renderer.render({
       nodes: [
@@ -614,9 +434,9 @@ describe('sigmaRenderer', () => {
       viewMeta: { layout: 'server', lodLevel: 0 },
     });
 
-    expect(forceMotionStarts).toBe(2);
-    expect(forceMotionKills).toBe(1);
-    expect(lastForceMotionSettings).toMatchObject({
+    expect(starts().length).toBe(2);
+    expect(kills()).toBe(1);
+    expect(starts().at(-1)?.settings).toMatchObject({
       // Defaults are applied inside the worker.
     });
 
@@ -642,7 +462,7 @@ describe('sigmaRenderer', () => {
       viewMeta: { layout: 'force', lodLevel: 0 },
     });
 
-    expect(lastForceMotionSettings).toMatchObject({
+    expect(starts().at(-1)?.settings).toMatchObject({
       anchorStrength: 0.05,
       linkStrength: 0.4,
     });
@@ -664,7 +484,7 @@ describe('sigmaRenderer', () => {
       viewMeta: { layout: 'force', lodLevel: 0 },
     });
 
-    expect(forceMotionStarts).toBe(0);
+    expect(starts().length).toBe(0);
 
     renderer.unmount();
   });
@@ -687,7 +507,7 @@ describe('sigmaRenderer', () => {
       viewMeta: { layout: 'server' as const, lodLevel: 0 },
     };
     renderer.render(snapshot);
-    lastNodeEnterHandler?.({ node: 'group' });
+    sigma().handler('enterNode')?.({ node: 'group' });
     expect(container.title).toContain('Automatic group (LoD): group');
     expect(container.title).toContain('Nodes represented: 3');
     expect(container.title).toContain('Isolates represented: 7');
@@ -706,14 +526,14 @@ describe('sigmaRenderer', () => {
     expect(container.title).toContain('Nodes represented: 100 (root + 99 hidden)');
     expect(container.title).toContain('Root node isolates: 2');
     expect(container.title).toContain('Branch isolate total: Unavailable');
-    lastNodeLeaveHandler?.({ node: 'group' });
+    sigma().handler('leaveNode')?.({ node: 'group' });
     expect(container.hasAttribute('title')).toBe(false);
-    lastNodeEnterHandler?.({ node: 'group' });
+    sigma().handler('enterNode')?.({ node: 'group' });
     renderer.applyGraphSnapshot({ ...snapshot, nodes: [] });
     expect(container.hasAttribute('title')).toBe(false);
     renderer.unmount();
-    expect(lastNodeEnterHandler).toBeNull();
-    expect(lastNodeLeaveHandler).toBeNull();
+    expect(sigma().handler('enterNode')).toBeNull();
+    expect(sigma().handler('leaveNode')).toBeNull();
   });
 
   it('registers node programs for selected nodes and expandable cluster proxies', () => {
@@ -722,7 +542,7 @@ describe('sigmaRenderer', () => {
     const renderer = createSigmaRenderer();
     renderer.mount({ container: requireContainer() });
 
-    const nodeProgramClasses = lastSigmaOptions?.['nodeProgramClasses'] as Record<string, unknown> | undefined;
+    const nodeProgramClasses = sigma().settings?.['nodeProgramClasses'] as Record<string, unknown> | undefined;
 
     expect(nodeProgramClasses).toBeDefined();
     expect(nodeProgramClasses?.['border']).toBeDefined();
@@ -750,8 +570,8 @@ describe('sigmaRenderer', () => {
       viewMeta: { layout: 'server', lodLevel: 0 },
     });
 
-    expect(lastGraph?.getNodeAttribute('cluster', 'type')).toBe('triangle');
-    expect(lastGraph?.getNodeAttribute('cluster', 'triangleRotation')).toBeCloseTo(-Math.PI / 2);
+    expect(sigma().graph?.getNodeAttribute('cluster', 'type')).toBe('triangle');
+    expect(sigma().graph?.getNodeAttribute('cluster', 'triangleRotation')).toBeCloseTo(-Math.PI / 2);
 
     renderer.unmount();
   });
@@ -776,9 +596,17 @@ describe('sigmaRenderer', () => {
     };
     renderer.render(snapshot);
     const check = () => {
-      expect(lastGraph?.getNodeAttributes('union_1')).toMatchObject({ size: 0, color: '#ffffff' });
-      expect(lastGraph?.getNodeAttributes('union_2')).toMatchObject({ size: 9, color: '#f59e0b', type: 'triangle' });
-      expect(lastGraph?.getNodeAttributes('union_3')).toMatchObject({ size: 8, color: '#7c3aed', type: 'triangle' });
+      expect(sigma().graph?.getNodeAttributes('union_1')).toMatchObject({ size: 0, color: '#ffffff' });
+      expect(sigma().graph?.getNodeAttributes('union_2')).toMatchObject({
+        size: 9,
+        color: '#f59e0b',
+        type: 'triangle',
+      });
+      expect(sigma().graph?.getNodeAttributes('union_3')).toMatchObject({
+        size: 8,
+        color: '#7c3aed',
+        type: 'triangle',
+      });
     };
     check();
     renderer.applyGraphSnapshot(snapshot);
@@ -799,18 +627,18 @@ describe('sigmaRenderer', () => {
       edges: [{ id: 'root-fold', source: 'root', target: 'fold' }],
       viewMeta: { layout: 'server', lodLevel: 0 },
     });
-    expect(lastGraph?.getNodeAttribute('fold', 'type')).toBe('triangle');
-    expect(lastGraph?.getNodeAttribute('fold', 'color')).toBe('#7c3aed');
-    expect(lastGraph?.getNodeAttribute('group', 'color')).toBe('#f59e0b');
-    expect(lastGraph?.getNodeAttribute('fold', 'triangleRotation')).toBeCloseTo(-Math.PI / 2);
+    expect(sigma().graph?.getNodeAttribute('fold', 'type')).toBe('triangle');
+    expect(sigma().graph?.getNodeAttribute('fold', 'color')).toBe('#7c3aed');
+    expect(sigma().graph?.getNodeAttribute('group', 'color')).toBe('#f59e0b');
+    expect(sigma().graph?.getNodeAttribute('fold', 'triangleRotation')).toBeCloseTo(-Math.PI / 2);
     expect(renderer.getInteractiveAggregateTargets().map(target => target.clusterId)).toEqual(['group']);
     renderer.focusNode('fold');
-    const reducer = lastSigmaOptions?.nodeReducer as
+    const reducer = sigma().settings?.nodeReducer as
       ((id: string, data: Record<string, unknown>) => Record<string, unknown>) | undefined;
-    expect(reducer?.('fold', lastGraph!.getNodeAttributes('fold')).type).toBe('triangle');
-    expect(reducer?.('fold', lastGraph!.getNodeAttributes('fold')).color).toBe('#7c3aed');
+    expect(reducer?.('fold', sigma().graph!.getNodeAttributes('fold')).type).toBe('triangle');
+    expect(reducer?.('fold', sigma().graph!.getNodeAttributes('fold')).color).toBe('#7c3aed');
     renderer.focusNode(null);
-    expect(lastGraph?.getNodeAttribute('fold', 'color')).toBe('#7c3aed');
+    expect(sigma().graph?.getNodeAttribute('fold', 'color')).toBe('#7c3aed');
     renderer.unmount();
   });
 
@@ -833,9 +661,9 @@ describe('sigmaRenderer', () => {
       viewMeta: { layout: 'force', lodLevel: 0 },
     });
 
-    emitMotion?.([10, 0, 0, 10]);
+    motion().emit([10, 0, 0, 10]);
 
-    expect(lastGraph?.getNodeAttribute('cluster', 'triangleRotation')).toBeCloseTo(Math.atan2(-10, 10));
+    expect(sigma().graph?.getNodeAttribute('cluster', 'triangleRotation')).toBeCloseTo(Math.atan2(-10, 10));
 
     renderer.unmount();
   });
@@ -869,16 +697,16 @@ describe('sigmaRenderer', () => {
       viewMeta: { layout: 'force', lodLevel: 0 },
     });
 
-    expect(lastSigmaOptions?.defaultDrawNodeLabel).toBeTypeOf('function');
-    expect(lastGraph?.getNodeAttribute('union_1', 'label')).toBe('');
-    expect(lastGraph?.getNodeAttribute('union_1', 'size')).toBe(0);
-    expect(lastGraph?.getNodeAttribute('union_1', 'color')).toBe('#ffffff');
-    expect(lastGraph?.getNodeAttribute('union_sample', 'label')).toBe('union_sample');
-    expect(lastGraph?.getNodeAttribute('union_sample', 'size')).not.toBe(0);
-    expect(lastGraph?.getNodeAttribute('internal_7', 'label')).toBe('internal_7');
-    expect(lastGraph?.getNodeAttribute('internal_7', 'size')).not.toBe(0);
-    expect(lastGraph?.getNodeAttribute('profile_1', 'label')).toBe('profile_1');
-    expect(lastGraph?.getNodeAttribute('cluster_proxy:lod_4_42', 'label')).toBe('');
+    expect(sigma().settings?.defaultDrawNodeLabel).toBeTypeOf('function');
+    expect(sigma().graph?.getNodeAttribute('union_1', 'label')).toBe('');
+    expect(sigma().graph?.getNodeAttribute('union_1', 'size')).toBe(0);
+    expect(sigma().graph?.getNodeAttribute('union_1', 'color')).toBe('#ffffff');
+    expect(sigma().graph?.getNodeAttribute('union_sample', 'label')).toBe('union_sample');
+    expect(sigma().graph?.getNodeAttribute('union_sample', 'size')).not.toBe(0);
+    expect(sigma().graph?.getNodeAttribute('internal_7', 'label')).toBe('internal_7');
+    expect(sigma().graph?.getNodeAttribute('internal_7', 'size')).not.toBe(0);
+    expect(sigma().graph?.getNodeAttribute('profile_1', 'label')).toBe('profile_1');
+    expect(sigma().graph?.getNodeAttribute('cluster_proxy:lod_4_42', 'label')).toBe('');
 
     renderer.unmount();
   });
@@ -909,19 +737,19 @@ describe('sigmaRenderer', () => {
       viewMeta: { layout: 'force', lodLevel: 0 },
     });
 
-    expect(lastSigmaOptions?.renderEdgeLabels).toBe(false);
-    expect(lastGraph?.getEdgeAttribute('e_root_a_1', 'label')).toBe('2.500');
-    expect(lastGraph?.getEdgeAttribute('e_root_a_1', 'forceLabel')).toBe(true);
-    expect(lastGraph?.getEdgeAttribute('e_root_a_1', 'size')).toBe(1.75);
-    expect(lastGraph?.getEdgeAttribute('e_root_a_1', 'color')).toBe('#787878');
+    expect(sigma().settings?.renderEdgeLabels).toBe(false);
+    expect(sigma().graph?.getEdgeAttribute('e_root_a_1', 'label')).toBe('2.500');
+    expect(sigma().graph?.getEdgeAttribute('e_root_a_1', 'forceLabel')).toBe(true);
+    expect(sigma().graph?.getEdgeAttribute('e_root_a_1', 'size')).toBe(1.75);
+    expect(sigma().graph?.getEdgeAttribute('e_root_a_1', 'color')).toBe('#787878');
 
-    lastCamera?.setState({ ratio: 0.4 });
-    lastCamera?.handler?.();
-    expect(lastSigmaOptions?.renderEdgeLabels).toBe(true);
+    sigma().camera?.setState({ ratio: 0.4 });
+    sigma().camera.emit('updated', undefined);
+    expect(sigma().settings?.renderEdgeLabels).toBe(true);
 
-    lastCamera?.setState({ ratio: 1 });
-    lastCamera?.handler?.();
-    expect(lastSigmaOptions?.renderEdgeLabels).toBe(false);
+    sigma().camera?.setState({ ratio: 1 });
+    sigma().camera.emit('updated', undefined);
+    expect(sigma().settings?.renderEdgeLabels).toBe(false);
 
     renderer.unmount();
   });
@@ -967,8 +795,8 @@ describe('sigmaRenderer', () => {
       viewMeta: { layout: 'force', lodLevel: 0 },
     });
 
-    expect(lastSigmaOptions?.renderEdgeLabels).toBe(false);
-    expect(lastGraph?.getEdgeAttribute('e_root_a_1', 'label')).toBe('3');
+    expect(sigma().settings?.renderEdgeLabels).toBe(false);
+    expect(sigma().graph?.getEdgeAttribute('e_root_a_1', 'label')).toBe('3');
 
     renderer.unmount();
   });
@@ -1018,13 +846,13 @@ describe('sigmaRenderer', () => {
       viewMeta: { layout: 'force', lodLevel: 0 },
     });
 
-    expect(lastGraph?.getNodeAttribute('founder', 'color')).toBe('#86efac');
-    expect(lastGraph?.getNodeAttribute('subfounder', 'color')).toBe('#15803d');
-    expect(lastGraph?.getNodeAttribute('common', 'color')).toBe('#93c5fd');
-    expect(lastGraph?.getNodeAttribute('selected', 'color')).toBe('#dc2626');
-    expect(lastGraph?.getEdgeAttribute('rule_1', 'color')).toBe('#2563eb');
-    expect(lastGraph?.getEdgeAttribute('rule_3', 'color')).toBe('#dc2626');
-    expect(lastGraph?.getEdgeAttribute('tlv', 'color')).toBe('#9ca3af');
+    expect(sigma().graph?.getNodeAttribute('founder', 'color')).toBe('#86efac');
+    expect(sigma().graph?.getNodeAttribute('subfounder', 'color')).toBe('#15803d');
+    expect(sigma().graph?.getNodeAttribute('common', 'color')).toBe('#93c5fd');
+    expect(sigma().graph?.getNodeAttribute('selected', 'color')).toBe('#dc2626');
+    expect(sigma().graph?.getEdgeAttribute('rule_1', 'color')).toBe('#2563eb');
+    expect(sigma().graph?.getEdgeAttribute('rule_3', 'color')).toBe('#dc2626');
+    expect(sigma().graph?.getEdgeAttribute('tlv', 'color')).toBe('#9ca3af');
 
     renderer.unmount();
   });
@@ -1049,18 +877,18 @@ describe('sigmaRenderer', () => {
 
     renderer.focusNode('target');
 
-    const nodeReducer = lastSigmaOptions?.nodeReducer as
+    const nodeReducer = sigma().settings?.nodeReducer as
       ((id: string, data: Record<string, unknown>) => Record<string, unknown>) | undefined;
     const renderedTarget = nodeReducer?.('target', {
-      type: lastGraph?.getNodeAttribute('target', 'type'),
-      color: lastGraph?.getNodeAttribute('target', 'color'),
-      borderColor: lastGraph?.getNodeAttribute('target', 'borderColor'),
-      label: lastGraph?.getNodeAttribute('target', 'label'),
-      size: lastGraph?.getNodeAttribute('target', 'size'),
+      type: sigma().graph?.getNodeAttribute('target', 'type'),
+      color: sigma().graph?.getNodeAttribute('target', 'color'),
+      borderColor: sigma().graph?.getNodeAttribute('target', 'borderColor'),
+      label: sigma().graph?.getNodeAttribute('target', 'label'),
+      size: sigma().graph?.getNodeAttribute('target', 'size'),
     });
 
-    expect(lastGraph?.getNodeAttribute('target', 'type')).toBe('circle');
-    expect(lastGraph?.getNodeAttribute('target', 'color')).toBe('#93c5fd');
+    expect(sigma().graph?.getNodeAttribute('target', 'type')).toBe('circle');
+    expect(sigma().graph?.getNodeAttribute('target', 'color')).toBe('#93c5fd');
     expect(renderedTarget).toMatchObject({
       type: 'border',
       color: '#dc2626',
@@ -1069,18 +897,18 @@ describe('sigmaRenderer', () => {
       label: 'target',
     });
     expect(renderedTarget?.size).toBeGreaterThan(6);
-    expect(lastGraph?.getNodeAttribute('nearby', 'type')).toBe('circle');
+    expect(sigma().graph?.getNodeAttribute('nearby', 'type')).toBe('circle');
 
     renderer.unmount();
   });
 
   it("centers raw search coordinates through Sigma's graph conversion", () => {
     document.body.innerHTML = `<div id="${CONTAINER_ID}" style="width:300px;height:200px"></div>`;
-    graphToViewportPoint = point => ({
+    sigmaDoubles.defaults.graphToViewport = point => ({
       x: point.x * 4 + 100,
       y: point.y * 4 + 50,
     });
-    viewportToFramedGraphPoint = point => ({
+    sigmaDoubles.defaults.viewportToFramedGraph = point => ({
       x: (point.x - 100) / 40,
       y: (point.y - 50) / 40,
     });
@@ -1089,7 +917,7 @@ describe('sigmaRenderer', () => {
     renderer.mount({ container: requireContainer() });
 
     expect(renderer.centerOnCoordinates(25, -5)).toBe(true);
-    expect(lastCamera?.state).toMatchObject({
+    expect(sigma().camera?.state).toMatchObject({
       x: 2.5,
       y: -0.5,
       ratio: 1,
@@ -1115,11 +943,11 @@ describe('sigmaRenderer', () => {
     });
 
     renderer.focusNode('target');
-    expect(lastSigmaOptions?.nodeReducer).toEqual(expect.any(Function));
+    expect(sigma().settings?.nodeReducer).toEqual(expect.any(Function));
 
-    lastStageClickHandler?.();
+    sigma().handler('clickStage')?.({});
 
-    expect(lastSigmaOptions?.nodeReducer).toBeNull();
+    expect(sigma().settings?.nodeReducer).toBeNull();
     expect(nodeClickHandler).toHaveBeenCalledWith({ nodeId: null });
 
     renderer.unmount();
@@ -1153,8 +981,8 @@ describe('sigmaRenderer', () => {
       viewMeta: { layout: 'force', lodLevel: 0 },
     });
 
-    expect(lastGraph?.getEdgeAttribute('near', 'color')).toBe('#232323');
-    expect(lastGraph?.getEdgeAttribute('far', 'color')).toBe('#969696');
+    expect(sigma().graph?.getEdgeAttribute('near', 'color')).toBe('#232323');
+    expect(sigma().graph?.getEdgeAttribute('far', 'color')).toBe('#969696');
 
     renderer.unmount();
   });
@@ -1220,8 +1048,8 @@ describe('sigmaRenderer', () => {
       },
     });
 
-    lastCamera?.setState({ x: 0.25, y: 0.5, ratio: 0.25 });
-    lastCamera?.handler?.();
+    sigma().camera?.setState({ x: 0.25, y: 0.5, ratio: 0.25 });
+    sigma().camera.emit('updated', undefined);
 
     expect(handler).toHaveBeenCalledWith({
       viewport: {
@@ -1232,7 +1060,7 @@ describe('sigmaRenderer', () => {
       },
       zoom: 3,
     });
-    expect(lastCustomBBox).toEqual({
+    expect(sigma().customBBox).toEqual({
       x: [-1000, 1000],
       y: [-500, 500],
     });
@@ -1269,7 +1097,7 @@ describe('sigmaRenderer', () => {
         viewMeta: { layout: 'force', lodLevel: 0 },
       });
     }).not.toThrow();
-    expect(lastGraph?.getNodeAttribute('a', 'type')).toBe('circle');
+    expect(sigma().graph?.getNodeAttribute('a', 'type')).toBe('circle');
     expect(warnSpy).toHaveBeenCalledWith(
       'Failed to build Sigma piechart program; falling back to default nodes.',
       expect.objectContaining({
@@ -1302,13 +1130,12 @@ describe('sigmaRenderer', () => {
 
     const renderer = createSigmaRenderer();
     renderer.mount({ container: requireContainer() });
-    // One construction from mount(); reset so we count only snapshot-driven rebuilds.
-    sigmaConstructions = 0;
+    const constructions = sigmaDoubles.instances.length;
 
     renderer.applyGraphSnapshot(plainGraph);
     renderer.applyGraphSnapshot(plainGraph);
 
-    expect(sigmaConstructions).toBe(0);
+    expect(sigmaDoubles.instances).toHaveLength(constructions);
 
     renderer.unmount();
   });
@@ -1327,7 +1154,7 @@ describe('sigmaRenderer', () => {
 
     const renderer = createSigmaRenderer();
     renderer.mount({ container: requireContainer() });
-    lastCamera?.setState({ x: 0.35, y: 0.45, ratio: 0.2 });
+    sigma().camera?.setState({ x: 0.35, y: 0.45, ratio: 0.2 });
 
     renderer.applyGraphSnapshot(graph);
     renderer.applyGraphSnapshot({
@@ -1335,9 +1162,9 @@ describe('sigmaRenderer', () => {
       nodes: [{ id: 'leaf-2', x: 10, y: 5, size: 5, color: '#93c5fd', attributes: { color: '#93c5fd', size: 5 } }],
     });
 
-    expect(lastCamera?.state).toMatchObject({ x: 0.35, y: 0.45, ratio: 0.2 });
-    expect(lastCustomBBox).toEqual({ x: [-100, 100], y: [-50, 50] });
-    expect(customBBoxCalls).toBe(1);
+    expect(sigma().camera?.state).toMatchObject({ x: 0.35, y: 0.45, ratio: 0.2 });
+    expect(sigma().customBBox).toEqual({ x: [-100, 100], y: [-50, 50] });
+    expect(sigma().customBBoxCalls).toBe(1);
 
     renderer.unmount();
   });
@@ -1355,14 +1182,14 @@ describe('sigmaRenderer', () => {
         globalBounds: { minX: -1000, maxX: 1000, minY: -500, maxY: 500 },
       },
     });
-    lastCamera?.setState({ x: 1.2, y: -0.3, ratio: 0.2 });
-    const constructions = sigmaConstructions;
+    sigma().camera?.setState({ x: 1.2, y: -0.3, ratio: 0.2 });
+    const constructions = sigmaDoubles.instances.length;
     for (const enabled of [true, false, true]) {
       renderer.updateDisplayOptions({ edgeDistanceLabels: enabled });
-      expect(lastCustomBBox).toEqual({ x: [-1000, 1000], y: [-500, 500] });
-      expect(lastCamera?.state).toMatchObject({ x: 1.2, y: -0.3, ratio: 0.2 });
+      expect(sigma().customBBox).toEqual({ x: [-1000, 1000], y: [-500, 500] });
+      expect(sigma().camera?.state).toMatchObject({ x: 1.2, y: -0.3, ratio: 0.2 });
     }
-    expect(sigmaConstructions).toBe(constructions);
+    expect(sigmaDoubles.instances.length).toBe(constructions);
     renderer.applyGraphSnapshot({
       nodes: [{ id: 'leaf', x: 10, y: 5, attributes: { pie__country__value__portugal: 1 } }],
       edges: [],
@@ -1372,9 +1199,9 @@ describe('sigmaRenderer', () => {
         globalBounds: { minX: -1000, maxX: 1000, minY: -500, maxY: 500 },
       },
     });
-    expect(sigmaConstructions).toBeGreaterThan(constructions);
-    expect(lastCustomBBox).toEqual({ x: [-1000, 1000], y: [-500, 500] });
-    expect(lastCamera?.state).toMatchObject({ x: 1.2, y: -0.3, ratio: 0.2 });
+    expect(sigmaDoubles.instances.length).toBeGreaterThan(constructions);
+    expect(sigma().customBBox).toEqual({ x: [-1000, 1000], y: [-500, 500] });
+    expect(sigma().camera?.state).toMatchObject({ x: 1.2, y: -0.3, ratio: 0.2 });
     renderer.unmount();
   });
 
@@ -1391,26 +1218,30 @@ describe('sigmaRenderer', () => {
       viewMeta: { layout: 'server', lodLevel: 0, globalBounds: { minX: 0, maxX: 100, minY: 0, maxY: 100 } },
     };
     renderer.applyGraphSnapshot(snapshot);
-    const graph = lastGraph!;
-    downHandler?.({ node: 'a', event: { x: 0, y: 0 } });
-    mouseHandlers.get('mousemovebody')?.forEach(handler => handler({ x: 4, y: 3 }));
+    const graph = sigma().graph!;
+    sigma().handler('downNode')?.({ node: 'a', event: { x: 0, y: 0 } });
+    sigma()
+      .mouse.handlers.get('mousemovebody')
+      ?.forEach(handler => handler({ x: 4, y: 3 }));
     expect(renderer.isManipulating()).toBe(true);
-    expect(forceMotionKills).toBe(0);
-    pumpMotion?.(10);
+    expect(kills()).toBe(0);
+    motion().tick(10);
     expect(graph.getNodeAttributes('a')).toMatchObject({ x: 4, y: 3 });
     expect(graph.getNodeAttribute('b', 'x')).not.toBe(20);
     expect(graph.getEdgeAttribute('ab', 'distance')).toBe(7);
     renderer.applyGraphSnapshot({ ...snapshot, nodes: [...snapshot.nodes, { id: 'c', x: 30, y: 0 }] });
     expect(graph.hasNode('c')).toBe(false);
-    mouseHandlers.get('mouseup')?.forEach(handler => handler({ x: 4, y: 3 }));
+    sigma()
+      .mouse.handlers.get('mouseup')
+      ?.forEach(handler => handler({ x: 4, y: 3 }));
     expect(graph.hasNode('c')).toBe(true);
     expect(graph.getNodeAttributes('a')).toMatchObject({ x: 4, y: 3 });
     expect(renderer.isMotionEnabled()).toBe(true);
     expect(renderer.isManipulating()).toBe(false);
     renderer.setMotionEnabled(false);
-    const starts = forceMotionStarts;
+    const startCount = starts().length;
     renderer.applyGraphSnapshot(snapshot);
-    expect(forceMotionStarts).toBe(starts);
+    expect(starts().length).toBe(startCount);
     expect(renderer.getDisplayedNodesInBounds({ xmin: 3, xmax: 5, ymin: 2, ymax: 4 })).toEqual(['a']);
     renderer.resetLayoutEdits();
     expect(graph.getNodeAttributes('a')).toMatchObject({ x: 0, y: 0 });
@@ -1428,9 +1259,13 @@ describe('sigmaRenderer', () => {
       viewMeta: { layout: 'server', lodLevel: 0, globalBounds: { minX: 0, maxX: 100, minY: 0, maxY: 100 } },
     };
     renderer.applyGraphSnapshot(coarse);
-    downHandler?.({ node: 'p', event: { x: 20, y: 0 } });
-    mouseHandlers.get('mousemovebody')?.forEach(handler => handler({ x: 25, y: 3 }));
-    mouseHandlers.get('mouseup')?.forEach(handler => handler({ x: 25, y: 3 }));
+    sigma().handler('downNode')?.({ node: 'p', event: { x: 20, y: 0 } });
+    sigma()
+      .mouse.handlers.get('mousemovebody')
+      ?.forEach(handler => handler({ x: 25, y: 3 }));
+    sigma()
+      .mouse.handlers.get('mouseup')
+      ?.forEach(handler => handler({ x: 25, y: 3 }));
     const fine: PositionedGraph = {
       ...coarse,
       nodes: [
@@ -1440,7 +1275,7 @@ describe('sigmaRenderer', () => {
       edges: [{ id: 'ab', source: 'a', target: 'b' }],
     };
     renderer.applyGraphSnapshot(fine);
-    const graph = lastGraph!;
+    const graph = sigma().graph!;
     expect(graph.getNodeAttributes('a')).toMatchObject({ x: 24, y: 3 });
     expect(renderer.isManipulating()).toBe(false);
     animationFrameCallback?.(performance.now() + 300);
@@ -1480,15 +1315,19 @@ describe('sigmaRenderer', () => {
       viewMeta,
     });
     animationFrameCallback?.(performance.now() + 80);
-    const graph = lastGraph!;
+    const graph = sigma().graph!;
     const x = graph.getNodeAttribute('a', 'x');
     expect(x).toBeGreaterThan(20);
     expect(x).toBeLessThan(25);
-    downHandler?.({ node: 'a', event: { x, y: 0 } });
+    sigma().handler('downNode')?.({ node: 'a', event: { x, y: 0 } });
     expect(graph.getNodeAttribute('a', 'x')).toBe(x);
-    mouseHandlers.get('mousemovebody')?.forEach(handler => handler({ x: x + 1, y: 0 }));
+    sigma()
+      .mouse.handlers.get('mousemovebody')
+      ?.forEach(handler => handler({ x: x + 1, y: 0 }));
     expect(graph.getNodeAttribute('a', 'x')).toBeCloseTo(x + 1);
-    mouseHandlers.get('mouseup')?.forEach(handler => handler({ x: x + 1, y: 0 }));
+    sigma()
+      .mouse.handlers.get('mouseup')
+      ?.forEach(handler => handler({ x: x + 1, y: 0 }));
     expect(renderer.isManipulating()).toBe(false);
     renderer.unmount();
   });
@@ -1504,10 +1343,10 @@ describe('sigmaRenderer', () => {
       edges: [],
       viewMeta: { layout: 'server', lodLevel: 0 },
     });
-    expect(forceMotionStarts).toBe(1);
+    expect(starts().length).toBe(1);
     renderer.resetLayoutEdits({ allViews: true });
     renderer.setMotionEnabled(true);
-    expect(forceMotionStarts).toBe(1);
+    expect(starts().length).toBe(1);
     renderer.applyGraphSnapshot({
       nodes: [
         { id: 'a', x: 100, y: 200 },
@@ -1516,7 +1355,7 @@ describe('sigmaRenderer', () => {
       edges: [],
       viewMeta: { layout: 'server', lodLevel: 0 },
     });
-    expect(lastGraph!.getNodeAttributes('a')).toMatchObject({ x: 100, y: 200 });
+    expect(sigma().graph!.getNodeAttributes('a')).toMatchObject({ x: 100, y: 200 });
     renderer.unmount();
   });
 
@@ -1530,7 +1369,7 @@ describe('sigmaRenderer', () => {
       viewMeta: { layout: 'server', lodLevel: 0 },
     };
     renderer.applyGraphSnapshot(snapshot);
-    const graph = lastGraph!;
+    const graph = sigma().graph!;
     graph.mergeNodeAttributes('a', { x: 0.05, y: 0.07 });
     renderer.applyGraphSnapshot(
       { ...snapshot, nodes: [{ ...snapshot.nodes[0], color: '#abcdef' }] },
@@ -1608,8 +1447,8 @@ describe('sigmaRenderer', () => {
     const latestPieProgram = pieProgramInputs.at(-1);
     expect(latestPieProgram?.slices).toHaveLength(MAX_PIE_SLICE_KEYS);
     expect(latestPieProgram?.slices.map(slice => slice.value.attribute)).toContain(PIE_OTHER_SLICE_KEY);
-    expect(lastGraph?.getNodeAttribute('node_0', PIE_OTHER_SLICE_KEY)).toBe(1);
-    expect(lastGraph?.getNodeAttribute('node_0', 'type')).toBe('piechart');
+    expect(sigma().graph?.getNodeAttribute('node_0', PIE_OTHER_SLICE_KEY)).toBe(1);
+    expect(sigma().graph?.getNodeAttribute('node_0', 'type')).toBe('piechart');
 
     renderer.unmount();
   });
@@ -1636,8 +1475,8 @@ describe('sigmaRenderer', () => {
     const latestPieProgram = pieProgramInputs.at(-1);
     expect(latestPieProgram?.slices).toHaveLength(MAX_PIE_SLICE_KEYS);
     expect(latestPieProgram?.slices.map(slice => slice.value.attribute)).toContain(PIE_OTHER_SLICE_KEY);
-    expect(lastGraph?.getNodeAttribute('node_0', 'type')).toBe('piechart');
-    expect(lastGraph?.getNodeAttribute('node_0', PIE_OTHER_SLICE_KEY)).toBe(1);
+    expect(sigma().graph?.getNodeAttribute('node_0', 'type')).toBe('piechart');
+    expect(sigma().graph?.getNodeAttribute('node_0', PIE_OTHER_SLICE_KEY)).toBe(1);
 
     renderer.unmount();
   });
@@ -1656,7 +1495,7 @@ describe('sigmaRenderer', () => {
       viewMeta: { layout: 'server', lodLevel: 0 },
     });
 
-    const graph = lastGraph!;
+    const graph = sigma().graph!;
 
     // Nodes keep their base graphology attributes; selection is a render reducer.
     expect(graph.getNodeAttribute('node_1', 'unselectedStyle')).toBeUndefined();
@@ -1664,7 +1503,7 @@ describe('sigmaRenderer', () => {
     expect(graph.getNodeAttribute('node_1', 'color')).toBe('#93c5fd');
 
     renderer.focusNode('node_1');
-    const selectedNodeReducer = lastSigmaOptions?.nodeReducer as
+    const selectedNodeReducer = sigma().settings?.nodeReducer as
       ((id: string, data: Record<string, unknown>) => Record<string, unknown>) | undefined;
     expect(selectedNodeReducer?.('node_1', graph.getNodeAttributes('node_1'))).toMatchObject({
       type: 'border',
@@ -1676,7 +1515,7 @@ describe('sigmaRenderer', () => {
     expect(graph.getNodeAttribute('node_1', 'color')).toBe('#93c5fd');
 
     renderer.focusNode('node_2');
-    const nextNodeReducer = lastSigmaOptions?.nodeReducer as
+    const nextNodeReducer = sigma().settings?.nodeReducer as
       ((id: string, data: Record<string, unknown>) => Record<string, unknown>) | undefined;
     expect(nextNodeReducer?.('node_2', graph.getNodeAttributes('node_2'))).toMatchObject({
       type: 'border',
@@ -1686,7 +1525,7 @@ describe('sigmaRenderer', () => {
     expect(graph.getNodeAttribute('node_2', 'type')).toBeUndefined();
 
     renderer.focusNode(null);
-    expect(lastSigmaOptions?.nodeReducer).toBeNull();
+    expect(sigma().settings?.nodeReducer).toBeNull();
     expect(graph.getNodeAttribute('node_2', 'type')).toBeUndefined();
 
     renderer.unmount();
@@ -1709,7 +1548,7 @@ describe('sigmaRenderer', () => {
       viewMeta: { layout: 'server', lodLevel: 0 },
     });
 
-    expect(forceMotionStarts).toBe(1);
+    expect(starts().length).toBe(1);
 
     renderer.applyGraphSnapshot({
       nodes: [
@@ -1720,14 +1559,14 @@ describe('sigmaRenderer', () => {
       viewMeta: { layout: 'server', lodLevel: 1 },
     });
 
-    expect(forceMotionStarts).toBe(1);
+    expect(starts().length).toBe(1);
 
     const frame = animationFrameCallback;
     expect(frame).not.toBeNull();
 
     frame?.(1000);
 
-    expect(forceMotionStarts).toBe(2);
+    expect(starts().length).toBe(2);
 
     renderer.unmount();
   });
@@ -1754,9 +1593,9 @@ describe('sigmaRenderer', () => {
       edges: [],
       viewMeta: { ...viewMeta, lodLevel: 1 },
     });
-    lastCamera?.setState({ x: 0.6, y: 0.4, ratio: 0.3 });
+    sigma().camera?.setState({ x: 0.6, y: 0.4, ratio: 0.3 });
     animationFrameCallback?.(1000);
-    expect(lastCamera?.state).toMatchObject({ x: 0.6, y: 0.4, ratio: 0.3 });
+    expect(sigma().camera?.state).toMatchObject({ x: 0.6, y: 0.4, ratio: 0.3 });
     renderer.unmount();
   });
 
@@ -1779,7 +1618,7 @@ describe('sigmaRenderer', () => {
     });
     const currentFrame = animationFrameCallback;
     expect(currentFrame).not.toBeNull();
-    const graph = lastGraph!;
+    const graph = sigma().graph!;
     const notify = vi.fn();
     renderer.setManipulationHandler(notify);
     oldFrame?.(performance.now() + 300);
@@ -1833,36 +1672,36 @@ describe('sigmaRenderer', () => {
     });
     renderer.mount({ container: requireContainer() });
     renderer.render(input);
-    expect(lastGraph?.getNodeAttributes('a')).toMatchObject({
+    expect(sigma().graph?.getNodeAttributes('a')).toMatchObject({
       x: 900,
       y: 901,
       size: 77,
       color: '#86efac',
       label: 'sample',
     });
-    expect(lastGraph?.getEdgeAttributes('ab')).toMatchObject({
+    expect(sigma().graph?.getEdgeAttributes('ab')).toMatchObject({
       size: 2,
       color: '#232323',
       label: '4',
       forceLabel: true,
     });
-    expect(lastGraph?.edges()).toEqual(['ab']);
+    expect(sigma().graph?.edges()).toEqual(['ab']);
 
     renderer.applyGraphSnapshot(input);
-    expect(lastGraph?.getNodeAttributes('a')).toMatchObject({
+    expect(sigma().graph?.getNodeAttributes('a')).toMatchObject({
       x: 5,
       y: 6,
       size: 8,
       color: '#123456',
       label: ' sample ',
     });
-    expect(lastGraph?.getEdgeAttributes('ab')).toMatchObject({
+    expect(sigma().graph?.getEdgeAttributes('ab')).toMatchObject({
       size: 7,
       color: '#112233',
       label: ' prepared edge ',
       forceLabel: false,
     });
-    expect(lastGraph?.edges()).toEqual(['ab']);
+    expect(sigma().graph?.edges()).toEqual(['ab']);
     renderer.unmount();
   });
 
@@ -1874,9 +1713,9 @@ describe('sigmaRenderer', () => {
       const graph = snapshot();
       Object.freeze(graph.edges[0].attributes);
       renderer[operation](graph);
-      lastGraph!.setEdgeAttribute('ab', 'label', '4');
+      sigma().graph!.setEdgeAttribute('ab', 'label', '4');
       expect(graph.edges[0].attributes.label).toBe('');
-      expect(lastGraph?.getEdgeAttribute('ab', 'label')).toBe('4');
+      expect(sigma().graph?.getEdgeAttribute('ab', 'label')).toBe('4');
       renderer.unmount();
     }
   );
@@ -1888,7 +1727,7 @@ describe('sigmaRenderer', () => {
     renderer.setHighlightedNodes(selected);
     selected.clear();
     selected.add('b');
-    const reducer = lastSigmaOptions?.nodeReducer as (id: string, attrs: { color: string }) => { color: string };
+    const reducer = sigma().settings?.nodeReducer as (id: string, attrs: { color: string }) => { color: string };
     expect(reducer('a', { color: '#123456' }).color).toBe('#123456');
     expect(reducer('b', { color: '#123456' }).color).not.toBe('#123456');
     renderer.unmount();
@@ -1912,8 +1751,8 @@ describe('sigmaRenderer', () => {
     options.settings.linkStrength = 0.9;
     physics.start(graph);
     physics.setEnabled(true);
-    const start = [...workerCommands].reverse().find(command => command.type === 'start');
-    const pin = [...workerCommands].reverse().find(command => command.type === 'pin');
+    const start = [...commands()].reverse().find(command => command.type === 'start');
+    const pin = [...commands()].reverse().find(command => command.type === 'pin');
     expect(start?.type === 'start' && start.settings.linkStrength).toBe(0.2);
     expect(pin?.type === 'pin' && pin.points).toEqual([{ id: 'a', x: 5, y: 7 }]);
     physics.dispose();
@@ -1924,9 +1763,9 @@ describe('sigmaRenderer', () => {
     const graph = snapshot();
     graph.nodes[0].attributes = { pie__one: 2, __pie_category_colors: { pie__one: '#ff0000' } };
     renderer.render(graph);
-    const first = sigmaConstructions;
+    const first = sigmaDoubles.instances.length;
     renderer.applyGraphSnapshot(graph);
-    expect(sigmaConstructions).toBe(first);
+    expect(sigmaDoubles.instances.length).toBe(first);
     renderer.applyGraphSnapshot({
       ...graph,
       nodes: [
@@ -1934,30 +1773,30 @@ describe('sigmaRenderer', () => {
         graph.nodes[1],
       ],
     });
-    expect(sigmaConstructions).toBe(first + 1);
+    expect(sigmaDoubles.instances.length).toBe(first + 1);
     const plain = snapshot();
     renderer.applyGraphSnapshot(plain);
-    expect(sigmaConstructions).toBe(first + 2);
+    expect(sigmaDoubles.instances.length).toBe(first + 2);
     renderer.applyGraphSnapshot(plain);
-    expect(sigmaConstructions).toBe(first + 2);
+    expect(sigmaDoubles.instances.length).toBe(first + 2);
     renderer.unmount();
   });
   it('keeps the pie fast path and releases event handlers on teardown', () => {
     const renderer = createSigmaRenderer({ piechart: { enabled: false }, forceMotion: { enabled: false } });
     renderer.mount({ container: requireContainer() });
     renderer.applyGraphSnapshot(snapshot());
-    const graph = lastGraph!;
+    const graph = sigma().graph!;
     const materialize = vi.spyOn(graph, 'mapNodes');
     renderer.applyGraphSnapshot(snapshot());
     expect(materialize).not.toHaveBeenCalled();
     const notify = vi.fn();
     renderer.setNodeClickHandler(notify);
-    lastNodeClickHandler?.({ event: { node: 'a' } });
+    sigma().handler('clickNode')?.({ event: { node: 'a' } });
     expect(notify).toHaveBeenCalledTimes(1);
     renderer.unmount();
-    expect(lastNodeClickHandler).toBeNull();
-    expect(lastNodeDoubleClickHandler).toBeNull();
-    expect(lastCamera?.handler).toBeNull();
+    expect(sigma().handler('clickNode')).toBeNull();
+    expect(sigma().handler('doubleClickNode')).toBeNull();
+    expect(sigma().camera.handler('updated')).toBeNull();
   });
   it('retains the pie-program failure fallback', () => {
     const renderer = createSigmaRenderer({ forceMotion: { enabled: false } });
@@ -1968,7 +1807,7 @@ describe('sigmaRenderer', () => {
     graph.nodes[0].attributes = { pie__one: 2 };
     renderer.applyGraphSnapshot(graph);
     expect(warn).toHaveBeenCalledTimes(1);
-    expect(lastGraph?.getNodeAttribute('a', 'type')).not.toBe('piechart');
+    expect(sigma().graph?.getNodeAttribute('a', 'type')).not.toBe('piechart');
     renderer.unmount();
   });
 
@@ -1979,7 +1818,7 @@ describe('sigmaRenderer', () => {
     options.display.nodeLabels = false;
     options.edge.labelSize = 50;
     renderer.mount({ container: requireContainer() });
-    expect(lastSigmaOptions).toMatchObject({ labelSize: 13, renderLabels: true, edgeLabelSize: 9 });
+    expect(sigma().settings).toMatchObject({ labelSize: 13, renderLabels: true, edgeLabelSize: 9 });
     renderer.unmount();
   });
 });

@@ -12,7 +12,7 @@ Reproduce the frozen comparison from repository root:
 
 ```sh
 rtk proxy .venv/bin/python scripts/evaluate_lod_growth.py
-rtk proxy .venv/bin/python -m pytest scripts/test_evaluate_lod_growth.py code/server/tests/test_prepared_layout.py code/server/tests/test_lod_schema.py -q
+rtk proxy .venv/bin/python -m pytest eval/tests/test_evaluate_lod_growth.py code/server/tests/test_prepared_layout.py code/server/tests/test_lod_schema.py -q
 ```
 
 ## Current policy and formula
