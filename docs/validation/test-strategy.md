@@ -11,7 +11,7 @@ Test count and line coverage alone do not establish confidence.
   check locked-job claims, layout reuse and capacity. A configured run fails if
   its DSN or driver is missing; local runs without a DSN may skip it. Each test
   uses a disposable schema. Schema validation must reject missing/outdated
-  schemas without initializing or repairing them.
+  schemas without initializing or repairing them, including inside read-only transactions.
 - Browser readiness uses real animation, transition and worker completion, plus
   the geometry being checked. Renderer observation delegates to the real factory.
   Timed wheel input remains intentional. No-motion checks sample an observation
