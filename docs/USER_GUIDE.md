@@ -11,6 +11,11 @@ violet triangles are branches you deliberately collapsed. Triangle sizes give a
 compressed indication of the number of tree nodes. Hover or select a symbol for
 exact available counts. A tree node and a biological isolate are different units.
 
+A compact key beside the graph explains the group or connection symbols present
+in the current view. Open **About symbols** for the size explanation. The key
+updates as you expand, collapse or change views; it disappears when none of those
+symbols are present. Exact counts remain available when hovering or selecting.
+
 ## Split a tree by distance
 
 In **Data**, set **Maximum tree-edge distance**, then select **Load dataset**.

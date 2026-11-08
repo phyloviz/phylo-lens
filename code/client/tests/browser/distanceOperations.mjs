@@ -83,6 +83,7 @@ try {
   await page.locator('#connection-threshold').fill('3');
   await page.locator('#apply-connections').click();
   await page.waitForFunction(() => window.requirementsSigma.getGraph().size === 6);
+  assert.deepEqual(await page.locator('#graph-legend li:visible').allTextContents(), ['Additional connection']);
   const overlay = await page.evaluate(() =>
     window.requirementsSigma
       .getGraph()
