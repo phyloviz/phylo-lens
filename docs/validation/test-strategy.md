@@ -11,7 +11,8 @@ Test count and line coverage alone do not establish confidence.
   check locked-job claims, layout reuse and capacity. A configured run fails if
   its DSN or driver is missing; local runs without a DSN may skip it. Each test
   uses a disposable schema. Schema validation must reject missing/outdated
-  schemas without initializing or repairing them, including inside read-only transactions.
+  schemas without initializing or repairing them, including inside read-only
+  transactions.
 - Browser readiness uses real animation, transition and worker completion, plus
   the geometry being checked. Renderer observation delegates to the real factory.
   Timed wheel input remains intentional. No-motion checks sample an observation
@@ -19,6 +20,17 @@ Test count and line coverage alone do not establish confidence.
 - Stateful doubles own their camera, settings, listeners, worker frames and
   recordings per instance. Reusable factories create fresh state. Keep scenario
   data and expected results in each test; use real pure calculations and parsers.
+- Large suites are grouped by responsibility. Server preparation, repository
+  reads and job lifecycle have separate modules; client renderer, viewport and UI
+  groups keep scenario assertions local. Shared support contains only fixture
+  data, boundary doubles and lifecycle setup/cleanup.
+- The durable-store recording double implements the production protocol, using
+  `PreparationSummary` and `FailureDetails` directly. Public-view doubles are
+  keyed by their own container, including when multiple views exist in one test.
+- Immediate-Future deadlock regressions run in a child Python process with a
+  bounded deadline and captured output. They use no `fork` or multiprocessing
+  queue availability checks. A timeout kills and waits for the child; it is a
+  deadlock guard, not a speed assertion.
 - CI selects real load/search/fold/drag/export acceptance, distance operations,
   worker settling, collision clearance and camera stability. The larger forest
   and deep-tree walkthrough remains separately runnable.
