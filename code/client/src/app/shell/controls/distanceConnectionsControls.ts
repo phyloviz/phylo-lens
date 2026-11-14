@@ -9,6 +9,8 @@ export type DistanceConnectionsElements = {
   readonly applyConnections?: HTMLButtonElement;
   readonly clearConnections?: HTMLButtonElement;
   readonly connectionMetric?: HTMLElement;
+  readonly connectionHeading?: HTMLElement;
+  readonly connectionThresholdLabel?: HTMLElement;
   readonly connectionFeedback?: HTMLElement;
 };
 
@@ -32,13 +34,26 @@ export function distanceConnectionsControls(
       elements.connectionThreshold.step = sourceFormat === 'typing_data' ? '1' : 'any';
     }
     if (elements.connectionLimit) elements.connectionLimit.disabled = !ready;
-    if (elements.connectionMetric && sourceFormat === null)
-      elements.connectionMetric.textContent = 'Load a dataset to see its distance metric.';
-    else if (elements.connectionMetric)
-      elements.connectionMetric.textContent =
-        sourceFormat === 'typing_data'
-          ? 'Allelic distance: number of differing retained loci between profiles. Uses the same missing-locus policy as tree preparation.'
-          : 'Tree-path distance: sum of branch lengths between named Newick nodes. Units come from the input; this is not an inferred allelic distance.';
+    let heading = 'Distance connections (nLV for profiles)';
+    let label = 'Maximum pairwise distance';
+    let metric = 'Load a dataset to see its distance metric.';
+    switch (sourceFormat) {
+      case 'typing_data':
+        heading = 'nLV connections — link profiles';
+        label = 'nLV level (maximum differing loci)';
+        metric =
+          'Allelic distance: nLV means n-locus variant. A level of 2 connects profiles differing at no more than 2 retained loci. Uses the same missing-locus policy as tree preparation.';
+        break;
+      case 'newick':
+        heading = 'Tree-path connections';
+        label = 'Maximum tree-path distance';
+        metric =
+          'Tree-path distance: sum of branch lengths between named Newick nodes. Units come from the input; this is not an nLV level or an inferred allelic distance.';
+        break;
+    }
+    if (elements.connectionHeading) elements.connectionHeading.textContent = heading;
+    if (elements.connectionThresholdLabel) elements.connectionThresholdLabel.textContent = label;
+    if (elements.connectionMetric) elements.connectionMetric.textContent = metric;
   }
 
   function refresh(next: PositionedGraph | null): void {

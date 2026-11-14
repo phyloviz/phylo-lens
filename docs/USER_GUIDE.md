@@ -16,9 +16,20 @@ in the current view. Open **About symbols** for the size explanation. The key
 updates as you expand, collapse or change views; it disappears when none of those
 symbols are present. Exact counts remain available when hovering or selecting.
 
-## Split a tree by distance
+## Choose a distance operation
 
-In **Data**, set **Maximum tree-edge distance**, then select **Load dataset**.
+| Operation | Where | Effect |
+| --- | --- | --- |
+| **Tree cutoff** | **Data**, before loading | Removes tree edges above the cutoff and splits the tree into a forest. |
+| **nLV connections** (typing profiles) / **Tree-path connections** (Newick) | **Explore**, after loading | Adds links between nodes at or below the threshold within each tree; keeps the original tree edges. |
+
+Both use an inclusive maximum: a cutoff of 3 keeps tree edges of distance 3;
+an nLV level of 3 connects profiles differing at up to 3 retained loci. Neither
+setting controls zoom or automatic level-of-detail grouping.
+
+## Tree cutoff: split a tree by distance
+
+In **Data → Tree cutoff — split into a forest**, set **Cutoff distance**, then select **Load dataset**.
 Every edge above that value is removed. Edges equal to the value are kept. All
 nodes remain, including nodes that become isolated. The resulting trees appear
 in **Forest overview** and their individual tree tabs.
@@ -44,10 +55,12 @@ It runs on the complete tree before automatic grouping, so a group cannot hide
 an edge that should have been removed. Loading is explicit: scrolling and
 changing the camera never rebuild the forest.
 
-## Show additional distance connections
+## nLV and tree-path connections: add links
 
-Load a dataset, then open **Explore → Additional distance connections**. Enter
-the **Maximum pairwise distance** and select **Apply connections**. Blue links
+Load a dataset, then open **Explore → nLV connections — link profiles** for
+typing data, or **Explore → Tree-path connections** for Newick. Set the **nLV
+level (maximum differing loci)** or **Maximum tree-path distance**, then select
+**Apply connections**. Blue links
 show qualifying relationships that are absent from the tree. Original tree
 edges remain, including edges longer than this threshold. Use the separate tree
 cutoff if you want to remove long tree edges.

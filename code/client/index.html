@@ -129,20 +129,29 @@
             </section>
 
             <details id="distance-connections-controls" class="help-details control-card">
-              <summary>Additional distance connections</summary>
+              <summary id="connection-heading">Distance connections (nLV for profiles)</summary>
               <div class="details-body">
                 <p id="connection-metric" class="field-help"></p>
                 <label>
-                  Maximum pairwise distance
-                  <input id="connection-threshold" type="number" min="0" step="any" value="1" disabled />
+                  <span id="connection-threshold-label">Maximum pairwise distance</span>
+                  <input
+                    id="connection-threshold"
+                    type="number"
+                    min="0"
+                    step="any"
+                    value="1"
+                    aria-describedby="connection-metric connection-help"
+                    disabled
+                  />
                 </label>
                 <label>
                   Maximum additional connections
                   <input id="connection-limit" type="number" min="1" step="1" value="50000" disabled />
                 </label>
-                <p class="field-help">
-                  Blue links join named nodes within the same tree. Original tree edges stay in place. If the limit is
-                  exceeded, reduce the distance or raise the limit; partial results are not applied.
+                <p id="connection-help" class="field-help">
+                  Adds blue links at or below the chosen distance within each tree. Original tree edges stay in place.
+                  To split a tree instead, use Data → Tree cutoff. If the connection limit is exceeded, reduce the
+                  distance or raise the limit; partial results are not applied.
                 </p>
                 <div class="button-grid">
                   <button id="apply-connections" type="button" disabled>Apply connections</button>
@@ -401,14 +410,25 @@
                   ></textarea>
                 </label>
 
-                <label>
-                  Maximum tree-edge distance (optional)
-                  <input id="distance-cutoff" type="number" min="0" step="any" placeholder="Keep all tree edges" />
-                </label>
-                <p class="field-help">
-                  On load, edges above this value are removed to form separate trees. Equal values are kept. Clear the
-                  value and reload to restore the original tree. Loading rebuilds the layout.
-                </p>
+                <section class="control-card" aria-labelledby="cutoff-heading">
+                  <h3 id="cutoff-heading">Tree cutoff — split into a forest</h3>
+                  <label>
+                    Cutoff distance (optional)
+                    <input
+                      id="distance-cutoff"
+                      type="number"
+                      min="0"
+                      step="any"
+                      placeholder="Keep all tree edges"
+                      aria-describedby="cutoff-help"
+                    />
+                  </label>
+                  <p id="cutoff-help" class="field-help">
+                    On load, removes tree edges above this distance; equal values and all nodes are kept. Clear the
+                    value and reload to restore the original tree. Loading rebuilds the layout. To add links instead,
+                    open Explore and choose nLV or tree-path connections.
+                  </p>
+                </section>
                 <details class="help-details">
                   <summary>Advanced preparation</summary>
                   <div class="details-body">

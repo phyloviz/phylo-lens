@@ -21,7 +21,8 @@ try {
     await page
       .locator('#newick-file-input')
       .setInputFiles({ name: 'distances.nwk', mimeType: 'text/plain', buffer: Buffer.from(content) });
-    await page.locator('#distance-cutoff').fill(cutoff);
+    await page.getByRole('heading', { name: 'Tree cutoff — split into a forest' }).waitFor();
+    await page.getByLabel('Cutoff distance (optional)', { exact: true }).fill(cutoff);
     const request = page.waitForRequest(request => request.url().endsWith('/api/graph/prepare'));
     const animations = await page.evaluate(() => window.requirementsView.completedAnimations);
     await page.locator('button[type=submit]').click();
@@ -78,9 +79,9 @@ try {
     camera: window.requirementsSigma.getCamera().getState(),
     nodes: window.requirementsSigma.getGraph().mapNodes((id, a) => [id, a.x, a.y]),
   }));
-  await page.locator('#distance-connections-controls > summary').click();
+  await page.getByText('Tree-path connections', { exact: true }).click();
   assert.match(await page.locator('#connection-metric').textContent(), /Tree-path distance/);
-  await page.locator('#connection-threshold').fill('3');
+  await page.getByLabel('Maximum tree-path distance', { exact: true }).fill('3');
   await page.locator('#apply-connections').click();
   await page.waitForFunction(() => window.requirementsSigma.getGraph().size === 6);
   assert.deepEqual(await page.locator('#graph-legend li:visible').allTextContents(), ['Additional connection']);
