@@ -91,8 +91,72 @@
           </div>
 
           <div class="section-body">
+            <section id="distance-operations" class="control-card" aria-labelledby="distance-operations-heading">
+              <h3 id="distance-operations-heading">Distance operations</h3>
+              <section class="distance-operation" aria-labelledby="cutoff-navigation-heading">
+                <h4 id="cutoff-navigation-heading">Tree cut-off</h4>
+                <p id="cutoff-navigation-help" class="field-help">
+                  Split a tree into separate groups. Requires reloading the dataset and rebuilding the layout.
+                </p>
+                <button
+                  id="configure-cutoff"
+                  class="secondary-button full-width"
+                  type="button"
+                  aria-controls="data-panel"
+                  aria-describedby="cutoff-navigation-help"
+                >
+                  Configure tree cut-off
+                </button>
+              </section>
+              <section
+                id="distance-connections-controls"
+                class="distance-operation"
+                aria-labelledby="connection-heading"
+              >
+                <h4 id="connection-heading">nLV / Cluster Nodes</h4>
+                <p id="connection-help" class="field-help">
+                  Add links at or below the chosen distance within each tree. Original tree edges stay in place.
+                </p>
+                <div id="connection-fields" class="source-controls">
+                  <label>
+                    <span id="connection-threshold-label">Maximum pairwise distance</span>
+                    <input
+                      id="connection-threshold"
+                      type="number"
+                      min="0"
+                      step="any"
+                      value="1"
+                      aria-describedby="connection-help"
+                      disabled
+                    />
+                  </label>
+                  <div class="button-grid">
+                    <button id="apply-connections" type="button" disabled>Apply connections</button>
+                    <button id="clear-connections" class="secondary-button" type="button" disabled>
+                      Remove connections
+                    </button>
+                  </div>
+                  <details id="connection-advanced" class="help-details">
+                    <summary>Advanced options</summary>
+                    <div class="details-body">
+                      <label>
+                        Maximum additional connections
+                        <input id="connection-limit" type="number" min="1" step="1" value="50000" disabled />
+                      </label>
+                      <p class="field-help">
+                        If the limit is exceeded, reduce the distance or raise the limit; partial results are not
+                        applied.
+                      </p>
+                      <p id="connection-metric" class="field-help"></p>
+                    </div>
+                  </details>
+                </div>
+                <p id="connection-feedback" class="control-feedback" aria-live="polite">Load a tree first.</p>
+              </section>
+            </section>
+
             <p class="interaction-hint">
-              Select a node in the graph or search results to inspect it and work with its branch.
+              Select a node in the graph or search results to inspect it and see its available actions.
             </p>
 
             <section class="control-card" aria-labelledby="expansion-heading">
@@ -128,40 +192,6 @@
               </p>
             </section>
 
-            <details id="distance-connections-controls" class="help-details control-card">
-              <summary id="connection-heading">Distance connections (nLV for profiles)</summary>
-              <div class="details-body">
-                <p id="connection-metric" class="field-help"></p>
-                <label>
-                  <span id="connection-threshold-label">Maximum pairwise distance</span>
-                  <input
-                    id="connection-threshold"
-                    type="number"
-                    min="0"
-                    step="any"
-                    value="1"
-                    aria-describedby="connection-metric connection-help"
-                    disabled
-                  />
-                </label>
-                <label>
-                  Maximum additional connections
-                  <input id="connection-limit" type="number" min="1" step="1" value="50000" disabled />
-                </label>
-                <p id="connection-help" class="field-help">
-                  Adds blue links at or below the chosen distance within each tree. Original tree edges stay in place.
-                  To split a tree instead, use Data → Tree cutoff. If the connection limit is exceeded, reduce the
-                  distance or raise the limit; partial results are not applied.
-                </p>
-                <div class="button-grid">
-                  <button id="apply-connections" type="button" disabled>Apply connections</button>
-                  <button id="clear-connections" class="secondary-button" type="button" disabled>
-                    Remove connections
-                  </button>
-                </div>
-                <p id="connection-feedback" class="control-feedback" aria-live="polite">Load a tree first.</p>
-              </div>
-            </details>
             <section class="control-card" aria-labelledby="region-heading">
               <h3 id="region-heading">Region selection</h3>
               <button id="region-select-toggle" class="secondary-button full-width" type="button" aria-pressed="false">
@@ -360,6 +390,37 @@
                     <span class="field-help">MLST / cgMLST allelic profiles in a delimited text file</span>
                     <input id="typing-file-input" type="file" accept=".tsv,.csv,.txt,.tab" />
                   </label>
+                  <label class="checkbox-row">
+                    <input id="initial-nlv-connections" type="checkbox" aria-controls="initial-nlv-controls" />
+                    <span>Add nLV connections on load</span>
+                  </label>
+                  <div id="initial-nlv-controls" class="source-controls" hidden>
+                    <label>
+                      Initial nLV level
+                      <input
+                        id="initial-nlv-level"
+                        type="number"
+                        min="0"
+                        step="1"
+                        value="1"
+                        aria-describedby="initial-nlv-help"
+                      />
+                    </label>
+                    <p id="initial-nlv-help" class="field-help">
+                      Add blue links between profiles differing at up to this many retained loci, within each tree. The
+                      MST backbone stays in place. Change or remove these links later in Explore.
+                    </p>
+                    <details class="help-details">
+                      <summary>Initial connection limit</summary>
+                      <div class="details-body">
+                        <label>
+                          Maximum initial additional connections
+                          <input id="initial-nlv-limit" type="number" min="1" step="1" value="50000" />
+                        </label>
+                        <p class="field-help">If exceeded, the tree still loads and no partial overlay is applied.</p>
+                      </div>
+                    </details>
+                  </div>
                 </div>
 
                 <details class="control-card optional-card">
@@ -411,7 +472,7 @@
                 </label>
 
                 <section class="control-card" aria-labelledby="cutoff-heading">
-                  <h3 id="cutoff-heading">Tree cutoff — split into a forest</h3>
+                  <h3 id="cutoff-heading">Tree cut-off</h3>
                   <label>
                     Cutoff distance (optional)
                     <input
@@ -426,7 +487,7 @@
                   <p id="cutoff-help" class="field-help">
                     On load, removes tree edges above this distance; equal values and all nodes are kept. Clear the
                     value and reload to restore the original tree. Loading rebuilds the layout. To add links instead,
-                    open Explore and choose nLV or tree-path connections.
+                    open Explore and choose n Locus Variant (nLV) or Cluster Nodes.
                   </p>
                 </section>
                 <details class="help-details">

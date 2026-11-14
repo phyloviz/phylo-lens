@@ -1,3 +1,4 @@
+import type { DistanceConnectionOptions } from '../../../contracts/graph/connections';
 import type { SourceFormat } from '../../../contracts/models';
 import type { PositionedGraph } from '../../../contracts/positioned';
 import type { GraphWorkbench } from '../../workbench/graphWorkbench.types';
@@ -34,18 +35,18 @@ export function distanceConnectionsControls(
       elements.connectionThreshold.step = sourceFormat === 'typing_data' ? '1' : 'any';
     }
     if (elements.connectionLimit) elements.connectionLimit.disabled = !ready;
-    let heading = 'Distance connections (nLV for profiles)';
+    let heading = 'nLV / Cluster Nodes';
     let label = 'Maximum pairwise distance';
     let metric = 'Load a dataset to see its distance metric.';
     switch (sourceFormat) {
       case 'typing_data':
-        heading = 'nLV connections — link profiles';
+        heading = 'n Locus Variant (nLV)';
         label = 'nLV level (maximum differing loci)';
         metric =
           'Allelic distance: nLV means n-locus variant. A level of 2 connects profiles differing at no more than 2 retained loci. Uses the same missing-locus policy as tree preparation.';
         break;
       case 'newick':
-        heading = 'Tree-path connections';
+        heading = 'Cluster Nodes';
         label = 'Maximum tree-path distance';
         metric =
           'Tree-path distance: sum of branch lengths between named Newick nodes. Units come from the input; this is not an nLV level or an inferred allelic distance.';
@@ -124,12 +125,18 @@ export function distanceConnectionsControls(
   }
 
   return {
+    apply,
     mount() {
       bindings.on(elements.applyConnections, 'click', () => void apply());
       bindings.on(elements.clearConnections, 'click', () => void clear());
       update();
     },
-    setSource(format: SourceFormat | null) {
+    setSource(format: SourceFormat | null, initialConnections?: DistanceConnectionOptions) {
+      if (initialConnections) {
+        if (elements.connectionThreshold) elements.connectionThreshold.value = String(initialConnections.threshold);
+        if (elements.connectionLimit)
+          elements.connectionLimit.value = String(initialConnections.maxConnections ?? 50000);
+      }
       ++sequence;
       sourceFormat = format;
       ready = format !== null;

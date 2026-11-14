@@ -19,6 +19,8 @@ export default function workspaceControls(root: HTMLElement | undefined) {
   const controlsToggle = root?.querySelector<HTMLButtonElement>('#controls-toggle');
   const inspectorToggle = root?.querySelector<HTMLButtonElement>('#inspector-toggle');
   const changeData = root?.querySelector<HTMLButtonElement>('#change-data');
+  const configureCutoff = root?.querySelector<HTMLButtonElement>('#configure-cutoff');
+  const cutoffInput = root?.querySelector<HTMLInputElement>('#distance-cutoff');
   const datasetLabel = root?.querySelector<HTMLElement>('#current-dataset');
   const exportOpen = root?.querySelector<HTMLButtonElement>('#open-export');
   const exportDialog = root?.querySelector<HTMLDialogElement>('#export-dialog');
@@ -47,6 +49,12 @@ export default function workspaceControls(root: HTMLElement | undefined) {
     bindings.on(changeData, 'click', () => {
       setControlsOpen(true);
       tasks.select('data', true);
+    });
+    bindings.on(configureCutoff, 'click', () => {
+      setControlsOpen(true);
+      tasks.select('data');
+      cutoffInput?.focus({ preventScroll: true });
+      cutoffInput?.scrollIntoView({ block: 'center' });
     });
     bindings.on(controlsToggle, 'click', () => {
       setControlsOpen(!controlsOpen);

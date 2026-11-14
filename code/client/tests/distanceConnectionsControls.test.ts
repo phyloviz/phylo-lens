@@ -29,7 +29,7 @@ it('explains the loaded metric, rejects fractional locus counts and preserves ze
   expect(button.disabled).toBe(true);
   expect(metric.textContent).toContain('Load a dataset');
   controls.setSource('typing_data');
-  expect(heading.textContent).toBe('nLV connections — link profiles');
+  expect(heading.textContent).toBe('n Locus Variant (nLV)');
   expect(thresholdLabel.textContent).toBe('nLV level (maximum differing loci)');
   expect(threshold.step).toBe('1');
   expect(metric.textContent).toContain('Allelic distance');
@@ -49,12 +49,16 @@ it('explains the loaded metric, rejects fractional locus counts and preserves ze
   clear.click();
   await vi.waitFor(() => expect(feedback.textContent).toContain('No additional connections'));
   controls.setSource('newick');
-  expect(heading.textContent).toBe('Tree-path connections');
+  expect(heading.textContent).toBe('Cluster Nodes');
   expect(thresholdLabel.textContent).toBe('Maximum tree-path distance');
   expect(metric.textContent).toContain('not an nLV level');
   expect(threshold.step).toBe('any');
+  controls.setSource('typing_data', { threshold: 2, maxConnections: 100 });
+  expect(heading.textContent).toBe('n Locus Variant (nLV)');
+  expect(threshold.value).toBe('2');
+  expect(button.disabled).toBe(false);
   controls.setSource(null);
-  expect(heading.textContent).toBe('Distance connections (nLV for profiles)');
+  expect(heading.textContent).toBe('nLV / Cluster Nodes');
   expect(thresholdLabel.textContent).toBe('Maximum pairwise distance');
   expect(button.disabled).toBe(true);
   controls.unmount();

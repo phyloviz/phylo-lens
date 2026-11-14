@@ -1,4 +1,5 @@
 import type { GraphComponent } from '../../../contracts/graph/components';
+import type { SourceFormat } from '../../../contracts/models';
 import type { GraphWorkbench } from '../../workbench/graphWorkbench';
 import eventBindings from '../events/eventBindings';
 import { toError } from '../../errors';
@@ -22,20 +23,24 @@ export default function forestControls(
   let busy = false;
   let cursor: number | null = null;
   let components: GraphComponent[] = [];
+  let sourceFormat: SourceFormat | null = null;
   const list = document.createElement('div');
   list.className = 'forest-tabs';
   list.setAttribute('role', 'tablist');
   list.setAttribute('aria-label', 'Forest views');
   const more = document.createElement('button');
   more.type = 'button';
-  more.textContent = 'More trees';
+  more.textContent = 'More groups';
   const feedback = document.createElement('span');
   feedback.className = 'forest-feedback';
   feedback.setAttribute('role', 'status');
   return {
     mount,
     reset,
-    load: () => loadPage(),
+    load(format: SourceFormat) {
+      sourceFormat = format;
+      return loadPage();
+    },
     unmount: () => {
       reset();
       bindings.clear();
@@ -65,6 +70,7 @@ export default function forestControls(
     generation++;
     busy = false;
     components = [];
+    sourceFormat = null;
     cursor = null;
     if (root) {
       root.hidden = true;
@@ -95,7 +101,7 @@ export default function forestControls(
       if (current === generation) {
         root.hidden = false;
         feedback.textContent = toError(error).message;
-        more.textContent = components.length ? 'Retry more trees' : 'Retry tree list';
+        more.textContent = components.length ? 'Retry more groups' : 'Retry group list';
         more.hidden = false;
       }
     } finally {
@@ -109,11 +115,12 @@ export default function forestControls(
     if (!root) return;
     list.replaceChildren();
     const active = workbench.getComponentId();
+    const prefix = sourceFormat === 'typing_data' ? 'CC' : 'Group';
     const options: Array<{ id?: string; label: string }> = [
       { label: 'Forest overview' },
       ...components.map((tree, i) => ({
         id: tree.id,
-        label: `Tree ${i + 1} · ${tree.nodeCount.toLocaleString()} nodes`,
+        label: `${prefix} ${i + 1} · ${tree.nodeCount.toLocaleString()} ${tree.nodeCount === 1 ? 'node' : 'nodes'}`,
       })),
     ];
     for (const [index, option] of options.entries()) {
@@ -127,6 +134,11 @@ export default function forestControls(
       tab.tabIndex = selected ? 0 : -1;
       tab.textContent = option.label;
       tab.title = option.id ? `Root: ${option.id}` : option.label;
+      if (option.id !== undefined && sourceFormat === 'typing_data') {
+        const description = 'Clonal Complex; local group number, not a reference database CC assignment.';
+        tab.title = `${description} ${tab.title}`;
+        tab.setAttribute('aria-description', description);
+      }
       if (option.id !== undefined) tab.dataset.componentId = option.id;
       list.append(tab);
       if (selected && !root.hidden) {
@@ -134,7 +146,7 @@ export default function forestControls(
         elements.graphRoot?.setAttribute('aria-labelledby', tab.id);
       }
     }
-    more.textContent = 'More trees';
+    more.textContent = 'More groups';
     more.hidden = cursor === null;
   }
   async function select(id?: string): Promise<void> {
@@ -146,17 +158,17 @@ export default function forestControls(
       tab.disabled = true;
     });
     more.disabled = true;
-    feedback.textContent = 'Loading tree view…';
+    feedback.textContent = 'Loading group view…';
     onSwitch(true);
     try {
       const component = id === undefined ? null : components.find(item => item.id === id);
-      if (component === undefined) throw new Error('This tree is unavailable.');
+      if (component === undefined) throw new Error('This group is unavailable.');
       await workbench.selectComponent(component);
       if (current !== generation) return;
       render();
       list.querySelector<HTMLButtonElement>('[aria-selected="true"]')?.focus();
       if (elements.searchInput)
-        elements.searchInput.placeholder = id === undefined ? 'Node ID or ancillary data' : 'Search this tree';
+        elements.searchInput.placeholder = id === undefined ? 'Node ID or ancillary data' : 'Search this group';
       feedback.textContent = '';
     } catch (error) {
       if (current === generation) feedback.textContent = toError(error).message;

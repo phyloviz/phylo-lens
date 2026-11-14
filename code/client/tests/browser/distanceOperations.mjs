@@ -21,7 +21,7 @@ try {
     await page
       .locator('#newick-file-input')
       .setInputFiles({ name: 'distances.nwk', mimeType: 'text/plain', buffer: Buffer.from(content) });
-    await page.getByRole('heading', { name: 'Tree cutoff — split into a forest' }).waitFor();
+    await page.getByRole('heading', { name: 'Tree cut-off', exact: true }).waitFor();
     await page.getByLabel('Cutoff distance (optional)', { exact: true }).fill(cutoff);
     const request = page.waitForRequest(request => request.url().endsWith('/api/graph/prepare'));
     const animations = await page.evaluate(() => window.requirementsView.completedAnimations);
@@ -40,6 +40,10 @@ try {
   };
   await load('2.5', 2);
   await page.waitForFunction(() => document.querySelectorAll('#forest-controls [role=tab]').length === 4);
+  assert.deepEqual(
+    (await page.locator('#forest-controls [data-component-id]').allTextContents()).map(text => text.split(' · ')[0]),
+    ['Group 1', 'Group 2', 'Group 3']
+  );
   assert.match(await page.locator('#status').textContent(), /cutoff ≤ 2.5/);
   assert.deepEqual(
     await page.evaluate(() =>
@@ -79,8 +83,14 @@ try {
     camera: window.requirementsSigma.getCamera().getState(),
     nodes: window.requirementsSigma.getGraph().mapNodes((id, a) => [id, a.x, a.y]),
   }));
-  await page.getByText('Tree-path connections', { exact: true }).click();
-  assert.match(await page.locator('#connection-metric').textContent(), /Tree-path distance/);
+  await page.getByRole('heading', { name: 'Distance operations', exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Configure tree cut-off', exact: true }).click();
+  await page.waitForFunction(() => document.activeElement?.id === 'distance-cutoff');
+  assert.equal(await page.locator('#current-dataset').textContent(), 'distance-operations-browser');
+  assert.equal(await page.locator('#newick-file-input').evaluate(input => input.files.length), 1);
+  await page.getByRole('tab', { name: 'Explore', exact: true }).click();
+  await page.getByRole('heading', { name: 'Cluster Nodes', exact: true }).waitFor();
+  assert.equal(await page.locator('#connection-advanced').evaluate(details => details.open), false);
   await page.getByLabel('Maximum tree-path distance', { exact: true }).fill('3');
   await page.locator('#apply-connections').click();
   await page.waitForFunction(() => window.requirementsSigma.getGraph().size === 6);
@@ -104,6 +114,8 @@ try {
     })),
     arrangement
   );
+  await page.locator('#connection-advanced > summary').click();
+  assert.match(await page.locator('#connection-metric').textContent(), /Tree-path distance/);
   await page.locator('#connection-limit').fill('1');
   await page.locator('#connection-threshold').fill('100');
   await page.locator('#apply-connections').click();

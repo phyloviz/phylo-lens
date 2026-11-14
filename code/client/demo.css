@@ -893,6 +893,19 @@ button:disabled {
   border-radius: 8px;
   padding: 0;
 }
+.distance-operation {
+  display: grid;
+  gap: 8px;
+}
+.distance-operation h4 {
+  margin: 0;
+  font-size: 0.875rem;
+}
+.distance-operation + .distance-operation {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
 .app-drawer .section-kicker {
   display: none;
 }

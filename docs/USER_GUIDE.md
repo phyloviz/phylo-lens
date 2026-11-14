@@ -6,6 +6,10 @@ In **Data**, choose a Newick tree or a typing-profile table and select **Load
 dataset**. You can add an ancillary table to color and inspect the observations.
 Use **Explore** for tree operations and **Appearance** for labels and colors.
 
+The underlying data remains a fully labelled tree/MST, or a forest after a
+cut-off. Additional distance connections are a visual overlay: they do not
+replace the tree, its branch structure, or its layout springs.
+
 Zoom changes how much detail is visible. Amber triangles are automatic groups;
 violet triangles are branches you deliberately collapsed. Triangle sizes give a
 compressed indication of the number of tree nodes. Hover or select a symbol for
@@ -20,19 +24,52 @@ symbols are present. Exact counts remain available when hovering or selecting.
 
 | Operation | Where | Effect |
 | --- | --- | --- |
-| **Tree cutoff** | **Data**, before loading | Removes tree edges above the cutoff and splits the tree into a forest. |
-| **nLV connections** (typing profiles) / **Tree-path connections** (Newick) | **Explore**, after loading | Adds links between nodes at or below the threshold within each tree; keeps the original tree edges. |
+| **Tree cut-off** | **Explore → Distance operations → Configure tree cut-off** opens the setting in **Data**, before loading. | Removes tree edges above the cutoff and splits the tree into a forest. |
+| **n Locus Variant (nLV)** (typing profiles) / **Cluster Nodes** (Newick) | **Explore → Distance operations**, after loading. For typing data, optionally request initial nLV links in **Data**. | Adds links between nodes at or below the threshold within each tree; keeps the original tree edges. |
 
 Both use an inclusive maximum: a cutoff of 3 keeps tree edges of distance 3;
 an nLV level of 3 connects profiles differing at up to 3 retained loci. Neither
 setting controls zoom or automatic level-of-detail grouping.
 
-## Tree cutoff: split a tree by distance
+## Choose initial nLV connections
 
-In **Data → Tree cutoff — split into a forest**, set **Cutoff distance**, then select **Load dataset**.
+For typing data, **Data → Add nLV connections on load** lets you choose the
+**Initial nLV level** before loading. It is optional and off by default; its
+level defaults to **1**. The app prepares the usual Full MST, applies any tree
+cut-off, and then requests additional links within each remaining tree.
+
+This is the same overlay available in Explore. A level of **2** adds missing
+links between profiles differing at up to two retained loci. Longer backbone
+edges stay in place unless removed by the separate tree cut-off. A level of
+**0** does not remove the MST edges. Changing the overlay never joins separate
+cut-off components or changes their CC labels.
+
+The **Initial connection limit** defaults to **50,000** additional links. If it
+is exceeded, the tree still loads, an explanation is shown, and no partial
+overlay is applied. You can reduce the level or raise the limit and retry in
+Explore. Change or remove the links there without reloading. Branch folding,
+branch dragging, layout relaxation, and automatic detail remain available.
+
+PNG captions record the applied overlay's distance metric and threshold.
+
+## Tree cut-off: split a tree by distance
+
+In **Data → Tree cut-off**, set **Cutoff distance**, then select **Load dataset**.
+From **Explore → Distance operations**, **Configure tree cut-off** opens Data and
+focuses that same field. This only navigates: it retains your input and settings
+and does not apply the cutoff until you select **Load dataset**.
 Every edge above that value is removed. Edges equal to the value are kept. All
 nodes remain, including nodes that become isolated. The resulting trees appear
-in **Forest overview** and their individual tree tabs.
+in **Forest overview** and their individual group tabs.
+
+For typing-derived cutoff groups, tabs use **CC 1, CC 2, …**,
+where CC means **Clonal Complex** at the chosen cutoff. These are local display numbers, not
+reference database CC assignments, founder identifiers or stable biological
+names. Changing the dataset or cutoff can change the numbering. Record the
+cutoff and retained-locus policy when reporting these groups. An arbitrary
+Newick forest does not establish clonal complexes, so its tabs use **Group 1,
+Group 2, …**. Both naming schemes refer to the complete forest components,
+not the automatic detail groups or manually collapsed branches.
 
 For example, a cutoff of **3** keeps edges with distances 0, 1, 2 and 3 and
 removes edges with distance 4 or greater. Decimal values are also supported.
@@ -55,17 +92,21 @@ It runs on the complete tree before automatic grouping, so a group cannot hide
 an edge that should have been removed. Loading is explicit: scrolling and
 changing the camera never rebuild the forest.
 
-## nLV and tree-path connections: add links
+## n Locus Variant (nLV) and Cluster Nodes: add links
 
-Load a dataset, then open **Explore → nLV connections — link profiles** for
-typing data, or **Explore → Tree-path connections** for Newick. Set the **nLV
+Load a dataset, then use **Explore → Distance operations → n Locus Variant (nLV)** for
+typing data, or **Cluster Nodes** for Newick. Set the **nLV
 level (maximum differing loci)** or **Maximum tree-path distance**, then select
 **Apply connections**. Blue links
 show qualifying relationships that are absent from the tree. Original tree
 edges remain, including edges longer than this threshold. Use the separate tree
 cutoff if you want to remove long tree edges.
 
-The displayed explanation identifies the distance used:
+Despite its name, **Cluster Nodes** adds links; it does not merge nodes or
+replace them with triangles.
+
+**Advanced options** contains the connection limit and the detailed distance
+explanation. The threshold and apply/remove actions remain visible:
 
 - **Typing profiles:** the number of differing retained loci, often called an
   n-locus variant or nLV threshold. Use a whole number. Missing loci follow the

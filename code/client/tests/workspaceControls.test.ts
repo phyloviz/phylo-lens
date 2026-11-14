@@ -1,5 +1,5 @@
 import html from '../index.html?raw';
-import { afterEach, expect, it } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
 import workspaceControls from '../src/app/shell/controls/workspaceControls';
 
 function mount() {
@@ -41,6 +41,20 @@ it('supports keyboard task navigation and preserves data input and per-task scro
   expect(document.querySelectorAll('.workspace-tabs [tabindex="0"]')).toHaveLength(1);
   data.click();
   expect(input.value).toBe('my analysis');
+  const cutoff = document.getElementById('distance-cutoff') as HTMLInputElement;
+  cutoff.value = '3';
+  cutoff.scrollIntoView = vi.fn();
+  explore.click();
+  const configureCutoff = document.getElementById('configure-cutoff')!;
+  configureCutoff.focus();
+  configureCutoff.click();
+  expect(data.getAttribute('aria-selected')).toBe('true');
+  expect(document.getElementById('data-panel')?.hidden).toBe(false);
+  expect(document.activeElement).toBe(cutoff);
+  expect(cutoff.scrollIntoView).toHaveBeenCalledWith({ block: 'center' });
+  expect(cutoff.value).toBe('3');
+  expect(input.value).toBe('my analysis');
+  expect(document.querySelector<HTMLElement>('.app-shell')?.dataset.controlsOpen).toBe('true');
   controls.unmount();
   explore.click();
   expect(data.getAttribute('aria-selected')).toBe('true');

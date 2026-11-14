@@ -58,6 +58,10 @@ export default function bootstrapClientShell(baseUrl = ''): UiShell {
     sourceFormatSelect: getSelect(ID_SOURCE_FORMAT),
     typingFileInput: getInput(ID_TYPING_FILE_INPUT),
     typingSourceControls: getOptionalElement(ID_TYPING_SOURCE_CONTROLS),
+    initialNlvInput: getInput('initial-nlv-connections'),
+    initialNlvControls: getOptionalElement('initial-nlv-controls'),
+    initialNlvLevelInput: getInput('initial-nlv-level'),
+    initialNlvLimitInput: getInput('initial-nlv-limit'),
     datasetNameInput: getInput(ID_DATASET_NAME_INPUT),
 
     ancillaryInput: getTextArea(ID_ANCILLARY_INPUT),
