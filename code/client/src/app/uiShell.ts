@@ -233,6 +233,7 @@ export default function createUiShell(options: UiShellOptions): UiShell {
   }
 
   function handleGraphRendered(graph: PositionedGraph): void {
+    workspace.graphRendered(graph);
     connections.refresh(graph);
     setStatus(buildRenderedStatus(graph));
     lastRenderedGraph = graph;

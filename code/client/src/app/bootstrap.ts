@@ -117,6 +117,8 @@ export default function bootstrapClientShell(baseUrl = ''): UiShell {
     applyConnections: getButton('apply-connections'),
     clearConnections: getButton('clear-connections'),
     connectionMetric: getOptionalElement('connection-metric'),
+    connectionHeading: getOptionalElement('connection-heading'),
+    connectionThresholdLabel: getOptionalElement('connection-threshold-label'),
     connectionFeedback: getOptionalElement('connection-feedback'),
 
     searchInput: getInput(ID_SEARCH_INPUT),
