@@ -7,6 +7,7 @@ export type GraphPrepareRequest = {
   readonly format: SourceFormat;
   readonly datasetName?: string;
   readonly content: string;
+  readonly distanceCutoff?: number;
 
   readonly options?: {
     readonly allowSelfLoops?: boolean;

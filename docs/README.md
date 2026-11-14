@@ -8,6 +8,7 @@ release information across several files.
 
 | Goal | Document |
 | --- | --- |
+| Load, interpret and split trees by distance | [User guide](USER_GUIDE.md) |
 | Understand the browser/service boundary and the major components | [Architecture](ARCHITECTURE_SPEC.md) |
 | Follow one dataset from `load()` to interactive rendering | [Runtime flow](flow.md) |
 | Prepare Newick, typing profiles, and ancillary metadata correctly | [Input formats](INPUT_FORMATS.md) |

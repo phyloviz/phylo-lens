@@ -73,6 +73,13 @@ symbols present in the rendered slice: compressed triangle sizes encode node
 counts, and manually folded branches retain only their root node's ancillary
 data. Setting `includeLegend: false` omits both category and symbol explanations.
 
+`load({ content, distanceCutoff: 3 })` keeps original tree edges with distance
+at most 3 and prepares the resulting forest. Omit `distanceCutoff` to restore
+the original topology. Zero is a valid cutoff. Missing edge distances are
+rejected for this operation. Loading rebuilds layout and manual arrangements;
+the active cutoff is included in publication legends. See the
+[user guide](../../docs/USER_GUIDE.md) for distance units and examples.
+
 ## Public package surface
 
 The package root exports:

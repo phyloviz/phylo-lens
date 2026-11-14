@@ -65,6 +65,8 @@ def layout_version_for_dataset(
             "rooting_strategy": dataset.source.rooting_strategy,
         },
     }
+    if dataset.source.distance_cutoff is not None:
+        payload["source"]["distance_cutoff"] = dataset.source.distance_cutoff
     canonical = json.dumps(
         payload,
         sort_keys=True,

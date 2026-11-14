@@ -41,6 +41,7 @@ export interface PhyloLensLoadOptions extends AncillaryInputOptions {
   visualMapping?: VisualMappingOptions;
   sfdpOptions?: SfdpOptions;
   readonly lodPreparation?: LodPreparationOptions;
+  readonly distanceCutoff?: number;
   lod?: {
     maxNodes?: number;
     representationSpacingPx?: number;

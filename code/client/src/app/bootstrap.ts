@@ -111,6 +111,7 @@ export default function bootstrapClientShell(baseUrl = ''): UiShell {
     automaticDetailInput: getInput(ID_AUTOMATIC_DETAIL),
     maxNodesInput: getInput(ID_MAX_NODES_INPUT),
     smallComponentThresholdInput: getInput('small-component-threshold'),
+    distanceCutoffInput: getInput('distance-cutoff'),
 
     searchInput: getInput(ID_SEARCH_INPUT),
     searchButton: getButton(ID_SEARCH_BUTTON),
