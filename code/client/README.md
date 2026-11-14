@@ -188,6 +188,7 @@ interface PhyloLensLoadOptions {
   content: string;
   name?: string;
   sourceFormat?: "newick" | "typing_data";
+  typingOptions?: TypingOptions;
   ancillarySchema?: AncillaryField[];
   ancillaryByNodeId?: Record<
     string,
@@ -216,6 +217,7 @@ interface PhyloLensLoadOptions {
 | `content` | yes | — | Raw Newick text or an allelic-profile matrix, according to `sourceFormat` |
 | `name` | no | `"uploaded-dataset"` | Dataset identifier submitted to the service |
 | `sourceFormat` | no | `"newick"` | Selects direct Newick parsing or PhyloLib typing-data processing |
+| `typingOptions` | no | Full MST | Selects all-level Full MST or standard goeBURST with an optional `nlv` level (default 3); requires `typing_data` |
 | `ancillarySchema` | no | `[]` | Declares ancillary fields and scalar types |
 | `ancillaryByNodeId` | no | `{}` | Direct ancillary data keyed by node ID |
 | `ancillaryData` | no | — | CSV/TSV metadata joined by an explicit column |
@@ -262,8 +264,22 @@ await view.load({
 ```
 
 The service sends the profile matrix through the bundled PhyloLib JAR:
-Hamming distance is computed first, followed by goeBURST Full MST. The resulting
-Newick tree enters the normal preparation pipeline.
+Hamming distance is computed first, followed by goeBURST Full MST by default.
+Choose standard goeBURST with a maximum nLV level through `typingOptions`:
+
+```ts
+await view.load({
+  sourceFormat: "typing_data",
+  content: profilesTsv,
+  typingOptions: { algorithm: "goeburst", nlv: 3 },
+});
+```
+
+The nLV level defaults to 3 when omitted and must be a positive integer. Links
+at that distance are included; profiles that cannot be linked remain in separate
+trees. All isolates, including identical profiles, are retained. Use
+`typingOptions: { algorithm: "goeburstfullmst" }` for all levels. These inference
+settings are separate from the additional nLV connections shown in Explore.
 
 ## Metadata
 

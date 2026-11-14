@@ -67,13 +67,29 @@ class PreparedTypingProfiles:
             for members in groups.values()
         }
 
-    def algorithm_content(self) -> str:
-        """Safe labels for the Newick boundary, with duplicate profiles retained."""
+    def algorithm_content(self, *, distinct: bool = False) -> str:
+        """Safe Newick labels; optionally emit one representative per profile."""
         output = StringIO()
         writer = csv.writer(output, delimiter="\t", lineterminator="\n")
         writer.writerow(self.header)
+        representatives = (
+            {
+                isolate_id: representative
+                for representative, members in self.membership().items()
+                for _, isolate_id in members
+            }
+            if distinct
+            else None
+        )
+        emitted: set[str] = set()
         for row in self.rows:
-            writer.writerow([slugify_label(row.identifier), *row.alleles])
+            node_id = slugify_label(row.identifier)
+            if representatives is not None:
+                node_id = representatives[node_id]
+                if node_id in emitted:
+                    continue
+                emitted.add(node_id)
+            writer.writerow([node_id, *row.alleles])
         return output.getvalue()
 
     @property
@@ -215,26 +231,42 @@ def collapse_profile_graph(
 
 
 def validate_goeburst_tree(
-    graph: ParsedGraph, membership: dict[str, list[tuple[str, str]]]
+    graph: ParsedGraph,
+    membership: dict[str, list[tuple[str, str]]],
+    *,
+    max_level: int | None = None,
 ) -> None:
-    """A Full MST must span the distinct profiles as one tree."""
-    if set(graph.nodes) != set(membership) or len(graph.edges) != len(graph.nodes) - 1:
+    """Require a spanning tree, or a spanning forest for bounded goeBURST."""
+    if set(graph.nodes) != set(membership):
+        raise ParseError("goeBURST must retain every distinct profile.")
+    if max_level is None and len(graph.edges) != len(graph.nodes) - 1:
         raise ParseError("A goeBURST Full MST must span one connected profile tree.")
     neighbors: dict[str, list[str]] = {node_id: [] for node_id in graph.nodes}
     for edge in graph.edges:
+        if max_level is not None and (
+            edge.distance is None or not 0 < edge.distance <= max_level
+        ):
+            raise ParseError("goeBURST edge exceeds the selected nLV level.")
         neighbors[edge.source].append(edge.target)
         neighbors[edge.target].append(edge.source)
     reached: set[str] = set()
-    stack = [graph.nodes[0]]
-    while stack:
-        node = stack.pop()
-        if node in reached:
+    components = 0
+    for start in graph.nodes:
+        if start in reached:
             continue
-        reached.add(node)
-        stack.extend(
-            neighbor for neighbor in neighbors[node] if neighbor not in reached
-        )
-    if len(reached) != len(graph.nodes):
+        components += 1
+        stack = [start]
+        while stack:
+            node = stack.pop()
+            if node in reached:
+                continue
+            reached.add(node)
+            stack.extend(
+                neighbor for neighbor in neighbors[node] if neighbor not in reached
+            )
+    if len(graph.edges) != len(graph.nodes) - components:
+        raise ParseError("goeBURST output must be an acyclic profile forest.")
+    if max_level is None and components != 1:
         raise ParseError("A goeBURST Full MST must span one connected profile tree.")
 
 
@@ -243,6 +275,17 @@ def select_goeburst_root(
     profiles: PreparedTypingProfiles,
     membership: dict[str, list[tuple[str, str]]],
 ) -> str:
+    return select_goeburst_roots(matrix_path, profiles, membership)[0]
+
+
+def select_goeburst_roots(
+    matrix_path: Path,
+    profiles: PreparedTypingProfiles,
+    membership: dict[str, list[tuple[str, str]]],
+    *,
+    graph: ParsedGraph | None = None,
+    max_level: int | None = None,
+) -> tuple[str, ...]:
     """Stream PhyloLib's triangular Hamming matrix; rank distinct profiles by LV counts."""
     rows = profiles.rows
     input_order = {slugify_label(row[0]): index for index, row in enumerate(rows)}
@@ -291,13 +334,39 @@ def select_goeburst_root(
     except (OSError, ValueError, OverflowError, StopIteration, csv.Error) as error:
         raise ParseError(f"Invalid PhyloLib Hamming matrix: {error}") from error
 
-    return min(
-        counts,
-        key=lambda node: (
+    ranking_level = (
+        highest_distance if max_level is None else min(highest_distance, max_level)
+    )
+
+    def rank(node: str):
+        return (
             tuple(
                 -counts[node].get(distance, 0)
-                for distance in range(1, highest_distance + 1)
+                for distance in range(1, ranking_level + 1)
             ),
             min(input_order[isolate_id] for _, isolate_id in membership[node]),
-        ),
-    )
+        )
+
+    if graph is None:
+        return (min(counts, key=rank),)
+    neighbors: dict[str, list[str]] = {node: [] for node in graph.nodes}
+    for edge in graph.edges:
+        neighbors[edge.source].append(edge.target)
+        neighbors[edge.target].append(edge.source)
+    reached: set[str] = set()
+    roots: list[str] = []
+    for start in graph.nodes:
+        if start in reached:
+            continue
+        component: list[str] = []
+        stack = [start]
+        reached.add(start)
+        while stack:
+            node = stack.pop()
+            component.append(node)
+            for neighbor in neighbors[node]:
+                if neighbor not in reached:
+                    reached.add(neighbor)
+                    stack.append(neighbor)
+        roots.append(min(component, key=rank))
+    return tuple(roots)

@@ -707,8 +707,9 @@ it('captures prepare data and polling callbacks before waiting for service healt
   });
   const client = createGraphClient({ baseUrl: BASE_URL, fetchImpl });
   const request = {
-    format: 'newick' as const,
-    content: 'A;',
+    format: 'typing_data' as const,
+    content: 'ID\tL1\nA\t1',
+    typingOptions: { algorithm: 'goeburst' as const, nlv: 3 },
     ancillarySchema: [{ key: 'country', type: 'string' as const }],
     ancillaryByNodeId: { A: { country: 'PT' } },
     sfdpOptions: { k: 0.5 },
@@ -720,6 +721,7 @@ it('captures prepare data and polling callbacks before waiting for service healt
   request.ancillarySchema[0].key = 'changed';
   request.ancillaryByNodeId.A.country = 'changed';
   request.sfdpOptions.k = 2;
+  request.typingOptions.nlv = 7;
   options.onPending = vi.fn(() => {
     throw new Error('Changed callback');
   });
@@ -731,6 +733,7 @@ it('captures prepare data and polling callbacks before waiting for service healt
     metadata_schema: [{ key: 'country', type: 'string' }],
     metadata_by_node_id: { A: { country: 'PT' } },
     sfdp_options: { k: 0.5 },
+    typing_options: { algorithm: 'goeburst', nlv: 3 },
   });
   expect(onPending).toHaveBeenCalledOnce();
   expect(sleep).toHaveBeenCalledWith(1);

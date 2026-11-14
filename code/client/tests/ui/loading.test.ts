@@ -360,12 +360,20 @@ describe('uiShell', () => {
     shell.unmount();
   });
 
-  it('forwards typing data with the typing_data source format', async () => {
+  it.each([
+    ['goeburstfullmst', '3', { algorithm: 'goeburstfullmst' }],
+    ['goeburst', '3', { algorithm: 'goeburst', nlv: 3 }],
+    ['goeburst', '7', { algorithm: 'goeburst', nlv: 7 }],
+  ])('forwards typing data with %s and level %s', async (algorithm, level, expectedOptions) => {
     document.body.innerHTML = `
       <form id="render-form"></form>
       <textarea id="newick-input"></textarea>
       <input id="newick-file" type="file" />
       <input id="typing-file" type="file" />
+      <select id="typing-algorithm">
+        <option value="goeburstfullmst">Full MST</option><option value="goeburst">goeBURST</option>
+      </select>
+      <div id="typing-nlv-controls"><input id="typing-nlv" type="number" value="3" /></div>
       <select id="source-format">
         <option value="newick">Newick tree</option>
         <option value="typing_data">Typing data</option>
@@ -381,6 +389,11 @@ describe('uiShell', () => {
     const status = document.getElementById('status') as HTMLElement;
 
     sourceFormatSelect.value = 'typing_data';
+    const typingAlgorithmSelect = document.querySelector<HTMLSelectElement>('#typing-algorithm')!;
+    const typingNlvControls = document.querySelector<HTMLElement>('#typing-nlv-controls')!;
+    const typingNlvInput = document.querySelector<HTMLInputElement>('#typing-nlv')!;
+    typingAlgorithmSelect.value = algorithm;
+    typingNlvInput.value = level;
     setInputFiles(typingFileInput, [new File(['ST\tgene1\tgene2\n1\t1\t2\n'], 'profiles.tsv')]);
 
     const fakeWorkbench = makeFakeWorkbench({
@@ -397,16 +410,38 @@ describe('uiShell', () => {
         newickFileInput,
         typingFileInput,
         sourceFormatSelect,
+        typingAlgorithmSelect,
+        typingNlvControls,
+        typingNlvInput,
         status,
       },
     });
 
     shell.mount();
+    expect(typingNlvControls.hidden).toBe(algorithm === 'goeburstfullmst');
+    expect(typingNlvInput.disabled).toBe(algorithm === 'goeburstfullmst');
     await shell.renderCurrentInput();
 
     expect(fakeWorkbench.loadGraph).toHaveBeenCalledWith(
       { content: 'ST\tgene1\tgene2\n1\t1\t2', datasetName: undefined, format: 'typing_data' },
-      expect.objectContaining({})
+      expect.objectContaining({ typingOptions: expectedOptions })
+    );
+    typingAlgorithmSelect.value = 'goeburst';
+    typingAlgorithmSelect.dispatchEvent(new Event('change'));
+    expect(typingNlvControls.hidden).toBe(false);
+    typingNlvInput.value = '1.5';
+    await shell.renderCurrentInput();
+    expect(fakeWorkbench.loadGraph).toHaveBeenCalledTimes(1);
+    expect(status.textContent).toContain('positive whole number');
+    sourceFormatSelect.value = 'newick';
+    sourceFormatSelect.dispatchEvent(new Event('change'));
+    expect(typingNlvControls.hidden).toBe(true);
+    expect(typingNlvInput.disabled).toBe(true);
+    input.value = 'A;';
+    await shell.renderCurrentInput();
+    expect(fakeWorkbench.loadGraph).toHaveBeenLastCalledWith(
+      expect.objectContaining({ format: 'newick' }),
+      expect.objectContaining({ typingOptions: undefined })
     );
     shell.unmount();
   });

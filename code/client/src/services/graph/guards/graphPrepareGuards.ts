@@ -23,6 +23,7 @@ export function isGraphPrepareRequestDto(value: unknown): value is GraphPrepareR
     isString(value.content) &&
     (value.distance_cutoff === undefined || (isFiniteNumber(value.distance_cutoff) && value.distance_cutoff >= 0)) &&
     isGraphPrepareOptions(value.options) &&
+    isOptionalTypingOptions(value.typing_options, value.format) &&
     isOptionalGraphMetadataSchema(value.metadata_schema) &&
     isOptionalMetadataByNodeId(value.metadata_by_node_id) &&
     isOptionalAncillaryDataRequest(value.ancillary_data) &&
@@ -31,9 +32,27 @@ export function isGraphPrepareRequestDto(value: unknown): value is GraphPrepareR
   );
 }
 
+function isOptionalTypingOptions(value: unknown, format: unknown): boolean {
+  if (value === undefined) return true;
+  if (format !== 'typing_data' || !isRecord(value)) return false;
+  switch (value.algorithm) {
+    case 'goeburstfullmst':
+      return Object.keys(value).every(key => key === 'algorithm');
+    case 'goeburst':
+      return (
+        Object.keys(value).every(key => key === 'algorithm' || key === 'nlv') &&
+        (value.nlv === undefined ||
+          (isFiniteNumber(value.nlv) && Number.isSafeInteger(value.nlv) && value.nlv >= 1 && value.nlv <= 2147483647))
+      );
+    default:
+      return false;
+  }
+}
+
 function isGraphPrepareResponseDto(value: unknown): value is GraphPrepareResponseDto {
   return (
     isRecord(value) &&
+    (value.typing_options == null || isOptionalTypingOptions(value.typing_options, 'typing_data')) &&
     (value.distance_cutoff == null || (isFiniteNumber(value.distance_cutoff) && value.distance_cutoff >= 0)) &&
     isString(value.dataset_id) &&
     isString(value.layout_version) &&

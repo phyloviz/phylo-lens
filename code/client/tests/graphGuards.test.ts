@@ -77,6 +77,24 @@ const SEARCH_FIXTURE = {
 };
 
 describe('graphGuards', () => {
+  it('validates the selected typing algorithm and its nLV parameter', () => {
+    const request = { format: 'typing_data', content: 'ID\tL1\nA\t1' };
+    for (const typing_options of [
+      { algorithm: 'goeburstfullmst' },
+      { algorithm: 'goeburst' },
+      { algorithm: 'goeburst', nlv: 3 },
+    ])
+      expect(isGraphPrepareRequestDto({ ...request, typing_options })).toBe(true);
+    for (const typing_options of [
+      { algorithm: 'unknown' },
+      { algorithm: 'goeburstfullmst', nlv: 3 },
+      ...[0, -1, 1.5, NaN, Infinity, '3', true, 2147483648].map(nlv => ({ algorithm: 'goeburst', nlv })),
+    ])
+      expect(isGraphPrepareRequestDto({ ...request, typing_options })).toBe(false);
+    expect(isGraphPrepareRequestDto({ ...request, format: 'newick', typing_options: { algorithm: 'goeburst' } })).toBe(
+      false
+    );
+  });
   it('requires ancillary join_column on prepare requests', () => {
     expect(
       isGraphPrepareRequestDto({

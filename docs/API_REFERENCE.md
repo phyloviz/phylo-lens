@@ -159,6 +159,7 @@ Normalizes input and submits preparation of a persisted layout.
 | `dataset_name` | non-empty `string` | no | `"dataset"` | Dataset identifier and layout namespace |
 | `content` | non-empty `string` | yes | — | Newick text or allelic-profile matrix |
 | `distance_cutoff` | finite number ≥ 0 or `null` | no | `null` | Keep tree edges at or below this value before layout and LoD; retain every node and rebuild component roots. Requires known distances on all edges. |
+| `typing_options` | object or `null` | no | `null` (Full MST) | For `typing_data`: `{"algorithm":"goeburstfullmst"}` or `{"algorithm":"goeburst","nlv":3}`. Standard goeBURST includes links up to `nlv` and may produce a forest. `nlv` defaults to 3 and must be an integer from 1 to 2147483647; it is not accepted for Full MST. |
 | `options.allow_self_loops` | `boolean` | no | `false` | Permit self-loop edges during domain validation |
 | `lod_options.small_component_threshold` | integer ≥ 0 | no | `64` | Components with this many canonical nodes or fewer stay explicit at every prepared tier; zero disables protection. |
 | `metadata_schema` | `AncillaryField[]` | no | `[]` | Declared public metadata types |
@@ -169,6 +170,10 @@ The preparation result echoes the applied `distance_cutoff` (omitted when none).
 Clients must verify it matches the requested value before labeling a view or
 export as cut. An older API may ignore unknown request fields; missing
 confirmation must be treated as unsupported rather than as a successful cut.
+
+The result also echoes explicit `typing_options`, including the default nLV value
+for standard goeBURST. Clients verify the selected algorithm and level were
+applied; an older service that ignores typing options must be updated.
 
 `AncillaryField`:
 

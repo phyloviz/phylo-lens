@@ -1,6 +1,8 @@
 import type { GraphLayoutStatus } from '../../../../contracts/graph/graphTypes';
+import type { TypingOptions } from '../../../../contracts/graph/TypingOptions';
 
 export interface GraphPrepareResponseDto {
+  typing_options?: TypingOptions | null;
   distance_cutoff?: number | null;
   dataset_id: string;
   layout_version: string;

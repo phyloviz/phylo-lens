@@ -1,4 +1,5 @@
 import type { SourceFormat } from '../../../../contracts/models';
+import type { TypingOptions } from '../../../../contracts/graph/TypingOptions';
 
 import type { AncillaryField, AncillaryData } from '../../../../contracts/ancillary';
 import type { AncillaryDataInputDto } from '../ancillary/AncillaryDataInputDto';
@@ -9,6 +10,7 @@ export interface GraphPrepareRequestDto {
   dataset_name?: string;
   content: string;
   distance_cutoff?: number;
+  typing_options?: TypingOptions;
 
   options?: {
     allow_self_loops?: boolean;

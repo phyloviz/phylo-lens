@@ -41,6 +41,7 @@ from phylo_lens_server.domain.models import (
     SourceFormat,
 )
 from phylo_lens_server.domain.preparation import PrepareInput
+from phylo_lens_server.domain.typing import FullMstOptions
 from phylo_lens_server.domain.validators import validate_dataset
 from phylo_lens_server.pipeline.distance_cutoff import cut_dataset
 
@@ -210,6 +211,7 @@ def ingest_dataset(
             generated_at=datetime.now(UTC).isoformat(),
             provenance=typing_provenance,
             rooting_strategy=rooting_strategy,
+            typing_options=request.typing_options,
         ),
     )
 
@@ -291,12 +293,19 @@ def read_source(request: PrepareInput) -> SourceGraph:
             typing_provenance = profiles.provenance
             rooting_strategy = GOEBURST_ROOTING_STRATEGY
             try:
-                typing_tree = typing_profiles_to_rooted_tree(profiles)
+                typing_tree = (
+                    typing_profiles_to_rooted_tree(profiles)
+                    if request.typing_options is None
+                    or isinstance(request.typing_options, FullMstOptions)
+                    else typing_profiles_to_rooted_tree(
+                        profiles, request.typing_options
+                    )
+                )
             except TypingNormalizeError as error:
                 raise ParseError(str(error)) from error
             parsed = typing_tree.parsed
             distinct = typing_tree.distinct
-            technical_roots = (typing_tree.root,)
+            technical_roots = typing_tree.component_roots or (typing_tree.root,)
             # Preserve warning order without mutating the parsed tree.
             parsed = replace(parsed, warnings=(*parsed.warnings, *profiles.warnings))
         case _:

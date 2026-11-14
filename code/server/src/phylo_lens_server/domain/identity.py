@@ -67,6 +67,10 @@ def layout_version_for_dataset(
     }
     if dataset.source.distance_cutoff is not None:
         payload["source"]["distance_cutoff"] = dataset.source.distance_cutoff
+    if dataset.source.typing_options is not None:
+        payload["source"]["typing_options"] = dataset.source.typing_options.model_dump(
+            mode="json"
+        )
     canonical = json.dumps(
         payload,
         sort_keys=True,

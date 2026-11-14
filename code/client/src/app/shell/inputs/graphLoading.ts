@@ -1,5 +1,6 @@
 import { DEFAULT_SMALL_COMPONENT_THRESHOLD } from '../../../contracts/graph/LodPreparationOptions';
 import type { DistanceConnectionOptions } from '../../../contracts/graph/connections';
+import type { TypingOptions } from '../../../contracts/graph/TypingOptions';
 import type { PositionedGraph } from '../../../contracts/positioned';
 import { SOURCE_FORMAT_TYPING_DATA, SOURCE_FORMAT_NEWICK, type SourceFormat } from '../../../contracts/models';
 import type { GraphDisplayOptions } from '../../../render/renderer.types';
@@ -22,6 +23,9 @@ export type GraphLoadingElements = {
   readonly sourceFormatSelect?: HTMLSelectElement;
   readonly typingFileInput?: HTMLInputElement;
   readonly typingSourceControls?: HTMLElement;
+  readonly typingAlgorithmSelect?: HTMLSelectElement;
+  readonly typingNlvControls?: HTMLElement;
+  readonly typingNlvInput?: HTMLInputElement;
   readonly initialNlvInput?: HTMLInputElement;
   readonly initialNlvControls?: HTMLElement;
   readonly initialNlvLevelInput?: HTMLInputElement;
@@ -66,6 +70,9 @@ export default function createGraphLoading(options: GraphLoadingOptions) {
     sourceFormatSelect,
     typingFileInput,
     typingSourceControls,
+    typingAlgorithmSelect,
+    typingNlvControls,
+    typingNlvInput,
     initialNlvInput,
     initialNlvControls,
     datasetNameInput,
@@ -108,6 +115,7 @@ export default function createGraphLoading(options: GraphLoadingOptions) {
     bindings.on(ancillaryFormatSelect, 'change', () => void columns.refresh());
     bindings.on(sourceFormatSelect, 'change', updateSourceControls);
     bindings.on(initialNlvInput, 'change', updateSourceControls);
+    bindings.on(typingAlgorithmSelect, 'change', updateSourceControls);
     bindings.on(applyAncillaryButton, 'click', () => void applyCurrentAncillaryData());
     bindings.on(form, 'submit', event => {
       event.preventDefault();
@@ -131,6 +139,9 @@ export default function createGraphLoading(options: GraphLoadingOptions) {
     const typing = getSourceFormat() === SOURCE_FORMAT_TYPING_DATA;
     newickSourceControls?.toggleAttribute('hidden', typing);
     typingSourceControls?.toggleAttribute('hidden', !typing);
+    const bounded = typing && typingAlgorithmSelect?.value === 'goeburst';
+    typingNlvControls?.toggleAttribute('hidden', !bounded);
+    if (typingNlvInput) typingNlvInput.disabled = !bounded;
     initialNlvControls?.toggleAttribute('hidden', !typing || !initialNlvInput?.checked);
   }
 
@@ -171,6 +182,7 @@ export default function createGraphLoading(options: GraphLoadingOptions) {
     let loadStarted = false;
     try {
       const format = getSourceFormat();
+      const typingOptions = readTypingOptions(format, options.elements);
       const initialConnections = readInitialNlvConnections(format, options.elements);
       const content = (await inputs.readSourceContent(format)).trim();
       if (sequence !== loadSequence) return;
@@ -206,6 +218,7 @@ export default function createGraphLoading(options: GraphLoadingOptions) {
           visualMapping,
           displayOptions,
           distanceCutoff,
+          typingOptions,
           lod: { maxNodes },
           lodPreparation: { smallComponentThreshold },
         }
@@ -224,6 +237,16 @@ export default function createGraphLoading(options: GraphLoadingOptions) {
       }
     }
   }
+}
+
+function readTypingOptions(format: SourceFormat, elements: GraphLoadingElements): TypingOptions | undefined {
+  if (format !== SOURCE_FORMAT_TYPING_DATA) return undefined;
+  if (elements.typingAlgorithmSelect?.value !== 'goeburst') return { algorithm: 'goeburstfullmst' };
+  const raw = elements.typingNlvInput?.value.trim();
+  const nlv = raw ? Number(raw) : 3;
+  if (!Number.isSafeInteger(nlv) || nlv < 1 || nlv > 2147483647)
+    throw new Error('goeBURST nLV level must be a positive whole number up to 2147483647.');
+  return { algorithm: 'goeburst', nlv };
 }
 
 function parseSmallComponentThreshold(value: string | undefined): number {

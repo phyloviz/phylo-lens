@@ -77,6 +77,7 @@ export async function loadGraph(
       format: input.format,
       datasetName: input.datasetName,
       content: input.content,
+      typingOptions: options.typingOptions && { ...options.typingOptions },
       ancillarySchema: ancillary.ancillarySchema,
       ancillaryByNodeId: ancillary.ancillaryByNodeId,
       ancillaryData: options.ancillaryData,
@@ -90,6 +91,19 @@ export async function loadGraph(
     const preparedGraph = await graphClient.prepareGraph(request);
 
     assertCurrentLoad(isCurrentLoad);
+
+    const expectedTyping = request.typingOptions;
+    const appliedTyping = preparedGraph.typingOptions;
+    if (
+      expectedTyping &&
+      (appliedTyping?.algorithm !== expectedTyping.algorithm ||
+        (expectedTyping.algorithm === 'goeburst' &&
+          (appliedTyping?.algorithm !== 'goeburst' || (appliedTyping.nlv ?? 3) !== (expectedTyping.nlv ?? 3))))
+    ) {
+      throw new Error(
+        'The graph service did not confirm the requested typing algorithm and nLV level. Update the service before using this option.'
+      );
+    }
 
     if (preparedGraph.distanceCutoff !== request.distanceCutoff) {
       throw new Error(

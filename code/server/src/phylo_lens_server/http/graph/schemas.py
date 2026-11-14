@@ -15,6 +15,7 @@ from phylo_lens_server.domain.models import SourceFormat
 from phylo_lens_server.domain.preparation import PrepareInput, PrepareOptions
 from phylo_lens_server.domain.revisions import AncillaryTable
 from phylo_lens_server.domain.sfdp import SfdpOptions
+from phylo_lens_server.domain.typing import TypingOptions
 from phylo_lens_server.domain.views import LayoutStatus
 
 
@@ -71,6 +72,13 @@ class NormalizeRequest(BaseModel):
     sfdp_options: SfdpOptions = Field(default_factory=SfdpOptions)
     lod_options: LodOptions = Field(default_factory=LodOptions)
     distance_cutoff: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+    typing_options: TypingOptions | None = None
+
+    @model_validator(mode="after")
+    def validate_typing_options(self):
+        if self.typing_options is not None and self.format != SourceFormat.TYPING_DATA:
+            raise ValueError("Typing options require a typing_data source.")
+        return self
 
     @model_validator(mode="before")
     @classmethod
@@ -102,6 +110,7 @@ class NormalizeRequest(BaseModel):
             sfdp_options=self.sfdp_options,
             lod_options=self.lod_options,
             distance_cutoff=self.distance_cutoff,
+            typing_options=self.typing_options,
         )
 
 
@@ -110,6 +119,7 @@ HARD_MAX_SEARCH_LIMIT = 500
 
 
 class GraphPrepareResponse(BaseModel):
+    typing_options: TypingOptions | None = None
     distance_cutoff: float | None = Field(default=None, ge=0, allow_inf_nan=False)
     dataset_id: str
     layout_version: str
