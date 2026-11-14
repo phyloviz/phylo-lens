@@ -155,10 +155,12 @@ export default function createUiShell(options: UiShellOptions): UiShell {
       lastRenderedGraph = null;
       ancillary.resetAfterFailure();
     },
-    onLoadCompleted: (name, format) => {
-      connections.setSource(format);
+    onLoadCompleted: async (name, format, initialConnections) => {
+      connections.setSource(format, initialConnections);
+      connections.refresh(lastRenderedGraph);
       workspace.loadCompleted(name);
-      void forest.load();
+      void forest.load(format);
+      if (initialConnections) await connections.apply();
     },
   });
   const pngExport = createPngExportControls({
@@ -233,6 +235,7 @@ export default function createUiShell(options: UiShellOptions): UiShell {
   }
 
   function handleGraphRendered(graph: PositionedGraph): void {
+    workspace.graphRendered(graph);
     connections.refresh(graph);
     setStatus(buildRenderedStatus(graph));
     lastRenderedGraph = graph;

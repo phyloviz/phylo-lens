@@ -1,6 +1,6 @@
 import eventBindings from '../events/eventBindings';
 import { tabIndexForKey } from './tabNavigation';
-import { renderGraphLegend } from '../../../components/graph-legend/graphLegend';
+import { createGraphLegend } from '../../../components/graph-legend/graphLegend';
 
 /** Owns navigation and surfaces; graph operations remain in their existing controllers. */
 export default function workspaceControls(root: HTMLElement | undefined) {
@@ -19,25 +19,42 @@ export default function workspaceControls(root: HTMLElement | undefined) {
   const controlsToggle = root?.querySelector<HTMLButtonElement>('#controls-toggle');
   const inspectorToggle = root?.querySelector<HTMLButtonElement>('#inspector-toggle');
   const changeData = root?.querySelector<HTMLButtonElement>('#change-data');
+  const configureCutoff = root?.querySelector<HTMLButtonElement>('#configure-cutoff');
+  const cutoffInput = root?.querySelector<HTMLInputElement>('#distance-cutoff');
   const datasetLabel = root?.querySelector<HTMLElement>('#current-dataset');
   const exportOpen = root?.querySelector<HTMLButtonElement>('#open-export');
   const exportDialog = root?.querySelector<HTMLDialogElement>('#export-dialog');
   const graphRoot = root?.querySelector<HTMLElement>('#graph-root');
+  const legend = createGraphLegend(root?.querySelector<HTMLElement>('#graph-legend'));
   const inspectorClose = root?.querySelector<HTMLButtonElement>('#inspector-close');
   const exportClose = root?.querySelector<HTMLButtonElement>('#close-export');
   const loadButton = root?.querySelector<HTMLButtonElement>('#render-form button[type="submit"]');
   let controlsOpen = true;
   let inspectorOpen = true;
 
-  return { mount, unmount, loadStarted, loadCompleted, loadFailed, selectNode, showRegion };
+  return {
+    mount,
+    unmount,
+    loadStarted,
+    loadCompleted,
+    loadFailed,
+    selectNode,
+    showRegion,
+    graphRendered: legend.update,
+  };
 
   function mount(): void {
-    renderGraphLegend(root?.querySelector('#graph-legend'));
     tasks.mount();
     inspector.mount();
     bindings.on(changeData, 'click', () => {
       setControlsOpen(true);
       tasks.select('data', true);
+    });
+    bindings.on(configureCutoff, 'click', () => {
+      setControlsOpen(true);
+      tasks.select('data');
+      cutoffInput?.focus({ preventScroll: true });
+      cutoffInput?.scrollIntoView({ block: 'center' });
     });
     bindings.on(controlsToggle, 'click', () => {
       setControlsOpen(!controlsOpen);
@@ -55,6 +72,7 @@ export default function workspaceControls(root: HTMLElement | undefined) {
   }
 
   function loadStarted(): void {
+    legend.update(null);
     if (exportDialog?.open) exportDialog.close();
     if (loadButton) loadButton.disabled = true;
     if (exportOpen) exportOpen.disabled = true;
@@ -77,6 +95,7 @@ export default function workspaceControls(root: HTMLElement | undefined) {
   }
 
   function loadFailed(): void {
+    legend.update(null);
     if (loadButton) loadButton.disabled = false;
     if (exportOpen) exportOpen.disabled = true;
     graphRoot?.setAttribute('aria-busy', 'false');

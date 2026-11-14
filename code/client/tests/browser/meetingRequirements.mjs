@@ -66,8 +66,7 @@ async function runScenario() {
     await waitForView(page);
   };
   await load('requirements-browser');
-  assert.ok(await page.locator('#graph-legend').isVisible());
-  assert.ok((await page.locator('#graph-legend').textContent()).includes('not an exact ratio or isolate count'));
+  assert.equal(await page.locator('#graph-legend').isVisible(), false);
   console.log('Loaded product tree.');
   await page.locator('#automatic-detail').uncheck();
   assert.equal(await page.locator('#motion-enabled').isChecked(), false);
@@ -95,6 +94,16 @@ async function runScenario() {
   await waitForView(page);
   await page.locator('#collapse-selected').click();
   await page.waitForFunction(() => window.requirementsSigma.getGraph().order === 3);
+  assert.deepEqual(await page.locator('#graph-legend li:visible').allTextContents(), ['Collapsed branch']);
+  const aboutSymbols = page.locator('#graph-legend details');
+  assert.equal(await aboutSymbols.getAttribute('open'), null);
+  await page.locator('#graph-legend summary').focus();
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => document.querySelector('#graph-legend details').open);
+  assert.ok((await page.locator('#graph-symbol-help').textContent()).includes('not an exact ratio or isolate count'));
+  await page.keyboard.press('Enter');
+  await waitForView(page);
+
   assert.equal(
     await page.evaluate(() => window.requirementsSigma.getGraph().getNodeAttribute('branch', 'isBranchCollapsed')),
     true

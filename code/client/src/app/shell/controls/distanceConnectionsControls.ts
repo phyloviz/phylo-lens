@@ -1,3 +1,4 @@
+import type { DistanceConnectionOptions } from '../../../contracts/graph/connections';
 import type { SourceFormat } from '../../../contracts/models';
 import type { PositionedGraph } from '../../../contracts/positioned';
 import type { GraphWorkbench } from '../../workbench/graphWorkbench.types';
@@ -9,6 +10,8 @@ export type DistanceConnectionsElements = {
   readonly applyConnections?: HTMLButtonElement;
   readonly clearConnections?: HTMLButtonElement;
   readonly connectionMetric?: HTMLElement;
+  readonly connectionHeading?: HTMLElement;
+  readonly connectionThresholdLabel?: HTMLElement;
   readonly connectionFeedback?: HTMLElement;
 };
 
@@ -19,6 +22,7 @@ export function distanceConnectionsControls(
   const bindings = eventBindings();
   let ready = false;
   let busy = false;
+  let failure: string | null = null;
   let sequence = 0;
   let sourceFormat: SourceFormat | null = null;
   let graph: PositionedGraph | null = null;
@@ -31,18 +35,35 @@ export function distanceConnectionsControls(
       elements.connectionThreshold.step = sourceFormat === 'typing_data' ? '1' : 'any';
     }
     if (elements.connectionLimit) elements.connectionLimit.disabled = !ready;
-    if (elements.connectionMetric && sourceFormat === null)
-      elements.connectionMetric.textContent = 'Load a dataset to see its distance metric.';
-    else if (elements.connectionMetric)
-      elements.connectionMetric.textContent =
-        sourceFormat === 'typing_data'
-          ? 'Allelic distance: number of differing retained loci between profiles. Uses the same missing-locus policy as tree preparation.'
-          : 'Tree-path distance: sum of branch lengths between named Newick nodes. Units come from the input; this is not an inferred allelic distance.';
+    let heading = 'nLV / Cluster Nodes';
+    let label = 'Maximum pairwise distance';
+    let metric = 'Load a dataset to see its distance metric.';
+    switch (sourceFormat) {
+      case 'typing_data':
+        heading = 'n Locus Variant (nLV)';
+        label = 'nLV level (maximum differing loci)';
+        metric =
+          'Allelic distance: nLV means n-locus variant. A level of 2 connects profiles differing at no more than 2 retained loci. Uses the same missing-locus policy as tree preparation.';
+        break;
+      case 'newick':
+        heading = 'Cluster Nodes';
+        label = 'Maximum tree-path distance';
+        metric =
+          'Tree-path distance: sum of branch lengths between named Newick nodes. Units come from the input; this is not an nLV level or an inferred allelic distance.';
+        break;
+    }
+    if (elements.connectionHeading) elements.connectionHeading.textContent = heading;
+    if (elements.connectionThresholdLabel) elements.connectionThresholdLabel.textContent = label;
+    if (elements.connectionMetric) elements.connectionMetric.textContent = metric;
   }
 
   function refresh(next: PositionedGraph | null): void {
     graph = next;
     if (busy || !elements.connectionFeedback) return;
+    if (failure !== null) {
+      elements.connectionFeedback.textContent = failure;
+      return;
+    }
     const connections = graph?.viewMeta.distanceConnections;
     elements.connectionFeedback.textContent = connections
       ? `${connections.visibleCount} of ${connections.totalCount} additional connections visible at distance ≤ ${connections.threshold}. Grouped or hidden endpoints are omitted.`
@@ -52,6 +73,7 @@ export function distanceConnectionsControls(
   async function apply(): Promise<void> {
     if (!ready || busy) return;
     const current = ++sequence;
+    failure = null;
     try {
       const raw = elements.connectionThreshold?.value.trim();
       const threshold = raw ? Number(raw) : NaN;
@@ -73,15 +95,14 @@ export function distanceConnectionsControls(
       if (elements.connectionFeedback) elements.connectionFeedback.textContent = 'Computing additional connections…';
       const next = await workbench.setDistanceConnections({ threshold, maxConnections: limit });
       if (current !== sequence) return;
-      busy = false;
-      refresh(next);
+      graph = next;
     } catch (error) {
-      if (current === sequence && elements.connectionFeedback)
-        elements.connectionFeedback.textContent = error instanceof Error ? error.message : String(error);
+      if (current === sequence) failure = error instanceof Error ? error.message : String(error);
     } finally {
       if (current === sequence) {
         busy = false;
         update();
+        refresh(graph);
       }
     }
   }
@@ -90,27 +111,37 @@ export function distanceConnectionsControls(
     if (!ready) return;
     const current = ++sequence;
     busy = false;
+    failure = null;
     update();
     try {
       const next = await workbench.setDistanceConnections(null);
       if (current === sequence) refresh(next);
     } catch (error) {
-      if (current === sequence && elements.connectionFeedback)
-        elements.connectionFeedback.textContent = error instanceof Error ? error.message : String(error);
+      if (current === sequence) {
+        failure = error instanceof Error ? error.message : String(error);
+        refresh(graph);
+      }
     }
   }
 
   return {
+    apply,
     mount() {
       bindings.on(elements.applyConnections, 'click', () => void apply());
       bindings.on(elements.clearConnections, 'click', () => void clear());
       update();
     },
-    setSource(format: SourceFormat | null) {
+    setSource(format: SourceFormat | null, initialConnections?: DistanceConnectionOptions) {
+      if (initialConnections) {
+        if (elements.connectionThreshold) elements.connectionThreshold.value = String(initialConnections.threshold);
+        if (elements.connectionLimit)
+          elements.connectionLimit.value = String(initialConnections.maxConnections ?? 50000);
+      }
       ++sequence;
       sourceFormat = format;
       ready = format !== null;
       busy = false;
+      failure = null;
       refresh(null);
       update();
     },

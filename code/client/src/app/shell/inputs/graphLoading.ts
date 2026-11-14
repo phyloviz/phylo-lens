@@ -1,4 +1,5 @@
 import { DEFAULT_SMALL_COMPONENT_THRESHOLD } from '../../../contracts/graph/LodPreparationOptions';
+import type { DistanceConnectionOptions } from '../../../contracts/graph/connections';
 import type { PositionedGraph } from '../../../contracts/positioned';
 import { SOURCE_FORMAT_TYPING_DATA, SOURCE_FORMAT_NEWICK, type SourceFormat } from '../../../contracts/models';
 import type { GraphDisplayOptions } from '../../../render/renderer.types';
@@ -21,6 +22,10 @@ export type GraphLoadingElements = {
   readonly sourceFormatSelect?: HTMLSelectElement;
   readonly typingFileInput?: HTMLInputElement;
   readonly typingSourceControls?: HTMLElement;
+  readonly initialNlvInput?: HTMLInputElement;
+  readonly initialNlvControls?: HTMLElement;
+  readonly initialNlvLevelInput?: HTMLInputElement;
+  readonly initialNlvLimitInput?: HTMLInputElement;
   readonly datasetNameInput?: HTMLInputElement;
   readonly ancillaryInput?: HTMLTextAreaElement;
   readonly ancillaryFileInput?: HTMLInputElement;
@@ -43,7 +48,11 @@ type GraphLoadingOptions = {
   readonly getDisplayOptions: () => GraphDisplayOptions;
   readonly onLoadStarted: () => void;
   readonly onLoadFailed: () => void;
-  readonly onLoadCompleted?: (name: string, format: SourceFormat) => void;
+  readonly onLoadCompleted?: (
+    name: string,
+    format: SourceFormat,
+    connections?: DistanceConnectionOptions
+  ) => void | Promise<void>;
   readonly setStatus: (message: string) => void;
   readonly setFailureStatus: (message: string) => void;
 };
@@ -57,6 +66,8 @@ export default function createGraphLoading(options: GraphLoadingOptions) {
     sourceFormatSelect,
     typingFileInput,
     typingSourceControls,
+    initialNlvInput,
+    initialNlvControls,
     datasetNameInput,
     ancillaryInput,
     ancillaryFileInput,
@@ -96,6 +107,7 @@ export default function createGraphLoading(options: GraphLoadingOptions) {
     bindings.on(ancillaryFileInput, 'change', () => void columns.refresh());
     bindings.on(ancillaryFormatSelect, 'change', () => void columns.refresh());
     bindings.on(sourceFormatSelect, 'change', updateSourceControls);
+    bindings.on(initialNlvInput, 'change', updateSourceControls);
     bindings.on(applyAncillaryButton, 'click', () => void applyCurrentAncillaryData());
     bindings.on(form, 'submit', event => {
       event.preventDefault();
@@ -119,6 +131,7 @@ export default function createGraphLoading(options: GraphLoadingOptions) {
     const typing = getSourceFormat() === SOURCE_FORMAT_TYPING_DATA;
     newickSourceControls?.toggleAttribute('hidden', typing);
     typingSourceControls?.toggleAttribute('hidden', !typing);
+    initialNlvControls?.toggleAttribute('hidden', !typing || !initialNlvInput?.checked);
   }
 
   function updateApplyAncillaryButton(): void {
@@ -155,8 +168,10 @@ export default function createGraphLoading(options: GraphLoadingOptions) {
   async function renderCurrentInput(): Promise<void> {
     const sequence = ++loadSequence;
     applyingAncillary = false;
+    let loadStarted = false;
     try {
       const format = getSourceFormat();
+      const initialConnections = readInitialNlvConnections(format, options.elements);
       const content = (await inputs.readSourceContent(format)).trim();
       if (sequence !== loadSequence) return;
       const datasetName = datasetNameInput?.value.trim();
@@ -168,14 +183,19 @@ export default function createGraphLoading(options: GraphLoadingOptions) {
         return;
       }
 
+      const payload = parseAncillaryPayload(ancillaryRaw);
+      const ancillaryData = await inputs.readAncillaryTable();
+      if (sequence !== loadSequence) return;
+      const displayOptions = options.getDisplayOptions();
+      const distanceCutoff = parseDistanceCutoff(distanceCutoffInput?.value);
+      const maxNodes = parseMaxNodes(maxNodesInput?.value);
+      const smallComponentThreshold = parseSmallComponentThreshold(smallComponentThresholdInput?.value);
+      loadStarted = true;
       loadingGraph = true;
       options.onLoadStarted();
       updateApplyAncillaryButton();
       options.setStatus(`${STATUS_RENDERING_PREFIX}...`);
       options.ancillary.resetSelectedNode();
-      const payload = parseAncillaryPayload(ancillaryRaw);
-      const ancillaryData = await inputs.readAncillaryTable();
-      if (sequence !== loadSequence) return;
       const visualMapping = options.ancillary.prepareVisualMapping(payload.visualMapping ?? {});
       await options.workbench.loadGraph(
         { content, datasetName: datasetName || undefined, format },
@@ -184,22 +204,19 @@ export default function createGraphLoading(options: GraphLoadingOptions) {
           ancillaryByNodeId: payload.ancillaryByNodeId,
           ancillaryData,
           visualMapping,
-          displayOptions: options.getDisplayOptions(),
-          distanceCutoff: parseDistanceCutoff(distanceCutoffInput?.value),
-          lod: { maxNodes: parseMaxNodes(maxNodesInput?.value) },
-          lodPreparation: {
-            smallComponentThreshold: parseSmallComponentThreshold(smallComponentThresholdInput?.value),
-          },
+          displayOptions,
+          distanceCutoff,
+          lod: { maxNodes },
+          lodPreparation: { smallComponentThreshold },
         }
       );
-      if (sequence === loadSequence) {
-        const fileName = (format === SOURCE_FORMAT_TYPING_DATA ? typingFileInput : newickFileInput)?.files?.[0]?.name;
-        options.onLoadCompleted?.(datasetName || fileName || 'Untitled dataset', format);
-      }
+      if (sequence !== loadSequence) return;
+      const fileName = (format === SOURCE_FORMAT_TYPING_DATA ? typingFileInput : newickFileInput)?.files?.[0]?.name;
+      await options.onLoadCompleted?.(datasetName || fileName || 'Untitled dataset', format, initialConnections);
     } catch (error) {
       if (sequence !== loadSequence) return;
       options.setFailureStatus(toError(error).message);
-      options.onLoadFailed();
+      if (loadStarted) options.onLoadFailed();
     } finally {
       if (sequence === loadSequence) {
         loadingGraph = false;
@@ -214,6 +231,21 @@ function parseSmallComponentThreshold(value: string | undefined): number {
   if (!Number.isSafeInteger(threshold) || threshold < 0)
     throw new Error('Small component threshold must be a nonnegative integer.');
   return threshold;
+}
+
+function readInitialNlvConnections(
+  format: SourceFormat,
+  elements: GraphLoadingElements
+): DistanceConnectionOptions | undefined {
+  if (format !== SOURCE_FORMAT_TYPING_DATA || !elements.initialNlvInput?.checked) return undefined;
+  const rawLevel = elements.initialNlvLevelInput?.value.trim();
+  const threshold = rawLevel ? Number(rawLevel) : NaN;
+  if (!Number.isSafeInteger(threshold) || threshold < 0)
+    throw new Error('Initial nLV level must be a nonnegative whole number.');
+  const maxConnections = Number(elements.initialNlvLimitInput?.value ?? 50000);
+  if (!Number.isSafeInteger(maxConnections) || maxConnections < 1)
+    throw new Error('Maximum additional connections must be a positive whole number.');
+  return { threshold, maxConnections };
 }
 
 function parseDistanceCutoff(value: string | undefined): number | undefined {

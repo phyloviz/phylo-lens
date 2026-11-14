@@ -7,7 +7,10 @@ import type { PositionedGraph } from '../src/contracts/positioned';
 const tree = (id: string) => ({ id, nodeCount: 3, bounds: { minX: 0, maxX: 1, minY: 0, maxY: 1 } });
 const graph: PositionedGraph = { nodes: [], edges: [], viewMeta: { layout: 'server', lodLevel: 0 } };
 
-it('pages tree tabs and restores controls after a failed switch', async () => {
+it.each([
+  { format: 'newick', prefix: 'Group' },
+  { format: 'typing_data', prefix: 'CC' },
+] as const)('pages $prefix tabs and restores controls after a failed switch', async ({ format, prefix }) => {
   document.body.innerHTML = '<section id="forest"></section><div id="graph-root"></div>';
   const root = document.querySelector<HTMLElement>('#forest')!;
   const client = {
@@ -25,23 +28,30 @@ it('pages tree tabs and restores controls after a failed switch', async () => {
     changed
   );
   controller.mount();
-  await controller.load();
+  await controller.load(format);
   expect(root.hidden).toBe(false);
-  const more = [...root.querySelectorAll('button')].find(button => button.textContent === 'More trees')!;
+  const more = [...root.querySelectorAll('button')].find(button => button.textContent === 'More groups')!;
   more.click();
   await vi.waitFor(() => expect(root.querySelectorAll('[role="tab"]')).toHaveLength(3));
   expect(client.listComponents).toHaveBeenLastCalledWith({ after: 5 });
+  expect([...root.querySelectorAll('[data-component-id]')].map(tab => tab.textContent)).toEqual([
+    `${prefix} 1 · 3 nodes`,
+    `${prefix} 2 · 3 nodes`,
+  ]);
+  const firstGroup = root.querySelector('[data-component-id="a"]')!;
+  expect(firstGroup.hasAttribute('aria-description')).toBe(format === 'typing_data');
+  if (format === 'typing_data') expect(firstGroup.getAttribute('aria-description')).toContain('local group number');
   const overview = root.querySelector<HTMLButtonElement>('[role="tab"]')!;
   overview.focus();
   overview.dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true }));
-  expect(document.activeElement?.textContent).toContain('Tree 2');
+  expect(document.activeElement?.textContent).toContain(`${prefix} 2`);
   document.activeElement!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }));
   expect(document.activeElement).toBe(overview);
   const unrelated = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
   overview.dispatchEvent(unrelated);
   expect(unrelated.defaultPrevented).toBe(false);
   overview.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
-  expect(document.activeElement?.textContent).toContain('Tree 1');
+  expect(document.activeElement?.textContent).toContain(`${prefix} 1`);
   (document.activeElement as HTMLButtonElement).click();
   await vi.waitFor(() => expect(root.textContent).toContain('offline'));
   expect(changed.mock.calls).toEqual([[true], [false]]);
@@ -65,13 +75,15 @@ it('does not apply a page or selection from a previous dataset', async () => {
   const changed = vi.fn();
   const controller = forestControls(client, { forestControls: root }, changed);
   controller.mount();
-  const loading = controller.load();
+  const loading = controller.load('typing_data');
   controller.reset();
   pending.resolve({ components: [tree('old'), tree('other')], nextCursor: null });
   await loading;
   expect(root.hidden).toBe(true);
   expect(root.querySelectorAll('[role="tab"]')).toHaveLength(0);
-  await controller.load();
+  await controller.load('newick');
+  expect(root.textContent).toContain('Group 1');
+  expect(root.textContent).not.toContain('CC');
   root.querySelector<HTMLButtonElement>('[data-component-id="a"]')!.click();
   controller.reset();
   selection.resolve(graph);
@@ -95,8 +107,8 @@ it('offers a working retry when the initial tree list fails', async () => {
   };
   const controller = forestControls(workbench, { forestControls: root }, vi.fn());
   controller.mount();
-  await controller.load();
-  const retry = [...root.querySelectorAll('button')].find(button => button.textContent === 'Retry tree list')!;
+  await controller.load('newick');
+  const retry = [...root.querySelectorAll('button')].find(button => button.textContent === 'Retry group list')!;
   expect(retry.hidden).toBe(false);
   retry.click();
   await vi.waitFor(() => expect(root.querySelectorAll('[role="tab"]')).toHaveLength(3));
