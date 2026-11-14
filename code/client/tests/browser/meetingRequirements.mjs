@@ -1,33 +1,19 @@
+import {
+  browserHarness,
+  waitForView,
+  nextFrames,
+  observeUnchanged,
+  observeProductRenderer,
+} from './browserHarness.mjs';
 import assert from 'node:assert/strict';
-import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { mkdtemp, rm } from 'node:fs/promises';
-import { createServer } from 'vite';
-import { chromium } from './browserRuntime.mjs';
 
 // Run against an isolated local service: REQUIREMENTS_API_URL defaults to port 8128.
 const api = process.env.REQUIREMENTS_API_URL ?? 'http://127.0.0.1:8128';
-const cacheDir = await mkdtemp(join(tmpdir(), 'phylo-lens-requirements-vite-'));
-const server = await createServer({
-  root: fileURLToPath(new URL('../../', import.meta.url)),
-  configFile: false,
-  cacheDir,
-  optimizeDeps: { include: ['d3-force', 'sigma', 'graphology'] },
-  server: { watch: { ignored: ['**/*'] }, host: '127.0.0.1', port: 0, proxy: { '/api': api, '/health': api } },
-});
-await server.listen();
-let browser;
-let page;
-try {
-  browser = await chromium.launch({ headless: true, args: ['--enable-unsafe-swiftshader', '--no-sandbox'] });
-  page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
-  page.setDefaultTimeout(15000);
-  const errors = [];
-  page.on('pageerror', error => errors.push(String(error)));
-  page.on('console', message => {
-    if (message.type() === 'error') console.error(message.text());
-  });
+const { page, errors, close, url } = await browserHarness({ api, viewport: { width: 1440, height: 1000 } });
+async function runScenario() {
+  await observeProductRenderer(page);
   await page.route('**/src/main.ts', route =>
     route.fulfill({
       contentType: 'text/javascript',
@@ -36,7 +22,7 @@ try {
   `,
     })
   );
-  await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/`);
+  await page.goto(`${url}/`);
   await page.waitForFunction(() => window.requirementsShell);
   const task = async name => {
     if (!(await page.locator('#workspace-sidebar').isVisible())) await page.locator('#controls-toggle').click();
@@ -50,6 +36,7 @@ try {
       mimeType: 'text/plain',
       buffer: Buffer.from(content),
     });
+    const animations = await page.evaluate(() => window.requirementsView.completedAnimations);
     await page.locator('button[type=submit]').click();
     await page.waitForFunction(
       count =>
@@ -58,7 +45,8 @@ try {
       count
     );
     await page.waitForFunction(name => document.querySelector('#current-dataset').textContent === name, name);
-    await page.waitForTimeout(600);
+    await page.waitForFunction(before => window.requirementsView.completedAnimations > before, animations);
+    await waitForView(page);
     assert.equal(await page.locator('#explore-tab').getAttribute('aria-selected'), 'true');
     assert.equal(await page.locator('#current-dataset').innerText(), name);
   };
@@ -71,9 +59,11 @@ try {
       return { x: bounds.left + p.x, y: bounds.top + p.y };
     }, id);
     await page.mouse.click(point.x, point.y);
-    // Selection may coincide with the 240 ms LoD transition. Commands wait
-    // until its manipulation guard releases, as a completed interaction would.
-    await page.waitForTimeout(300);
+    await page.waitForFunction(
+      id => document.querySelector('#selected-node-label').textContent.startsWith(`Selected: ${id} ·`),
+      id
+    );
+    await waitForView(page);
   };
   await load('requirements-browser');
   assert.ok(await page.locator('#graph-legend').isVisible());
@@ -102,7 +92,7 @@ try {
     document.querySelector('#selected-node-label').textContent.startsWith('Selected: branch ·')
   );
   assert.equal(prepareRequests, 0, 'Searching must not submit the dataset form.');
-  await page.waitForTimeout(500);
+  await waitForView(page);
   await page.locator('#collapse-selected').click();
   await page.waitForFunction(() => window.requirementsSigma.getGraph().order === 3);
   assert.equal(
@@ -145,7 +135,7 @@ try {
   await page.waitForFunction(() => window.requirementsSigma.getGraph().order === 1);
   await page.locator('#expand-all').click();
   await page.waitForFunction(() => window.requirementsSigma.getGraph().order === 5);
-  await page.waitForTimeout(600);
+  await waitForView(page);
   console.log('Manual collapse/expand passed.');
 
   // Exercise the real display controls and graph snapshots.
@@ -314,6 +304,10 @@ try {
   assert.deepEqual(after.edges, before.edges);
   assert.deepEqual(errors, []);
   await page.screenshot({ path: process.env.REQUIREMENTS_SCREENSHOT ?? join(tmpdir(), 'phylo-lens-requirements.png') });
+  if (process.argv.includes('--smoke')) {
+    console.log('Product acceptance: real load, search, folds, metadata, pointer drag and PNG download passed.');
+    return;
+  }
   // The canvas must resize when the inspector closes, without a window resize.
   const widthWithInspector = await page.locator('#graph-root').evaluate(node => node.clientWidth);
   await page.locator('#inspector-close').click();
@@ -357,7 +351,7 @@ try {
   const treeTab = root => page.locator(`#forest-controls [role="tab"][title="Root: ${root}"]`);
   await treeTab('root').click();
   await page.waitForFunction(() => window.requirementsSigma.getGraph().order === 5);
-  await page.waitForTimeout(600);
+  await waitForView(page);
   assert.deepEqual(
     await page.evaluate(() => [
       ...new Set(window.requirementsSigma.getGraph().mapNodes((_id, a) => a.treeIndex.componentId)),
@@ -381,7 +375,7 @@ try {
     return { x: a.x, y: a.y };
   });
   await page.evaluate(() => window.requirementsSigma.getCamera().setState({ ratio: 0.6, x: 0.4, y: 0.6 }));
-  await page.waitForTimeout(800);
+  await observeUnchanged(page, () => window.requirementsSigma.getGraph().mapNodes((id, a) => [id, a.x, a.y]), 800);
   assert.deepEqual(
     await page.evaluate(() => {
       const a = window.requirementsSigma.getGraph().getNodeAttributes('a');
@@ -392,7 +386,7 @@ try {
   const camera = await page.evaluate(() => window.requirementsSigma.getCamera().getState());
   await treeTab('other').click();
   await page.waitForFunction(() => window.requirementsSigma.getGraph().order === 3);
-  await page.waitForTimeout(600);
+  await waitForView(page);
   assert.deepEqual((await page.evaluate(() => window.requirementsSigma.getGraph().nodes())).sort(), [
     'd',
     'e',
@@ -403,7 +397,7 @@ try {
   await page.waitForFunction(() => document.querySelector('#status').textContent.includes('Search found 0 matches'));
   await treeTab('root').click();
   await page.waitForFunction(() => window.requirementsSigma.getGraph().hasNode('a'));
-  await page.waitForTimeout(600);
+  await waitForView(page);
   assert.deepEqual(await page.evaluate(() => window.requirementsSigma.getCamera().getState()), camera);
   assert.deepEqual(
     await page.evaluate(() => {
@@ -421,7 +415,7 @@ try {
     window.requirementsSigma.getGraph().mapNodes((id, a) => ({ id, x: a.x, y: a.y }))
   );
   await page.evaluate(() => window.requirementsSigma.getCamera().setState({ ratio: 1.2 }));
-  await page.waitForTimeout(800);
+  await observeUnchanged(page, () => window.requirementsSigma.getGraph().mapNodes((id, a) => [id, a.x, a.y]), 800);
   assert.deepEqual(
     await page.evaluate(() => window.requirementsSigma.getGraph().mapNodes((id, a) => ({ id, x: a.x, y: a.y }))),
     settled
@@ -470,20 +464,12 @@ try {
     undefined,
     { timeout: 30000 }
   );
-  await page.waitForTimeout(600);
+  await waitForView(page);
   const partialOrder = await page.evaluate(() => window.requirementsSigma.getGraph().order);
   assert.ok(partialOrder > 1 && partialOrder < total);
-  await page.waitForLoadState('networkidle');
-  await page.evaluate(
-    () =>
-      new Promise(resolve => {
-        let frames = 0;
-        const tick = () => (++frames < 32 ? requestAnimationFrame(tick) : resolve());
-        requestAnimationFrame(tick);
-      })
-  );
+  await waitForView(page);
   await clickNode('n0');
-  await page.waitForLoadState('networkidle');
+  await waitForView(page);
   await page.locator('#collapse-selected').click();
   await page.waitForFunction(() => window.requirementsSigma.getGraph().order === 1);
   assert.equal(
@@ -491,7 +477,7 @@ try {
     total - 1
   );
   // Snapshot application suppresses its own camera events for one frame.
-  await page.waitForTimeout(50);
+  await nextFrames(page, 3);
   const refreshed = page.waitForResponse(
     response => response.url().endsWith('/api/graph/viewport') && response.request().method() === 'POST'
   );
@@ -510,7 +496,7 @@ try {
   await page.locator('#expand-selected').click();
   await page.waitForFunction(() => window.requirementsSigma.getGraph().order > 1);
   assert.ok((await page.evaluate(() => window.requirementsSigma.getGraph().order)) < total);
-  await page.waitForTimeout(600);
+  await waitForView(page);
   const group = await page.evaluate(() => {
     const graph = window.requirementsSigma.getGraph();
     const id = graph.findNode((_id, attributes) => attributes.isClusterProxy === true);
@@ -521,7 +507,7 @@ try {
   assert.equal(await page.locator('#expand-selected').textContent(), 'Expand group');
   await page.locator('#expand-selected').click();
   await page.waitForFunction(count => window.requirementsSigma.getGraph().order > count, group.count);
-  await page.waitForTimeout(500);
+  await waitForView(page);
   const member = await page.evaluate(
     clusterId =>
       window.requirementsSigma
@@ -552,7 +538,8 @@ try {
       return { x: start.x, y: start.y, ratio: start.ratio * factor ** 5 };
     }, factor);
     await refreshed;
-    await page.waitForTimeout(1200);
+    await waitForView(page);
+    await observeUnchanged(page, () => window.requirementsSigma.getCamera().getState());
     const actual = await page.evaluate(() => window.requirementsSigma.getCamera().getState());
     for (const key of ['x', 'y', 'ratio'])
       assert.ok(Math.abs(actual[key] - intended[key]) < 1e-9, `Automatic LoD changed camera ${key}`);
@@ -565,6 +552,10 @@ try {
   console.log(
     'Browser requirements passed: manual branches, display bounds, grayscale, palette lifecycle, node selection, and branch dragging.'
   );
+}
+
+try {
+  await runScenario();
 } catch (error) {
   if (page) {
     console.error(
@@ -596,7 +587,5 @@ try {
   }
   throw error;
 } finally {
-  await browser?.close();
-  await server.close();
-  await rm(cacheDir, { recursive: true, force: true });
+  await close();
 }

@@ -55,12 +55,16 @@ Object.assign(window, {
     nodeCount: number
   ) => {
     const requests: unknown[] = [];
+    let appliedSequence = 0;
     const controller = new GraphViewportCoordinator({
       datasetId: toDatasetId(datasetId),
       layoutVersion: toLayoutVersion(layoutVersion),
       lodTierCount,
       nodeCount,
       renderer,
+      onGraphApplied: () => {
+        appliedSequence++;
+      },
       client: {
         readViewport: async query => {
           const http = createHttpClient({ baseUrl: '', fetchImpl: (_path, init) => fetch(url, init) });
@@ -70,7 +74,15 @@ Object.assign(window, {
         },
       },
     });
-    Object.assign(window, { liveViewport: { controller, requests } });
+    Object.assign(window, {
+      liveViewport: {
+        controller,
+        requests,
+        get appliedSequence() {
+          return appliedSequence;
+        },
+      },
+    });
     controller.mount();
     await controller.waitForInitialViewport();
   },

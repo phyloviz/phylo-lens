@@ -1,23 +1,18 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import Graph from 'graphology';
 import createSigmaForceMotion from '../src/render/adapters/sigma/motion/sigmaForceMotion';
-const workers = vi.hoisted(
-  () =>
-    [] as {
-      postMessage: ReturnType<typeof vi.fn>;
-      terminate: ReturnType<typeof vi.fn>;
-      onmessage?: (event: { data: { positions: Float64Array; revision: number; settled: boolean } }) => void;
-    }[]
-);
+import { createMotionWorkerDoubles } from './doubles/motionWorkerFake';
+let doubles: ReturnType<typeof createMotionWorkerDoubles>;
+let workers: ReturnType<typeof createMotionWorkerDoubles>['instances'];
 vi.mock('../src/render/adapters/sigma/motion/elastic.worker?worker&inline', () => ({
-  default: class {
-    postMessage = vi.fn();
-    terminate = vi.fn();
-    constructor() {
-      workers.push(this);
-    }
+  default: function () {
+    return new doubles.Worker();
   },
 }));
+beforeEach(() => {
+  doubles = createMotionWorkerDoubles();
+  workers = doubles.instances;
+});
 afterEach(() => {
   workers.length = 0;
   vi.useRealTimers();
@@ -38,7 +33,7 @@ describe('motion camera geometry lifecycle', () => {
       }
     );
     motion.start(graph);
-    expect(workers[0].postMessage.mock.calls[0][0].graph.links).toEqual([
+    expect(workers[0].start.graph.links).toEqual([
       { source: 'a', target: 'b' },
       { source: 'b', target: 'c' },
     ]);
@@ -69,7 +64,7 @@ describe('motion camera geometry lifecycle', () => {
     await vi.advanceTimersByTimeAsync(120);
     expect(workers).toHaveLength(2);
     expect(workers[0].terminate).toHaveBeenCalledOnce();
-    expect(workers[1].postMessage.mock.calls[0][0].graph.nodes[0]).toMatchObject({
+    expect(workers[1].start.graph.nodes[0]).toMatchObject({
       anchorX: 4,
       anchorY: 5,
       collisionRadius: radius,

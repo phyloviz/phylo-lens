@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any
-
 from phylo_lens_server.domain.models import Dataset
 from phylo_lens_server.domain.preparation import PreparationSummary
 from phylo_lens_server.http.graph.schemas import NormalizeRequest
@@ -10,66 +7,12 @@ from phylo_lens_server.jobs.worker import run_postgres_prepare_worker
 from phylo_lens_server.pipeline.ingestion import ingest_dataset
 from phylo_lens_server.repository.jobs.postgres import (
     ClaimedPrepareJob,
-    DurablePrepareJob,
 )
 from phylo_lens_server.repository.layout.sqlite_layout_repository import (
     SQLiteLayoutRepository,
 )
 from phylo_lens_server.services.preparation import PreparationService
-
-
-@dataclass
-class FakeDurablePrepareJobStore:
-    claimed_job: ClaimedPrepareJob | None
-    ready_result: dict[str, Any] | None = None
-    failed_error: str | None = None
-    failed_error_details: dict[str, Any] | None = None
-    schema_asserted: bool = False
-    heartbeat_count: int = 0
-    heartbeat_result: bool = True
-
-    def create_schema(self) -> None:
-        raise NotImplementedError
-
-    def assert_schema_current(self) -> None:
-        self.schema_asserted = True
-
-    def submit(self, *_args, **_kwargs) -> str:
-        raise NotImplementedError
-
-    def claim_next(self, *, worker_id: str, lease_seconds: int):
-        job = self.claimed_job
-        self.claimed_job = None
-        return job
-
-    def heartbeat(self, *, job_id: str, worker_id: str, lease_seconds: int) -> bool:
-        self.heartbeat_count += 1
-        return self.heartbeat_result
-
-    def mark_ready(
-        self,
-        *,
-        job_id: str,
-        worker_id: str,
-        result: dict[str, Any],
-    ) -> bool:
-        self.ready_result = result
-        return True
-
-    def mark_failed(
-        self,
-        *,
-        job_id: str,
-        worker_id: str,
-        error: str,
-        error_details: dict[str, Any] | None = None,
-    ) -> bool:
-        self.failed_error = error
-        self.failed_error_details = error_details
-        return True
-
-    def snapshot(self, job_id: str) -> DurablePrepareJob | None:
-        return None
+from tests.support.durable_store import RecordingDurableStore
 
 
 def _dataset(dataset_name: str = "worker-tree") -> Dataset:
@@ -84,8 +27,10 @@ def _dataset(dataset_name: str = "worker-tree") -> Dataset:
 
 def test_postgres_prepare_worker_claims_prepares_and_marks_ready(tmp_path) -> None:
     dataset = _dataset()
-    job_store = FakeDurablePrepareJobStore(
-        ClaimedPrepareJob(job_id="job-1", dataset=dataset, warnings=("note",))
+    job_store = RecordingDurableStore(
+        claimed_job=ClaimedPrepareJob(
+            job_id="job-1", dataset=dataset, warnings=("note",)
+        )
     )
     layout_store = SQLiteLayoutRepository(tmp_path / "prepared_layout")
 
@@ -115,8 +60,8 @@ def test_postgres_prepare_worker_claims_prepares_and_marks_ready(tmp_path) -> No
 
 def test_postgres_prepare_worker_does_not_fail_job_after_lease_loss(tmp_path) -> None:
     dataset = _dataset("lost-lease-tree")
-    job_store = FakeDurablePrepareJobStore(
-        ClaimedPrepareJob(job_id="job-1", dataset=dataset, warnings=()),
+    job_store = RecordingDurableStore(
+        claimed_job=ClaimedPrepareJob(job_id="job-1", dataset=dataset, warnings=()),
         heartbeat_result=False,
     )
     layout_store = SQLiteLayoutRepository(tmp_path / "prepared_layout")

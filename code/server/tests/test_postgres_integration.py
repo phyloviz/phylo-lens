@@ -1,7 +1,9 @@
 """Real PostgreSQL checks, isolated in a disposable schema on a test DSN."""
 
 import os
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
+from threading import Barrier
 from uuid import uuid4
 
 import pytest
@@ -13,6 +15,7 @@ from phylo_lens_server.domain.preparation import PreparationSummary
 from phylo_lens_server.domain.views import NodeAnnotationKey
 from phylo_lens_server.http.graph.schemas import NormalizeRequest
 from phylo_lens_server.jobs.durable import DurablePrepareJobRegistry
+from phylo_lens_server.jobs.models import PrepareQueueFullError
 from phylo_lens_server.pipeline import layout
 from phylo_lens_server.pipeline.ingestion import ingest_dataset
 from phylo_lens_server.repository.jobs.postgres import PostgresPrepareJobStore
@@ -24,32 +27,154 @@ from phylo_lens_server.services.preparation import PreparationService
 
 
 @pytest.fixture
-def stores(monkeypatch):
+def uninitialized_jobs(monkeypatch):
     dsn = os.environ.get("PHYLO_LENS_TEST_POSTGRES_DSN")
     if not dsn:
+        if os.environ.get("PHYLO_LENS_REQUIRE_POSTGRES") == "1":
+            pytest.fail("CI requires a dedicated PostgreSQL test DSN.")
         pytest.skip(
             "A dedicated PHYLO_LENS_TEST_POSTGRES_DSN is required for real-engine checks."
         )
-    psycopg = pytest.importorskip("psycopg")
+    # A configured integration run must fail, not silently skip, if its driver is missing.
+    psycopg = postgres.import_psycopg()
     schema = "phylolens_refactor_test_" + uuid4().hex
     with psycopg.connect(dsn) as connection:
         connection.execute(f'create schema "{schema}"')
 
     def connect(_dsn):
         return psycopg.connect(
-            dsn, options="-c search_path=" + schema, row_factory=psycopg.rows.dict_row
+            dsn,
+            options=f"-c search_path={schema} -c statement_timeout=5000",
+            row_factory=psycopg.rows.dict_row,
         )
 
     monkeypatch.setattr(postgres, "connect", connect)
     monkeypatch.setattr(postgres_layout_repository, "connect", connect)
     jobs = PostgresPrepareJobStore(dsn)
     try:
-        jobs.create_schema()
-        jobs.assert_schema_current()
-        yield PostgresLayoutRepository(dsn), jobs
+        yield jobs
     finally:
         with psycopg.connect(dsn) as connection:
             connection.execute(f'drop schema "{schema}" cascade')
+
+
+@pytest.fixture
+def stores(uninitialized_jobs):
+    jobs = uninitialized_jobs
+    jobs.create_schema()
+    jobs.assert_schema_current()
+    return PostgresLayoutRepository(jobs._dsn), jobs
+
+
+def test_claim_skips_a_job_locked_by_another_transaction(stores):
+    _, store = stores
+    first = ingest_dataset(
+        NormalizeRequest(
+            format="newick", content="(a,b)r;", dataset_name="first"
+        ).to_domain()
+    ).dataset
+    second = first.model_copy(update={"dataset_id": "second"})
+    locked_id = store.submit(first)
+    available_id = store.submit(second)
+    with store._connect() as holder, holder.transaction():
+        holder.execute(
+            "select job_id from prepare_jobs where job_id = %s for update", (locked_id,)
+        )
+        # claim_next opens an independent connection with a bounded statement timeout.
+        claimed = store.claim_next(worker_id="other", lease_seconds=30)
+        assert claimed.job_id == available_id
+        assert store.claim_next(worker_id="other", lease_seconds=30) is None
+    assert store.claim_next(worker_id="next", lease_seconds=30).job_id == locked_id
+
+
+@pytest.mark.parametrize("same_layout", [True, False], ids=["reuse", "capacity"])
+def test_concurrent_submissions_reuse_layouts_and_respect_capacity(stores, same_layout):
+    _, store = stores
+    base = ingest_dataset(
+        NormalizeRequest(format="newick", content="(a,b)r;").to_domain()
+    ).dataset
+    participants = 8
+    start = Barrier(participants)
+
+    def submit(index):
+        dataset = (
+            base
+            if same_layout
+            else base.model_copy(update={"dataset_id": f"tree-{index}"})
+        )
+        start.wait(timeout=10)
+        try:
+            return store.submit(dataset, max_active_jobs=1)
+        except PrepareQueueFullError:
+            return None
+
+    with ThreadPoolExecutor(max_workers=participants) as workers:
+        outcomes = list(workers.map(submit, range(participants)))
+    accepted = [job_id for job_id in outcomes if job_id is not None]
+    assert len(set(accepted)) == 1
+    assert len(accepted) == (participants if same_layout else 1)
+    with store._connect() as connection:
+        assert (
+            connection.execute("select count(*) as count from prepare_jobs").fetchone()[
+                "count"
+            ]
+            == 1
+        )
+
+
+def schema_objects(store):
+    with store._connect() as connection:
+        return connection.execute(
+            """select 'relation' as kind, relname as name from pg_class
+               where relnamespace = current_schema()::regnamespace
+               union all
+               select 'function', proname from pg_proc
+               where pronamespace = current_schema()::regnamespace
+               order by kind, name"""
+        ).fetchall()
+
+
+def test_runtime_schema_checks_do_not_initialize_or_repair_the_database(
+    uninitialized_jobs,
+    monkeypatch,
+):
+    store = uninitialized_jobs
+    connect = postgres.connect
+
+    def read_only_connection(dsn):
+        connection = connect(dsn)
+        connection.execute("set transaction read only")
+        return connection
+
+    def validate_without_writes():
+        # The engine rejects any attempted DDL/DML, even if object names stay the same.
+        with monkeypatch.context() as validation:
+            validation.setattr(postgres, "connect", read_only_connection)
+            store.assert_schema_current()
+
+    before = schema_objects(store)
+    with pytest.raises(RuntimeError, match="schema is not current"):
+        validate_without_writes()
+    assert schema_objects(store) == before == []
+
+    store.create_schema()
+    validate_without_writes()
+    initialized = schema_objects(store)
+    assert initialized
+    store.create_schema()
+    assert schema_objects(store) == initialized
+    with store._connect() as connection:
+        connection.execute("update phylo_lens_schema_version set checksum = 'outdated'")
+    with pytest.raises(RuntimeError, match="schema is not current"):
+        validate_without_writes()
+    assert schema_objects(store) == initialized
+    with store._connect() as connection:
+        assert (
+            connection.execute(
+                "select checksum from phylo_lens_schema_version"
+            ).fetchone()["checksum"]
+            == "outdated"
+        )
 
 
 def test_postgres_preparation_reads_and_transactional_replacement(stores, monkeypatch):

@@ -1,31 +1,11 @@
+import { browserHarness, waitForView, waitForMotionIdle, nextFrames, observeUnchanged } from './browserHarness.mjs';
 import assert from 'node:assert/strict';
-import { fileURLToPath } from 'node:url';
-import { createServer } from 'vite';
-import { chromium } from './browserRuntime.mjs';
 
-const server = await createServer({
-  root: fileURLToPath(new URL('../../', import.meta.url)),
-  configFile: false,
-  server: { host: '127.0.0.1', port: 0 },
-});
-await server.listen();
-let browser;
+const { page, errors, close, url } = await browserHarness({});
 try {
-  browser = await chromium.launch({
-    executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,
-    headless: true,
-    args: [
-      '--enable-unsafe-swiftshader',
-      '--no-sandbox',
-      ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ? ['--no-zygote', '--single-process'] : []),
-    ],
-  });
-  const page = await browser.newPage({ viewport: { width: 1200, height: 800 } });
-  const errors = [];
-  page.on('pageerror', error => errors.push(String(error)));
-  await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/tests/browser/elasticMotion.html`);
+  await page.goto(`${url}/tests/browser/elasticMotion.html`);
   await page.waitForFunction(() => window.motionFixture);
-  await page.waitForTimeout(2800);
+  await waitForMotionIdle(page);
   const initialError = await page.evaluate(() => {
     const { renderer: r, snapshot } = window.motionFixture;
     return Math.max(
@@ -48,7 +28,12 @@ try {
   await page.mouse.move(start.x, start.y);
   await page.mouse.down();
   await page.mouse.move(destination.x, destination.y, { steps: 12 });
-  await page.waitForTimeout(400);
+  await nextFrames(page);
+  await page.waitForFunction(() => {
+    const { graph, snapshot } = window.motionFixture;
+    const n = snapshot.nodes[1];
+    return Math.hypot(graph.getNodeAttribute('1', 'x') - n.x, graph.getNodeAttribute('1', 'y') - n.y) > 0.01;
+  });
   const held = await screenPoint();
   assert.ok(Math.hypot(held.x - destination.x, held.y - destination.y) < 1, 'Grabbed node did not follow the pointer');
   assert.ok(
@@ -65,11 +50,11 @@ try {
     'Worker did not move connected nodes'
   );
   await page.mouse.up();
-  await page.waitForTimeout(3500);
+  await waitForMotionIdle(page);
   const settledPositions = await page.evaluate(() =>
     window.motionFixture.graph.mapNodes((id, a) => ({ id, x: a.x, y: a.y }))
   );
-  await page.waitForTimeout(300);
+  await observeUnchanged(page, () => window.motionFixture.graph.mapNodes((id, a) => [id, a.x, a.y]), 300);
   assert.equal(
     await page.evaluate(before => {
       const r = window.motionFixture.renderer;
@@ -90,7 +75,7 @@ try {
   await page.mouse.down();
   await page.mouse.move(pausedEnd.x, pausedEnd.y, { steps: 10 });
   await page.mouse.up();
-  await page.waitForTimeout(300);
+  await waitForView(page);
   const paused = await screenPoint();
   assert.ok(Math.hypot(paused.x - pausedEnd.x, paused.y - pausedEnd.y) < 1, 'Paused dragging was constrained');
   const arrangedPositions = await page.evaluate(() =>
@@ -105,7 +90,7 @@ try {
     r.applyGraphSnapshot({ ...snapshot, viewMeta: { ...snapshot.viewMeta, lodLevel: 1 } });
     return p;
   });
-  await page.waitForTimeout(400);
+  await waitForView(page);
   const focusAfter = await screenPoint();
   assert.ok(
     Math.hypot(focusBefore.x - focusAfter.x, focusBefore.y - focusAfter.y) < 1,
@@ -133,6 +118,5 @@ try {
     'PASS: initial layout, real worker, direct/paused dragging, settling, LoD focus, retained arrangements and reset.'
   );
 } finally {
-  await browser?.close();
-  await server.close();
+  await close();
 }

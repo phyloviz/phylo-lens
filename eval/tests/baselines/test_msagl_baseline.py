@@ -1,6 +1,7 @@
 from argparse import Namespace
 from pathlib import Path
 import sys
+from unittest.mock import patch
 
 import pytest
 
@@ -71,13 +72,17 @@ def test_outer_watchdog_retains_timeout_evidence_and_allows_next_observation(
 ):
     timed_out_directory = tmp_path / "timed-out"
     timed_out_directory.mkdir()
-    calls = 0
-    timeout_state, timeout_payload, timeout_watchdog = _execute_observation(
-        [sys.executable, "-c", "import time; time.sleep(60)"],
-        timed_out_directory,
-        0.05,
-    )
-    calls += 1
+    from phylo_lens_eval.baselines import msagl_baseline
+
+    with patch.object(
+        msagl_baseline.subprocess, "Popen", wraps=msagl_baseline.subprocess.Popen
+    ) as launch:
+        timeout_state, timeout_payload, timeout_watchdog = _execute_observation(
+            [sys.executable, "-c", "import time; time.sleep(60)"],
+            timed_out_directory,
+            0.05,
+        )
+        assert launch.call_count == 1
     assert timeout_state == "timeout"
     assert timeout_payload["outer_watchdog"]["timed_out"] is True
     assert timeout_watchdog["process_group_terminated"] is True
@@ -88,15 +93,17 @@ def test_outer_watchdog_retains_timeout_evidence_and_allows_next_observation(
 
     next_directory = tmp_path / "next"
     next_directory.mkdir()
-    next_state, next_payload, _ = _execute_observation(
-        [sys.executable, "-c", 'print(\'{"status": "success"}\')'],
-        next_directory,
-        1,
-    )
-    calls += 1
+    with patch.object(
+        msagl_baseline.subprocess, "Popen", wraps=msagl_baseline.subprocess.Popen
+    ) as launch:
+        next_state, next_payload, _ = _execute_observation(
+            [sys.executable, "-c", 'print(\'{"status": "success"}\')'],
+            next_directory,
+            1,
+        )
+        assert launch.call_count == 1
     assert next_state == "success"
     assert next_payload["status"] == "success"
-    assert calls == 2  # One attempt each: the timeout was not retried.
 
 
 def test_development_smoke_id_requires_smoke_flag(tmp_path: Path):

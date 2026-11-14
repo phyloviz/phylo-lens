@@ -1,3 +1,6 @@
+import { deferred } from './helpers/state';
+import { recordingRenderer } from './doubles/recordingRenderer';
+import { graphClientStub } from './doubles/graphClientStub';
 import type { GraphViewportRequest } from '../src/contracts/graph/viewport/GraphViewportRequest';
 import { deriveColor } from '../src/render/mapping/colorMapping';
 import { toDatasetId, toLayoutVersion, toNodeId, toClusterId } from '../src/contracts/graph/graphIdentifiers';
@@ -9,7 +12,7 @@ import { createGraphWorkbench } from '../src/app/workbench/graphWorkbench';
 import type { GraphClient } from '../src/contracts/graph/GraphClient';
 import type { GraphPrepareResult } from '../src/contracts/graph/prepare/GraphPrepareResult';
 import type { GraphViewportResult } from '../src/contracts/graph/viewport/GraphViewportResult';
-import type { GraphRenderer, RenderViewportRequestState, RendererFactory } from '../src/render/renderer.types';
+import type { RenderViewportRequestState, RendererFactory } from '../src/render/renderer.types';
 import type { PositionedGraph } from '../src/contracts/positioned';
 import type { DistanceConnectionsResult } from '../src/contracts/graph/connections';
 
@@ -49,16 +52,6 @@ it('aborts an obsolete connection query and rejects late results after a new loa
   expect(renderer.applyGraphSnapshot.mock.calls.at(-1)?.[0].viewMeta.distanceConnections).toBeUndefined();
   workbench.dispose();
 });
-
-function deferred<T>() {
-  let resolve: (value: T) => void = () => undefined;
-  let reject: (error: unknown) => void = () => undefined;
-  const promise = new Promise<T>((promiseResolve, promiseReject) => {
-    resolve = promiseResolve;
-    reject = promiseReject;
-  });
-  return { promise, resolve, reject };
-}
 
 function prepareResponse(datasetId = 'tree', layoutVersion = 'layout-1'): GraphPrepareResult {
   return {
@@ -104,32 +97,15 @@ function createWorkbenchHarness(overrides: Partial<GraphClient> = {}) {
     bounds: { xmin: 0, xmax: 100, ymin: 0, ymax: 100 },
     cameraRatio: 1,
   };
-  const renderer = {
-    mount: vi.fn(),
-    unmount: vi.fn(),
-    render: vi.fn(),
-    focusNode: vi.fn(),
-    getViewportState: vi.fn(() => viewportState),
-    applyGraphSnapshot: vi.fn(),
-    fitGraphSnapshot: vi.fn(() => null),
-    updateDisplayOptions: vi.fn(),
-    setViewChangeHandler: vi.fn(),
-    setNodeClickHandler: vi.fn(),
-    setNodeDoubleClickHandler: vi.fn(),
-  } satisfies GraphRenderer;
+  const renderer = recordingRenderer(viewportState);
   const rendererFactory: RendererFactory = {
     createRenderer: vi.fn(() => renderer),
   };
-  const graphClient = {
+  const graphClient = graphClientStub({
     prepareGraph: vi.fn(async () => prepareResponse()),
     readViewport: vi.fn<GraphClient['readViewport']>(async () => viewportResponse()),
-    applyAncillaryData: vi.fn(async () => {
-      throw new Error('Unexpected ancillary update');
-    }),
-    searchGraph: vi.fn(),
-    readRegion: vi.fn(),
     ...overrides,
-  } satisfies GraphClient;
+  });
 
   return {
     graphClient,

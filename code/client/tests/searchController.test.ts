@@ -1,3 +1,4 @@
+import { deferred } from './helpers/state';
 import type { PositionedGraph } from '../src/contracts/positioned';
 import { toDatasetId, toNodeId } from '../src/contracts/graph/graphIdentifiers';
 import { describe, expect, it, vi } from 'vitest';
@@ -5,15 +6,6 @@ import searchController from '../src/app/shell/search/searchController';
 import type { GraphWorkbench } from '../src/app/workbench/graphWorkbench';
 import type { GraphSearchResult } from '../src/contracts/graph/search/GraphSearchResult';
 
-function deferred<T>() {
-  let resolve!: (value: T) => void;
-  let reject!: (error: Error) => void;
-  const promise = new Promise<T>((done, fail) => {
-    resolve = done;
-    reject = fail;
-  });
-  return { promise, resolve, reject };
-}
 const response = (id: string): GraphSearchResult => ({
   datasetId: toDatasetId('tree'),
   query: id,

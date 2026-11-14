@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict';
-import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 const { values } = parseArgs({
   options: {
@@ -30,25 +29,11 @@ if (
   (!Number.isFinite(Number(values['focus-x'])) || !Number.isFinite(Number(values['focus-y'])))
 )
   throw new Error('Focus coordinates must be finite');
-import { createServer } from 'vite';
-// Reuse the evaluation workspace's installed browser runtime when the client
-// workspace has no Playwright dependency; no package installation is needed.
-const { chromium } = await import('playwright').catch(
-  () => import('../../../../eval/browser/node_modules/playwright/index.mjs')
-);
-const server = await createServer({
-  root: fileURLToPath(new URL('../../', import.meta.url)),
-  configFile: false,
-  server: { host: '127.0.0.1', port: 0 },
-});
-await server.listen();
-let browser;
+import { browserHarness, waitForView, waitForMotionIdle } from './browserHarness.mjs';
+const endpoint = new URL(values['api-url']);
+const { page, errors, close, url } = await browserHarness({ api: endpoint.origin });
 try {
-  browser = await chromium.launch({ headless: true, args: ['--enable-unsafe-swiftshader', '--no-sandbox'] });
-  const page = await browser.newPage({ viewport: { width: 1200, height: 800 } });
-  const errors = [];
-  page.on('pageerror', e => errors.push(String(e)));
-  await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/tests/browser/elasticMotion.html?crowded`);
+  await page.goto(`${url}/tests/browser/elasticMotion.html?crowded`);
   await page.waitForFunction(() => window.motionFixture);
   await page.evaluate(
     config =>
@@ -59,22 +44,29 @@ try {
         Number(config.tiers),
         Number(config.nodes)
       ),
-    values
+    { ...values, 'api-url': endpoint.pathname + endpoint.search }
   );
-  await page.waitForTimeout(1500);
+  await waitForMotionIdle(page);
   if (values['focus-x'] !== undefined)
     await page.evaluate(config => {
       const r = window.motionFixture.renderer;
       r.centerOnCoordinates(Number(config['focus-x']), Number(config['focus-y']));
     }, values);
-  await page.waitForTimeout(500);
+  await waitForView(page);
   const sweep = [];
   for (const zoom of [1.9, 5, 10, 25, 51.22, 100]) {
+    const appliedBefore = await page.evaluate(() => window.liveViewport.appliedSequence);
     await page.evaluate(zoom => {
       const r = window.motionFixture.renderer;
       window.motionFixture.sigma.getCamera().setState({ ratio: 1 / zoom });
     }, zoom);
-    await page.waitForTimeout(3500);
+    await page.waitForFunction(
+      ({ zoom, appliedBefore }) =>
+        window.liveViewport.appliedSequence > appliedBefore &&
+        Math.abs((window.liveViewport.requests.at(-1)?.query.zoom ?? 0) - zoom) < 1e-6,
+      { zoom, appliedBefore }
+    );
+    await waitForMotionIdle(page);
     const state = await page.evaluate(() => {
       const r = window.motionFixture.renderer;
       const last = window.liveViewport.requests.at(-1);
@@ -91,17 +83,16 @@ try {
   assert.ok(sweep[4].level > sweep[0].level, 'Deep zoom is still frozen on the 53-object coarse tier');
   assert.ok(sweep[4].markerRadius <= 4.5 + 1e-9, 'Deep zoom inflates ordinary glyphs');
   assert.ok(
-    sweep[4].query.lod_selection_bounds.xmax - sweep[4].query.lod_selection_bounds.xmin <
-      sweep[0].query.lod_selection_bounds.xmax - sweep[0].query.lod_selection_bounds.xmin
+    sweep[4].query.lodSelectionBounds.xmax - sweep[4].query.lodSelectionBounds.xmin <
+      sweep[0].query.lodSelectionBounds.xmax - sweep[0].query.lodSelectionBounds.xmin
   );
   assert.ok(
-    sweep[4].query.lod_target_representations >= sweep[1].query.lod_target_representations,
+    sweep[4].query.lodTargetRepresentations >= sweep[1].query.lodTargetRepresentations,
     'Zoom-dependent glyph growth collapsed the detail budget'
   );
   await page.evaluate(() => window.liveViewport.controller.unmount());
   assert.deepEqual(errors, []);
   console.log('PASS: actual prepared-tree viewport requests refine across deep zoom; glyph size remains bounded.');
 } finally {
-  await browser?.close();
-  await server.close();
+  await close();
 }
