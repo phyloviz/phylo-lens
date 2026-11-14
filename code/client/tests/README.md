@@ -27,6 +27,12 @@ uses an isolated live service to exercise decimal, equal and zero cutoff values,
 forest tabs, isolated nodes, the exported cutoff caption and restoring the
 original tree. CI runs it with a temporary service and store.
 
+The same sequence also checks exact Newick path connections, blue styling,
+rejected partial results, manual folds, control width and exported metric
+captions. Independent server tests compare centroid radius queries with tree
+traversals and allelic block candidates with full Hamming distances, including
+the repository's missing-locus/equivalent-profile fixture.
+
 `visualStability.mjs` uses real Sigma rendering and a real layout worker with
 controlled coarse/detailed snapshots. It checks default aggregate size bounds,
 actual footprint accounting, stationary cameras with automatic motion on/off,

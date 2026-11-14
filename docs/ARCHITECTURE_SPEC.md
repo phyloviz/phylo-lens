@@ -210,8 +210,12 @@ contract.
 ### Preparation boundary
 
 A `Dataset` is the last input-oriented representation. The preparation
-service computes artifacts and stages/publishes them through repositories. Interactive reads never accept
-raw Newick or typing profiles.
+service computes artifacts and stages/publishes them through repositories.
+Viewport, region and search reads never accept raw Newick or typing profiles.
+An explicit additional-connection query also receives the session's source input:
+Newick supplies named endpoint identities, and typing supplies retained profiles.
+That operation is separate from camera updates and returns an overlay rather
+than changing the prepared tree. See [distance operations](DISTANCE_OPERATIONS.md).
 
 ### Renderer boundary
 

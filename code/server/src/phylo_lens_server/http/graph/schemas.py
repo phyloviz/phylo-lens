@@ -22,6 +22,30 @@ class NormalizeOptions(BaseModel):
     allow_self_loops: bool = False
 
 
+class GraphConnectionsRequest(BaseModel):
+    dataset_id: str = Field(min_length=1)
+    layout_version: str = Field(min_length=1)
+    format: SourceFormat
+    content: str = Field(min_length=1)
+    threshold: float = Field(ge=0, allow_inf_nan=False, strict=True)
+    max_connections: int = Field(default=50_000, ge=1, strict=True)
+
+
+class GraphConnectionEdge(BaseModel):
+    id: str
+    source: str
+    target: str
+    distance: float
+
+
+class GraphConnectionsResponse(BaseModel):
+    dataset_id: str
+    layout_version: str
+    metric: Literal["allelic", "patristic"]
+    threshold: float
+    edges: list[GraphConnectionEdge]
+
+
 class AncillaryDataRequest(BaseModel):
     """Tabular ancillary observations supplied alongside graph/tree content."""
 

@@ -23,6 +23,27 @@ afterEach(() => {
   vi.useRealTimers();
 });
 describe('motion camera geometry lifecycle', () => {
+  it('uses only the tree edges as springs when distance connections form a cycle', () => {
+    const graph = new Graph();
+    ['a', 'b', 'c'].forEach((id, x) => graph.addNode(id, { x, y: 0 }));
+    graph.addEdge('a', 'b');
+    graph.addEdge('b', 'c');
+    graph.addEdge('a', 'c', { isDistanceConnection: true });
+    const motion = createSigmaForceMotion(
+      { enabled: true },
+      {
+        reference: () => undefined,
+        anchor: () => undefined,
+        constrain: (_id, point) => point,
+      }
+    );
+    motion.start(graph);
+    expect(workers[0].postMessage.mock.calls[0][0].graph.links).toEqual([
+      { source: 'a', target: 'b' },
+      { source: 'b', target: 'c' },
+    ]);
+    motion.dispose();
+  });
   it('reheats a settled forest after scale changes, preserves anchors, and cancels pending work on pause', async () => {
     vi.useFakeTimers();
     const graph = new Graph();

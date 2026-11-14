@@ -27,7 +27,7 @@ canonical nodes and 378 edges. Its SHA-256 is:
 ```
 
 Use a fresh browser context and default preparation settings, including a
-small-component threshold of 300. Keep automatic layout motion off initially.
+small-component threshold of 64. Keep automatic layout motion off initially.
 Record the actual settings; a previously changed threshold can hide the groups
 needed for these tasks.
 

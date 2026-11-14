@@ -42,6 +42,14 @@ class SQLiteLayoutRepository:
         self.path = self._database_path
         initialize_schema(self._database_path)
 
+    def read_connection_context(self, dataset_id: str, layout_version: str):
+        from .connection_context import read_connection_context
+
+        with self._connect() as connection:
+            return read_connection_context(
+                LayoutSQL(connection, "sqlite"), dataset_id, layout_version
+            )
+
     @contextmanager
     def ancillary_revision(
         self, dataset_id: str, layout_version: str

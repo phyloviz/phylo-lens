@@ -24,6 +24,7 @@ import type {
 import type { AncillaryInputOptions } from '../../ancillary/ancillaryInput';
 
 import type { GraphComponent, GraphComponentsResult } from '../../contracts/graph/components';
+import type { DistanceConnectionOptions } from '../../contracts/graph/connections';
 
 // Public workbench contracts.
 
@@ -72,6 +73,7 @@ export type GraphRenderedHandler = (graph: PositionedGraph) => void;
 export type GraphNodeClickedHandler = (state: RenderNodeClickState) => void;
 
 export interface GraphWorkbench {
+  setDistanceConnections: (options: DistanceConnectionOptions | null) => Promise<PositionedGraph>;
   listComponents: (page?: { after?: number; limit?: number }) => Promise<GraphComponentsResult>;
   selectComponent: (component: GraphComponent | null) => Promise<PositionedGraph>;
   getComponentId: () => string | undefined;

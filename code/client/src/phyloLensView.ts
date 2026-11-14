@@ -55,6 +55,7 @@ export interface PhyloLensAncillaryResult {
 }
 
 export interface PhyloLensView {
+  setDistanceConnections: GraphWorkbench['setDistanceConnections'];
   listComponents: GraphWorkbench['listComponents'];
   selectComponent: GraphWorkbench['selectComponent'];
   getComponentId: GraphWorkbench['getComponentId'];
@@ -122,6 +123,7 @@ export function createPhyloLensView(options: PhyloLensViewOptions): PhyloLensVie
     setDragSelection: selection => activeWorkbench().setDragSelection(selection),
     resetLayoutEdits: () => activeWorkbench().resetLayoutEdits(),
     searchNodes: query => activeWorkbench().searchNodes(query),
+    setDistanceConnections: connectionOptions => activeWorkbench().setDistanceConnections(connectionOptions),
     focusNode: (id, coordinates) => activeWorkbench().focusNode(id, coordinates),
     cancelPendingFocus: () => activeWorkbench().cancelPendingFocus(),
     expandCluster: async id => activeWorkbench().expandCluster(id),

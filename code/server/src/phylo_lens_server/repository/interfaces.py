@@ -5,6 +5,7 @@ from contextlib import AbstractContextManager
 from typing import Protocol
 
 from phylo_lens_server.domain.components import ComponentsReadResult
+from phylo_lens_server.domain.connections import ConnectionContext
 from phylo_lens_server.domain.preparation import (
     ClusterLayout,
     NodeLayoutPosition,
@@ -28,6 +29,9 @@ class AncillaryRevision(Protocol):
 
 
 class LayoutRepository(Protocol):
+    def read_connection_context(
+        self, dataset_id: str, layout_version: str
+    ) -> ConnectionContext: ...
     def latest_layout_version(self, dataset_id: str) -> str | None: ...
     def read_components(
         self,

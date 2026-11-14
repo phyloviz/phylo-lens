@@ -84,6 +84,11 @@ export async function exportSigmaPublication(
         : calculateAncillaryDistribution(snapshot, { palette: rendererOptions.piechart?.palette })?.categories;
     const notes: string[] = [];
     if (options.includeLegend !== false) {
+      const connections = snapshot.viewMeta.distanceConnections;
+      if (connections)
+        notes.push(
+          `Blue links: additional ${connections.metric === 'allelic' ? 'allelic' : 'tree-path'} connections at distance ≤ ${connections.threshold}; ${connections.visibleCount} of ${connections.totalCount} drawn. Tree edges retained; grouped or hidden endpoints omitted.`
+        );
       if (snapshot.viewMeta.distanceCutoff !== undefined)
         notes.push(`Tree-edge cutoff: distances at or below ${snapshot.viewMeta.distanceCutoff} retained.`);
       const automatic = snapshot.nodes.some(node => node.attributes?.isClusterProxy === true);

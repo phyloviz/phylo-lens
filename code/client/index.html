@@ -128,6 +128,31 @@
               </p>
             </section>
 
+            <details id="distance-connections-controls" class="help-details control-card">
+              <summary>Additional distance connections</summary>
+              <div class="details-body">
+                <p id="connection-metric" class="field-help"></p>
+                <label>
+                  Maximum pairwise distance
+                  <input id="connection-threshold" type="number" min="0" step="any" value="1" disabled />
+                </label>
+                <label>
+                  Maximum additional connections
+                  <input id="connection-limit" type="number" min="1" step="1" value="50000" disabled />
+                </label>
+                <p class="field-help">
+                  Blue links join named nodes within the same tree. Original tree edges stay in place. If the limit is
+                  exceeded, reduce the distance or raise the limit; partial results are not applied.
+                </p>
+                <div class="button-grid">
+                  <button id="apply-connections" type="button" disabled>Apply connections</button>
+                  <button id="clear-connections" class="secondary-button" type="button" disabled>
+                    Remove connections
+                  </button>
+                </div>
+                <p id="connection-feedback" class="control-feedback" aria-live="polite">Load a tree first.</p>
+              </div>
+            </details>
             <section class="control-card" aria-labelledby="region-heading">
               <h3 id="region-heading">Region selection</h3>
               <button id="region-select-toggle" class="secondary-button full-width" type="button" aria-pressed="false">

@@ -5,6 +5,10 @@ import type { PositionedGraph } from '../contracts/positioned';
 import { buildRenderedStatus } from './shell/status/renderedStatus';
 import createAncillaryControls, { type AncillaryControlsElements } from './shell/ancillary/ancillaryControls';
 import createGraphLoading, { type GraphLoadingElements } from './shell/inputs/graphLoading';
+import {
+  distanceConnectionsControls,
+  type DistanceConnectionsElements,
+} from './shell/controls/distanceConnectionsControls';
 import createDisplayOptionsControls, {
   type DisplayOptionsControlsElements,
 } from './shell/controls/displayOptionsControls';
@@ -40,7 +44,8 @@ export type UiShellElements = ForestControlsElements &
   DisplayOptionsControlsElements &
   PngExportControlsElements &
   AncillaryControlsElements &
-  GraphLoadingElements & {
+  GraphLoadingElements &
+  DistanceConnectionsElements & {
     readonly status: HTMLElement;
     readonly workspaceRoot?: HTMLElement;
     readonly expansion?: ExpansionControlsElements;
@@ -124,6 +129,7 @@ export default function createUiShell(options: UiShellOptions): UiShell {
     arrangement.reset();
     expansion.setReady(false);
   });
+  const connections = distanceConnectionsControls(workbench, elements);
   const loading = createGraphLoading({
     workbench,
     elements,
@@ -133,6 +139,7 @@ export default function createUiShell(options: UiShellOptions): UiShell {
     setStatus,
     setFailureStatus,
     onLoadStarted: () => {
+      connections.setSource(null);
       forest.reset();
       workspace.loadStarted();
       selectNode(null);
@@ -148,7 +155,8 @@ export default function createUiShell(options: UiShellOptions): UiShell {
       lastRenderedGraph = null;
       ancillary.resetAfterFailure();
     },
-    onLoadCompleted: name => {
+    onLoadCompleted: (name, format) => {
+      connections.setSource(format);
       workspace.loadCompleted(name);
       void forest.load();
     },
@@ -170,6 +178,7 @@ export default function createUiShell(options: UiShellOptions): UiShell {
     workspace.mount();
     forest.mount();
     loading.mount();
+    connections.mount();
     arrangement.mount();
     expansion.mount();
     workbench.setErrorHandler(error => setFailureStatus(error.message));
@@ -197,6 +206,7 @@ export default function createUiShell(options: UiShellOptions): UiShell {
 
   function unmount(): void {
     loading.unmount();
+    connections.unmount();
     ancillary.unmount();
     search.reset();
     region.reset();
@@ -223,6 +233,7 @@ export default function createUiShell(options: UiShellOptions): UiShell {
   }
 
   function handleGraphRendered(graph: PositionedGraph): void {
+    connections.refresh(graph);
     setStatus(buildRenderedStatus(graph));
     lastRenderedGraph = graph;
     arrangement.setReady(graph.nodes.length > 1);

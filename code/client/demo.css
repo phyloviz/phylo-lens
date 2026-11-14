@@ -1211,3 +1211,9 @@ button:disabled {
     flex-basis: 100%;
   }
 }
+.graph-symbol-line {
+  display: inline-block;
+  width: 14px;
+  height: 2px;
+  flex-shrink: 0;
+}

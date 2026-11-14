@@ -115,7 +115,11 @@ export default function createSigmaForceMotion(
               size: typeof a.size === 'number' && Number.isFinite(a.size) && a.size > 0 ? a.size : undefined,
             };
           }),
-          links: graph.mapEdges((_id, _a, source, target) => ({ source, target })),
+          links: graph
+            .mapEdges((_id, attributes, source, target) =>
+              attributes.isDistanceConnection === true ? null : { source, target }
+            )
+            .filter(link => link !== null),
         },
       });
 

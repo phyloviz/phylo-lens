@@ -89,6 +89,11 @@ describe('direct and advanced dragging', () => {
     expect(t.events.onStart).not.toHaveBeenCalled();
     t.controller.unbind();
   });
+  it('keeps branch membership on the original tree when an overlay forms a cycle', () => {
+    const g = tree();
+    g.addEdge('b', 'c', { isDistanceConnection: true });
+    expect(resolveDragMembers(g, 'a', { kind: 'branch', rootId: 'r' }).nodeIds.sort()).toEqual(['a', 'b']);
+  });
   it('blur releases pins and the manipulation lock', () => {
     const t = setup();
     t.down('a');

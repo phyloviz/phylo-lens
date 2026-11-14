@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import ValidationError
 
 from phylo_lens_server.data.parsers import ParseError
+from phylo_lens_server.domain.connections import ConnectionQuery
 from phylo_lens_server.domain.models import DomainValidationError
 from phylo_lens_server.domain.revisions import (
     AncillaryLayoutNotFoundError,
@@ -41,6 +42,8 @@ from phylo_lens_server.http.graph.schemas import (
     GraphAncillaryResponse,
     GraphComponentsQuery,
     GraphComponentsResponse,
+    GraphConnectionsRequest,
+    GraphConnectionsResponse,
     GraphPrepareJob,
     GraphPrepareResponse,
     GraphPrepareStatus,
@@ -58,6 +61,7 @@ from phylo_lens_server.jobs.models import (
 )
 from phylo_lens_server.repository.interfaces import LayoutRepository
 from phylo_lens_server.services import ancillary, graph_reads, preparation
+from phylo_lens_server.services.distance_connections import read_distance_connections
 
 ROUTER_PREFIX = "/api/graph"
 ROUTER_TAG = "graph"
@@ -71,6 +75,22 @@ ROUTE_SEARCH = "/search"
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix=ROUTER_PREFIX, tags=[ROUTER_TAG])
+
+
+@router.post("/connections", response_model=GraphConnectionsResponse)
+def graph_connections(
+    query: GraphConnectionsRequest,
+    store: Annotated[LayoutRepository, Depends(get_prepared_layout_store)],
+) -> GraphConnectionsResponse:
+    try:
+        result = read_distance_connections(ConnectionQuery(**query.model_dump()), store)
+        return GraphConnectionsResponse.model_validate(result, from_attributes=True)
+    except KeyError as exc:
+        raise not_found_error(
+            "The requested prepared forest was not found; load it again."
+        ) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @router.post(

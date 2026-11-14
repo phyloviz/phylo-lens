@@ -137,7 +137,9 @@ export function resolveDragMembers(
       const queue = [selection.rootId];
       for (let i = 0; i < queue.length; i++) {
         const id = queue[i];
-        for (const neighbor of graph.neighbors(id)) {
+        for (const edge of graph.edges(id)) {
+          if (graph.getEdgeAttribute(edge, 'isDistanceConnection') === true) continue;
+          const neighbor = graph.opposite(id, edge);
           if (neighbor === parent.get(id)) continue;
           if (parent.has(neighbor))
             return { nodeIds: [], error: 'This component contains a cycle; choose a group or use direct dragging.' };
