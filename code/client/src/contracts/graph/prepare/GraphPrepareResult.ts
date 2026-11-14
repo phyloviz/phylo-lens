@@ -2,6 +2,7 @@ import type { DatasetId, LayoutVersion } from '../graphIdentifiers';
 import { GraphLayoutStatus } from '../graphTypes';
 
 export type GraphPrepareResult = {
+  readonly distanceCutoff?: number;
   readonly datasetId: DatasetId;
   readonly layoutVersion: LayoutVersion;
   readonly nodeCount: number;

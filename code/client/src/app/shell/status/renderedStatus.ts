@@ -15,6 +15,7 @@ export function buildRenderedStatus(graph: PositionedGraph): string {
   const isolateCounts = graph.nodes.map(node => {
     return readNodeAnnotations(node.attributes).profileSummary.isolateCount;
   });
+  if (graph.viewMeta.distanceCutoff !== undefined) parts.push(`tree-edge cutoff ≤ ${graph.viewMeta.distanceCutoff}`);
   if (graph.nodes.some(node => node.attributes?.isBranchCollapsed === true)) {
     parts.push('branch isolate totals unavailable');
   } else if (

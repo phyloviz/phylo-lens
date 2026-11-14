@@ -84,6 +84,8 @@ export async function exportSigmaPublication(
         : calculateAncillaryDistribution(snapshot, { palette: rendererOptions.piechart?.palette })?.categories;
     const notes: string[] = [];
     if (options.includeLegend !== false) {
+      if (snapshot.viewMeta.distanceCutoff !== undefined)
+        notes.push(`Tree-edge cutoff: distances at or below ${snapshot.viewMeta.distanceCutoff} retained.`);
       const automatic = snapshot.nodes.some(node => node.attributes?.isClusterProxy === true);
       const manual = snapshot.nodes.some(node => node.attributes?.isBranchCollapsed === true);
       if (automatic) notes.push('Amber triangles: automatic groups (LoD).');

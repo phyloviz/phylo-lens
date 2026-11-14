@@ -1,6 +1,7 @@
 import type { GraphLayoutStatus } from '../../../../contracts/graph/graphTypes';
 
 export interface GraphPrepareResponseDto {
+  distance_cutoff?: number | null;
   dataset_id: string;
   layout_version: string;
   node_count: number;

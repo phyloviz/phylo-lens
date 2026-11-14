@@ -133,11 +133,17 @@ Normalizes input and submits preparation of a persisted layout.
 | `format` | `"newick" \| "typing_data"` | yes | — | Input family |
 | `dataset_name` | non-empty `string` | no | `"dataset"` | Dataset identifier and layout namespace |
 | `content` | non-empty `string` | yes | — | Newick text or allelic-profile matrix |
+| `distance_cutoff` | finite number ≥ 0 or `null` | no | `null` | Keep tree edges at or below this value before layout and LoD; retain every node and rebuild component roots. Requires known distances on all edges. |
 | `options.allow_self_loops` | `boolean` | no | `false` | Permit self-loop edges during domain validation |
 | `lod_options.small_component_threshold` | integer ≥ 0 | no | `64` | Components with this many canonical nodes or fewer stay explicit at every prepared tier; zero disables protection. |
 | `metadata_schema` | `AncillaryField[]` | no | `[]` | Declared public metadata types |
 | `metadata_by_node_id` | object | no | `{}` | Direct metadata keyed by canonical node ID |
 | `ancillary_data` | `AncillaryDataRequest \| null` | no | `null` | CSV/TSV metadata joined to nodes |
+
+The preparation result echoes the applied `distance_cutoff` (omitted when none).
+Clients must verify it matches the requested value before labeling a view or
+export as cut. An older API may ignore unknown request fields; missing
+confirmation must be treated as unsupported rather than as a successful cut.
 
 `AncillaryField`:
 

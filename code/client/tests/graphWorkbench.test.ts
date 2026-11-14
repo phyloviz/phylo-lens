@@ -106,6 +106,15 @@ function createWorkbenchHarness(overrides: Partial<GraphClient> = {}) {
 }
 
 describe('graphWorkbench navigation', () => {
+  it('does not render or claim a cutoff that an older service ignored', async () => {
+    const { workbench, graphClient, renderer } = createWorkbenchHarness();
+    await expect(workbench.loadGraph({ content: '(a:0)b;', format: 'newick' }, { distanceCutoff: 0 })).rejects.toThrow(
+      'did not confirm'
+    );
+    expect(graphClient.readViewport).not.toHaveBeenCalled();
+    expect(renderer.applyGraphSnapshot).not.toHaveBeenCalled();
+    workbench.dispose();
+  });
   it('selects triangles without expanding and leaves double-click zoom unbound', async () => {
     const { workbench, renderer, graphClient } = createWorkbenchHarness();
     await workbench.loadGraph({ content: '(a:1)b;', format: 'newick', datasetName: 'tree' });

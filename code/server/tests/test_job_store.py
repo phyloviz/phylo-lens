@@ -180,7 +180,7 @@ def test_durable_prepare_job_registry_submits_and_maps_ready_snapshot() -> None:
     assert store.submitted == [("durable-tree", ("note",), 2)]
     assert snapshot is not None
     assert snapshot.status == "ready"
-    assert snapshot.result.model_dump(mode="json") == result_payload
+    assert snapshot.result.model_dump(mode="json", exclude_none=True) == result_payload
 
 
 def test_postgres_schema_is_checksummed() -> None:

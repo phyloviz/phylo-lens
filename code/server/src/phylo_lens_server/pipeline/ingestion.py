@@ -42,6 +42,7 @@ from phylo_lens_server.domain.models import (
 )
 from phylo_lens_server.domain.preparation import PrepareInput
 from phylo_lens_server.domain.validators import validate_dataset
+from phylo_lens_server.pipeline.distance_cutoff import cut_dataset
 
 DEFAULT_ROUND_DECIMALS = 3
 EDGE_ID_TEMPLATE = "e_{source}_{target}_{count}"
@@ -216,6 +217,12 @@ def ingest_dataset(
         dataset,
         allow_self_loops=request.options.allow_self_loops,
     )
+    dataset = cut_dataset(dataset, request.distance_cutoff)
+    if request.distance_cutoff is not None:
+        warnings.append(
+            f"Distance cutoff {request.distance_cutoff:g}: kept edges at or below "
+            f"the cutoff; {len(dataset.technical_roots)} tree components."
+        )
 
     normalize_ms = (time.perf_counter() - normalize_start) * 1000
     stats = IngestionStats(

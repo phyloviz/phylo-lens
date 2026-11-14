@@ -8,6 +8,7 @@ export interface GraphPrepareRequestDto {
   format: SourceFormat;
   dataset_name?: string;
   content: string;
+  distance_cutoff?: number;
 
   options?: {
     allow_self_loops?: boolean;

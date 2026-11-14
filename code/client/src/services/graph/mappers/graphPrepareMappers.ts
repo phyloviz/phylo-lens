@@ -14,6 +14,7 @@ export function toGraphPrepareRequestDto(request: GraphPrepareRequest): GraphPre
     format: request.format,
     dataset_name: request.datasetName,
     content: request.content,
+    distance_cutoff: request.distanceCutoff,
     options: request.options === undefined ? undefined : { allow_self_loops: request.options.allowSelfLoops },
     metadata_schema: request.ancillarySchema,
     metadata_by_node_id: request.ancillaryByNodeId,
@@ -43,6 +44,7 @@ export function copyGraphPrepareRequestDto(dto: GraphPrepareRequestDto): GraphPr
 
 function toGraphPrepareResult(dto: GraphPrepareResponseDto): GraphPrepareResult {
   return {
+    ...(dto.distance_cutoff == null ? {} : { distanceCutoff: dto.distance_cutoff }),
     datasetId: toDatasetId(dto.dataset_id),
     layoutVersion: toLayoutVersion(dto.layout_version),
     nodeCount: dto.node_count,

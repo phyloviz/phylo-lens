@@ -51,6 +51,8 @@ export interface LoadGraphOptions extends AncillaryInputOptions {
   readonly displayOptions?: GraphDisplayOptions;
   readonly sfdpOptions?: SfdpOptions;
   readonly lodPreparation?: LodPreparationOptions;
+  /** Keep tree edges at or below this value; preparation rebuilds the forest. */
+  readonly distanceCutoff?: number;
 
   readonly lod?: {
     readonly maxNodes?: number;
@@ -142,6 +144,7 @@ export interface GraphWorkbench {
 // Internal workbench state.
 
 export interface GraphSession {
+  readonly distanceCutoff?: number;
   readonly datasetId: DatasetId;
   readonly layoutVersion: LayoutVersion;
   readonly visualMapping?: VisualMappingOptions;

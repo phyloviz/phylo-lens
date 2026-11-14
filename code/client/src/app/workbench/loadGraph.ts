@@ -62,6 +62,7 @@ export async function loadGraph(
 
     // Retain the settings from this invocation, even if the caller edits them while preparing.
     const sessionOptions = {
+      distanceCutoff: options.distanceCutoff,
       visualMapping: options.visualMapping && copyVisualMapping(options.visualMapping),
       displayOptions: options.displayOptions && Object.freeze({ ...options.displayOptions }),
       lod: Object.freeze({
@@ -81,6 +82,7 @@ export async function loadGraph(
       ancillaryData: options.ancillaryData,
       sfdpOptions: options.sfdpOptions,
       lodPreparation: options.lodPreparation,
+      distanceCutoff: options.distanceCutoff,
     };
 
     requireViewportRenderer(renderer);
@@ -88,6 +90,12 @@ export async function loadGraph(
     const preparedGraph = await graphClient.prepareGraph(request);
 
     assertCurrentLoad(isCurrentLoad);
+
+    if (preparedGraph.distanceCutoff !== request.distanceCutoff) {
+      throw new Error(
+        'The graph service did not confirm the requested distance cutoff. Update the service before using this option.'
+      );
+    }
 
     const session = createGraphSession(preparedGraph, sessionOptions);
 
@@ -140,6 +148,7 @@ export async function loadGraph(
           visualMapping: currentSession.visualMapping,
           filterState: state.activeFilters,
           displayOptions: currentSession.displayOptions,
+          distanceCutoff: currentSession.distanceCutoff,
         };
       },
     });
@@ -191,7 +200,7 @@ function resetRenderer(renderer: GraphRenderer): void {
 
 function createGraphSession(
   preparedGraph: GraphPrepareResult,
-  options: Pick<GraphSession, 'visualMapping' | 'displayOptions' | 'lod'>
+  options: Pick<GraphSession, 'visualMapping' | 'displayOptions' | 'lod' | 'distanceCutoff'>
 ): GraphSession {
   return Object.freeze({
     ...options,

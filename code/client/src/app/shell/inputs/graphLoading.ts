@@ -29,6 +29,7 @@ export type GraphLoadingElements = {
   readonly ancillaryFormatSelect?: HTMLSelectElement;
   readonly maxNodesInput?: HTMLInputElement;
   readonly smallComponentThresholdInput?: HTMLInputElement;
+  readonly distanceCutoffInput?: HTMLInputElement;
 };
 
 type GraphLoadingOptions = {
@@ -64,6 +65,7 @@ export default function createGraphLoading(options: GraphLoadingOptions) {
     ancillaryFormatSelect,
     maxNodesInput,
     smallComponentThresholdInput,
+    distanceCutoffInput,
   } = options.elements;
   const bindings = eventBindings();
   let applyingAncillary = false;
@@ -183,6 +185,7 @@ export default function createGraphLoading(options: GraphLoadingOptions) {
           ancillaryData,
           visualMapping,
           displayOptions: options.getDisplayOptions(),
+          distanceCutoff: parseDistanceCutoff(distanceCutoffInput?.value),
           lod: { maxNodes: parseMaxNodes(maxNodesInput?.value) },
           lodPreparation: {
             smallComponentThreshold: parseSmallComponentThreshold(smallComponentThresholdInput?.value),
@@ -211,4 +214,11 @@ function parseSmallComponentThreshold(value: string | undefined): number {
   if (!Number.isSafeInteger(threshold) || threshold < 0)
     throw new Error('Small component threshold must be a nonnegative integer.');
   return threshold;
+}
+
+function parseDistanceCutoff(value: string | undefined): number | undefined {
+  if (!value?.trim()) return undefined;
+  const cutoff = Number(value);
+  if (!Number.isFinite(cutoff) || cutoff < 0) throw new Error('Distance cutoff must be a finite nonnegative number.');
+  return cutoff;
 }

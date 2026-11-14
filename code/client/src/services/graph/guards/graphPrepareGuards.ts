@@ -21,6 +21,7 @@ export function isGraphPrepareRequestDto(value: unknown): value is GraphPrepareR
     isSourceFormat(value.format) &&
     isOptionalString(value.dataset_name) &&
     isString(value.content) &&
+    (value.distance_cutoff === undefined || (isFiniteNumber(value.distance_cutoff) && value.distance_cutoff >= 0)) &&
     isGraphPrepareOptions(value.options) &&
     isOptionalGraphMetadataSchema(value.metadata_schema) &&
     isOptionalMetadataByNodeId(value.metadata_by_node_id) &&
@@ -33,6 +34,7 @@ export function isGraphPrepareRequestDto(value: unknown): value is GraphPrepareR
 function isGraphPrepareResponseDto(value: unknown): value is GraphPrepareResponseDto {
   return (
     isRecord(value) &&
+    (value.distance_cutoff == null || (isFiniteNumber(value.distance_cutoff) && value.distance_cutoff >= 0)) &&
     isString(value.dataset_id) &&
     isString(value.layout_version) &&
     isFiniteNumber(value.node_count) &&
