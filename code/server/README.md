@@ -176,7 +176,12 @@ java -jar /app/phylolib.jar algorithm goeburstfullmst \
 ```
 
 Full MST uses all observed locus-variant levels and produces one spanning tree
-for valid typing profiles.
+for valid typing profiles. It remains the default. To run standard goeBURST,
+send `"typing_options": {"algorithm": "goeburst", "nlv": 3}` in the prepare
+request. This runs `algorithm goeburst --lvs=3`; `nlv` defaults to 3 and must be
+a positive integer. Edges at the selected level are included and disconnected
+profiles remain as a forest. Use `{"algorithm": "goeburstfullmst"}` for all
+levels. Typing options are accepted only with `format: "typing_data"`.
 
 Each PhyloLib subprocess is limited by
 `PHYLO_LENS_PHYLOLIB_TIMEOUT_SECONDS`. Graphviz `sfdp` has no default

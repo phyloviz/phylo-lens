@@ -7,6 +7,7 @@ import type { AncillaryTableInput } from './contracts/ancillary';
 import type { AncillaryInputOptions } from './ancillary/ancillaryInput';
 import { createGraphClient } from './services/graph/graphService';
 import type { SfdpOptions } from './contracts/graph/SfdpOptions';
+import type { TypingOptions } from './contracts/graph/TypingOptions';
 import { SOURCE_FORMAT_NEWICK, type SourceFormat } from './contracts/models';
 
 import rendererFactory from './render/rendererFactory';
@@ -42,6 +43,7 @@ export interface PhyloLensLoadOptions extends AncillaryInputOptions {
   sfdpOptions?: SfdpOptions;
   readonly lodPreparation?: LodPreparationOptions;
   readonly distanceCutoff?: number;
+  readonly typingOptions?: TypingOptions;
   lod?: {
     maxNodes?: number;
     representationSpacingPx?: number;

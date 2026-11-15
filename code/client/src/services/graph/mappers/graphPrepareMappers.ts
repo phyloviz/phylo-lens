@@ -15,6 +15,7 @@ export function toGraphPrepareRequestDto(request: GraphPrepareRequest): GraphPre
     dataset_name: request.datasetName,
     content: request.content,
     distance_cutoff: request.distanceCutoff,
+    typing_options: request.typingOptions,
     options: request.options === undefined ? undefined : { allow_self_loops: request.options.allowSelfLoops },
     metadata_schema: request.ancillarySchema,
     metadata_by_node_id: request.ancillaryByNodeId,
@@ -31,6 +32,7 @@ export function copyGraphPrepareRequestDto(dto: GraphPrepareRequestDto): GraphPr
   return {
     ...dto,
     options: dto.options && { ...dto.options },
+    typing_options: dto.typing_options && { ...dto.typing_options },
     metadata_schema: dto.metadata_schema?.map(field => ({ ...field })),
     metadata_by_node_id:
       dto.metadata_by_node_id === undefined
@@ -44,6 +46,7 @@ export function copyGraphPrepareRequestDto(dto: GraphPrepareRequestDto): GraphPr
 
 function toGraphPrepareResult(dto: GraphPrepareResponseDto): GraphPrepareResult {
   return {
+    ...(dto.typing_options == null ? {} : { typingOptions: { ...dto.typing_options } }),
     ...(dto.distance_cutoff == null ? {} : { distanceCutoff: dto.distance_cutoff }),
     datasetId: toDatasetId(dto.dataset_id),
     layoutVersion: toLayoutVersion(dto.layout_version),

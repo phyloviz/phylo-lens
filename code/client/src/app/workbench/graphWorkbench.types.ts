@@ -7,6 +7,7 @@ import type { ExpansionResult, ExpansionState } from '../../contracts/expansion'
 import type { AncillaryTableInput } from '../../contracts/ancillary';
 import type { GraphAncillaryResult } from '../../contracts/graph/ancillary/GraphAncillaryResult';
 import type { SfdpOptions } from '../../contracts/graph/SfdpOptions';
+import type { TypingOptions } from '../../contracts/graph/TypingOptions';
 import type { GraphClient } from '../../contracts/graph/GraphClient';
 import type { SourceFormat } from '../../contracts/models';
 
@@ -48,6 +49,7 @@ export interface GraphInput {
 }
 
 export interface LoadGraphOptions extends AncillaryInputOptions {
+  readonly typingOptions?: TypingOptions;
   readonly visualMapping?: VisualMappingOptions;
   readonly displayOptions?: GraphDisplayOptions;
   readonly sfdpOptions?: SfdpOptions;

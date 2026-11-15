@@ -120,6 +120,24 @@ function createWorkbenchHarness(overrides: Partial<GraphClient> = {}) {
 }
 
 describe('graphWorkbench navigation', () => {
+  it.each<GraphPrepareResult['typingOptions']>([
+    undefined,
+    { algorithm: 'goeburstfullmst' },
+    { algorithm: 'goeburst', nlv: 7 },
+  ])('rejects missing or different inference confirmation: %o', async typingOptions => {
+    const { workbench, graphClient, renderer } = createWorkbenchHarness({
+      prepareGraph: vi.fn<GraphClient['prepareGraph']>(async () => ({ ...prepareResponse(), typingOptions })),
+    });
+    await expect(
+      workbench.loadGraph(
+        { content: 'ID\tL1\na\t1\nb\t2', format: 'typing_data' },
+        { typingOptions: { algorithm: 'goeburst', nlv: 3 } }
+      )
+    ).rejects.toThrow('did not confirm the requested typing algorithm');
+    expect(graphClient.readViewport).not.toHaveBeenCalled();
+    expect(renderer.applyGraphSnapshot).not.toHaveBeenCalled();
+    workbench.dispose();
+  });
   it('does not render or claim a cutoff that an older service ignored', async () => {
     const { workbench, graphClient, renderer } = createWorkbenchHarness();
     await expect(workbench.loadGraph({ content: '(a:0)b;', format: 'newick' }, { distanceCutoff: 0 })).rejects.toThrow(
@@ -183,18 +201,25 @@ describe('graphWorkbench navigation', () => {
     expect(events).toEqual(['prepare', 'viewport', 'renderer', 'resolved']);
   });
 
-  it('maps public SFDP options into the prepare request', async () => {
-    const { graphClient, workbench } = createWorkbenchHarness();
+  it('maps public inference and SFDP options into the prepare request', async () => {
+    const { graphClient, workbench } = createWorkbenchHarness({
+      prepareGraph: vi.fn<GraphClient['prepareGraph']>(async () => ({
+        ...prepareResponse(),
+        typingOptions: { algorithm: 'goeburst', nlv: 3 },
+      })),
+    });
 
     await workbench.loadGraph(
-      { content: '(a:1,b:1)root;', format: 'newick', datasetName: 'tree' },
+      { content: 'ID\tL1\na\t1\nb\t2', format: 'typing_data', datasetName: 'tree' },
       {
+        typingOptions: { algorithm: 'goeburst', nlv: 3 },
         sfdpOptions: { k: 0.5, overlap: 'prism', prismIterations: 10, beautify: true },
       }
     );
 
     expect(graphClient.prepareGraph).toHaveBeenCalledWith(
       expect.objectContaining({
+        typingOptions: { algorithm: 'goeburst', nlv: 3 },
         sfdpOptions: { k: 0.5, overlap: 'prism', prismIterations: 10, beautify: true },
       })
     );

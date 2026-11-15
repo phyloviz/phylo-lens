@@ -5,6 +5,7 @@ import { resolveAncillaryInput } from '../../ancillary/ancillaryInput';
 import type { GraphPrepareRequest } from '../../contracts/graph/prepare/GraphPrepareRequest';
 import type { GraphClient } from '../../contracts/graph/GraphClient';
 import type { GraphPrepareResult } from '../../contracts/graph/prepare/GraphPrepareResult';
+import type { TypingOptions } from '../../contracts/graph/TypingOptions';
 import type { PositionedGraph } from '../../contracts/positioned';
 import type { GraphRenderer } from '../../render/renderer.types';
 import type { GraphWorkbenchAction } from './graphWorkbench.actions';
@@ -77,6 +78,7 @@ export async function loadGraph(
       format: input.format,
       datasetName: input.datasetName,
       content: input.content,
+      typingOptions: options.typingOptions && { ...options.typingOptions },
       ancillarySchema: ancillary.ancillarySchema,
       ancillaryByNodeId: ancillary.ancillaryByNodeId,
       ancillaryData: options.ancillaryData,
@@ -90,6 +92,14 @@ export async function loadGraph(
     const preparedGraph = await graphClient.prepareGraph(request);
 
     assertCurrentLoad(isCurrentLoad);
+
+    const expectedTyping = request.typingOptions;
+    const appliedTyping = preparedGraph.typingOptions;
+    if (!typingOptionsConfirmed(expectedTyping, appliedTyping)) {
+      throw new Error(
+        'The graph service did not confirm the requested typing algorithm and nLV level. Update the service before using this option.'
+      );
+    }
 
     if (preparedGraph.distanceCutoff !== request.distanceCutoff) {
       throw new Error(
@@ -181,6 +191,18 @@ export async function loadGraph(
 function assertCurrentLoad(isCurrentLoad: () => boolean): void {
   if (!isCurrentLoad()) {
     throw new Error(GRAPH_WORKBENCH_ERRORS.loadSuperseded);
+  }
+}
+
+function typingOptionsConfirmed(expected: TypingOptions | undefined, applied: TypingOptions | undefined): boolean {
+  if (!expected) return true;
+  if (!applied || applied.algorithm !== expected.algorithm) return false;
+
+  switch (expected.algorithm) {
+    case 'goeburst':
+      return applied.algorithm === 'goeburst' && applied.nlv === (expected.nlv ?? 3);
+    case 'goeburstfullmst':
+      return true;
   }
 }
 

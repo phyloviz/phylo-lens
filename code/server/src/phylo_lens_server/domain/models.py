@@ -9,6 +9,7 @@ from .ancillary import (
     NodeAnnotations,
     ReadonlyAncillaryData,
 )
+from .typing import GoeBurstOptions, TypingOptions
 from .values import FrozenMapping, FrozenValue
 
 NEWICK_ROOTING_STRATEGY = "newick-component-root-v1"
@@ -52,6 +53,7 @@ class DatasetSource(FrozenValue):
     provenance: str | None = None
     rooting_strategy: str = Field(min_length=1)
     distance_cutoff: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+    typing_options: TypingOptions | None = None
 
 
 class Isolate(FrozenValue):
@@ -110,6 +112,7 @@ class Dataset(FrozenValue):
             )
         if (
             self.source.format == SourceFormat.TYPING_DATA
+            and not isinstance(self.source.typing_options, GoeBurstOptions)
             and self.source.distance_cutoff is None
             and len(components) != 1
         ):

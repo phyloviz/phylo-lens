@@ -94,8 +94,8 @@ through the bundled PhyloLib command-line application:
 ```text
 profile matrix
   → Hamming distance matrix
-  → goeBURST Full MST
-  → Newick tree
+  → goeBURST Full MST or goeBURST up to nLV
+  → Newick tree / forest
   → canonical PhyloLens graph
 ```
 
@@ -180,11 +180,27 @@ Grouped category counts combine those per-isolate records. Declared numeric
 summaries use their mean and mixed declared booleans use null; original values
 remain available in the isolate records.
 
-### Full MST output
+### Algorithm and maximum nLV level
 
 goeBURST Full MST uses every observed locus-variant level, so valid typing
 profiles produce one connected spanning tree. PhyloLens retains defensive support
-for a multi-component Newick result from an upstream runtime.
+for forests from standard goeBURST; a disconnected Full MST result is rejected.
+
+The typing-data input offers **goeBURST Full MST (all levels)** and
+**goeBURST (up to nLV)**. Full MST remains the default. Standard goeBURST exposes
+a maximum nLV level, initially 3, which may be any positive integer. For example,
+level 3 includes links with Hamming distance 1, 2, or 3. Profiles without a path
+through those links remain in separate trees, including isolated nodes.
+
+The library setting is `typingOptions: { algorithm: "goeburst", nlv: 3 }`;
+the HTTP equivalent is `typing_options`. Omitting `nlv` uses 3. To request all
+levels explicitly, use `{ algorithm: "goeburstfullmst" }` without `nlv`.
+These options require a typing-data source. Identical profiles share one node
+and retain all original isolates and ancillary observations in either mode.
+
+The maximum inference level determines the prepared forest. **Add nLV connections
+on load** and the Explore nLV control add distance links within those existing
+trees; they do not change their component membership.
 
 ### Timeout and failures
 

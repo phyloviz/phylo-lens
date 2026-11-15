@@ -13,6 +13,7 @@ from phylo_lens_server.domain.views import LayoutBounds, LayoutStatus
 from .ancillary import AncillaryData, AncillaryField
 from .models import SourceFormat
 from .revisions import AncillaryTable
+from .typing import TypingOptions
 from .values import FrozenValue
 
 
@@ -102,6 +103,7 @@ class PrepareInput:
     sfdp_options: SfdpOptions = field(default_factory=SfdpOptions)
     lod_options: LodOptions = field(default_factory=LodOptions)
     distance_cutoff: float | None = None
+    typing_options: TypingOptions | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -117,6 +119,7 @@ class PrepareInput:
 
 
 class PreparationSummary(FrozenValue):
+    typing_options: TypingOptions | None = None
     dataset_id: str
     layout_version: str
     node_count: int
@@ -144,4 +147,5 @@ class PreparationSummary(FrozenValue):
             layout_status=result.layout_status,
             warnings=warnings,
             distance_cutoff=result.artifacts.dataset.source.distance_cutoff,
+            typing_options=result.artifacts.dataset.source.typing_options,
         )

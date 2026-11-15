@@ -13,8 +13,10 @@ from phylo_lens_server.data.typing_profiles import (
     PreparedTypingProfiles,
     collapse_profile_graph,
     select_goeburst_root,
+    select_goeburst_roots,
     validate_goeburst_tree,
 )
+from phylo_lens_server.domain.typing import GoeBurstOptions, TypingOptions
 
 logger = logging.getLogger(__name__)
 
@@ -159,20 +161,35 @@ class RootedTypingTree:
     parsed: ParsedGraph
     distinct: ParsedGraph
     root: str
+    component_roots: tuple[str, ...] = ()
 
 
 def typing_profiles_to_rooted_tree(
     profiles: PreparedTypingProfiles,
+    options: TypingOptions | None = None,
 ) -> RootedTypingTree:
-    """Build a Full MST and resolve its technical root from PhyloLib's matrix.
+    """Run PhyloLib's Full MST or bounded goeBURST and root each component.
 
     Runs two PhyloLib stages against a temp directory: ``distance`` (profiles ->
-    complete symmetric matrix) then ``algorithm goeburstfullmst`` (matrix ->
-    Newick MST). Raises
+    complete symmetric matrix) then ``algorithm goeburstfullmst`` or
+    ``algorithm goeburst --lvs=n`` (matrix -> Newick tree/forest). Raises
     :class:`TypingNormalizeError` when no PhyloLib runtime is available or either
     stage fails.
     """
     membership = profiles.membership()
+    bounded = isinstance(options, GoeBurstOptions)
+    # Standard goeBURST ignores zero-distance links. Infer on representatives,
+    # then restore duplicate isolates as zero-length spokes for the ingest join.
+    algorithm_profiles = (
+        PreparedTypingProfiles(
+            profiles.algorithm_content(distinct=True),
+            profiles.retained_loci,
+            profiles.excluded_loci,
+        )
+        if bounded
+        else profiles
+    )
+    max_level = min(options.nlv, len(profiles.retained_loci)) if bounded else None
     if len(membership) == 1:
         ids = [node_id for members in membership.values() for _, node_id in members]
         parsed = ParsedGraph(
@@ -188,7 +205,7 @@ def typing_profiles_to_rooted_tree(
     with tempfile.TemporaryDirectory(prefix="phylolib-") as tmp:
         files_dir = Path(tmp)
         (files_dir / PROFILES_FILENAME).write_text(
-            profiles.algorithm_content(), encoding="utf-8"
+            algorithm_profiles.algorithm_content(), encoding="utf-8"
         )
 
         profiles_path = str(files_dir / PROFILES_FILENAME)
@@ -213,9 +230,10 @@ def typing_profiles_to_rooted_tree(
         _run_phylolib_cli(
             [
                 "algorithm",
-                GOEBURST_FULL_MST_ALGORITHM,
+                "goeburst" if bounded else GOEBURST_FULL_MST_ALGORITHM,
                 f"--matrix={matrix_ref}",
                 f"--out={tree_ref}",
+                *([f"--lvs={max_level}"] if bounded else []),
             ],
             failure_reason=TYPING_PHYLOLIB_ALGORITHM_FAILED,
             failure_message=ERR_TYPING_ALGORITHM_FAILED,
@@ -223,19 +241,44 @@ def typing_profiles_to_rooted_tree(
             timeout_message=ERR_TYPING_ALGORITHM_TIMEOUT,
         )
 
-        root = select_goeburst_root(Path(matrix_path), profiles, membership)
-
         newick = (
             tree_path.read_text(encoding="utf-8").strip() if tree_path.exists() else ""
         )
+        if not newick:
+            logger.warning(ERR_TYPING_EMPTY_TREE)
+            raise TypingNormalizeError(
+                ERR_TYPING_EMPTY_TREE, reason=TYPING_PHYLOLIB_EMPTY_TREE
+            )
 
-    if not newick:
-        logger.warning(ERR_TYPING_EMPTY_TREE)
-        raise TypingNormalizeError(
-            ERR_TYPING_EMPTY_TREE, reason=TYPING_PHYLOLIB_EMPTY_TREE
-        )
+        parsed = parse_newick_forest(newick)
+        if bounded:
+            distinct = collapse_profile_graph(parsed, algorithm_profiles.membership())
+            validate_goeburst_tree(distinct, membership, max_level=max_level)
+            roots = select_goeburst_roots(
+                Path(matrix_path),
+                algorithm_profiles,
+                algorithm_profiles.membership(),
+                graph=distinct,
+                max_level=max_level,
+            )
+            ids = [node_id for members in membership.values() for _, node_id in members]
+            parsed = ParsedGraph(
+                ids,
+                [
+                    *distinct.edges,
+                    *(
+                        ParsedEdge(representative, node_id, 0)
+                        for representative, members in membership.items()
+                        for _, node_id in members
+                        if node_id != representative
+                    ),
+                ],
+                component_roots=roots,
+                explicit_node_ids=set(ids),
+            )
+            return RootedTypingTree(parsed, distinct, roots[0], roots)
 
-    parsed = parse_newick_forest(newick)
-    distinct = collapse_profile_graph(parsed, membership)
-    validate_goeburst_tree(distinct, membership)
-    return RootedTypingTree(parsed, distinct, root)
+        root = select_goeburst_root(Path(matrix_path), profiles, membership)
+        distinct = collapse_profile_graph(parsed, membership)
+        validate_goeburst_tree(distinct, membership)
+        return RootedTypingTree(parsed, distinct, root)

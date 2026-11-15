@@ -390,6 +390,32 @@
                     <span class="field-help">MLST / cgMLST allelic profiles in a delimited text file</span>
                     <input id="typing-file-input" type="file" accept=".tsv,.csv,.txt,.tab" />
                   </label>
+                  <label>
+                    Inference algorithm
+                    <select id="typing-algorithm" aria-controls="typing-nlv-controls">
+                      <option value="goeburstfullmst">goeBURST Full MST (all levels)</option>
+                      <option value="goeburst">goeBURST (up to nLV)</option>
+                    </select>
+                  </label>
+                  <div id="typing-nlv-controls" class="source-controls" hidden>
+                    <label>
+                      Maximum nLV level
+                      <input
+                        id="typing-nlv-level"
+                        type="number"
+                        min="1"
+                        max="2147483647"
+                        step="1"
+                        value="3"
+                        disabled
+                        aria-describedby="typing-nlv-help"
+                      />
+                    </label>
+                    <p id="typing-nlv-help" class="field-help">
+                      Build trees using links between profiles differing at no more than this many retained loci. More
+                      distant profiles remain in separate groups. Identical profiles share one node.
+                    </p>
+                  </div>
                   <label class="checkbox-row">
                     <input id="initial-nlv-connections" type="checkbox" aria-controls="initial-nlv-controls" />
                     <span>Add nLV connections on load</span>
