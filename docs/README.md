@@ -51,18 +51,34 @@ operational procedures.
 
 The documentation uses the following names consistently:
 
+- **tree** — one connected, acyclic topology; fully labelled trees and MSTs are
+  the scientific focus of PhyloLens;
+- **MST** — a minimum spanning tree inferred from profile distances; this term
+  does not apply to every imported Newick tree;
+- **forest** — a dataset containing one or more separate trees, including isolated
+  nodes after bounded goeBURST or a distance cutoff;
+- **distance-connection overlay** — additional displayed links within prepared
+  tree components; these do not change branches, membership, or layout springs;
+- **graph** — the general node/edge representation used by transport and rendering
+  libraries; its use does not imply support for arbitrary phylogenetic networks;
 - **PhyloLens** — the complete system;
 - **browser library** — the npm package `@phyloviz/phylo-lens`;
 - **API service** — the FastAPI computational service;
 - **host application** — an application that embeds the browser library;
 - **prepared layout** — the persisted result of normalization, clustering,
   layout, LoD construction, and metadata materialization;
-- **viewport slice** — the bounded graph subset returned for a camera state;
+- **viewport slice** — the visible subset of a prepared forest returned for a camera state;
 - **level of detail (LoD)** — a rooted hop-depth cut used for semantic zoom;
 - **representative** — the node displayed in place of a multi-node cluster;
 - **typing data** — an MLST/cgMLST-style allelic-profile matrix;
 - **ancillary data** — tabular isolate or sample observations joined to graph
   nodes.
+
+Newick remains compatible with unnamed internal junctions. They receive generated
+structural identifiers, distinct from supplied biological labels. A generated ID
+does not identify an observed isolate, and a LoD representative may stand for an
+entire subtree. Ordinary user-facing descriptions use tree, MST, and forest;
+renderer contracts and existing `/api/graph/*` routes retain graph terminology.
 
 ## Scope and evidence
 

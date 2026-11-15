@@ -2,28 +2,26 @@ from __future__ import annotations
 
 import csv
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from io import StringIO
 from math import isfinite
 from urllib.parse import quote
 
-from phylo_lens_server.data.parsers import ParseError, slugify_label
+from phylo_lens_server.data.parsers import ParsedGraph, ParseError, slugify_label
 from phylo_lens_server.domain.ancillary import (
     AncillaryData,
     AncillaryField,
     AncillaryValue,
+    NodeAnnotations,
 )
+from phylo_lens_server.domain.dataset import Isolate, SourceFormat
 from phylo_lens_server.domain.legacy_metadata import (
     CATEGORY_COUNT_FIELD_PREFIX,
     PROFILE_COUNT_FIELD,
     decode_node_annotations,
     is_summary_key,
 )
-from phylo_lens_server.domain.models import GraphNode, Isolate, SourceFormat
 from phylo_lens_server.domain.revisions import AncillaryReplacement, AncillaryTable
-
-DEFAULT_DATASET_NAME = "dataset"
-DEFAULT_ROUND_DECIMALS = 3
-EDGE_ID_TEMPLATE = "e_{source}_{target}_{count}"
 
 ANCILLARY_TYPE_STRING = "string"
 ANCILLARY_TYPE_NULL = "null"
@@ -56,18 +54,128 @@ WARN_NEGATIVE_DISTANCE_CLAMPED = (
 )
 
 
-def _ancillary_join_node_ids(
-    format_name: SourceFormat,
-    *,
-    nodes: list[GraphNode],
-    explicit_node_ids: set[str],
-) -> set[str]:
-    """Resolve node ids eligible for tabular metadata joins."""
-    node_ids = {node.id for node in nodes}
-    if format_name == SourceFormat.NEWICK:
-        return explicit_node_ids & node_ids
+@dataclass(frozen=True)
+class PreparedDatasetAncillary:
+    """Joined isolate observations and node summaries, ready for a Dataset."""
 
-    return node_ids
+    ancillary_schema: tuple[AncillaryField, ...]
+    summary_schema: tuple[AncillaryField, ...]
+    annotations_by_node_id: dict[str, NodeAnnotations]
+    rows_by_node_id: dict[str, list[AncillaryData]]
+    isolates_by_node_id: dict[str, list[Isolate]]
+    warnings: tuple[str, ...]
+
+
+def prepare_dataset_ancillary(
+    *,
+    format_name: SourceFormat,
+    parsed: ParsedGraph,
+    membership: Mapping[str, Sequence[tuple[str, str]]],
+    schema: Sequence[AncillaryField],
+    by_node_id: Mapping[str, AncillaryData],
+    table: AncillaryTable | None,
+) -> PreparedDatasetAncillary:
+    """Join direct/table observations, retain isolates, and derive typed summaries."""
+    validate_ancillary_input(schema, by_node_id)
+    warnings: list[str] = []
+    declared_ancillary_types = _declared_ancillary_types(schema)
+    original_ids = {
+        original: normalized
+        for members in membership.values()
+        for original, normalized in members
+    }
+    direct_metadata = {
+        original_ids.get(key, key): value for key, value in by_node_id.items()
+    }
+    if len(direct_metadata) != len(by_node_id):
+        raise ParseError("Direct metadata identifies the same isolate more than once.")
+    metadata_by_node_id = _coerce_ancillary_by_declared_schema(
+        direct_metadata,
+        declared_ancillary_types,
+    )
+    ancillary_rows_by_node_id: dict[str, list[AncillaryData]] = {}
+    if table is not None:
+        (
+            ancillary_metadata,
+            ancillary_rows_by_node_id,
+            ancillary_warnings,
+        ) = _parse_ancillary_data(
+            table,
+            node_ids=(
+                set(parsed.explicit_node_ids)
+                if format_name == SourceFormat.NEWICK
+                else set(parsed.nodes)
+            ),
+            declared_schema=schema,
+        )
+        metadata_by_node_id = _merge_node_ancillary_data(
+            metadata_by_node_id,
+            ancillary_metadata,
+        )
+        warnings.extend(ancillary_warnings)
+
+    isolates_by_node_id: dict[str, list[Isolate]] = {}
+    if membership:
+        if set(metadata_by_node_id) - set(parsed.nodes):
+            raise ParseError("Typing metadata references an unknown isolate.")
+        for node_id, members in membership.items():
+            isolates = []
+            for original_id, normalized_id in members:
+                if len(ancillary_rows_by_node_id.get(normalized_id, [])) > 1:
+                    raise ParseError(
+                        "Typing ancillary data must contain at most one row per isolate ID."
+                    )
+                isolate_data = {
+                    key: value
+                    for key, value in metadata_by_node_id.get(normalized_id, {}).items()
+                    if not is_summary_key(key)
+                }
+                isolates.append(Isolate(id=original_id, ancillary_data=isolate_data))
+            isolates_by_node_id[node_id] = isolates
+        ancillary_rows_by_node_id = {
+            node_id: [isolate.ancillary_data for isolate in isolates]
+            for node_id, isolates in isolates_by_node_id.items()
+        }
+        metadata_by_node_id = {
+            node_id: _aggregate_ancillary_rows(rows)
+            for node_id, rows in ancillary_rows_by_node_id.items()
+        }
+        # Keep declared scalar summaries valid without losing original values
+        # in per-isolate records and categorical counts.
+        for node_id, rows in ancillary_rows_by_node_id.items():
+            for key, field_type in declared_ancillary_types.items():
+                values = [row[key] for row in rows if row.get(key) is not None]
+                if not values:
+                    continue
+                if field_type == ANCILLARY_TYPE_NUMBER:
+                    metadata_by_node_id[node_id][key] = sum(values) / len(values)
+                elif field_type == ANCILLARY_TYPE_BOOLEAN and len(set(values)) > 1:
+                    metadata_by_node_id[node_id][key] = None
+
+    metadata_schema = _merge_annotation_schema(
+        schema,
+        metadata_by_node_id,
+    )
+    metadata_by_node_id = _coerce_ancillary_by_declared_schema(
+        metadata_by_node_id,
+        _declared_ancillary_types(metadata_schema),
+    )
+
+    return PreparedDatasetAncillary(
+        ancillary_schema=tuple(
+            field for field in metadata_schema if not is_summary_key(field.key)
+        ),
+        summary_schema=tuple(
+            field for field in metadata_schema if is_summary_key(field.key)
+        ),
+        annotations_by_node_id={
+            node_id: decode_node_annotations(values)
+            for node_id, values in metadata_by_node_id.items()
+        },
+        rows_by_node_id=ancillary_rows_by_node_id,
+        isolates_by_node_id=isolates_by_node_id,
+        warnings=tuple(warnings),
+    )
 
 
 def _parse_ancillary_data(
@@ -211,9 +319,9 @@ def build_ancillary_replacement(
     )
 
 
-def _reject_reserved_ancillary_keys(
-    metadata_schema: list[AncillaryField],
-    metadata_by_node_id: dict[str, AncillaryData],
+def validate_ancillary_input(
+    metadata_schema: Sequence[AncillaryField],
+    metadata_by_node_id: Mapping[str, AncillaryData],
 ) -> None:
     for field in metadata_schema:
         _reject_reserved_metadata_key(field.key)

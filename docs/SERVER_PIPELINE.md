@@ -1,9 +1,9 @@
 # Server preparation pipeline
 
 `POST /api/graph/prepare` turns a Newick tree or an allelic-profile table into a
-stored graph with node positions and levels of detail (LoD). Once preparation
+stored tree or forest with node positions and levels of detail (LoD). Once preparation
 finishes, the server can answer viewport, region, and search requests from the
-stored data without laying out the whole graph again.
+stored data without laying out the whole forest again.
 
 ```text
 request validation
@@ -23,7 +23,7 @@ FastAPI checks the request fields before preparation starts. The request contain
 
 - source format and content;
 - dataset name;
-- options for handling self-loops;
+- optional inference algorithm and maximum nLV level for typing data;
 - optional node metadata and field types;
 - optional ancillary CSV/TSV data;
 - optional Graphviz `sfdp` settings.
@@ -74,14 +74,14 @@ Newick text
 allelic-profile table
   → identify distinct profiles and their isolates
   → PhyloLib Hamming distance calculation
-  → PhyloLib goeBURST Full MST
-  → choose a technical root
+  → PhyloLib goeBURST Full MST or bounded goeBURST
+  → choose one technical root per component
   → group identical profiles into one node
   → join isolate metadata and build profile summaries
   → validate the dataset
 ```
 
-The result is a minimum spanning tree of distinct profiles. Each profile node
+The result is an MST or forest of distinct profiles. Each profile node
 keeps the identifiers and metadata of its isolates. Ancillary data does not
 change the goeBURST tree.
 
@@ -103,7 +103,7 @@ normalized identifier. Directly supplied metadata takes precedence when fields
 conflict.
 
 For typing data, each isolate can have at most one ancillary row. Isolates with
-an identical profile share a graph node, but their individual records are kept.
+an identical profile share a profile node, but their individual records are kept.
 Profile summaries combine their metadata; for example, a declared numeric field
 uses the mean of the available isolate values. Newick nodes can have multiple
 ancillary rows. Internal summary fields are hidden from public metadata schemas.
@@ -117,14 +117,14 @@ Dataset validation checks:
 
 - non-empty, unique node and edge identifiers;
 - edge endpoints that exist in the dataset;
-- the requested self-loop policy;
+- a simple acyclic forest, with no self-loops or parallel edges;
 - metadata values and declared field types;
 - reserved metadata field names.
 
-Preparation also requires at least one node and a tree or forest. It rejects
-cycles, self-loops, and repeated edges between the same pair of nodes. Each tree
-component must have exactly one technical root. Missing edge distances are
-allowed.
+`Dataset` construction, validated copying, and persisted-payload decoding all
+enforce the forest contract through `domain/tree_index.py`. Each tree component
+must have exactly one technical root. Invalid topology is rejected before LoD or
+layout work begins. Missing edge distances are allowed.
 
 ## 5. Layout versions
 

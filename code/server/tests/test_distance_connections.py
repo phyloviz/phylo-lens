@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 
 from phylo_lens_server.data.distance_connections import allelic_pairs, patristic_pairs
 from phylo_lens_server.domain.connections import ConnectionContext
-from phylo_lens_server.domain.models import GraphEdge
+from phylo_lens_server.domain.dataset import GraphEdge
 from phylo_lens_server.http.graph.dependencies import get_prepared_layout_store
 from phylo_lens_server.http.graph.schemas import NormalizeRequest
 from phylo_lens_server.main import create_app
@@ -188,7 +188,7 @@ def test_allelic_query_uses_retained_loci_and_groups_equivalent_profiles(
 ):
     from pathlib import Path
 
-    from phylo_lens_server.domain.models import (
+    from phylo_lens_server.domain.dataset import (
         GOEBURST_ROOTING_STRATEGY,
         Dataset,
         DatasetSource,

@@ -10,7 +10,7 @@ Output: one versioned observation JSON. Limitations: process-tree RSS is sampled
 
 from __future__ import annotations
 
-from phylo_lens_server.domain.models import SourceFormat
+from phylo_lens_server.domain.dataset import SourceFormat
 
 import argparse
 import json

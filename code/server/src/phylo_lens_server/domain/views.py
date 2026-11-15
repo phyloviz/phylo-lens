@@ -6,7 +6,7 @@ from types import MappingProxyType
 from typing import Literal
 
 from .ancillary import AncillaryField, AncillaryObservation
-from .models import Isolate
+from .dataset import Isolate
 from .tree_index import TreeInterval
 
 LayoutStatus = Literal["pending", "refining", "ready", "degraded", "failed"]

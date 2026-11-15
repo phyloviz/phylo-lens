@@ -10,7 +10,7 @@ export {
   PhyloLensServiceProtocolError,
   PhyloLensServiceUnavailableError,
 } from './services/serviceErrors';
-export { SUPPORTED_PHYLO_LENS_API_VERSION } from './services/graph/serviceInformationService';
+export { SUPPORTED_PHYLO_LENS_API_VERSION } from './services/graph/service/serviceInformation';
 export { type SourceFormat } from './contracts/models';
 export type { LodPreparationOptions } from './contracts/graph/LodPreparationOptions';
 export type { TreeIndex } from './contracts/graph/TreeIndex';

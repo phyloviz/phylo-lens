@@ -9,7 +9,7 @@ from pydantic import ValidationError
 
 from phylo_lens_server.data.parsers import ParseError
 from phylo_lens_server.domain.connections import ConnectionQuery
-from phylo_lens_server.domain.models import DomainValidationError
+from phylo_lens_server.domain.dataset import DomainValidationError
 from phylo_lens_server.domain.revisions import (
     AncillaryLayoutNotFoundError,
     AncillaryTable,
@@ -59,7 +59,7 @@ from phylo_lens_server.jobs.models import (
     PrepareJobs,
     PrepareQueueFullError,
 )
-from phylo_lens_server.repository.interfaces import LayoutRepository
+from phylo_lens_server.repository.layout_repository import LayoutRepository
 from phylo_lens_server.services import ancillary, graph_reads, preparation
 from phylo_lens_server.services.distance_connections import read_distance_connections
 

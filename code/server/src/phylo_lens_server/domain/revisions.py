@@ -6,7 +6,7 @@ from types import MappingProxyType
 from typing import Literal
 
 from .ancillary import AncillaryField, NodeAnnotations
-from .models import Isolate
+from .dataset import Isolate
 
 
 @dataclass(frozen=True)

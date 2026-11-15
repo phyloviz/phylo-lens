@@ -5,37 +5,28 @@ from __future__ import annotations
 from collections import Counter, deque
 from math import isfinite, log
 
+from phylo_lens_server.domain.dataset import Dataset
 from phylo_lens_server.domain.identity import (
     LOD_REPRESENTATION_GROWTH_FACTOR,
     layout_version_for_dataset,
 )
 from phylo_lens_server.domain.lod import LodOptions
-from phylo_lens_server.domain.models import Dataset
 from phylo_lens_server.domain.preparation import (
     PreparedCluster,
     PreparedLayoutArtifacts,
     QuotientEdge,
 )
 from phylo_lens_server.domain.sfdp import SfdpOptions, resolve_sfdp_options
-from phylo_lens_server.pipeline.tree_index import index_forest
+from phylo_lens_server.domain.tree_index import forest_adjacency, index_forest
 
 Adjacency = dict[str, list[tuple[str, str]]]
 
 
 def tree_adjacency(dataset: Dataset) -> Adjacency:
-    neighbors: Adjacency = {node.id: [] for node in dataset.nodes}
-    if len(neighbors) != len(dataset.nodes):
-        raise ValueError("Tree nodes must have distinct IDs.")
-    pairs: set[frozenset[str]] = set()
-    for edge in dataset.edges:
-        if edge.source not in neighbors or edge.target not in neighbors:
-            raise ValueError(f"Edge {edge.id} has an unknown endpoint.")
-        pair = frozenset((edge.source, edge.target))
-        if len(pair) != 2 or pair in pairs:
-            raise ValueError("Tree edges must connect distinct nodes exactly once.")
-        pairs.add(pair)
-        neighbors[edge.source].append((edge.target, edge.id))
-        neighbors[edge.target].append((edge.source, edge.id))
+    neighbors = forest_adjacency(
+        (node.id for node in dataset.nodes),
+        ((edge.id, edge.source, edge.target) for edge in dataset.edges),
+    )
     for links in neighbors.values():
         links.sort()
     return neighbors

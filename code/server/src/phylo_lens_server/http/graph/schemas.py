@@ -10,8 +10,8 @@ from phylo_lens_server.domain.ancillary import (
     AncillaryField,
     AncillaryObservation,
 )
+from phylo_lens_server.domain.dataset import SourceFormat
 from phylo_lens_server.domain.lod import LodOptions
-from phylo_lens_server.domain.models import SourceFormat
 from phylo_lens_server.domain.preparation import PrepareInput, PrepareOptions
 from phylo_lens_server.domain.revisions import AncillaryTable
 from phylo_lens_server.domain.sfdp import SfdpOptions
@@ -20,7 +20,7 @@ from phylo_lens_server.domain.views import LayoutStatus
 
 
 class NormalizeOptions(BaseModel):
-    allow_self_loops: bool = False
+    allow_self_loops: Literal[False] = False
 
 
 class GraphConnectionsRequest(BaseModel):

@@ -4,7 +4,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Literal
 
-from .models import GraphEdge, SourceFormat
+from .dataset import GraphEdge, SourceFormat
 
 DistanceMetric = Literal["allelic", "patristic"]
 

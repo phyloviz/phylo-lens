@@ -2,7 +2,7 @@
 
 import json
 
-from phylo_lens_server.domain.models import Isolate
+from phylo_lens_server.domain.dataset import Isolate
 from phylo_lens_server.domain.search import SearchMatch, identifier_score
 from phylo_lens_server.domain.views import ViewportIsolate
 

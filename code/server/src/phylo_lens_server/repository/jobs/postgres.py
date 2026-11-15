@@ -7,13 +7,13 @@ from typing import Literal, Protocol
 
 from phylo_lens_server.database import postgres
 from phylo_lens_server.domain.ancillary import AncillaryField
+from phylo_lens_server.domain.dataset import Dataset
 from phylo_lens_server.domain.identity import layout_version_for_dataset
 from phylo_lens_server.domain.legacy_metadata import (
     decode_node_annotations,
     is_summary_key,
 )
 from phylo_lens_server.domain.lod import LodOptions
-from phylo_lens_server.domain.models import Dataset
 from phylo_lens_server.domain.preparation import PreparationSummary
 from phylo_lens_server.domain.sfdp import SfdpOptions, resolve_sfdp_options
 from phylo_lens_server.jobs.models import (

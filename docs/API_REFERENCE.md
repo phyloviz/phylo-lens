@@ -160,7 +160,7 @@ Normalizes input and submits preparation of a persisted layout.
 | `content` | non-empty `string` | yes | — | Newick text or allelic-profile matrix |
 | `distance_cutoff` | finite number ≥ 0 or `null` | no | `null` | Keep tree edges at or below this value before layout and LoD; retain every node and rebuild component roots. Requires known distances on all edges. |
 | `typing_options` | object or `null` | no | `null` (Full MST) | For `typing_data`: `{"algorithm":"goeburstfullmst"}` or `{"algorithm":"goeburst","nlv":3}`. Standard goeBURST includes links up to `nlv` and may produce a forest. `nlv` defaults to 3 and must be an integer from 1 to 2147483647; it is not accepted for Full MST. |
-| `options.allow_self_loops` | `boolean` | no | `false` | Permit self-loop edges during domain validation |
+| `options.allow_self_loops` | `false` | no | `false` | Compatibility field; trees and forests reject self-loops. `true` is rejected during request validation. |
 | `lod_options.small_component_threshold` | integer ≥ 0 | no | `64` | Components with this many canonical nodes or fewer stay explicit at every prepared tier; zero disables protection. |
 | `metadata_schema` | `AncillaryField[]` | no | `[]` | Declared public metadata types |
 | `metadata_by_node_id` | object | no | `{}` | Direct metadata keyed by canonical node ID |

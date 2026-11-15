@@ -1,5 +1,5 @@
 import { createHttpClient } from '../../src/services/httpClient';
-import { readGraphViewport } from '../../src/services/graph/graphViewportService';
+import { readGraphViewport } from '../../src/services/graph/viewport/viewportService';
 import { toDatasetId, toLayoutVersion } from '../../src/contracts/graph/graphIdentifiers';
 import { GraphViewportCoordinator } from '../../src/app/workbench/viewport/viewportCoordinator';
 import createSigmaRenderer from '../../src/render/adapters/sigma/sigmaRenderer';

@@ -1,7 +1,7 @@
 import pytest
 
+from phylo_lens_server.domain.dataset import Dataset
 from phylo_lens_server.domain.lod import LodOptions
-from phylo_lens_server.domain.models import Dataset
 from phylo_lens_server.http.graph.schemas import NormalizeRequest
 from phylo_lens_server.pipeline.ingestion import ingest_dataset
 from phylo_lens_server.pipeline.lod import (

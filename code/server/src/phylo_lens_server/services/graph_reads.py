@@ -8,7 +8,7 @@ from phylo_lens_server.domain.views import (
     ViewportReadResult,
     select_viewport_lod_level,
 )
-from phylo_lens_server.repository.interfaces import LayoutRepository
+from phylo_lens_server.repository.layout_repository import LayoutRepository
 
 
 class PreparedLayoutNotFoundError(LookupError):

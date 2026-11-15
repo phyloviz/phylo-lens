@@ -4,7 +4,7 @@ import subprocess
 import pytest
 from pydantic import ValidationError
 
-from phylo_lens_server.domain.models import GraphEdge
+from phylo_lens_server.domain.dataset import GraphEdge
 from phylo_lens_server.domain.sfdp import (
     SfdpOptions,
     SfdpOverlap,

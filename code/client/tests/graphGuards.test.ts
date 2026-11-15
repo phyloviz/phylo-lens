@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { isGraphPrepareRequestDto, isGraphPrepareStatusDto } from '../src/services/graph/guards/graphPrepareGuards';
-import { isGraphViewportResponseDto } from '../src/services/graph/guards/graphViewportGuards';
-import { isGraphRegionResponseDto } from '../src/services/graph/guards/graphRegionGuards';
-import { isGraphSearchResponseDto } from '../src/services/graph/guards/graphSearchGuards';
+import { isGraphPrepareRequestDto, isGraphPrepareStatusDto } from '../src/services/graph/prepare/prepareGuards';
+import { isGraphViewportResponseDto } from '../src/services/graph/viewport/viewportGuards';
+import { isGraphRegionResponseDto } from '../src/services/graph/region/regionGuards';
+import { isGraphSearchResponseDto } from '../src/services/graph/search/searchGuards';
 
 const VIEWPORT_FIXTURE = {
   dataset_id: 'tree',
@@ -77,6 +77,11 @@ const SEARCH_FIXTURE = {
 };
 
 describe('graphGuards', () => {
+  it('rejects self-loop preparation options before submitting a tree dataset', () => {
+    const request = { format: 'newick', content: 'A;' };
+    expect(isGraphPrepareRequestDto({ ...request, options: { allow_self_loops: false } })).toBe(true);
+    expect(isGraphPrepareRequestDto({ ...request, options: { allow_self_loops: true } })).toBe(false);
+  });
   it('validates the selected typing algorithm and its nLV parameter', () => {
     const request = { format: 'typing_data', content: 'ID\tL1\nA\t1' };
     for (const typing_options of [

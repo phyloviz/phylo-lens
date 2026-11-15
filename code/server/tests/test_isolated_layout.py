@@ -6,7 +6,7 @@ import subprocess
 
 import pytest
 
-from phylo_lens_server.domain.models import GraphEdge
+from phylo_lens_server.domain.dataset import GraphEdge
 from phylo_lens_server.domain.sfdp import SfdpOptions
 from phylo_lens_server.http.graph.schemas import NormalizeRequest
 from phylo_lens_server.pipeline.ingestion import ingest_dataset

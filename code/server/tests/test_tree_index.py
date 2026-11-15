@@ -2,10 +2,10 @@ import pytest
 from pydantic import ValidationError
 
 from phylo_lens_server.domain.lod import LodOptions
+from phylo_lens_server.domain.tree_index import index_forest
 from phylo_lens_server.http.graph.schemas import NormalizeRequest
 from phylo_lens_server.pipeline.ingestion import ingest_dataset
 from phylo_lens_server.pipeline.lod import prepare_layout_artifacts
-from phylo_lens_server.pipeline.tree_index import index_forest
 
 
 def test_index_handles_deep_chains_without_recursion_and_visits_each_link_once():

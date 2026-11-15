@@ -4,9 +4,9 @@ import { parseAncillaryPayload } from '../src/app/shell/inputs/ancillaryPayload'
 import { resolveAncillaryInput } from '../src/ancillary/ancillaryInput';
 import { readNodeAnnotations } from '../src/ancillary/ancillaryAccess';
 import { calculateAncillaryDistribution } from '../src/ancillary/ancillaryDistribution';
-import { toGraphViewportResult } from '../src/services/graph/mappers/graphViewportMappers';
+import { toGraphViewportResult } from '../src/services/graph/viewport/viewportMappers';
 import { graphSnapshotFromViewportResponse } from '../src/app/workbench/viewport/viewportSnapshot';
-import type { GraphViewportResponseDto } from '../src/services/graph/models/viewport/GraphViewportResponseDto';
+import type { GraphViewportResponseDto } from '../src/services/graph/viewport/viewportDto';
 
 const metadata = {
   country: 'PT;ES',

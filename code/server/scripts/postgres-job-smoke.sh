@@ -40,7 +40,7 @@ except ImportError as error:
     ) from error
 
 from phylo_lens_server.domain.preparation import PrepareInput
-from phylo_lens_server.domain.models import SourceFormat
+from phylo_lens_server.domain.dataset import SourceFormat
 from phylo_lens_server.domain.revisions import AncillaryTable, AncillaryUpdate
 from phylo_lens_server.pipeline.ingestion import ingest_dataset
 from phylo_lens_server.services.ancillary import apply_ancillary_data

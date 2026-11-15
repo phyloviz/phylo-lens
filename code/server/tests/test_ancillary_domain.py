@@ -2,12 +2,12 @@ import pytest
 from pydantic import ValidationError
 
 from phylo_lens_server.domain.ancillary import AncillarySummary, ProfileSummary
+from phylo_lens_server.domain.dataset import Dataset, Isolate
 from phylo_lens_server.domain.identity import layout_version_for_dataset
 from phylo_lens_server.domain.legacy_metadata import (
     decode_node_annotations,
     encode_node_annotations,
 )
-from phylo_lens_server.domain.models import Dataset, Isolate
 from phylo_lens_server.http.graph.schemas import GraphViewportNode, NormalizeRequest
 from phylo_lens_server.pipeline.ingestion import ingest_dataset
 

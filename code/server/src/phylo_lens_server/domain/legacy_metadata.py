@@ -9,7 +9,7 @@ from urllib.parse import quote, unquote
 from .ancillary import AncillaryData, AncillarySummary, NodeAnnotations, ProfileSummary
 
 if TYPE_CHECKING:
-    from .models import Dataset
+    from .dataset import Dataset
 
 CATEGORY_COUNT_FIELD_PREFIX = "__category_count__"
 CATEGORY_COUNT_FIELD_SEPARATOR = "__value__"

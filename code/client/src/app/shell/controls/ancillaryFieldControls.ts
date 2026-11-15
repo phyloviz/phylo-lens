@@ -52,7 +52,7 @@ export default function (select: HTMLSelectElement | undefined) {
       const option = document.createElement('option');
       option.value = field.name;
       option.textContent = formatAncillaryFieldLabel(field);
-      option.title = `${field.name}: ${field.distinctValueCount} unique values in the current graph`;
+      option.title = `${field.name}: ${field.distinctValueCount} unique values in the current view`;
       select.appendChild(option);
     });
 

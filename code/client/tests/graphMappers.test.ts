@@ -1,8 +1,8 @@
 import { expect, it } from 'vitest';
-import { toGraphViewportResult } from '../src/services/graph/mappers/graphViewportMappers';
-import { toGraphPrepareRequestDto, toGraphPrepareStatus } from '../src/services/graph/mappers/graphPrepareMappers';
-import { isGraphPrepareRequestDto } from '../src/services/graph/guards/graphPrepareGuards';
-import type { GraphViewportResponseDto } from '../src/services/graph/models/viewport/GraphViewportResponseDto';
+import { toGraphViewportResult } from '../src/services/graph/viewport/viewportMappers';
+import { toGraphPrepareRequestDto, toGraphPrepareStatus } from '../src/services/graph/prepare/prepareMappers';
+import { isGraphPrepareRequestDto } from '../src/services/graph/prepare/prepareGuards';
+import type { GraphViewportResponseDto } from '../src/services/graph/viewport/viewportDto';
 
 it('transports a zero cutoff explicitly and rejects invalid distances before preparing', () => {
   const dto = toGraphPrepareRequestDto({ format: 'newick', content: '(a:0,b:1)root;', distanceCutoff: 0 });

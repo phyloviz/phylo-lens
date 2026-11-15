@@ -2,8 +2,8 @@
 
 from math import isfinite
 
-from phylo_lens_server.domain.models import Dataset
-from phylo_lens_server.pipeline.tree_index import index_forest
+from phylo_lens_server.domain.dataset import Dataset
+from phylo_lens_server.domain.tree_index import index_forest
 
 
 def cut_dataset(dataset: Dataset, cutoff: float | None) -> Dataset:

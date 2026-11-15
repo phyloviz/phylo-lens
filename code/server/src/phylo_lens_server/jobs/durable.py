@@ -1,7 +1,7 @@
 from contextlib import nullcontext
 
+from phylo_lens_server.domain.dataset import Dataset
 from phylo_lens_server.domain.lod import LodOptions
-from phylo_lens_server.domain.models import Dataset
 from phylo_lens_server.domain.sfdp import SfdpOptions
 from phylo_lens_server.repository.jobs.postgres import (
     DURABLE_STATUS_QUEUED,

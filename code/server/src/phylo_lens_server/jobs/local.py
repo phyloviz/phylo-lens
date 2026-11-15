@@ -6,9 +6,9 @@ from collections.abc import Generator
 from concurrent.futures import Future
 from contextlib import contextmanager
 
+from phylo_lens_server.domain.dataset import Dataset
 from phylo_lens_server.domain.identity import layout_version_for_dataset
 from phylo_lens_server.domain.lod import LodOptions
-from phylo_lens_server.domain.models import Dataset
 from phylo_lens_server.domain.preparation import (
     PreparationSummary,
     PreparedLayoutResult,

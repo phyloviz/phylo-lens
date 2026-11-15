@@ -13,7 +13,7 @@ from itertools import combinations
 from math import hypot
 from time import perf_counter
 
-from phylo_lens_server.domain.models import GraphEdge
+from phylo_lens_server.domain.dataset import GraphEdge
 from phylo_lens_server.pipeline.layout import (
     graphviz_dot_payload,
     parse_graphviz_plain_positions,

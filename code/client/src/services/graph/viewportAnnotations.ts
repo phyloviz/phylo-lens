@@ -1,7 +1,7 @@
 import type { GraphViewportRequest } from '../../contracts/graph/viewport/GraphViewportRequest';
 import type { GraphViewportResult } from '../../contracts/graph/viewport/GraphViewportResult';
 import type { GraphViewportNode } from '../../contracts/graph/viewport/GraphViewportNode';
-import type { GraphViewportResponseDto } from './models/viewport/GraphViewportResponseDto';
+import type { GraphViewportResponseDto } from './viewport/viewportDto';
 import { GRAPH_API_ERRORS } from './graphErrors';
 import type { AncillaryData } from '../../contracts/ancillary';
 import { ancillaryValues } from '../../ancillary/ancillaryAccess';

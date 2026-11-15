@@ -6,7 +6,7 @@ release configurations, layouts, targets and observation schemas are untouched.
 
 from __future__ import annotations
 
-from phylo_lens_server.domain.models import SourceFormat
+from phylo_lens_server.domain.dataset import SourceFormat
 from phylo_lens_server.domain.lod import DEFAULT_SMALL_COMPONENT_THRESHOLD
 
 import argparse

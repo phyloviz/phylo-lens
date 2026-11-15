@@ -5,7 +5,7 @@ Every observation uses a fresh service/store. Heavy generated persistence is
 removed after its size/hash and timing evidence are saved, unless requested.
 """
 
-from phylo_lens_server.domain.models import SourceFormat
+from phylo_lens_server.domain.dataset import SourceFormat
 
 import argparse
 import json

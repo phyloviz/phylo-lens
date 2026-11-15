@@ -1,5 +1,5 @@
-import type { GraphPrepareResponseDto } from '../src/services/graph/models/prepare/GraphPrepareResponseDto';
-import type { GraphViewportResponseDto } from '../src/services/graph/models/viewport/GraphViewportResponseDto';
+import type { GraphPrepareResponseDto } from '../src/services/graph/prepare/prepareDto';
+import type { GraphViewportResponseDto } from '../src/services/graph/viewport/viewportDto';
 import { deferred } from './helpers/state';
 import { toDatasetId, toLayoutVersion } from '../src/contracts/graph/graphIdentifiers';
 import { describe, expect, it, vi } from 'vitest';
@@ -7,9 +7,9 @@ import { describe, expect, it, vi } from 'vitest';
 import { createGraphClient } from '../src/services/graph/graphService';
 import { GRAPH_API_ERRORS } from '../src/services/graph/graphErrors';
 import { GRAPH_ROUTES } from '../src/services/graph/graphRoutes';
-import { SUPPORTED_PHYLO_LENS_API_VERSION } from '../src/services/graph/serviceInformationService';
-import type { GraphPrepareStatusDto } from '../src/services/graph/models/prepare/GraphPrepareStatusDto';
-import { toGraphAncillaryRequestDto } from '../src/services/graph/mappers/graphAncillaryMappers';
+import { SUPPORTED_PHYLO_LENS_API_VERSION } from '../src/services/graph/service/serviceInformation';
+import type { GraphPrepareStatusDto } from '../src/services/graph/prepare/prepareDto';
+import { toGraphAncillaryRequestDto } from '../src/services/graph/ancillary/ancillaryMappers';
 import { IncompatiblePhyloLensServiceError, PhyloLensServiceProtocolError } from '../src/services/serviceErrors';
 import { SOURCE_FORMAT_NEWICK } from '../src/contracts/models';
 

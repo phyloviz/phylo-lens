@@ -1,16 +1,9 @@
 from __future__ import annotations
 
-from phylo_lens_server.domain.models import (
+from phylo_lens_server.domain.dataset import (
     Dataset,
     DomainValidationError,
 )
-
-DUPLICATE_NODE_IDS_ERROR = "Duplicate node ids found."
-DUPLICATE_EDGE_IDS_ERROR = "Duplicate edge ids found."
-
-ERR_MISSING_SOURCE_TEMPLATE = "Edge '{edge_id}' has missing source node '{source}'."
-ERR_MISSING_TARGET_TEMPLATE = "Edge '{edge_id}' has missing target node '{target}'."
-ERR_SELF_LOOP_TEMPLATE = "Edge '{edge_id}' is a self-loop and self-loops are disabled."
 
 ERR_METADATA_UNKNOWN_NODE_TEMPLATE = "Metadata references unknown node '{node_id}'."
 ERR_ANCILLARY_ROWS_UNKNOWN_NODE_TEMPLATE = (
@@ -32,18 +25,11 @@ ANCILLARY_TYPE_NUMBER = "number"
 
 def validate_dataset(
     dataset: Dataset,
-    *,
-    allow_self_loops: bool = False,
 ) -> None:
-    """Enforce graph and ancillary annotation invariants before preparation."""
+    """Validate membership and annotations on an already validated forest."""
     errors: list[str] = []
 
-    node_ids = [node.id for node in dataset.nodes]
-    node_id_set = set(node_ids)
-    if len(node_id_set) != len(node_ids):
-        errors.append(DUPLICATE_NODE_IDS_ERROR)
-
-    edge_ids = [edge.id for edge in dataset.edges]
+    node_id_set = {node.id for node in dataset.nodes}
     isolate_ids = []
     for node_id, isolates in dataset.isolates_by_node_id.items():
         if node_id not in node_id_set or not isolates:
@@ -53,21 +39,6 @@ def validate_dataset(
         isolate_ids.extend(isolate.id for isolate in isolates)
     if len(isolate_ids) != len(set(isolate_ids)):
         errors.append("An isolate ID belongs to more than one profile node.")
-    if len(set(edge_ids)) != len(edge_ids):
-        errors.append(DUPLICATE_EDGE_IDS_ERROR)
-
-    for edge in dataset.edges:
-        if edge.source not in node_id_set:
-            errors.append(
-                ERR_MISSING_SOURCE_TEMPLATE.format(edge_id=edge.id, source=edge.source)
-            )
-        if edge.target not in node_id_set:
-            errors.append(
-                ERR_MISSING_TARGET_TEMPLATE.format(edge_id=edge.id, target=edge.target)
-            )
-        if not allow_self_loops and edge.source == edge.target:
-            errors.append(ERR_SELF_LOOP_TEMPLATE.format(edge_id=edge.id))
-
     schema_keys = {field.key: field.type for field in dataset.ancillary_schema}
     for node_id, node_annotations in dataset.annotations_by_node_id.items():
         metadata = {

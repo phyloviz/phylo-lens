@@ -1,6 +1,6 @@
 """Independently audit retained final observations and write a thesis-facing report."""
 
-from phylo_lens_server.domain.models import SourceFormat
+from phylo_lens_server.domain.dataset import SourceFormat
 
 import argparse
 import json

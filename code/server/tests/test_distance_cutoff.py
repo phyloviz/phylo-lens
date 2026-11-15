@@ -3,9 +3,9 @@ from math import inf, nan
 import pytest
 from fastapi.testclient import TestClient
 
+from phylo_lens_server.domain.dataset import GOEBURST_ROOTING_STRATEGY, SourceFormat
 from phylo_lens_server.domain.identity import layout_version_for_dataset
 from phylo_lens_server.domain.lod import LodOptions
-from phylo_lens_server.domain.models import GOEBURST_ROOTING_STRATEGY, SourceFormat
 from phylo_lens_server.http.graph.dependencies import get_prepared_layout_store
 from phylo_lens_server.http.graph.schemas import NormalizeRequest
 from phylo_lens_server.main import create_app

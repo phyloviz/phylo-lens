@@ -3,8 +3,8 @@ from __future__ import annotations
 import json
 from hashlib import sha256
 
+from phylo_lens_server.domain.dataset import Dataset
 from phylo_lens_server.domain.lod import LodOptions
-from phylo_lens_server.domain.models import Dataset
 from phylo_lens_server.domain.sfdp import SfdpOptions, resolve_sfdp_options
 
 from .legacy_metadata import encode_dataset_annotations

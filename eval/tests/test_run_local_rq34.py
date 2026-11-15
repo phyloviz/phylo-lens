@@ -1,6 +1,6 @@
 """Local structural evidence must detect corrupt persisted partitions/edges."""
 
-from phylo_lens_server.domain.models import SourceFormat
+from phylo_lens_server.domain.dataset import SourceFormat
 from phylo_lens_server.domain.lod import LodOptions
 
 import sqlite3

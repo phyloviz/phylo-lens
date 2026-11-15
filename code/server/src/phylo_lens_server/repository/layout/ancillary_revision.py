@@ -15,8 +15,8 @@ from itertools import groupby
 from types import MappingProxyType
 
 from phylo_lens_server.database.sql import Connection
+from phylo_lens_server.domain.dataset import Isolate
 from phylo_lens_server.domain.legacy_metadata import encode_node_annotations
-from phylo_lens_server.domain.models import Isolate
 from phylo_lens_server.domain.revisions import (
     AncillaryLayoutNotFoundError,
     AncillaryReplacement,

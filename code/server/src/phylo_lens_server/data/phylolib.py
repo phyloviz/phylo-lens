@@ -157,17 +157,16 @@ def _run_command(
 
 
 @dataclass(frozen=True)
-class RootedTypingTree:
+class RootedTypingForest:
     parsed: ParsedGraph
     distinct: ParsedGraph
-    root: str
-    component_roots: tuple[str, ...] = ()
+    roots: tuple[str, ...]
 
 
-def typing_profiles_to_rooted_tree(
+def typing_profiles_to_rooted_forest(
     profiles: PreparedTypingProfiles,
     options: TypingOptions | None = None,
-) -> RootedTypingTree:
+) -> RootedTypingForest:
     """Run PhyloLib's Full MST or bounded goeBURST and root each component.
 
     Runs two PhyloLib stages against a temp directory: ``distance`` (profiles ->
@@ -200,7 +199,7 @@ def typing_profiles_to_rooted_tree(
         )
         distinct = collapse_profile_graph(parsed, membership)
         validate_goeburst_tree(distinct, membership)
-        return RootedTypingTree(parsed, distinct, next(iter(membership)))
+        return RootedTypingForest(parsed, distinct, (next(iter(membership)),))
 
     with tempfile.TemporaryDirectory(prefix="phylolib-") as tmp:
         files_dir = Path(tmp)
@@ -276,9 +275,9 @@ def typing_profiles_to_rooted_tree(
                 component_roots=roots,
                 explicit_node_ids=set(ids),
             )
-            return RootedTypingTree(parsed, distinct, roots[0], roots)
+            return RootedTypingForest(parsed, distinct, roots)
 
         root = select_goeburst_root(Path(matrix_path), profiles, membership)
         distinct = collapse_profile_graph(parsed, membership)
         validate_goeburst_tree(distinct, membership)
-        return RootedTypingTree(parsed, distinct, root)
+        return RootedTypingForest(parsed, distinct, (root,))

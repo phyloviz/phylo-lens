@@ -6,11 +6,11 @@ import subprocess
 from math import ceil, hypot, sqrt
 
 from phylo_lens_server.config.settings import graphviz_sfdp_timeout_seconds
+from phylo_lens_server.domain.dataset import Dataset, GraphEdge
 from phylo_lens_server.domain.layout_errors import (
     GraphvizLayoutError,
     LayoutFailureDiagnostics,
 )
-from phylo_lens_server.domain.models import Dataset, GraphEdge
 from phylo_lens_server.domain.preparation import (
     ClusterLayout,
     NodeLayoutPosition,

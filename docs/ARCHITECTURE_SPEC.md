@@ -3,7 +3,12 @@
 PhyloLens is a two-part system:
 
 1. an embeddable browser library for interaction and rendering;
-2. an API service for computational preparation and graph queries.
+2. an API service for tree/forest preparation and viewport queries.
+
+The scientific scope is fully labelled trees, MSTs, and their forest components.
+Newick compatibility includes generated identifiers for unnamed structural
+junctions. The canonical dataset is always a forest; additional distance links
+are an overlay on its displayed slice. See the [terminology policy](README.md#system-terminology).
 
 The boundary is intentional. Global topology, layout, LoD construction, and
 persistence remain server-side. Camera state, semantic-zoom preference, visual
@@ -86,9 +91,9 @@ structures.
 | Component | Responsibility |
 | --- | --- |
 | `phyloLensView.ts` | Public lifecycle facade and disposed/superseded load semantics |
-| `api/` | HTTP transport, runtime response guards, service compatibility check |
+| `services/graph/` | HTTP transport and operation folders colocating DTOs, guards, mappings, and service calls |
 | `app/workbench/` | Dataset preparation workflow, filters, navigation and controller ownership |
-| `app/workbench/viewport/` | Camera-to-query mapping, viewport refresh, cluster expansion/collapse |
+| `app/workbench/viewport/` | Camera-to-query mapping, refresh and expansion; `viewportRequests.ts` owns cancellation and focus, `treePanels.ts` owns saved panel interaction state |
 | `render/` | Renderer-neutral graph contracts and visual mappings |
 | `render/adapters/sigma/` | Sigma instance, Graphology graph and browser event integration |
 | `ancillary/` | Metadata indexes and client-side filters |
@@ -113,11 +118,11 @@ not expose Sigma-specific objects to the workbench.
 | --- | --- |
 | `http/` | FastAPI DTOs, dependency injection, response mapping and HTTP errors |
 | `services/` | Application orchestration for preparation, status, reads and ancillary replacement |
-| `domain/` | Immutable graph/ancillary/query values, invariants, identity and pure policies |
-| `data/` | Newick/typing/ancillary parsing and PhyloLib integration |
+| `domain/` | Validated forest datasets (`dataset.py`), ancillary/query values, forest indexing, identity and pure policies |
+| `data/` | Newick/typing parsing, PhyloLib integration, and public ancillary preparation/replacement operations |
 | `pipeline/` | Source ingestion, rooted subtree LoD, quotient edges and layout computation |
 | `jobs/` | Local admission/executors/futures and durable status/lease/heartbeat orchestration |
-| `repository/layout/` | Shared reads/writes, row mapping and backend-owned transactions |
+| `repository/layout/` | Shared reads/writes, row mapping and backend-owned transactions; the service contract is `repository/layout_repository.py` |
 | `repository/jobs/` | Durable PostgreSQL job SQL and payload mapping |
 | `database/` | Driver connections, fixed-query dialect handling and schema initialization |
 | `config/` | Deployment configuration and timeout parsing |
@@ -139,6 +144,11 @@ read directly through repositories. SQLite and PostgreSQL share retrieval and
 annotation assembly while retaining their parameter, ID-query and transaction
 strategies. Source-table handling for ancillary replacement does not require the
 graph preparation pipeline.
+
+Ingestion calls `prepare_dataset_ancillary` to join direct and table observations,
+retain original isolates, and derive typed profile summaries. That module owns
+its parsing, coercion, and aggregation helpers; callers consume its result rather
+than importing private helper functions.
 
 Internal Python import paths are not supported public contracts. Repository-local
 consumers use the current module owners; no old-path adapters or naming aliases

@@ -28,6 +28,17 @@ The renderer does not issue HTTP requests. The viewport controller does not
 expose Sigma or Graphology objects to the workbench. This boundary allows the
 public package API to remain independent of the rendering implementation.
 
+HTTP operations are colocated under `services/graph/prepare`, `viewport`,
+`region`, `search`, and `ancillary`: each operation owns its DTOs, runtime guards,
+mappings, and service call. The compatibility handshake lives under `service`.
+Wire names and package-root exports stay independent of this internal layout.
+
+Inside the viewport controller, `ViewportRequests` owns request generations,
+abort signals, pending reads, and focus cancellation. `TreePanels` owns the active
+component, saved camera/fold/expansion state, and panel-switch ownership. Unmounting
+invalidates requests and releases saved panels. Snapshot composition and renderer
+application remain in the coordinator.
+
 ## Load lifecycle
 
 `PhyloLensView.load()` follows this sequence:

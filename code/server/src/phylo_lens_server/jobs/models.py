@@ -6,8 +6,8 @@ from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from typing import Literal, Protocol
 
+from phylo_lens_server.domain.dataset import Dataset
 from phylo_lens_server.domain.lod import LodOptions
-from phylo_lens_server.domain.models import Dataset
 from phylo_lens_server.domain.preparation import (
     PreparationSummary,
     PreparedLayoutResult,

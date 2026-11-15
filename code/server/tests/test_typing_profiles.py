@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from phylo_lens_server.data.parsers import ParseError, parse_newick_forest
-from phylo_lens_server.data.phylolib import RootedTypingTree
+from phylo_lens_server.data.phylolib import RootedTypingForest
 from phylo_lens_server.data.typing_profiles import (
     collapse_profile_graph,
     prepare_typing_profiles,
@@ -20,11 +20,11 @@ from phylo_lens_server.pipeline.ingestion import ingest_dataset
 FIXTURES = Path(__file__).resolve().parents[3] / "examples" / "typing"
 
 
-def _typing_tree(profiles, newick: str, root: str) -> RootedTypingTree:
+def _typing_tree(profiles, newick: str, root: str) -> RootedTypingForest:
     parsed = parse_newick_forest(newick)
     distinct = collapse_profile_graph(parsed, profiles.membership())
     validate_goeburst_tree(distinct, profiles.membership())
-    return RootedTypingTree(parsed, distinct, root)
+    return RootedTypingForest(parsed, distinct, (root,))
 
 
 def _root_from_matrix(tmp_path, content: str, matrix: str) -> str:
@@ -62,7 +62,7 @@ def test_normalizer_sends_filtered_matrix_and_records_provenance(monkeypatch) ->
         return _typing_tree(profiles, "((iso-B:0)iso-A:1,iso-D:1)iso-C;", "iso_a")
 
     monkeypatch.setattr(
-        "phylo_lens_server.pipeline.ingestion.typing_profiles_to_rooted_tree", convert
+        "phylo_lens_server.pipeline.ingestion.typing_profiles_to_rooted_forest", convert
     )
     result = ingest_dataset(
         NormalizeRequest(
@@ -128,7 +128,7 @@ def test_invalid_profiles_fail_before_phylolib(monkeypatch, content, message) ->
         pytest.fail("Invalid profiles must not reach PhyloLib")
 
     monkeypatch.setattr(
-        "phylo_lens_server.pipeline.ingestion.typing_profiles_to_rooted_tree",
+        "phylo_lens_server.pipeline.ingestion.typing_profiles_to_rooted_forest",
         unexpected_call,
     )
     if not content:
@@ -193,14 +193,14 @@ def test_typing_layout_ignores_newick_serialization_root(monkeypatch) -> None:
         return _typing_tree(profiles, "(A:1,(D:1)C:1)B;", "a")
 
     monkeypatch.setattr(
-        "phylo_lens_server.pipeline.ingestion.typing_profiles_to_rooted_tree",
+        "phylo_lens_server.pipeline.ingestion.typing_profiles_to_rooted_forest",
         convert_first,
     )
     first = ingest_dataset(
         NormalizeRequest(format="typing_data", content=content).to_domain()
     ).dataset
     monkeypatch.setattr(
-        "phylo_lens_server.pipeline.ingestion.typing_profiles_to_rooted_tree",
+        "phylo_lens_server.pipeline.ingestion.typing_profiles_to_rooted_forest",
         lambda profiles: _typing_tree(profiles, "((A:1)B:1,D:1)C;", "a"),
     )
     second = ingest_dataset(
@@ -215,7 +215,7 @@ def test_duplicate_profile_first_occurrence_breaks_final_lv_tie(monkeypatch) -> 
     # Z appears first but shares A's profile; A is the canonical node ID.
     content = "ID\tL1\tL2\nZ\ta\ta\nB\ta\tb\nC\tb\tb\nD\tb\ta\nA\ta\ta\n"
     monkeypatch.setattr(
-        "phylo_lens_server.pipeline.ingestion.typing_profiles_to_rooted_tree",
+        "phylo_lens_server.pipeline.ingestion.typing_profiles_to_rooted_forest",
         lambda profiles: _typing_tree(profiles, "((Z:0)A:1,(D:1)C:1)B;", "a"),
     )
     dataset = ingest_dataset(
@@ -253,7 +253,7 @@ def test_goeburst_root_rejects_incomplete_matrix(tmp_path) -> None:
 
 def test_typing_rejects_newick_serialization_junction(monkeypatch) -> None:
     monkeypatch.setattr(
-        "phylo_lens_server.pipeline.ingestion.typing_profiles_to_rooted_tree",
+        "phylo_lens_server.pipeline.ingestion.typing_profiles_to_rooted_forest",
         lambda profiles: _typing_tree(profiles, "(A:1,B:1);", "a"),
     )
     with pytest.raises(ParseError, match="not typing profiles"):
@@ -268,7 +268,7 @@ def test_typing_rejects_anonymous_node_even_if_generated_id_matches_profile(
     monkeypatch,
 ) -> None:
     monkeypatch.setattr(
-        "phylo_lens_server.pipeline.ingestion.typing_profiles_to_rooted_tree",
+        "phylo_lens_server.pipeline.ingestion.typing_profiles_to_rooted_forest",
         lambda profiles: _typing_tree(profiles, "((:1,A:1)B:1)C;", "a"),
     )
     with pytest.raises(ParseError, match="not typing profiles"):
@@ -282,7 +282,7 @@ def test_typing_rejects_anonymous_node_even_if_generated_id_matches_profile(
 
 def test_typing_rejects_a_disconnected_full_mst(monkeypatch) -> None:
     monkeypatch.setattr(
-        "phylo_lens_server.pipeline.ingestion.typing_profiles_to_rooted_tree",
+        "phylo_lens_server.pipeline.ingestion.typing_profiles_to_rooted_forest",
         lambda profiles: _typing_tree(profiles, "A;B;", "a"),
     )
     with pytest.raises(ParseError, match="one connected profile tree"):
