@@ -194,7 +194,7 @@ export function expansionControls(
 
 function describeSelection(selected: ExpansionSelection, expanded: boolean): { label: string; target: string } {
   if (!selected?.nodeId) {
-    return { label: 'Select a node in the graph or search results.', target: 'selection' };
+    return { label: 'Select a node in the view or search results.', target: 'selection' };
   }
   let kind = 'Leaf node';
   let target = 'selection';

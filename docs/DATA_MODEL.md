@@ -14,8 +14,14 @@ raw Newick / typing profiles / metadata
 
 ## Domain model
 
-The immutable domain model is defined in `domain/models.py` and is the only graph shape
+The immutable domain model is defined in `domain/dataset.py` and is the only graph shape
 accepted by the preparation pipeline.
+
+`Dataset` construction, validated copies, and persisted-payload decoding enforce a
+nonempty forest: unique node/edge IDs, known endpoints, no self-loops, parallel
+edges or cycles, and exactly one technical root per component. The shared
+adjacency and iterative indexing implementation lives in `domain/tree_index.py`.
+Membership and ancillary schema checks run before preparation is submitted.
 
 ### `Dataset`
 
@@ -133,7 +139,7 @@ created by earlier service versions and is not produced as a Graphviz fallback.
 `pending` and `refining` describe in-flight work. `failed` is a terminal job
 state and is not published as a readable layout version.
 
-Domain graph values live in `domain/models.py`, prepared values in
+Domain graph values live in `domain/dataset.py`, prepared values in
 `domain/preparation.py`, and query/view values in `domain/views.py` and
 `domain/search.py`. HTTP response DTOs remain in `http/graph/schemas.py`.
 
@@ -252,6 +258,13 @@ erDiagram
 
 PostgreSQL additionally stores durable prepare jobs and lease state in
 `prepare_jobs`.
+
+Technical-root revisions also persist a `preparation_sources` snapshot containing
+the normalized dataset, default roots, original rooting policy, and preparation
+options. Ancillary revisions update that snapshot with their new annotations.
+Rerooting can therefore preserve exact topology, observations and coordinates
+after a restart. The additional table and schema migration are described in
+[technical rooting](REROOTING.md).
 
 ## Publication semantics
 

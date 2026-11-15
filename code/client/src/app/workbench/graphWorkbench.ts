@@ -58,6 +58,29 @@ export function createGraphWorkbench(
   let sourceInput: GraphInput | null = null;
   let connectionRequest = 0;
   let connectionAbort: AbortController | null = null;
+  let layoutChange: { generation: number; coordinator: GraphViewportCoordinator } | null = null;
+
+  async function changeLayout<T>(operation: () => Promise<T>): Promise<T> {
+    if (layoutChange?.generation === loadGeneration)
+      throw new Error('A layout revision is already pending for this tree.');
+    const owner = { generation: loadGeneration, coordinator: requireViewportCoordinator() };
+    const assertCurrent = () => {
+      if (disposed || owner.generation !== loadGeneration || owner.coordinator !== viewportCoordinator) {
+        throw new Error(GRAPH_WORKBENCH_ERRORS.loadSuperseded);
+      }
+    };
+    layoutChange = owner;
+    try {
+      const result = await operation();
+      assertCurrent();
+      return result;
+    } catch (error) {
+      assertCurrent();
+      throw error;
+    } finally {
+      if (layoutChange === owner) layoutChange = null;
+    }
+  }
 
   function cancelConnections(): number {
     const sequence = ++connectionRequest;
@@ -129,6 +152,63 @@ export function createGraphWorkbench(
   });
 
   return {
+    canSetTechnicalRoot: () => graphClient.setTechnicalRoot !== undefined,
+    getTechnicalRoots: () => (hasGraphSession(getState()) ? (getGraphSession(getState()).technicalRoots ?? []) : []),
+    setTechnicalRoot: nodeId =>
+      changeLayout(async () => {
+        const coordinator = requireViewportCoordinator();
+        const session = getGraphSession(getState());
+        const generation = loadGeneration;
+        if (!graphClient.setTechnicalRoot) throw new Error('This backend does not support technical rerooting.');
+        const result = await graphClient.setTechnicalRoot({
+          datasetId: session.datasetId,
+          layoutVersion: session.layoutVersion,
+          nodeId,
+        });
+        if (
+          disposed ||
+          generation !== loadGeneration ||
+          coordinator !== viewportCoordinator ||
+          getGraphSession(getState()).layoutVersion !== session.layoutVersion
+        ) {
+          throw new Error(GRAPH_WORKBENCH_ERRORS.loadSuperseded);
+        }
+        if (
+          result.datasetId !== session.datasetId ||
+          result.technicalRoots.length === 0 ||
+          (nodeId !== null && !result.technicalRoots.includes(nodeId)) ||
+          (nodeId === null &&
+            (result.technicalRoots.length !== result.defaultRoots.length ||
+              result.defaultRoots.some(root => !result.technicalRoots.includes(root))))
+        ) {
+          throw new Error('The backend did not confirm the requested technical root.');
+        }
+        if (result.layoutVersion === session.layoutVersion) {
+          if (
+            !session.technicalRoots ||
+            session.technicalRoots.length !== result.technicalRoots.length ||
+            session.technicalRoots.some(root => !result.technicalRoots.includes(root))
+          ) {
+            throw new Error('A technical-root change requires a new immutable layout version.');
+          }
+          return result;
+        }
+        cancelConnections();
+        navigation.cancelAll();
+        await coordinator.replaceRootedLayout(result, () => {
+          dispatch({
+            kind: 'technicalRootChanged',
+            roots: result.technicalRoots,
+            lodTierCount: result.lodTierCount ?? 1,
+          });
+        });
+        if (disposed || generation !== loadGeneration || coordinator !== viewportCoordinator) {
+          throw new Error(GRAPH_WORKBENCH_ERRORS.loadSuperseded);
+        }
+        renderer.setHighlightedNodes?.(null);
+        renderer.focusNode?.(null);
+        return result;
+      }),
     setDistanceConnections: async connectionOptions => {
       const coordinator = requireViewportCoordinator();
       const sequence = cancelConnections();
@@ -224,7 +304,7 @@ export function createGraphWorkbench(
       );
     },
 
-    applyAncillaryData: updateAncillaryData,
+    applyAncillaryData: data => changeLayout(() => updateAncillaryData(data)),
 
     exportPng: exportOptions => {
       if (!renderer.exportPng) {

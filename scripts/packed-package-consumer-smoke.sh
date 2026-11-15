@@ -6,7 +6,8 @@ export npm_config_cache="${npm_config_cache:-${TMPDIR:-/tmp}/phylo-lens-npm-cach
 
 PACK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/phylo-lens-package.XXXXXX")"
 FIXTURE_DIR="$(mktemp -d "${TMPDIR:-/tmp}/phylo-lens-packed-consumer.XXXXXX")"
-trap 'rm -rf "$PACK_DIR" "$FIXTURE_DIR"' EXIT
+CUSTOM_FIXTURE_DIR="$(mktemp -d "${TMPDIR:-/tmp}/phylo-lens-custom-consumer.XXXXXX")"
+trap 'rm -rf "$PACK_DIR" "$FIXTURE_DIR" "$CUSTOM_FIXTURE_DIR"' EXIT
 if [ "$#" -gt 0 ]; then
   TARBALL_PATH="$1"
   if [ ! -f "$TARBALL_PATH" ]; then
@@ -43,3 +44,14 @@ cd "$FIXTURE_DIR"
 npm install --package-lock-only --ignore-scripts "$TARBALL_PATH"
 npm ci
 npm run build
+
+# The same packed API also supports an adapter with no HTTP service.
+cp -R "$REPO_ROOT/examples/custom-client-host/." "$CUSTOM_FIXTURE_DIR"
+cd "$CUSTOM_FIXTURE_DIR"
+npm install --package-lock-only --ignore-scripts "$TARBALL_PATH"
+npm ci
+npm run build
+
+if [ "${PHYLO_LENS_BROWSER_SMOKE:-0}" = "1" ]; then
+  node "$REPO_ROOT/code/client/tests/browser/customClient.mjs" "$CUSTOM_FIXTURE_DIR"
+fi

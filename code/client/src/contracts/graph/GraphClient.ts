@@ -13,8 +13,10 @@ import type { GraphSearchResult } from './search/GraphSearchResult';
 
 import type { GraphComponentsRequest, GraphComponentsResult } from './components';
 import type { DistanceConnectionsRequest, DistanceConnectionsResult } from './connections';
+import type { GraphRootingRequest, GraphRootingResult } from './rooting';
 
 export interface GraphClient {
+  setTechnicalRoot?(request: GraphRootingRequest): Promise<GraphRootingResult>;
   readDistanceConnections?(
     request: DistanceConnectionsRequest,
     options?: { signal?: AbortSignal }
@@ -22,11 +24,11 @@ export interface GraphClient {
   readComponents?(request: GraphComponentsRequest): Promise<GraphComponentsResult>;
   prepareGraph(request: GraphPrepareRequest, options?: GraphPrepareOptions): Promise<GraphPrepareResult>;
 
-  applyAncillaryData(request: GraphAncillaryRequest): Promise<GraphAncillaryResult>;
+  applyAncillaryData?(request: GraphAncillaryRequest): Promise<GraphAncillaryResult>;
 
   readViewport(request: GraphViewportRequest, options?: GraphViewportReadOptions): Promise<GraphViewportResult>;
 
-  readRegion(request: GraphRegionRequest): Promise<GraphRegionResult>;
+  readRegion?(request: GraphRegionRequest): Promise<GraphRegionResult>;
 
-  searchGraph(request: GraphSearchRequest): Promise<GraphSearchResult>;
+  searchGraph?(request: GraphSearchRequest): Promise<GraphSearchResult>;
 }

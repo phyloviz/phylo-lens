@@ -4,6 +4,7 @@ from bisect import bisect_right
 from collections import defaultdict
 from collections.abc import Iterator, Mapping
 from decimal import Context, Decimal
+from itertools import combinations
 from math import isfinite
 
 from phylo_lens_server.domain.connections import ConnectionContext
@@ -139,32 +140,35 @@ def allelic_pairs(
     if not ids:
         return
     loci = len(profiles[ids[0]])
-    blocks = min(threshold + 1, loci)
+    if threshold >= loci:
+        # Every within-component pair qualifies; an index cannot filter any.
+        for source, target in combinations(ids, 2):
+            if owners[source] == owners[target]:
+                differences = sum(
+                    left != right
+                    for left, right in zip(
+                        profiles[source], profiles[target], strict=True
+                    )
+                )
+                yield source, target, float(differences)
+        return
+    blocks = threshold + 1
     boundaries = [(i * loci // blocks, (i + 1) * loci // blocks) for i in range(blocks)]
     buckets: dict[tuple[str, int, tuple[str, ...]], list[str]] = defaultdict(list)
     for node in ids:
         for block, (start, end) in enumerate(boundaries):
             buckets[(owners[node], block, profiles[node][start:end])].append(node)
     for source in ids:
-        if threshold >= loci:
-            candidates = (
+        candidates = sorted(
+            {
                 target
-                for target in ids
-                if target > source and owners[target] == owners[source]
-            )
-        else:
-            candidates = iter(
-                sorted(
-                    {
-                        target
-                        for block, (start, end) in enumerate(boundaries)
-                        for target in buckets[
-                            (owners[source], block, profiles[source][start:end])
-                        ]
-                        if target > source
-                    }
-                )
-            )
+                for block, (start, end) in enumerate(boundaries)
+                for target in buckets[
+                    (owners[source], block, profiles[source][start:end])
+                ]
+                if target > source
+            }
+        )
         for target in candidates:
             differences = 0
             for left, right in zip(profiles[source], profiles[target], strict=True):

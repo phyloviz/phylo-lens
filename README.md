@@ -1,10 +1,13 @@
 # PhyloLens
 
 PhyloLens is an embeddable browser visualization library and companion API
-service for interactive exploration of large phylogenetic trees and
-typing-derived graphs.
+service for interactive exploration of fully labelled trees, minimum spanning
+trees (MSTs), and forests, with optional distance-connection overlays.
 
 > **Live demo:** [Try PhyloLens in your browser](http://192.92.147.22:3000/).
+>
+> **Documentation:** [User guide and API reference](https://phyloviz.github.io/phylo-lens/).
+> GitHub Pages publication is pending; the [HTML manual](docs/manual/index.html) is available in this checkout.
 
 The browser package owns rendering and interaction. The service owns input
 normalization, PhyloLib-based typing-data processing, Graphviz layout
@@ -23,7 +26,7 @@ host application
 ```
 
 PhyloLens is designed to avoid transferring and rendering the complete prepared
-graph for every interaction. The client requests the graph subset required for
+forest for every interaction. The client requests the viewport slice required for
 the current viewport and semantic-zoom tier. The limits of that design are
 measured in the thesis evaluation; the documentation does not make unsupported
 performance claims.
@@ -33,7 +36,7 @@ performance claims.
 | Artefact | Identifier | Responsibility |
 | --- | --- | --- |
 | Browser library | `@phyloviz/phylo-lens` | Public TypeScript API, Sigma renderer, interaction and viewport synchronization |
-| API service | `ghcr.io/phyloviz/phylo-lens-service` | Normalization, layout preparation, LoD construction, persistence and graph queries |
+| API service | `ghcr.io/phyloviz/phylo-lens-service` | Normalization, layout preparation, LoD construction, persistence and viewport queries |
 | HTTP contract | API version `1` | Compatibility boundary between the browser library and the service |
 
 The npm package version, Python service version, and Docker image tag use the
@@ -47,7 +50,7 @@ PhyloLens currently accepts:
 - **Newick trees or forests**, including branch lengths, quoted labels,
   comments, labeled internal nodes, and multiple `;`-terminated components;
 - **MLST/cgMLST allelic-profile matrices**, processed with PhyloLib using
-  Hamming distance and goeBURST;
+  Hamming distance and either goeBURST Full MST or goeBURST up to a selected nLV level;
 - **CSV or TSV ancillary metadata**, joined to explicitly labeled nodes or
   typing-profile identifiers.
 
@@ -185,7 +188,9 @@ external host fixture and smoke-tests the Docker service on `linux/amd64` and
 
 ## Documentation
 
-Start with the [documentation index](docs/README.md).
+Read the [user guide and API reference](https://phyloviz.github.io/phylo-lens/),
+or open the [HTML manual locally](docs/manual/index.html). The
+[repository documentation index](docs/README.md) also links to the technical notes.
 
 - [Architecture](docs/ARCHITECTURE_SPEC.md)
 - [Runtime flow](docs/flow.md)

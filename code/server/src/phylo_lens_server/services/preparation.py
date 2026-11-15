@@ -4,8 +4,8 @@ import logging
 from collections.abc import Callable
 from contextlib import AbstractContextManager, contextmanager
 
+from phylo_lens_server.domain.dataset import Dataset
 from phylo_lens_server.domain.lod import LodOptions
-from phylo_lens_server.domain.models import Dataset
 from phylo_lens_server.domain.preparation import (
     PreparedLayoutResult,
     PrepareInput,
@@ -24,7 +24,7 @@ from phylo_lens_server.pipeline.lod import (
     compute_prepared_edges,
     prepare_layout_artifacts,
 )
-from phylo_lens_server.repository.interfaces import LayoutRepository
+from phylo_lens_server.repository.layout_repository import LayoutRepository
 
 logger = logging.getLogger(__name__)
 

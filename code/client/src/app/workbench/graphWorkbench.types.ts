@@ -26,6 +26,7 @@ import type { AncillaryInputOptions } from '../../ancillary/ancillaryInput';
 
 import type { GraphComponent, GraphComponentsResult } from '../../contracts/graph/components';
 import type { DistanceConnectionOptions } from '../../contracts/graph/connections';
+import type { GraphRootingResult } from '../../contracts/graph/rooting';
 
 // Public workbench contracts.
 
@@ -75,6 +76,9 @@ export type GraphRenderedHandler = (graph: PositionedGraph) => void;
 export type GraphNodeClickedHandler = (state: RenderNodeClickState) => void;
 
 export interface GraphWorkbench {
+  setTechnicalRoot: (nodeId: NodeId | null) => Promise<GraphRootingResult>;
+  getTechnicalRoots: () => readonly string[];
+  canSetTechnicalRoot: () => boolean;
   setDistanceConnections: (options: DistanceConnectionOptions | null) => Promise<PositionedGraph>;
   listComponents: (page?: { after?: number; limit?: number }) => Promise<GraphComponentsResult>;
   selectComponent: (component: GraphComponent | null) => Promise<PositionedGraph>;
@@ -148,6 +152,7 @@ export interface GraphWorkbench {
 // Internal workbench state.
 
 export interface GraphSession {
+  readonly technicalRoots?: readonly string[];
   readonly distanceCutoff?: number;
   readonly datasetId: DatasetId;
   readonly layoutVersion: LayoutVersion;

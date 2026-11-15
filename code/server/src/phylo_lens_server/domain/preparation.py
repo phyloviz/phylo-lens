@@ -4,14 +4,14 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from types import MappingProxyType
 
+from phylo_lens_server.domain.dataset import Dataset
 from phylo_lens_server.domain.lod import LodOptions
-from phylo_lens_server.domain.models import Dataset
 from phylo_lens_server.domain.sfdp import SfdpOptions
 from phylo_lens_server.domain.tree_index import TreeInterval
 from phylo_lens_server.domain.views import LayoutBounds, LayoutStatus
 
 from .ancillary import AncillaryData, AncillaryField
-from .models import SourceFormat
+from .dataset import SourceFormat
 from .revisions import AncillaryTable
 from .typing import TypingOptions
 from .values import FrozenValue

@@ -18,6 +18,9 @@ export function workbenchFake(
   let regionSelectModeEnabled = false;
 
   return {
+    canSetTechnicalRoot: vi.fn(() => true),
+    getTechnicalRoots: vi.fn(() => [] as readonly string[]),
+    setTechnicalRoot: vi.fn(),
     setDistanceConnections: vi.fn(async () => renderedGraph),
     listComponents: vi.fn(async () => ({ components: [], nextCursor: null })),
     selectComponent: vi.fn(async () => renderedGraph),

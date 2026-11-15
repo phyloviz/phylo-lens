@@ -1,7 +1,7 @@
 # Input formats
 
-PhyloLens accepts graph topology and sample metadata as separate inputs. The
-service normalizes every supported source into one canonical graph before layout
+PhyloLens accepts tree/forest topology and sample metadata as separate inputs. The
+service normalizes every supported source into one canonical forest before layout
 preparation. Downstream clustering, persistence, viewport queries, and rendering
 do not depend on the original source format.
 
@@ -10,7 +10,7 @@ do not depend on the original source format.
 | Source | `format` / `sourceFormat` | Purpose |
 | --- | --- | --- |
 | Newick | `newick` | Import one phylogenetic tree or a disconnected forest |
-| Typing profiles | `typing_data` | Derive a goeBURST relationship graph from MLST/cgMLST allelic profiles |
+| Typing profiles | `typing_data` | Derive a goeBURST MST or forest from MLST/cgMLST allelic profiles |
 | Ancillary table | `ancillary_data` | Join epidemiological, clinical, geographic, or other sample attributes to graph nodes |
 | Direct metadata | `metadata_schema` and `metadata_by_node_id` | Supply typed metadata programmatically |
 
@@ -88,7 +88,7 @@ stable external join targets.
 
 ### Purpose
 
-`typing_data` accepts an allelic-profile matrix and derives a relationship graph
+`typing_data` accepts an allelic-profile matrix and derives an MST or forest
 through the bundled PhyloLib command-line application:
 
 ```text
@@ -96,7 +96,7 @@ profile matrix
   → Hamming distance matrix
   → goeBURST Full MST or goeBURST up to nLV
   → Newick tree / forest
-  → canonical PhyloLens graph
+  → canonical PhyloLens forest
 ```
 
 The current service uses:
@@ -107,7 +107,7 @@ java -jar /app/phylolib.jar algorithm goeburstfullmst
 ```
 
 This path is appropriate for MLST and cgMLST-style profiles represented as
-categorical allele identifiers. The resulting graph is a typing-derived
+categorical allele identifiers. The resulting tree or forest is typing-derived
 relationship structure; it should not be described as an inferred evolutionary
 phylogeny without an analysis that supports that interpretation.
 
@@ -160,8 +160,10 @@ run still requires validation against that run's input and settings.
 ### Equivalent profiles and isolate identity
 
 After complete-locus filtering, identical allele vectors represent one profile.
-All input rows still reach PhyloLib, preserving their multiplicity during tree
-construction. Identifiers are normalized to safe Newick labels before conversion;
+Full MST sends all input rows to PhyloLib, preserving their multiplicity during
+tree construction. Standard goeBURST runs on distinct profiles because its
+algorithm skips zero-distance links; original isolate membership is retained
+separately for ancillary joining. Identifiers are normalized to safe Newick labels before conversion;
 original IDs are retained separately. Empty, structural (`union_...`) or colliding
 normalized identifiers are rejected rather than silently merged.
 
@@ -183,8 +185,8 @@ remain available in the isolate records.
 ### Algorithm and maximum nLV level
 
 goeBURST Full MST uses every observed locus-variant level, so valid typing
-profiles produce one connected spanning tree. PhyloLens retains defensive support
-for forests from standard goeBURST; a disconnected Full MST result is rejected.
+profiles produce one connected spanning tree. Standard goeBURST may produce a
+forest. A disconnected Full MST result is rejected.
 
 The typing-data input offers **goeBURST Full MST (all levels)** and
 **goeBURST (up to nLV)**. Full MST remains the default. Standard goeBURST exposes

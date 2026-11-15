@@ -11,9 +11,9 @@ from statistics import median
 from time import perf_counter
 
 from phylo_lens_server.domain.lod import LodOptions
-from phylo_lens_server.domain.models import Dataset, DatasetSource, GraphEdge, GraphNode
+from phylo_lens_server.domain.dataset import Dataset, DatasetSource, GraphEdge, GraphNode
 from phylo_lens_server.pipeline.lod import prepare_layout_artifacts
-from phylo_lens_server.pipeline.tree_index import index_forest
+from phylo_lens_server.domain.tree_index import index_forest
 
 
 def adjacency(size, shape):

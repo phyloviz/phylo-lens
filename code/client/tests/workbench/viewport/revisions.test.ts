@@ -6,9 +6,62 @@ import { expect, it, vi } from 'vitest';
 import type { GraphViewportRequest } from '../../../src/contracts/graph/viewport/GraphViewportRequest';
 import type { GraphViewportResult } from '../../../src/contracts/graph/viewport/GraphViewportResult';
 import { viewportResponse, clusterResponse } from './fixtures';
+import type { GraphRootingResult } from '../../../src/contracts/graph/rooting';
 const { Coordinator: GraphViewportCoordinator } = setupViewportHarness();
 
 describe('GraphViewportCoordinator', () => {
+  it('replaces rooted groups, clears expansion and saved folds, and maps the active component without refitting', async () => {
+    const renderer = recordingRenderer();
+    const readViewport = vi.fn(async (request: GraphViewportRequest) => ({
+      ...(request.clusterId ? clusterResponse() : viewportResponse()),
+      layoutVersion: request.layoutVersion ?? toLayoutVersion('layout-1'),
+    }));
+    const controller = new GraphViewportCoordinator({
+      datasetId: toDatasetId('tree'),
+      layoutVersion: toLayoutVersion('layout-1'),
+      client: { readViewport },
+      renderer,
+      lodTierCount: 3,
+    });
+    controller.mount();
+    await vi.advanceTimersByTimeAsync(0);
+    await controller.selectComponent({ id: 'root', nodeCount: 4, bounds: viewportResponse().globalBounds! });
+    await controller.expandCluster(toClusterId('cluster-a'));
+    controller.setKeepExpanded(true);
+    const fits = vi.mocked(renderer.fitGraphSnapshot!).mock.calls.length;
+    const result: GraphRootingResult = {
+      datasetId: toDatasetId('tree'),
+      layoutVersion: toLayoutVersion('rooted'),
+      technicalRoots: ['a1'],
+      defaultRoots: ['root'],
+      componentIds: { root: 'a1' },
+      nodeCount: 4,
+      edgeCount: 3,
+      clusterCount: 4,
+      lodTierCount: 1,
+      layoutStatus: 'ready',
+      warnings: [],
+    };
+    const beforeApply = vi.fn();
+    await controller.replaceRootedLayout(result, beforeApply);
+    expect(beforeApply).toHaveBeenCalledOnce();
+    expect(controller.getComponentId()).toBe('a1');
+    expect(controller.getExpansionState()).toMatchObject({
+      expandedClusterIds: [],
+      keepExpanded: false,
+      allExpanded: false,
+    });
+    expect(readViewport.mock.calls.at(-1)?.[0]).toMatchObject({
+      componentId: 'a1',
+      layoutVersion: 'rooted',
+      lodLevel: 0,
+    });
+    expect(renderer.appliedGraphs.at(-1)?.nodes.some(node => node.id === 'a1')).toBe(false);
+    expect(renderer.fitGraphSnapshot).toHaveBeenCalledTimes(fits);
+    await controller.selectComponent(null);
+    await controller.selectComponent({ id: 'a1', nodeCount: 4, bounds: viewportResponse().globalBounds! });
+    expect(readViewport.mock.calls.at(-1)?.[0].layoutVersion).toBe('rooted');
+  });
   it('drops old viewport responses and refreshes expanded clusters when adopting ancillary data', async () => {
     const renderer = recordingRenderer();
     let resolveOld: (response: GraphViewportResult) => void = () => undefined;

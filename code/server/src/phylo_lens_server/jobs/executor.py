@@ -2,8 +2,8 @@
 
 from concurrent.futures import Future, ThreadPoolExecutor
 
+from phylo_lens_server.domain.dataset import Dataset
 from phylo_lens_server.domain.lod import LodOptions
-from phylo_lens_server.domain.models import Dataset
 from phylo_lens_server.domain.preparation import PreparedLayoutResult
 from phylo_lens_server.domain.sfdp import SfdpOptions
 from phylo_lens_server.services.preparation import PreparationService

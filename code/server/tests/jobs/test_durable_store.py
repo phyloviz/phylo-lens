@@ -132,15 +132,15 @@ def test_postgres_schema_is_checksummed() -> None:
 
 
 def test_historical_durable_dataset_payload_decodes_at_repository_boundary():
-    from phylo_lens_server.domain.identity import layout_version_for_dataset
-    from phylo_lens_server.domain.legacy_metadata import encode_dataset_annotations
-    from phylo_lens_server.domain.models import (
+    from phylo_lens_server.domain.dataset import (
         NEWICK_ROOTING_STRATEGY,
         Dataset,
         DatasetSource,
         GraphNode,
         Isolate,
     )
+    from phylo_lens_server.domain.identity import layout_version_for_dataset
+    from phylo_lens_server.domain.legacy_metadata import encode_dataset_annotations
     from phylo_lens_server.repository.jobs.postgres import decode_dataset_payload
 
     current = Dataset(

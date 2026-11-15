@@ -9,12 +9,13 @@ from pydantic import ValidationError
 
 from phylo_lens_server.data.parsers import ParseError
 from phylo_lens_server.domain.connections import ConnectionQuery
-from phylo_lens_server.domain.models import DomainValidationError
+from phylo_lens_server.domain.dataset import DomainValidationError
 from phylo_lens_server.domain.revisions import (
     AncillaryLayoutNotFoundError,
     AncillaryTable,
     AncillaryUpdate,
 )
+from phylo_lens_server.domain.rooting import RootingUpdate
 from phylo_lens_server.domain.search import SearchQuery
 from phylo_lens_server.domain.views import (
     NodeAnnotationKey,
@@ -49,6 +50,8 @@ from phylo_lens_server.http.graph.schemas import (
     GraphPrepareStatus,
     GraphRegionQuery,
     GraphRegionResponse,
+    GraphRootingRequest,
+    GraphRootingResponse,
     GraphSearchQuery,
     GraphSearchResponse,
     GraphViewportQuery,
@@ -59,9 +62,10 @@ from phylo_lens_server.jobs.models import (
     PrepareJobs,
     PrepareQueueFullError,
 )
-from phylo_lens_server.repository.interfaces import LayoutRepository
+from phylo_lens_server.repository.layout_repository import LayoutRepository
 from phylo_lens_server.services import ancillary, graph_reads, preparation
 from phylo_lens_server.services.distance_connections import read_distance_connections
+from phylo_lens_server.services.rooting import set_technical_root
 
 ROUTER_PREFIX = "/api/graph"
 ROUTER_TAG = "graph"
@@ -75,6 +79,28 @@ ROUTE_SEARCH = "/search"
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix=ROUTER_PREFIX, tags=[ROUTER_TAG])
+
+
+@router.post(
+    "/root", response_model=GraphRootingResponse, response_model_exclude_none=True
+)
+def graph_root(
+    query: GraphRootingRequest,
+    store: Annotated[LayoutRepository, Depends(get_prepared_layout_store)],
+) -> GraphRootingResponse:
+    try:
+        result = set_technical_root(RootingUpdate(**query.model_dump()), store)
+        return GraphRootingResponse(
+            **result.summary.model_dump(),
+            component_ids=result.component_ids,
+            default_roots=list(result.default_roots),
+        )
+    except KeyError as exc:
+        raise not_found_error(
+            "The requested prepared forest was not found; load it again."
+        ) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @router.post("/connections", response_model=GraphConnectionsResponse)

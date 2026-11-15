@@ -1,9 +1,8 @@
+import pytest
+from pydantic import ValidationError
+
 from phylo_lens_server.domain.ancillary import AncillaryField, NodeAnnotations
-from phylo_lens_server.domain.legacy_metadata import (
-    decode_node_annotations,
-    is_summary_key,
-)
-from phylo_lens_server.domain.models import (
+from phylo_lens_server.domain.dataset import (
     NEWICK_ROOTING_STRATEGY,
     Dataset,
     DatasetSource,
@@ -11,7 +10,12 @@ from phylo_lens_server.domain.models import (
     GraphEdge,
     GraphNode,
 )
+from phylo_lens_server.domain.legacy_metadata import (
+    decode_node_annotations,
+    is_summary_key,
+)
 from phylo_lens_server.domain.validators import validate_dataset
+from phylo_lens_server.http.graph.schemas import NormalizeRequest
 
 DATASET_ID = "test"
 NODE_A = "a"
@@ -29,7 +33,6 @@ METADATA_VALUE_REGION = "EU"
 METADATA_TYPE_STRING = "string"
 
 ERR_EXPECTED_EXCEPTION = "Expected DomainValidationError"
-ERR_FRAGMENT_MISSING_TARGET = "missing target node"
 ERR_FRAGMENT_TYPE_MISMATCH = "does not match type"
 
 
@@ -73,24 +76,63 @@ def test_validate_dataset_accepts_valid_input() -> None:
     validate_dataset(_dataset())
 
 
+def test_self_loop_option_cannot_enable_non_tree_preparation():
+    with pytest.raises(ValidationError):
+        NormalizeRequest(
+            format="newick", content="A;", options={"allow_self_loops": True}
+        )
+
+
 def test_validate_dataset_rejects_missing_node_reference() -> None:
     """Ensure edges cannot reference target nodes missing from the dataset."""
     dataset = _dataset()
-    dataset = dataset.model_copy(
-        update={
-            "edges": (
-                *dataset.edges,
-                GraphEdge(id=EDGE_ID_A_X, source=NODE_A, target=NODE_X),
-            )
-        }
-    )
+    with pytest.raises(ValidationError, match="unknown endpoint"):
+        dataset.model_copy(
+            update={
+                "edges": (
+                    *dataset.edges,
+                    GraphEdge(id=EDGE_ID_A_X, source=NODE_A, target=NODE_X),
+                )
+            }
+        )
 
-    try:
-        validate_dataset(dataset)
-    except DomainValidationError as err:
-        assert ERR_FRAGMENT_MISSING_TARGET in "; ".join(err.errors).lower()
-    else:
-        raise AssertionError(ERR_EXPECTED_EXCEPTION)
+
+@pytest.mark.parametrize(
+    "edges",
+    [
+        [("a", "b"), ("b", "c"), ("c", "a")],
+        [("a", "a")],
+        [("a", "b"), ("b", "a")],
+    ],
+)
+def test_dataset_rejects_cycles_self_loops_and_parallel_edges_at_construction(edges):
+    value = _dataset().model_dump()
+    value.update(
+        nodes=[{"id": node} for node in "abc"],
+        edges=[
+            {"id": str(i), "source": a, "target": b} for i, (a, b) in enumerate(edges)
+        ],
+    )
+    with pytest.raises(ValidationError):
+        Dataset.model_validate(value)
+
+
+def test_dataset_copy_and_persistence_cannot_bypass_forest_validation():
+    value = _dataset()
+    with pytest.raises(ValidationError, match="acyclic"):
+        value.model_copy(
+            update={
+                "nodes": [GraphNode(id=node) for node in "abc"],
+                "edges": [
+                    GraphEdge(id=str(i), source=a, target=b)
+                    for i, (a, b) in enumerate([("a", "b"), ("b", "c"), ("c", "a")])
+                ],
+            }
+        )
+    payload = value.model_dump()
+    payload["edges"] = (*payload["edges"], {"id": "loop", "source": "a", "target": "a"})
+    with pytest.raises(ValidationError):
+        Dataset.model_validate(payload)
 
 
 def test_validate_dataset_rejects_schema_mismatch() -> None:

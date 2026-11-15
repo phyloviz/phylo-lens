@@ -522,20 +522,20 @@ def _write_phylolib_output(command, *, newick=TYPING_NEWICK, matrix=TYPING_MATRI
 def test_typing_data_maps_phylolib_graph_into_pipeline(monkeypatch) -> None:
     """A typing_data request converts profiles to a graph then normalizes as usual."""
     from phylo_lens_server.data.parsers import parse_newick
-    from phylo_lens_server.data.phylolib import RootedTypingTree
+    from phylo_lens_server.data.phylolib import RootedTypingForest
     from phylo_lens_server.data.typing_profiles import collapse_profile_graph
 
     calls: list[str] = []
 
-    def fake_convert(profiles):
+    def fake_convert(profiles, options=None):
         calls.append(profiles.algorithm_content())
         parsed = parse_newick(TYPING_NEWICK)
-        return RootedTypingTree(
-            parsed, collapse_profile_graph(parsed, profiles.membership()), "a"
+        return RootedTypingForest(
+            collapse_profile_graph(parsed, profiles.membership()), ("a",)
         )
 
     monkeypatch.setattr(
-        "phylo_lens_server.pipeline.ingestion.typing_profiles_to_rooted_tree",
+        "phylo_lens_server.pipeline.ingestion.typing_profiles_to_rooted_forest",
         fake_convert,
     )
 
@@ -582,7 +582,7 @@ def test_typing_data_runtime_missing_raises_parse_error(monkeypatch) -> None:
     assert "PhyloLib" in str(excinfo.value)
 
 
-def test_typing_profiles_to_rooted_tree_prefers_local_phylolib_jar(
+def test_typing_profiles_to_rooted_forest_prefers_local_phylolib_jar(
     monkeypatch, tmp_path
 ) -> None:
     """Production runs the configured PhyloLib JAR directly."""
@@ -607,12 +607,12 @@ def test_typing_profiles_to_rooted_tree_prefers_local_phylolib_jar(
 
     from phylo_lens_server.data.typing_profiles import prepare_typing_profiles
 
-    tree = phylolib.typing_profiles_to_rooted_tree(
+    tree = phylolib.typing_profiles_to_rooted_forest(
         prepare_typing_profiles(TYPING_PROFILES)
     )
 
-    assert tree.root == "a"
-    assert sorted(tree.distinct.nodes) == ["a", "b", "c"]
+    assert tree.roots == ("a",)
+    assert sorted(tree.forest.nodes) == ["a", "b", "c"]
     assert commands
     expected_prefix = ["/opt/java/openjdk/bin/java", "-jar", str(jar_path)]
     assert all(command[:3] == expected_prefix for command in commands)
@@ -626,7 +626,9 @@ def test_typing_profiles_to_rooted_tree_prefers_local_phylolib_jar(
     assert len(commands[1]) == 7
 
 
-def test_typing_profiles_to_rooted_tree_reads_jar_output(monkeypatch, tmp_path) -> None:
+def test_typing_profiles_to_rooted_forest_reads_jar_output(
+    monkeypatch, tmp_path
+) -> None:
     """The two-stage PhyloLib path returns the Newick the JAR wrote."""
     jar_path = tmp_path / "phylolib.jar"
     jar_path.write_text("fake jar", encoding="utf-8")
@@ -652,16 +654,16 @@ def test_typing_profiles_to_rooted_tree_reads_jar_output(monkeypatch, tmp_path) 
 
     from phylo_lens_server.data.typing_profiles import prepare_typing_profiles
 
-    tree = phylolib.typing_profiles_to_rooted_tree(
+    tree = phylolib.typing_profiles_to_rooted_forest(
         prepare_typing_profiles(TYPING_PROFILES)
     )
 
-    assert tree.root == "a"
+    assert tree.roots == ("a",)
     assert temp_dirs
     assert all(not temp_dir.exists() for temp_dir in temp_dirs)
 
 
-def test_typing_profiles_to_rooted_tree_stage_failure_raises(
+def test_typing_profiles_to_rooted_forest_stage_failure_raises(
     monkeypatch, tmp_path
 ) -> None:
     """A non-zero PhyloLib process exit surfaces a typed TypingNormalizeError."""
@@ -679,14 +681,14 @@ def test_typing_profiles_to_rooted_tree_stage_failure_raises(
     with pytest.raises(phylolib.TypingNormalizeError) as excinfo:
         from phylo_lens_server.data.typing_profiles import prepare_typing_profiles
 
-        phylolib.typing_profiles_to_rooted_tree(
+        phylolib.typing_profiles_to_rooted_forest(
             prepare_typing_profiles(TYPING_PROFILES)
         )
 
     assert excinfo.value.reason == phylolib.TYPING_PHYLOLIB_DISTANCE_FAILED
 
 
-def test_typing_profiles_to_rooted_tree_stage_timeout_raises_typed_error(
+def test_typing_profiles_to_rooted_forest_stage_timeout_raises_typed_error(
     monkeypatch, tmp_path
 ) -> None:
     jar_path = tmp_path / "phylolib.jar"
@@ -704,7 +706,7 @@ def test_typing_profiles_to_rooted_tree_stage_timeout_raises_typed_error(
     with pytest.raises(phylolib.TypingNormalizeError) as excinfo:
         from phylo_lens_server.data.typing_profiles import prepare_typing_profiles
 
-        phylolib.typing_profiles_to_rooted_tree(
+        phylolib.typing_profiles_to_rooted_forest(
             prepare_typing_profiles(TYPING_PROFILES)
         )
 
@@ -726,6 +728,6 @@ def test_typing_full_mst_rejects_forest(monkeypatch, tmp_path) -> None:
         ),
     )
     with pytest.raises(ParseError, match="one connected profile tree"):
-        phylolib.typing_profiles_to_rooted_tree(
+        phylolib.typing_profiles_to_rooted_forest(
             prepare_typing_profiles("ST\tL1\nA\t1\nB\t2\n")
         )

@@ -1,7 +1,7 @@
 import pytest
 
 from phylo_lens_server.data.parsers import ParseError, parse_newick
-from phylo_lens_server.data.phylolib import RootedTypingTree
+from phylo_lens_server.data.phylolib import RootedTypingForest
 from phylo_lens_server.data.typing_profiles import collapse_profile_graph
 from phylo_lens_server.domain.identity import layout_version_for_dataset
 from phylo_lens_server.domain.legacy_metadata import encode_dataset_annotations
@@ -19,15 +19,15 @@ ANCILLARY = (
 
 
 def grouped_dataset(monkeypatch, **kwargs):
-    def convert(profiles):
+    def convert(profiles, options=None):
         assert profiles.algorithm_content().count("\t1\t2\n") == 2
         parsed = parse_newick("(b_02:0,c:2)a_01;")
-        return RootedTypingTree(
-            parsed, collapse_profile_graph(parsed, profiles.membership()), "a_01"
+        return RootedTypingForest(
+            collapse_profile_graph(parsed, profiles.membership()), ("a_01",)
         )
 
     monkeypatch.setattr(
-        "phylo_lens_server.pipeline.ingestion.typing_profiles_to_rooted_tree", convert
+        "phylo_lens_server.pipeline.ingestion.typing_profiles_to_rooted_forest", convert
     )
     return ingest_dataset(
         NormalizeRequest(format="typing_data", content=PROFILES, **kwargs).to_domain()

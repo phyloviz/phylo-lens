@@ -12,7 +12,7 @@ export type GraphPrepareRequest = {
   readonly typingOptions?: TypingOptions;
 
   readonly options?: {
-    readonly allowSelfLoops?: boolean;
+    readonly allowSelfLoops?: false;
   };
 
   readonly ancillarySchema?: readonly AncillaryField[];

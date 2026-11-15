@@ -1,6 +1,6 @@
 from phylo_lens_server.data.ancillary import build_ancillary_replacement
 from phylo_lens_server.domain.revisions import AncillaryUpdate, AncillaryUpdateResult
-from phylo_lens_server.repository.interfaces import LayoutRepository
+from phylo_lens_server.repository.layout_repository import LayoutRepository
 
 
 def apply_ancillary_data(

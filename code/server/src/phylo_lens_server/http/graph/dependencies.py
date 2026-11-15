@@ -7,7 +7,6 @@ from phylo_lens_server.jobs.durable import DurablePrepareJobRegistry
 from phylo_lens_server.jobs.executor import PrepareExecutor
 from phylo_lens_server.jobs.local import PrepareJobRegistry
 from phylo_lens_server.jobs.models import PrepareJobs
-from phylo_lens_server.repository.interfaces import LayoutRepository
 from phylo_lens_server.repository.jobs.postgres import (
     PostgresPrepareJobStore,
 )
@@ -17,6 +16,7 @@ from phylo_lens_server.repository.layout.postgres_layout_repository import (
 from phylo_lens_server.repository.layout.sqlite_layout_repository import (
     SQLiteLayoutRepository,
 )
+from phylo_lens_server.repository.layout_repository import LayoutRepository
 from phylo_lens_server.services.preparation import PreparationService
 
 

@@ -1,0 +1,486 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta
+      name="description"
+      content="Distance operations — PhyloLens documentation."
+    />
+    <title>Distance operations — PhyloLens</title>
+    <link rel="icon" type="image/svg+xml" href="assets/tree.svg" />
+    <link rel="stylesheet" href="assets/manual.css" />
+    <link
+      rel="preload"
+      as="font"
+      type="font/ttf"
+      href="assets/fonts/lato-400.ttf"
+      crossorigin
+    />
+    <script defer src="assets/manual.js"></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <aside class="sidebar" aria-label="Manual navigation">
+      <header class="masthead">
+        <a class="brand" href="index.html"
+          ><img
+            src="assets/tree.svg"
+            width="37"
+            height="37"
+            alt=""
+            aria-hidden="true"
+          />PhyloLens</a
+        >
+        <p class="subtitle">Documentation</p>
+      </header>
+      <details open>
+        <summary>Browse documentation</summary>
+        <div class="search">
+          <label for="manual-search">Search the manual</label
+          ><input
+            id="manual-search"
+            type="search"
+            placeholder="Search documentation"
+            aria-controls="search-results"
+            autocomplete="off"
+            disabled
+          />
+        </div>
+        <nav aria-label="Contents">
+          <p>Documentation</p>
+          <ul>
+            <li>
+              <a data-page href="index.html">Overview</a>
+              <ul class="sections">
+                <li><a href="index.html#start">Getting started</a></li>
+                <li><a href="index.html#display">The PhyloLens display</a></li>
+                <li>
+                  <a href="index.html#scope">Trees and sample information</a>
+                </li>
+                <li>
+                  <a href="index.html#integration"
+                    >Use PhyloLens in another application</a
+                  >
+                </li>
+              </ul>
+            </li>
+            <li>
+              <a data-page href="getting-started.html">Getting started</a>
+              <ul class="sections">
+                <li>
+                  <a href="getting-started.html#run">Run PhyloLens locally</a>
+                </li>
+                <li><a href="getting-started.html#load">Load a tree</a></li>
+                <li>
+                  <a href="getting-started.html#observations"
+                    >Add observations</a
+                  >
+                </li>
+                <li>
+                  <a href="getting-started.html#next">Continue exploring</a>
+                </li>
+              </ul>
+            </li>
+            <li>
+              <a data-page href="input-formats.html">Input formats</a>
+              <ul class="sections">
+                <li><a href="input-formats.html#newick">Newick trees</a></li>
+                <li><a href="input-formats.html#typing">Typing data</a></li>
+                <li>
+                  <a href="input-formats.html#ancillary">Ancillary data</a>
+                </li>
+                <li>
+                  <a href="input-formats.html#advanced"
+                    >Advanced input settings</a
+                  >
+                </li>
+              </ul>
+            </li>
+            <li>
+              <a data-page href="viewing.html">Display and navigation</a>
+              <ul class="sections">
+                <li>
+                  <a href="viewing.html#navigate">Move, zoom and select</a>
+                </li>
+                <li>
+                  <a href="viewing.html#inspector"
+                    >Inspect nodes and observations</a
+                  >
+                </li>
+                <li><a href="viewing.html#region">Select a region</a></li>
+                <li><a href="viewing.html#detail">Levels of detail</a></li>
+                <li>
+                  <a href="viewing.html#appearance"
+                    >Colours, pies and node sizes</a
+                  >
+                </li>
+                <li>
+                  <a href="viewing.html#edge-labels">Read edge distances</a>
+                </li>
+                <li>
+                  <a href="viewing.html#arrangement"
+                    >Arrange and relax the layout</a
+                  >
+                </li>
+                <li><a href="viewing.html#components">Forest components</a></li>
+                <li><a href="viewing.html#export">Export a figure</a></li>
+              </ul>
+            </li>
+            <li>
+              <a data-page href="technical-roots.html">Technical roots</a>
+              <ul class="sections">
+                <li><a href="technical-roots.html#choose">Choose a root</a></li>
+                <li><a href="technical-roots.html#effect">What changes</a></li>
+                <li>
+                  <a href="technical-roots.html#restore"
+                    >Restore the defaults</a
+                  >
+                </li>
+                <li>
+                  <a href="technical-roots.html#phyloviz"
+                    >Relationship to PHYLOViZ</a
+                  >
+                </li>
+              </ul>
+            </li>
+            <li>
+              <a data-page href="distances.html" aria-current="page"
+                >Distance operations</a
+              >
+              <ul class="sections">
+                <li><a href="#inference">Maximum inference level</a></li>
+                <li><a href="#cutoff">Tree distance cutoff</a></li>
+                <li><a href="#connections">Additional connections</a></li>
+              </ul>
+            </li>
+          </ul>
+          <p>Developers</p>
+          <ul>
+            <li>
+              <a data-page href="integration.html">Library integration</a>
+              <ul class="sections">
+                <li><a href="integration.html#embed">Embed the viewer</a></li>
+                <li>
+                  <a href="integration.html#adapter">Supply your own adapter</a>
+                </li>
+                <li>
+                  <a href="integration.html#server"
+                    >Use the service with another frontend</a
+                  >
+                </li>
+              </ul>
+            </li>
+            <li>
+              <a data-page href="reference.html">API overview</a>
+              <ul class="sections">
+                <li><a href="reference.html#api">Choose an API</a></li>
+                <li>
+                  <a href="reference.html#implementation"
+                    >Implementation notes</a
+                  >
+                </li>
+                <li>
+                  <a href="reference.html#algorithms"
+                    >Algorithms and references</a
+                  >
+                </li>
+              </ul>
+            </li>
+            <li>
+              <a data-page href="browser-api.html">Browser API</a>
+              <ul class="sections">
+                <li><a href="browser-api.html#create">Create a view</a></li>
+                <li>
+                  <a href="browser-api.html#load-options">Load options</a>
+                </li>
+                <li>
+                  <a href="browser-api.html#callbacks"
+                    >Callbacks and identifiers</a
+                  >
+                </li>
+                <li>
+                  <a href="browser-api.html#lifecycle">Loading and disposal</a>
+                </li>
+                <li>
+                  <a href="browser-api.html#appearance"
+                    >Appearance and sample data</a
+                  >
+                </li>
+                <li><a href="browser-api.html#search">Search and focus</a></li>
+                <li>
+                  <a href="browser-api.html#expansion">Expansion and folding</a>
+                </li>
+                <li>
+                  <a href="browser-api.html#roots"
+                    >Technical roots and distance connections</a
+                  >
+                </li>
+                <li>
+                  <a href="browser-api.html#components">Forest components</a>
+                </li>
+                <li>
+                  <a href="browser-api.html#layout">Layout and dragging</a>
+                </li>
+                <li><a href="browser-api.html#export">PNG export</a></li>
+                <li><a href="browser-api.html#adapter">Custom adapters</a></li>
+                <li>
+                  <a href="browser-api.html#utilities">Observation utilities</a>
+                </li>
+                <li>
+                  <a href="browser-api.html#errors">Errors and compatibility</a>
+                </li>
+              </ul>
+            </li>
+            <li>
+              <a data-page href="api-types.html">Browser types</a>
+              <ul class="sections">
+                <li>
+                  <a href="api-types.html#observations">Sample information</a>
+                </li>
+                <li>
+                  <a href="api-types.html#appearance">Appearance and export</a>
+                </li>
+                <li>
+                  <a href="api-types.html#tree-state">Tree and view state</a>
+                </li>
+                <li>
+                  <a href="api-types.html#identifiers"
+                    >Identifiers and statuses</a
+                  >
+                </li>
+                <li>
+                  <a href="api-types.html#adapter-contracts"
+                    >Adapter requests and results</a
+                  >
+                </li>
+                <li>
+                  <a href="api-types.html#nested-shapes"
+                    >Nested and returned shapes</a
+                  >
+                </li>
+              </ul>
+            </li>
+            <li>
+              <a data-page href="http-api.html">HTTP API</a>
+              <ul class="sections">
+                <li><a href="http-api.html#workflow">Prepare, then read</a></li>
+                <li><a href="http-api.html#health">GET /health</a></li>
+                <li>
+                  <a href="http-api.html#prepare">POST /api/graph/prepare</a>
+                </li>
+                <li>
+                  <a href="http-api.html#status"
+                    >GET /api/graph/prepare/{job_id}</a
+                  >
+                </li>
+                <li>
+                  <a href="http-api.html#viewport">POST /api/graph/viewport</a>
+                </li>
+                <li>
+                  <a href="http-api.html#region">POST /api/graph/region</a>
+                </li>
+                <li>
+                  <a href="http-api.html#search">POST /api/graph/search</a>
+                </li>
+                <li>
+                  <a href="http-api.html#components"
+                    >POST /api/graph/components</a
+                  >
+                </li>
+                <li>
+                  <a href="http-api.html#ancillary">PUT /api/graph/ancillary</a>
+                </li>
+                <li>
+                  <a href="http-api.html#connections"
+                    >POST /api/graph/connections</a
+                  >
+                </li>
+                <li><a href="http-api.html#root">POST /api/graph/root</a></li>
+                <li>
+                  <a href="http-api.html#annotation-reuse"
+                    >Optional annotation reuse</a
+                  >
+                </li>
+                <li><a href="http-api.html#errors">Error responses</a></li>
+              </ul>
+            </li>
+            <li>
+              <a data-page href="http-types.html">HTTP fields</a>
+              <ul class="sections">
+                <li><a href="http-types.html#preparation">Preparation</a></li>
+                <li>
+                  <a href="http-types.html#reads"
+                    >Viewport, region and search</a
+                  >
+                </li>
+                <li>
+                  <a href="http-types.html#revisions"
+                    >Root, table and connection operations</a
+                  >
+                </li>
+                <li>
+                  <a href="http-types.html#shared">Shared values and errors</a>
+                </li>
+              </ul>
+            </li>
+          </ul>
+          <p>Project</p>
+          <ul>
+            <li>
+              <a data-page href="maintenance.html">Maintaining the manual</a>
+              <ul class="sections">
+                <li><a href="maintenance.html#edit">Edit the pages</a></li>
+                <li>
+                  <a href="maintenance.html#preview">Preview and check</a>
+                </li>
+                <li>
+                  <a href="maintenance.html#screenshots">Update screenshots</a>
+                </li>
+                <li>
+                  <a href="maintenance.html#publish">Publish on GitHub Pages</a>
+                </li>
+              </ul>
+            </li>
+          </ul>
+        </nav>
+      </details>
+      <a class="repo-link" href="https://github.com/phyloviz/phylo-lens"
+        >PhyloLens on GitHub <span aria-hidden="true">↗</span></a
+      >
+    </aside>
+    <main id="main" tabindex="-1">
+      <div class="page-heading">
+        <p class="breadcrumb">
+          <a href="index.html">Documentation</a
+          ><span aria-hidden="true">/</span>Distance operations
+        </p>
+        <a
+          class="source-link"
+          href="https://github.com/phyloviz/phylo-lens/blob/main/docs/manual/distances.html"
+          >View source <span aria-hidden="true">↗</span></a
+        >
+      </div>
+      <section id="search-results" aria-label="Search results" hidden></section>
+      <article>
+        <h1>Distance operations</h1>
+
+        <p>
+          There are three distance controls. The inference level chooses which
+          typing links goeBURST can use. A cutoff removes long tree edges.
+          Additional connections show extra links over the existing tree.
+        </p>
+        <h2 id="inference">
+          Maximum inference level<a
+            class="heading-link"
+            href="#inference"
+            aria-label="Link to Maximum inference level"
+            >#</a
+          >
+        </h2>
+        <p>
+          For typing data, <strong>goeBURST (up to nLV)</strong> limits the
+          locus-variant levels considered when selecting tree edges. Maximum nLV
+          3 allows links with up to three differing retained loci. The result
+          may be a forest. Full MST uses all levels to construct one connected
+          tree.
+        </p>
+        <p>
+          Choose this option in the Data panel before applying the input. See
+          <a href="input-formats.html#typing">Typing data</a>.
+        </p>
+        <h2 id="cutoff">
+          Tree distance cutoff<a
+            class="heading-link"
+            href="#cutoff"
+            aria-label="Link to Tree distance cutoff"
+            >#</a
+          >
+        </h2>
+        <p>
+          A cutoff keeps tree edges whose distance is less than or equal to the
+          selected value. Longer edges are removed, but every node remains. The
+          resulting components are prepared as separate trees.
+        </p>
+        <p>
+          A blank value disables the cutoff. Zero is a valid cutoff. An edge
+          with an unknown distance cannot be interpreted as zero. Applying a
+          cutoff reloads the data and rebuilds the layout; previous manual
+          arrangements are lost.
+        </p>
+        <h2 id="connections">
+          Additional connections<a
+            class="heading-link"
+            href="#connections"
+            aria-label="Link to Additional connections"
+            >#</a
+          >
+        </h2>
+        <p>
+          The nLV or distance-connection controls add an overlay to the prepared
+          tree. Connections are restricted to nodes within the same prepared
+          component. They do not join components, change branch membership or
+          alter the springs used by tree layout.
+        </p>
+        <p>
+          In Explore → <strong>nLV / Cluster Nodes</strong>, set
+          <strong>Maximum pairwise distance</strong> and choose
+          <strong>Apply connections</strong>. Choose
+          <strong>Remove connections</strong> to clear the overlay.
+        </p>
+        <p>
+          Under <strong>Advanced options</strong>,
+          <strong>Maximum additional connections</strong> defaults to 50,000. If
+          the query exceeds that limit, reduce the distance or raise the limit.
+          No partial replacement is applied; an existing overlay is kept until a
+          complete replacement succeeds.
+        </p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Input</th>
+                <th>Overlay distance</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Typing data</td>
+                <td>Number of differing retained loci (Hamming distance).</td>
+              </tr>
+              <tr>
+                <td>Weighted Newick</td>
+                <td>Sum of branch lengths along the existing tree path.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          Pairs at exactly the threshold are included. Self-connections and
+          duplicate tree edges are excluded. Connections to grouped or manually
+          hidden endpoints are omitted from the visible overlay; the total query
+          count and visible count can differ.
+        </p>
+        <p>
+          The overlay can contain cycles. This does not change the underlying
+          tree. Its metric and threshold are included in the PNG caption. Full
+          rules and algorithm costs are in the
+          <a
+            href="https://github.com/phyloviz/phylo-lens/blob/main/docs/DISTANCE_OPERATIONS.md"
+            >distance reference</a
+          >.
+        </p>
+      </article>
+      <nav class="page-links" aria-label="Page navigation">
+        <a href="technical-roots.html">← Technical roots</a
+        ><a href="integration.html">Library integration →</a>
+      </nav>
+      <footer>
+        PhyloLens documentation ·
+        <a href="https://github.com/phyloviz/phylo-lens/issues"
+          >Report an issue</a
+        >
+      </footer>
+    </main>
+  </body>
+</html>

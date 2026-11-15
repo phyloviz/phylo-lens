@@ -1,0 +1,1913 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="description" content="HTTP API — PhyloLens documentation." />
+    <title>HTTP API — PhyloLens</title>
+    <link rel="icon" type="image/svg+xml" href="assets/tree.svg" />
+    <link rel="stylesheet" href="assets/manual.css" />
+    <link
+      rel="preload"
+      as="font"
+      type="font/ttf"
+      href="assets/fonts/lato-400.ttf"
+      crossorigin
+    />
+    <script defer src="assets/manual.js"></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <aside class="sidebar" aria-label="Manual navigation">
+      <header class="masthead">
+        <a class="brand" href="index.html"
+          ><img
+            src="assets/tree.svg"
+            width="37"
+            height="37"
+            alt=""
+            aria-hidden="true"
+          />PhyloLens</a
+        >
+        <p class="subtitle">Documentation</p>
+      </header>
+      <details open>
+        <summary>Browse documentation</summary>
+        <div class="search">
+          <label for="manual-search">Search the manual</label
+          ><input
+            id="manual-search"
+            type="search"
+            placeholder="Search documentation"
+            aria-controls="search-results"
+            autocomplete="off"
+            disabled
+          />
+        </div>
+        <nav aria-label="Contents">
+          <p>Documentation</p>
+          <ul>
+            <li>
+              <a data-page href="index.html">Overview</a>
+              <ul class="sections">
+                <li><a href="index.html#start">Getting started</a></li>
+                <li><a href="index.html#display">The PhyloLens display</a></li>
+                <li>
+                  <a href="index.html#scope">Trees and sample information</a>
+                </li>
+                <li>
+                  <a href="index.html#integration"
+                    >Use PhyloLens in another application</a
+                  >
+                </li>
+              </ul>
+            </li>
+            <li>
+              <a data-page href="getting-started.html">Getting started</a>
+              <ul class="sections">
+                <li>
+                  <a href="getting-started.html#run">Run PhyloLens locally</a>
+                </li>
+                <li><a href="getting-started.html#load">Load a tree</a></li>
+                <li>
+                  <a href="getting-started.html#observations"
+                    >Add observations</a
+                  >
+                </li>
+                <li>
+                  <a href="getting-started.html#next">Continue exploring</a>
+                </li>
+              </ul>
+            </li>
+            <li>
+              <a data-page href="input-formats.html">Input formats</a>
+              <ul class="sections">
+                <li><a href="input-formats.html#newick">Newick trees</a></li>
+                <li><a href="input-formats.html#typing">Typing data</a></li>
+                <li>
+                  <a href="input-formats.html#ancillary">Ancillary data</a>
+                </li>
+                <li>
+                  <a href="input-formats.html#advanced"
+                    >Advanced input settings</a
+                  >
+                </li>
+              </ul>
+            </li>
+            <li>
+              <a data-page href="viewing.html">Display and navigation</a>
+              <ul class="sections">
+                <li>
+                  <a href="viewing.html#navigate">Move, zoom and select</a>
+                </li>
+                <li>
+                  <a href="viewing.html#inspector"
+                    >Inspect nodes and observations</a
+                  >
+                </li>
+                <li><a href="viewing.html#region">Select a region</a></li>
+                <li><a href="viewing.html#detail">Levels of detail</a></li>
+                <li>
+                  <a href="viewing.html#appearance"
+                    >Colours, pies and node sizes</a
+                  >
+                </li>
+                <li>
+                  <a href="viewing.html#edge-labels">Read edge distances</a>
+                </li>
+                <li>
+                  <a href="viewing.html#arrangement"
+                    >Arrange and relax the layout</a
+                  >
+                </li>
+                <li><a href="viewing.html#components">Forest components</a></li>
+                <li><a href="viewing.html#export">Export a figure</a></li>
+              </ul>
+            </li>
+            <li>
+              <a data-page href="technical-roots.html">Technical roots</a>
+              <ul class="sections">
+                <li><a href="technical-roots.html#choose">Choose a root</a></li>
+                <li><a href="technical-roots.html#effect">What changes</a></li>
+                <li>
+                  <a href="technical-roots.html#restore"
+                    >Restore the defaults</a
+                  >
+                </li>
+                <li>
+                  <a href="technical-roots.html#phyloviz"
+                    >Relationship to PHYLOViZ</a
+                  >
+                </li>
+              </ul>
+            </li>
+            <li>
+              <a data-page href="distances.html">Distance operations</a>
+              <ul class="sections">
+                <li>
+                  <a href="distances.html#inference">Maximum inference level</a>
+                </li>
+                <li>
+                  <a href="distances.html#cutoff">Tree distance cutoff</a>
+                </li>
+                <li>
+                  <a href="distances.html#connections"
+                    >Additional connections</a
+                  >
+                </li>
+              </ul>
+            </li>
+          </ul>
+          <p>Developers</p>
+          <ul>
+            <li>
+              <a data-page href="integration.html">Library integration</a>
+              <ul class="sections">
+                <li><a href="integration.html#embed">Embed the viewer</a></li>
+                <li>
+                  <a href="integration.html#adapter">Supply your own adapter</a>
+                </li>
+                <li>
+                  <a href="integration.html#server"
+                    >Use the service with another frontend</a
+                  >
+                </li>
+              </ul>
+            </li>
+            <li>
+              <a data-page href="reference.html">API overview</a>
+              <ul class="sections">
+                <li><a href="reference.html#api">Choose an API</a></li>
+                <li>
+                  <a href="reference.html#implementation"
+                    >Implementation notes</a
+                  >
+                </li>
+                <li>
+                  <a href="reference.html#algorithms"
+                    >Algorithms and references</a
+                  >
+                </li>
+              </ul>
+            </li>
+            <li>
+              <a data-page href="browser-api.html">Browser API</a>
+              <ul class="sections">
+                <li><a href="browser-api.html#create">Create a view</a></li>
+                <li>
+                  <a href="browser-api.html#load-options">Load options</a>
+                </li>
+                <li>
+                  <a href="browser-api.html#callbacks"
+                    >Callbacks and identifiers</a
+                  >
+                </li>
+                <li>
+                  <a href="browser-api.html#lifecycle">Loading and disposal</a>
+                </li>
+                <li>
+                  <a href="browser-api.html#appearance"
+                    >Appearance and sample data</a
+                  >
+                </li>
+                <li><a href="browser-api.html#search">Search and focus</a></li>
+                <li>
+                  <a href="browser-api.html#expansion">Expansion and folding</a>
+                </li>
+                <li>
+                  <a href="browser-api.html#roots"
+                    >Technical roots and distance connections</a
+                  >
+                </li>
+                <li>
+                  <a href="browser-api.html#components">Forest components</a>
+                </li>
+                <li>
+                  <a href="browser-api.html#layout">Layout and dragging</a>
+                </li>
+                <li><a href="browser-api.html#export">PNG export</a></li>
+                <li><a href="browser-api.html#adapter">Custom adapters</a></li>
+                <li>
+                  <a href="browser-api.html#utilities">Observation utilities</a>
+                </li>
+                <li>
+                  <a href="browser-api.html#errors">Errors and compatibility</a>
+                </li>
+              </ul>
+            </li>
+            <li>
+              <a data-page href="api-types.html">Browser types</a>
+              <ul class="sections">
+                <li>
+                  <a href="api-types.html#observations">Sample information</a>
+                </li>
+                <li>
+                  <a href="api-types.html#appearance">Appearance and export</a>
+                </li>
+                <li>
+                  <a href="api-types.html#tree-state">Tree and view state</a>
+                </li>
+                <li>
+                  <a href="api-types.html#identifiers"
+                    >Identifiers and statuses</a
+                  >
+                </li>
+                <li>
+                  <a href="api-types.html#adapter-contracts"
+                    >Adapter requests and results</a
+                  >
+                </li>
+                <li>
+                  <a href="api-types.html#nested-shapes"
+                    >Nested and returned shapes</a
+                  >
+                </li>
+              </ul>
+            </li>
+            <li>
+              <a data-page href="http-api.html" aria-current="page">HTTP API</a>
+              <ul class="sections">
+                <li><a href="#workflow">Prepare, then read</a></li>
+                <li><a href="#health">GET /health</a></li>
+                <li><a href="#prepare">POST /api/graph/prepare</a></li>
+                <li><a href="#status">GET /api/graph/prepare/{job_id}</a></li>
+                <li><a href="#viewport">POST /api/graph/viewport</a></li>
+                <li><a href="#region">POST /api/graph/region</a></li>
+                <li><a href="#search">POST /api/graph/search</a></li>
+                <li><a href="#components">POST /api/graph/components</a></li>
+                <li><a href="#ancillary">PUT /api/graph/ancillary</a></li>
+                <li><a href="#connections">POST /api/graph/connections</a></li>
+                <li><a href="#root">POST /api/graph/root</a></li>
+                <li>
+                  <a href="#annotation-reuse">Optional annotation reuse</a>
+                </li>
+                <li><a href="#errors">Error responses</a></li>
+              </ul>
+            </li>
+            <li>
+              <a data-page href="http-types.html">HTTP fields</a>
+              <ul class="sections">
+                <li><a href="http-types.html#preparation">Preparation</a></li>
+                <li>
+                  <a href="http-types.html#reads"
+                    >Viewport, region and search</a
+                  >
+                </li>
+                <li>
+                  <a href="http-types.html#revisions"
+                    >Root, table and connection operations</a
+                  >
+                </li>
+                <li>
+                  <a href="http-types.html#shared">Shared values and errors</a>
+                </li>
+              </ul>
+            </li>
+          </ul>
+          <p>Project</p>
+          <ul>
+            <li>
+              <a data-page href="maintenance.html">Maintaining the manual</a>
+              <ul class="sections">
+                <li><a href="maintenance.html#edit">Edit the pages</a></li>
+                <li>
+                  <a href="maintenance.html#preview">Preview and check</a>
+                </li>
+                <li>
+                  <a href="maintenance.html#screenshots">Update screenshots</a>
+                </li>
+                <li>
+                  <a href="maintenance.html#publish">Publish on GitHub Pages</a>
+                </li>
+              </ul>
+            </li>
+          </ul>
+        </nav>
+      </details>
+      <a class="repo-link" href="https://github.com/phyloviz/phylo-lens"
+        >PhyloLens on GitHub <span aria-hidden="true">↗</span></a
+      >
+    </aside>
+    <main id="main" tabindex="-1">
+      <div class="page-heading">
+        <p class="breadcrumb">
+          <a href="index.html">Documentation</a
+          ><span aria-hidden="true">/</span>HTTP API
+        </p>
+        <a
+          class="source-link"
+          href="https://github.com/phyloviz/phylo-lens/blob/main/docs/manual/http-api.html"
+          >View source <span aria-hidden="true">↗</span></a
+        >
+      </div>
+      <section id="search-results" aria-label="Search results" hidden></section>
+      <article>
+        <h1>HTTP API</h1>
+        <p>
+          Use the HTTP service from your own frontend, script or notebook.
+          Requests and responses use JSON. Graph routes are under
+          <code>/api/graph</code>; service information is at
+          <code>/health</code>.
+        </p>
+        <p>
+          This page describes API contract <strong>1</strong>. Each endpoint
+          links to its full
+          <a href="http-types.html">request and response fields</a>. You can
+          also download the
+          <a href="assets/openapi.json" download>OpenAPI schema</a>. A running
+          service exposes its current schema at <code>/openapi.json</code> and
+          interactive documentation at <code>/docs</code>.
+        </p>
+        <h2 id="workflow">
+          Prepare, then read<a
+            class="heading-link"
+            href="#workflow"
+            aria-label="Link to Prepare, then read"
+            >#</a
+          >
+        </h2>
+        <ol>
+          <li>Check <code>GET /health</code>.</li>
+          <li>Submit <code>POST /api/graph/prepare</code>.</li>
+          <li>
+            Poll <code>GET /api/graph/prepare/{job_id}</code> until ready or
+            failed.
+          </li>
+          <li>
+            Keep the returned <code>dataset_id</code> and
+            <code>layout_version</code> for later reads.
+          </li>
+        </ol>
+        <p>
+          Preparation is asynchronous; viewport, search and revision calls
+          return their result directly. Repeated identical preparation can reuse
+          a job or layout. A metadata or root revision returns a new version;
+          use that version for subsequent reads.
+        </p>
+        <p>
+          Set <code>Content-Type: application/json</code> on requests with a
+          body. Authentication is not implemented by the service; configure it
+          at your deployment boundary if needed. Browser access must satisfy
+          your service’s CORS policy.
+        </p>
+        <p>
+          The examples below were captured from the service using
+          <code>(A:1,B:2)Root;</code>. Replace the example job and layout
+          identifiers with the values returned by your own requests.
+        </p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Method</th>
+                <th>Path</th>
+                <th>Success</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>GET</code></td>
+                <td>
+                  <a href="#health"><code>/health</code></a>
+                </td>
+                <td>200</td>
+              </tr>
+              <tr>
+                <td><code>POST</code></td>
+                <td>
+                  <a href="#prepare"><code>/api/graph/prepare</code></a>
+                </td>
+                <td>202</td>
+              </tr>
+              <tr>
+                <td><code>GET</code></td>
+                <td>
+                  <a href="#status"><code>/api/graph/prepare/{job_id}</code></a>
+                </td>
+                <td>200</td>
+              </tr>
+              <tr>
+                <td><code>POST</code></td>
+                <td>
+                  <a href="#viewport"><code>/api/graph/viewport</code></a>
+                </td>
+                <td>200</td>
+              </tr>
+              <tr>
+                <td><code>POST</code></td>
+                <td>
+                  <a href="#region"><code>/api/graph/region</code></a>
+                </td>
+                <td>200</td>
+              </tr>
+              <tr>
+                <td><code>POST</code></td>
+                <td>
+                  <a href="#search"><code>/api/graph/search</code></a>
+                </td>
+                <td>200</td>
+              </tr>
+              <tr>
+                <td><code>POST</code></td>
+                <td>
+                  <a href="#components"><code>/api/graph/components</code></a>
+                </td>
+                <td>200</td>
+              </tr>
+              <tr>
+                <td><code>PUT</code></td>
+                <td>
+                  <a href="#ancillary"><code>/api/graph/ancillary</code></a>
+                </td>
+                <td>200</td>
+              </tr>
+              <tr>
+                <td><code>POST</code></td>
+                <td>
+                  <a href="#connections"><code>/api/graph/connections</code></a>
+                </td>
+                <td>200</td>
+              </tr>
+              <tr>
+                <td><code>POST</code></td>
+                <td>
+                  <a href="#root"><code>/api/graph/root</code></a>
+                </td>
+                <td>200</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <section data-http-operation="GET /health">
+          <h2 id="health">
+            <span class="http-method">GET</span> <code>/health</code
+            ><a
+              class="heading-link"
+              href="#health"
+              aria-label="Link to GET /health"
+              >#</a
+            >
+          </h2>
+          <p>
+            Read service information before connecting. API contract version 1
+            is supported. The service_version value identifies the
+            implementation release.
+          </p>
+          <p>No request body.</p>
+          <h3>Example request</h3>
+          <pre><code>curl http://localhost:8000/health</code></pre>
+          <h3>Response · 200</h3>
+          <p>Fields: record of <code>string</code>.</p>
+          <pre><code>{
+  &quot;status&quot;: &quot;ok&quot;,
+  &quot;service_version&quot;: &quot;0.2.1&quot;,
+  &quot;api_version&quot;: &quot;1&quot;
+}</code></pre>
+        </section>
+        <section data-http-operation="POST /api/graph/prepare">
+          <h2 id="prepare">
+            <span class="http-method">POST</span> <code>/api/graph/prepare</code
+            ><a
+              class="heading-link"
+              href="#prepare"
+              aria-label="Link to POST /api/graph/prepare"
+              >#</a
+            >
+          </h2>
+          <p>
+            Submit Newick or typing data. Validation and normalization run
+            before the request is accepted. Preparation then runs as a
+            background job.
+          </p>
+          <h3>Request</h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Field</th>
+                  <th>Type</th>
+                  <th>Required</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>format</code></td>
+                  <td>
+                    <a href="http-types.html#SourceFormat"
+                      ><code>SourceFormat</code></a
+                    >
+                  </td>
+                  <td>yes</td>
+                  <td>Input format.</td>
+                </tr>
+                <tr>
+                  <td><code>dataset_name</code></td>
+                  <td><code>string</code></td>
+                  <td>no</td>
+                  <td>
+                    Name used to identify the dataset.<br /><small
+                      >minimum length 1; default &quot;dataset&quot;</small
+                    >
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>content</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td>
+                    Raw Newick, typing-table or ancillary-table content,
+                    according to the operation.<br /><small
+                      >minimum length 1</small
+                    >
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>options</code></td>
+                  <td>
+                    <a href="http-types.html#NormalizeOptions"
+                      ><code>NormalizeOptions</code></a
+                    >
+                  </td>
+                  <td>no</td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td><code>metadata_schema</code></td>
+                  <td>
+                    array of
+                    <a href="http-types.html#AncillaryField"
+                      ><code>AncillaryField</code></a
+                    >
+                  </td>
+                  <td>no</td>
+                  <td>Alias for ancillary_schema. Do not send both names.</td>
+                </tr>
+                <tr>
+                  <td><code>metadata_by_node_id</code></td>
+                  <td>
+                    record of record of <code>string</code> |
+                    <code>number</code> | <code>boolean</code> |
+                    <code>null</code>
+                  </td>
+                  <td>no</td>
+                  <td>
+                    Alias for ancillary_by_node_id. Do not send both names.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>ancillary_data</code></td>
+                  <td>
+                    <a href="http-types.html#AncillaryDataRequest"
+                      ><code>AncillaryDataRequest</code></a
+                    >
+                    | <code>null</code>
+                  </td>
+                  <td>no</td>
+                  <td>
+                    Table of observations joined through its identifier column.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>sfdp_options</code></td>
+                  <td>
+                    <a href="http-types.html#SfdpOptions"
+                      ><code>SfdpOptions</code></a
+                    >
+                  </td>
+                  <td>no</td>
+                  <td>Global Graphviz layout settings.</td>
+                </tr>
+                <tr>
+                  <td><code>lod_options</code></td>
+                  <td>
+                    <a href="http-types.html#LodOptions"
+                      ><code>LodOptions</code></a
+                    >
+                  </td>
+                  <td>no</td>
+                  <td>Preparation policy for protecting small components.</td>
+                </tr>
+                <tr>
+                  <td><code>distance_cutoff</code></td>
+                  <td><code>number</code> | <code>null</code></td>
+                  <td>no</td>
+                  <td>
+                    Keep tree edges at or below this distance before
+                    preparation. Zero is valid. All distances must be known.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>typing_options</code></td>
+                  <td>
+                    <a href="http-types.html#FullMstOptions"
+                      ><code>FullMstOptions</code></a
+                    >
+                    |
+                    <a href="http-types.html#GoeBurstOptions"
+                      ><code>GoeBurstOptions</code></a
+                    >
+                    | <code>null</code>
+                  </td>
+                  <td>no</td>
+                  <td>
+                    Typing inference method and optional maximum nLV. Only valid
+                    for typing_data.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <h3>Example request</h3>
+          <pre><code>curl -X POST http://localhost:8000/api/graph/prepare \
+  -H &#x27;Content-Type: application/json&#x27; \
+  -d &#x27;{&quot;format&quot;:&quot;newick&quot;,&quot;dataset_name&quot;:&quot;example-tree&quot;,&quot;content&quot;:&quot;(A:1,B:2)Root;&quot;}&#x27;</code></pre>
+          <h3>Response · 202</h3>
+          <p>
+            Fields:
+            <a href="http-types.html#GraphPrepareJob"
+              ><code>GraphPrepareJob</code></a
+            >.
+          </p>
+          <pre><code>{
+  &quot;job_id&quot;: &quot;db7d01e3dd6044c3939818ba9c240256&quot;,
+  &quot;status&quot;: &quot;pending&quot;,
+  &quot;dataset_id&quot;: &quot;example-tree&quot;
+}</code></pre>
+          <p>
+            For typing data, use <code>format: "typing_data"</code> with
+            <code>typing_options: { "algorithm": "goeburst", "nlv": 3 }</code>,
+            or <code>{ "algorithm": "goeburstfullmst" }</code> for all levels.
+            Standard goeBURST defaults to nLV 3; Full MST does not accept nlv.
+            The result confirms the applied typing options and cutoff. Verify
+            those confirmations before describing the result as filtered.
+          </p>
+          <p>
+            Current input names are <code>ancillary_schema</code> and
+            <code>ancillary_by_node_id</code>. API v1 also accepts the aliases
+            <code>metadata_schema</code> and <code>metadata_by_node_id</code>,
+            which appear in OpenAPI. Do not send both names for one field.
+            Responses retain v1 names such as <code>metadata</code> and
+            <code>metadata_schema</code>.
+          </p>
+          <p>
+            Missing typing loci use the shared complete-locus policy described
+            in <a href="input-formats.html#typing">Input formats</a>. Graphviz
+            settings are in <code>sfdp_options</code>; small-component
+            protection is in <code>lod_options</code>.
+          </p>
+        </section>
+        <section data-http-operation="GET /api/graph/prepare/{job_id}">
+          <h2 id="status">
+            <span class="http-method">GET</span>
+            <code>/api/graph/prepare/{job_id}</code
+            ><a
+              class="heading-link"
+              href="#status"
+              aria-label="Link to GET /api/graph/prepare/{job_id}"
+              >#</a
+            >
+          </h2>
+          <p>
+            Poll using the job_id from the accepted request. Pending jobs have
+            no result. Ready jobs include result; failed jobs include error and
+            optional error_details. A failed job still returns HTTP 200.
+          </p>
+          <p><code>job_id</code> is a required path parameter.</p>
+          <h3>Example request</h3>
+          <pre><code>curl http://localhost:8000/api/graph/prepare/db7d01e3dd6044c3939818ba9c240256</code></pre>
+          <h3>Response · 200</h3>
+          <p>
+            Fields:
+            <a href="http-types.html#GraphPrepareStatus"
+              ><code>GraphPrepareStatus</code></a
+            >.
+          </p>
+          <pre><code>{
+  &quot;job_id&quot;: &quot;db7d01e3dd6044c3939818ba9c240256&quot;,
+  &quot;status&quot;: &quot;ready&quot;,
+  &quot;result&quot;: {
+    &quot;dataset_id&quot;: &quot;example-tree&quot;,
+    &quot;layout_version&quot;: &quot;80a675d88f05e453&quot;,
+    &quot;node_count&quot;: 3,
+    &quot;edge_count&quot;: 2,
+    &quot;cluster_count&quot;: 3,
+    &quot;lod_tier_count&quot;: 1,
+    &quot;technical_roots&quot;: [
+      &quot;root&quot;
+    ],
+    &quot;layout_status&quot;: &quot;ready&quot;,
+    &quot;warnings&quot;: []
+  }
+}</code></pre>
+          <p>
+            Current preparation publishes ready layouts. Previously stored
+            degraded layouts remain readable. The default browser adapter polls
+            every 1,000 ms with no overall wait timeout. Those are client
+            defaults, not server request fields.
+          </p>
+        </section>
+        <section data-http-operation="POST /api/graph/viewport">
+          <h2 id="viewport">
+            <span class="http-method">POST</span>
+            <code>/api/graph/viewport</code
+            ><a
+              class="heading-link"
+              href="#viewport"
+              aria-label="Link to POST /api/graph/viewport"
+              >#</a
+            >
+          </h2>
+          <p>
+            Read one detail tier, a camera region, a focused node or an expanded
+            group. Use an explicit layout_version to keep successive reads
+            consistent.
+          </p>
+          <h3>Request</h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Field</th>
+                  <th>Type</th>
+                  <th>Required</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>component_id</code></td>
+                  <td><code>string</code> | <code>null</code></td>
+                  <td>no</td>
+                  <td>
+                    Restrict a read to this prepared component; omit for the
+                    overview.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>dataset_id</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td>
+                    ID returned by preparation.<br /><small
+                      >minimum length 1</small
+                    >
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>layout_version</code></td>
+                  <td><code>string</code> | <code>null</code></td>
+                  <td>no</td>
+                  <td>
+                    Pin the published version you want to read. When optional
+                    and omitted, the service selects the latest published
+                    version.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>cluster_id</code></td>
+                  <td><code>string</code> | <code>null</code></td>
+                  <td>no</td>
+                  <td>
+                    Expand this group. Spatial bounds are ignored for explicit
+                    expansion.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>focus_node_id</code></td>
+                  <td><code>string</code> | <code>null</code></td>
+                  <td>no</td>
+                  <td>Include the searched node.</td>
+                </tr>
+                <tr>
+                  <td><code>xmin</code></td>
+                  <td><code>number</code> | <code>null</code></td>
+                  <td>no</td>
+                  <td>Minimum x coordinate.</td>
+                </tr>
+                <tr>
+                  <td><code>xmax</code></td>
+                  <td><code>number</code> | <code>null</code></td>
+                  <td>no</td>
+                  <td>Maximum x coordinate; must not be less than xmin.</td>
+                </tr>
+                <tr>
+                  <td><code>ymin</code></td>
+                  <td><code>number</code> | <code>null</code></td>
+                  <td>no</td>
+                  <td>Minimum y coordinate.</td>
+                </tr>
+                <tr>
+                  <td><code>ymax</code></td>
+                  <td><code>number</code> | <code>null</code></td>
+                  <td>no</td>
+                  <td>Maximum y coordinate; must not be less than ymin.</td>
+                </tr>
+                <tr>
+                  <td><code>zoom</code></td>
+                  <td><code>number</code></td>
+                  <td>no</td>
+                  <td>
+                    Display zoom. With no explicit tier, values below 1 select
+                    tier 0; other values request the finest tier.<br /><small
+                      >minimum 0.0; default 1.0</small
+                    >
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>lod_level</code></td>
+                  <td><code>integer</code> | <code>null</code></td>
+                  <td>no</td>
+                  <td>
+                    Requested detail tier. With an adaptive target, it is a
+                    preference; the response gives the effective tier.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>max_nodes</code></td>
+                  <td><code>integer</code> | <code>null</code></td>
+                  <td>no</td>
+                  <td>
+                    Optional primary-node budget. Attachment neighbours can make
+                    the returned node count larger.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>lod_target_representations</code></td>
+                  <td><code>integer</code> | <code>null</code></td>
+                  <td>no</td>
+                  <td>
+                    Target used to choose a tier; it does not truncate
+                    retrieval.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>lod_selection_bounds</code></td>
+                  <td>
+                    <a href="http-types.html#GraphViewportBounds"
+                      ><code>GraphViewportBounds</code></a
+                    >
+                    | <code>null</code>
+                  </td>
+                  <td>no</td>
+                  <td>
+                    Visible bounds for detail selection, separate from retrieval
+                    bounds.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>previous_lod_level</code></td>
+                  <td><code>integer</code> | <code>null</code></td>
+                  <td>no</td>
+                  <td>Previous effective tier, used for density hysteresis.</td>
+                </tr>
+                <tr>
+                  <td><code>known_annotations</code></td>
+                  <td>
+                    array of
+                    <a href="http-types.html#GraphNodeAnnotationKey"
+                      ><code>GraphNodeAnnotationKey</code></a
+                    >
+                  </td>
+                  <td>no</td>
+                  <td>
+                    Annotation identities already retained for this explicit
+                    layout version.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>known_observations</code></td>
+                  <td>array of <code>string</code> | <code>null</code></td>
+                  <td>no</td>
+                  <td>
+                    Retained observation references. An empty array opts into
+                    reference responses.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <h3>Example body</h3>
+          <pre><code>{
+  &quot;dataset_id&quot;: &quot;example-tree&quot;,
+  &quot;layout_version&quot;: &quot;80a675d88f05e453&quot;,
+  &quot;lod_level&quot;: 0
+}</code></pre>
+          <h3>Response · 200</h3>
+          <p>
+            Fields:
+            <a href="http-types.html#GraphViewportResponse"
+              ><code>GraphViewportResponse</code></a
+            >.
+          </p>
+          <pre><code>{
+  &quot;dataset_id&quot;: &quot;example-tree&quot;,
+  &quot;layout_version&quot;: &quot;80a675d88f05e453&quot;,
+  &quot;lod_level&quot;: 0,
+  &quot;zoom&quot;: 1.0,
+  &quot;layout_status&quot;: &quot;ready&quot;,
+  &quot;truncated&quot;: false,
+  &quot;total_node_count&quot;: 3,
+  &quot;nodes&quot;: [
+    {
+      &quot;id&quot;: &quot;a&quot;,
+      &quot;cluster_id&quot;: &quot;lod_0_a&quot;,
+      &quot;x&quot;: 0.02,
+      &quot;y&quot;: 0.02,
+      &quot;layout_status&quot;: &quot;ready&quot;,
+      &quot;member_count&quot;: 1,
+      &quot;is_representative&quot;: false,
+      &quot;tree_index&quot;: {
+        &quot;component_id&quot;: &quot;root&quot;,
+        &quot;parent_id&quot;: &quot;root&quot;,
+        &quot;depth&quot;: 1,
+        &quot;start&quot;: 1,
+        &quot;end&quot;: 2
+      },
+      &quot;isolates&quot;: [],
+      &quot;ancillary_distribution&quot;: []
+    },
+    {
+      &quot;id&quot;: &quot;b&quot;,
+      &quot;cluster_id&quot;: &quot;lod_0_b&quot;,
+      &quot;x&quot;: 1.0215,
+      &quot;y&quot;: 0.02,
+      &quot;layout_status&quot;: &quot;ready&quot;,
+      &quot;member_count&quot;: 1,
+      &quot;is_representative&quot;: false,
+      &quot;tree_index&quot;: {
+        &quot;component_id&quot;: &quot;root&quot;,
+        &quot;parent_id&quot;: &quot;root&quot;,
+        &quot;depth&quot;: 1,
+        &quot;start&quot;: 2,
+        &quot;end&quot;: 3
+      },
+      &quot;isolates&quot;: [],
+      &quot;ancillary_distribution&quot;: []
+    },
+    {
+      &quot;id&quot;: &quot;root&quot;,
+      &quot;cluster_id&quot;: &quot;lod_0_root&quot;,
+      &quot;x&quot;: 0.52431,
+      &quot;y&quot;: 0.02,
+      &quot;layout_status&quot;: &quot;ready&quot;,
+      &quot;member_count&quot;: 1,
+      &quot;is_representative&quot;: false,
+      &quot;tree_index&quot;: {
+        &quot;component_id&quot;: &quot;root&quot;,
+        &quot;depth&quot;: 0,
+        &quot;start&quot;: 0,
+        &quot;end&quot;: 3
+      },
+      &quot;isolates&quot;: [],
+      &quot;ancillary_distribution&quot;: []
+    }
+  ],
+  &quot;edges&quot;: [
+    {
+      &quot;id&quot;: &quot;e_root_a_1&quot;,
+      &quot;source&quot;: &quot;root&quot;,
+      &quot;target&quot;: &quot;a&quot;,
+      &quot;distance&quot;: 1.0
+    },
+    {
+      &quot;id&quot;: &quot;e_root_b_1&quot;,
+      &quot;source&quot;: &quot;root&quot;,
+      &quot;target&quot;: &quot;b&quot;,
+      &quot;distance&quot;: 2.0
+    }
+  ],
+  &quot;global_bounds&quot;: {
+    &quot;min_x&quot;: 0.02,
+    &quot;max_x&quot;: 1.0215,
+    &quot;min_y&quot;: 0.02,
+    &quot;max_y&quot;: 0.02
+  },
+  &quot;metadata_schema&quot;: []
+}</code></pre>
+          <p>
+            Supply all four spatial bounds together, with each maximum at least
+            its minimum. Bounds are ignored when expanding an explicit cluster.
+            A node budget limits primary retrieval; attachment neighbours can
+            make the final response larger.
+          </p>
+          <p>
+            Without an adaptive target, <code>lod_level</code> requests an exact
+            tier. With <code>lod_target_representations</code>, the service
+            chooses a tier using visible density and 15% hysteresis. The target
+            chooses detail; it does not truncate the read. Read the returned
+            <code>lod_level</code> and <code>truncated</code> flags.
+          </p>
+          <p>
+            Optional null fields are omitted. For example, a root’s
+            <code>tree_index.parent_id</code> can be absent. Do not assume an
+            omitted branch distance is zero.
+          </p>
+          <p>
+            <a href="#annotation-reuse">Annotation reuse</a> is optional. Omit
+            both reuse fields for complete node observations in every response.
+          </p>
+        </section>
+        <section data-http-operation="POST /api/graph/region">
+          <h2 id="region">
+            <span class="http-method">POST</span> <code>/api/graph/region</code
+            ><a
+              class="heading-link"
+              href="#region"
+              aria-label="Link to POST /api/graph/region"
+              >#</a
+            >
+          </h2>
+          <p>
+            Read nodes and tree edges within ordered bounds, plus the
+            public-field summary. Bounds are measured in prepared coordinates;
+            they do not follow manual browser dragging.
+          </p>
+          <h3>Request</h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Field</th>
+                  <th>Type</th>
+                  <th>Required</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>component_id</code></td>
+                  <td><code>string</code> | <code>null</code></td>
+                  <td>no</td>
+                  <td>
+                    Restrict a read to this prepared component; omit for the
+                    overview.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>dataset_id</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td>
+                    ID returned by preparation.<br /><small
+                      >minimum length 1</small
+                    >
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>layout_version</code></td>
+                  <td><code>string</code> | <code>null</code></td>
+                  <td>no</td>
+                  <td>
+                    Pin the published version you want to read. When optional
+                    and omitted, the service selects the latest published
+                    version.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>xmin</code></td>
+                  <td><code>number</code></td>
+                  <td>yes</td>
+                  <td>Minimum x coordinate.</td>
+                </tr>
+                <tr>
+                  <td><code>xmax</code></td>
+                  <td><code>number</code></td>
+                  <td>yes</td>
+                  <td>Maximum x coordinate; must not be less than xmin.</td>
+                </tr>
+                <tr>
+                  <td><code>ymin</code></td>
+                  <td><code>number</code></td>
+                  <td>yes</td>
+                  <td>Minimum y coordinate.</td>
+                </tr>
+                <tr>
+                  <td><code>ymax</code></td>
+                  <td><code>number</code></td>
+                  <td>yes</td>
+                  <td>Maximum y coordinate; must not be less than ymin.</td>
+                </tr>
+                <tr>
+                  <td><code>max_nodes</code></td>
+                  <td><code>integer</code> | <code>null</code></td>
+                  <td>no</td>
+                  <td>
+                    Optional primary-node budget. Attachment neighbours can make
+                    the returned node count larger.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <h3>Example body</h3>
+          <pre><code>{
+  &quot;dataset_id&quot;: &quot;example-tree&quot;,
+  &quot;layout_version&quot;: &quot;80a675d88f05e453&quot;,
+  &quot;xmin&quot;: -10000,
+  &quot;xmax&quot;: 10000,
+  &quot;ymin&quot;: -10000,
+  &quot;ymax&quot;: 10000
+}</code></pre>
+          <h3>Response · 200</h3>
+          <p>
+            Fields:
+            <a href="http-types.html#GraphRegionResponse"
+              ><code>GraphRegionResponse</code></a
+            >.
+          </p>
+          <pre><code>{
+  &quot;dataset_id&quot;: &quot;example-tree&quot;,
+  &quot;layout_version&quot;: &quot;80a675d88f05e453&quot;,
+  &quot;layout_status&quot;: &quot;ready&quot;,
+  &quot;truncated&quot;: false,
+  &quot;total_node_count&quot;: 3,
+  &quot;nodes&quot;: [
+    {
+      &quot;id&quot;: &quot;a&quot;,
+      &quot;cluster_id&quot;: &quot;lod_0_a&quot;,
+      &quot;x&quot;: 0.02,
+      &quot;y&quot;: 0.02,
+      &quot;layout_status&quot;: &quot;ready&quot;,
+      &quot;member_count&quot;: 1,
+      &quot;is_representative&quot;: false,
+      &quot;tree_index&quot;: {
+        &quot;component_id&quot;: &quot;root&quot;,
+        &quot;parent_id&quot;: &quot;root&quot;,
+        &quot;depth&quot;: 1,
+        &quot;start&quot;: 1,
+        &quot;end&quot;: 2
+      },
+      &quot;isolates&quot;: [],
+      &quot;ancillary_distribution&quot;: []
+    },
+    {
+      &quot;id&quot;: &quot;b&quot;,
+      &quot;cluster_id&quot;: &quot;lod_0_b&quot;,
+      &quot;x&quot;: 1.0215,
+      &quot;y&quot;: 0.02,
+      &quot;layout_status&quot;: &quot;ready&quot;,
+      &quot;member_count&quot;: 1,
+      &quot;is_representative&quot;: false,
+      &quot;tree_index&quot;: {
+        &quot;component_id&quot;: &quot;root&quot;,
+        &quot;parent_id&quot;: &quot;root&quot;,
+        &quot;depth&quot;: 1,
+        &quot;start&quot;: 2,
+        &quot;end&quot;: 3
+      },
+      &quot;isolates&quot;: [],
+      &quot;ancillary_distribution&quot;: []
+    },
+    {
+      &quot;id&quot;: &quot;root&quot;,
+      &quot;cluster_id&quot;: &quot;lod_0_root&quot;,
+      &quot;x&quot;: 0.52431,
+      &quot;y&quot;: 0.02,
+      &quot;layout_status&quot;: &quot;ready&quot;,
+      &quot;member_count&quot;: 1,
+      &quot;is_representative&quot;: false,
+      &quot;tree_index&quot;: {
+        &quot;component_id&quot;: &quot;root&quot;,
+        &quot;depth&quot;: 0,
+        &quot;start&quot;: 0,
+        &quot;end&quot;: 3
+      },
+      &quot;isolates&quot;: [],
+      &quot;ancillary_distribution&quot;: []
+    }
+  ],
+  &quot;edges&quot;: [
+    {
+      &quot;id&quot;: &quot;e_root_a_1&quot;,
+      &quot;source&quot;: &quot;root&quot;,
+      &quot;target&quot;: &quot;a&quot;,
+      &quot;distance&quot;: 1.0
+    },
+    {
+      &quot;id&quot;: &quot;e_root_b_1&quot;,
+      &quot;source&quot;: &quot;root&quot;,
+      &quot;target&quot;: &quot;b&quot;,
+      &quot;distance&quot;: 2.0
+    }
+  ],
+  &quot;metadata_schema&quot;: [],
+  &quot;aggregated_metadata&quot;: {}
+}</code></pre>
+        </section>
+        <section data-http-operation="POST /api/graph/search">
+          <h2 id="search">
+            <span class="http-method">POST</span> <code>/api/graph/search</code
+            ><a
+              class="heading-link"
+              href="#search"
+              aria-label="Link to POST /api/graph/search"
+              >#</a
+            >
+          </h2>
+          <p>
+            Search identifiers and sample values across the prepared dataset or
+            selected component. Matching original isolates identify their
+            profile node. total_count counts matching profiles before the limit.
+          </p>
+          <h3>Request</h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Field</th>
+                  <th>Type</th>
+                  <th>Required</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>component_id</code></td>
+                  <td><code>string</code> | <code>null</code></td>
+                  <td>no</td>
+                  <td>
+                    Restrict a read to this prepared component; omit for the
+                    overview.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>dataset_id</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td>
+                    ID returned by preparation.<br /><small
+                      >minimum length 1</small
+                    >
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>layout_version</code></td>
+                  <td><code>string</code> | <code>null</code></td>
+                  <td>no</td>
+                  <td>
+                    Pin the published version you want to read. When optional
+                    and omitted, the service selects the latest published
+                    version.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>query</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td>
+                    Non-empty identifier or sample-value text.<br /><small
+                      >minimum length 1</small
+                    >
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>limit</code></td>
+                  <td><code>integer</code></td>
+                  <td>no</td>
+                  <td>
+                    Maximum results on this page.<br /><small
+                      >minimum 1.0; maximum 500.0; default 25</small
+                    >
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <h3>Example body</h3>
+          <pre><code>{
+  &quot;dataset_id&quot;: &quot;example-tree&quot;,
+  &quot;layout_version&quot;: &quot;80a675d88f05e453&quot;,
+  &quot;query&quot;: &quot;A&quot;,
+  &quot;limit&quot;: 25
+}</code></pre>
+          <h3>Response · 200</h3>
+          <p>
+            Fields:
+            <a href="http-types.html#GraphSearchResponse"
+              ><code>GraphSearchResponse</code></a
+            >.
+          </p>
+          <pre><code>{
+  &quot;dataset_id&quot;: &quot;example-tree&quot;,
+  &quot;layout_version&quot;: &quot;80a675d88f05e453&quot;,
+  &quot;query&quot;: &quot;A&quot;,
+  &quot;matches&quot;: [
+    {
+      &quot;node_id&quot;: &quot;a&quot;,
+      &quot;score&quot;: 100,
+      &quot;matched_text&quot;: &quot;a&quot;,
+      &quot;cluster_id&quot;: &quot;lod_0_a&quot;,
+      &quot;x&quot;: 0.02,
+      &quot;y&quot;: 0.02
+    }
+  ],
+  &quot;total_count&quot;: 1
+}</code></pre>
+          <p>
+            Search trims the ends of the query and compares identifiers without
+            case sensitivity. Original isolate punctuation, internal whitespace
+            and leading zeros remain meaningful. Ranking is exact ID (100),
+            prefix (60), substring (40), then ancillary-value match (20). Ties
+            use the profile ID.
+          </p>
+        </section>
+        <section data-http-operation="POST /api/graph/components">
+          <h2 id="components">
+            <span class="http-method">POST</span>
+            <code>/api/graph/components</code
+            ><a
+              class="heading-link"
+              href="#components"
+              aria-label="Link to POST /api/graph/components"
+              >#</a
+            >
+          </h2>
+          <p>
+            Read a page of components and their bounds. Pass next_cursor as
+            after for the next page. Component IDs currently identify technical
+            roots.
+          </p>
+          <h3>Request</h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Field</th>
+                  <th>Type</th>
+                  <th>Required</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>dataset_id</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td>
+                    ID returned by preparation.<br /><small
+                      >minimum length 1</small
+                    >
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>layout_version</code></td>
+                  <td><code>string</code> | <code>null</code></td>
+                  <td>no</td>
+                  <td>
+                    Pin the published version you want to read. When optional
+                    and omitted, the service selects the latest published
+                    version.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>after</code></td>
+                  <td><code>integer</code> | <code>null</code></td>
+                  <td>no</td>
+                  <td>Pagination cursor from the previous next_cursor.</td>
+                </tr>
+                <tr>
+                  <td><code>limit</code></td>
+                  <td><code>integer</code></td>
+                  <td>no</td>
+                  <td>
+                    Maximum results on this page.<br /><small
+                      >minimum 1.0; maximum 200.0; default 50</small
+                    >
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <h3>Example body</h3>
+          <pre><code>{
+  &quot;dataset_id&quot;: &quot;example-tree&quot;,
+  &quot;layout_version&quot;: &quot;80a675d88f05e453&quot;,
+  &quot;limit&quot;: 50
+}</code></pre>
+          <h3>Response · 200</h3>
+          <p>
+            Fields:
+            <a href="http-types.html#GraphComponentsResponse"
+              ><code>GraphComponentsResponse</code></a
+            >.
+          </p>
+          <pre><code>{
+  &quot;dataset_id&quot;: &quot;example-tree&quot;,
+  &quot;layout_version&quot;: &quot;80a675d88f05e453&quot;,
+  &quot;components&quot;: [
+    {
+      &quot;component_id&quot;: &quot;root&quot;,
+      &quot;node_count&quot;: 3,
+      &quot;dfs_start&quot;: 0,
+      &quot;min_x&quot;: 0.02,
+      &quot;max_x&quot;: 1.0215,
+      &quot;min_y&quot;: 0.02,
+      &quot;max_y&quot;: 0.02
+    }
+  ],
+  &quot;next_cursor&quot;: null
+}</code></pre>
+        </section>
+        <section data-http-operation="PUT /api/graph/ancillary">
+          <h2 id="ancillary">
+            <span class="http-method">PUT</span>
+            <code>/api/graph/ancillary</code
+            ><a
+              class="heading-link"
+              href="#ancillary"
+              aria-label="Link to PUT /api/graph/ancillary"
+              >#</a
+            >
+          </h2>
+          <p>
+            Apply a new table to an explicit published version. This replaces
+            sample values and their schema, including directly supplied fields.
+            Omitted fields and unmatched records do not keep old values. A
+            successful update publishes a new version while preserving the
+            original.
+          </p>
+          <h3>Request</h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Field</th>
+                  <th>Type</th>
+                  <th>Required</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>dataset_id</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td>
+                    ID returned by preparation.<br /><small
+                      >minimum length 1</small
+                    >
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>layout_version</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td>
+                    Pin the published version you want to read. When optional
+                    and omitted, the service selects the latest published
+                    version.<br /><small>minimum length 1</small>
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>ancillary_data</code></td>
+                  <td>
+                    <a href="http-types.html#AncillaryDataRequest"
+                      ><code>AncillaryDataRequest</code></a
+                    >
+                  </td>
+                  <td>yes</td>
+                  <td>
+                    Table of observations joined through its identifier column.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <h3>Example body</h3>
+          <pre><code>{
+  &quot;dataset_id&quot;: &quot;example-tree&quot;,
+  &quot;layout_version&quot;: &quot;80a675d88f05e453&quot;,
+  &quot;ancillary_data&quot;: {
+    &quot;format&quot;: &quot;csv&quot;,
+    &quot;join_column&quot;: &quot;ID&quot;,
+    &quot;content&quot;: &quot;ID,country\nA,Portugal\nB,Spain\n&quot;
+  }
+}</code></pre>
+          <h3>Response · 200</h3>
+          <p>
+            Fields:
+            <a href="http-types.html#GraphAncillaryResponse"
+              ><code>GraphAncillaryResponse</code></a
+            >.
+          </p>
+          <pre><code>{
+  &quot;dataset_id&quot;: &quot;example-tree&quot;,
+  &quot;layout_version&quot;: &quot;ec60da2f96a7d738b2b321331942d5e559e1c4d4c9d1a7a3fe8875cf1bcfd066&quot;,
+  &quot;matched_node_count&quot;: 2,
+  &quot;warnings&quot;: [
+    &quot;Ancillary data did not include rows for 1 joinable nodes.&quot;
+  ]
+}</code></pre>
+          <p>
+            The source must be ready or degraded. Typing tables join original
+            isolate identifiers and accept at most one row per isolate. Newick
+            tables join labelled node IDs with slug fallback and can contain
+            several rows per node. Unmatched rows are warnings; a table matching
+            no nodes fails.
+          </p>
+          <p>
+            The operation reuses geometry and cluster memberships. It does not
+            repeat PhyloLib inference, Graphviz layout or LoD construction.
+            Publication is transactional; the original version remains readable.
+          </p>
+        </section>
+        <section data-http-operation="POST /api/graph/connections">
+          <h2 id="connections">
+            <span class="http-method">POST</span>
+            <code>/api/graph/connections</code
+            ><a
+              class="heading-link"
+              href="#connections"
+              aria-label="Link to POST /api/graph/connections"
+              >#</a
+            >
+          </h2>
+          <p>
+            Calculate an overlay within the prepared components. For typing,
+            supply the same profile input used for preparation. For Newick, the
+            service uses stored tree-path lengths. No tree edge or coordinate is
+            changed.
+          </p>
+          <h3>Request</h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Field</th>
+                  <th>Type</th>
+                  <th>Required</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>dataset_id</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td>
+                    ID returned by preparation.<br /><small
+                      >minimum length 1</small
+                    >
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>layout_version</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td>
+                    Pin the published version you want to read. When optional
+                    and omitted, the service selects the latest published
+                    version.<br /><small>minimum length 1</small>
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>format</code></td>
+                  <td>
+                    <a href="http-types.html#SourceFormat"
+                      ><code>SourceFormat</code></a
+                    >
+                  </td>
+                  <td>yes</td>
+                  <td>Input format.</td>
+                </tr>
+                <tr>
+                  <td><code>content</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td>
+                    Raw Newick, typing-table or ancillary-table content,
+                    according to the operation.<br /><small
+                      >minimum length 1</small
+                    >
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>threshold</code></td>
+                  <td><code>number</code></td>
+                  <td>yes</td>
+                  <td>
+                    Inclusive nonnegative distance limit. Typing thresholds must
+                    be whole numbers.<br /><small>minimum 0.0</small>
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>max_connections</code></td>
+                  <td><code>integer</code></td>
+                  <td>no</td>
+                  <td>
+                    Reject the whole overlay if this output limit would be
+                    exceeded.<br /><small>minimum 1.0; default 50000</small>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <h3>Example body</h3>
+          <pre><code>{
+  &quot;dataset_id&quot;: &quot;example-tree&quot;,
+  &quot;layout_version&quot;: &quot;80a675d88f05e453&quot;,
+  &quot;format&quot;: &quot;newick&quot;,
+  &quot;content&quot;: &quot;(A:1,B:2)Root;&quot;,
+  &quot;threshold&quot;: 3
+}</code></pre>
+          <h3>Response · 200</h3>
+          <p>
+            Fields:
+            <a href="http-types.html#GraphConnectionsResponse"
+              ><code>GraphConnectionsResponse</code></a
+            >.
+          </p>
+          <pre><code>{
+  &quot;dataset_id&quot;: &quot;example-tree&quot;,
+  &quot;layout_version&quot;: &quot;80a675d88f05e453&quot;,
+  &quot;metric&quot;: &quot;patristic&quot;,
+  &quot;threshold&quot;: 3.0,
+  &quot;edges&quot;: [
+    {
+      &quot;id&quot;: &quot;distance:a:b&quot;,
+      &quot;source&quot;: &quot;a&quot;,
+      &quot;target&quot;: &quot;b&quot;,
+      &quot;distance&quot;: 3.0
+    }
+  ]
+}</code></pre>
+          <p>
+            Thresholds are inclusive. Distinct zero-distance pairs are included;
+            tree edges, self-links and unnamed junctions are excluded. The
+            original typing input must match preparation. Matching node IDs
+            alone does not authenticate its allele values.
+          </p>
+          <p>
+            Fractional typing thresholds, unknown branch distances and exceeded
+            connection limits return 422. Exceeding the limit returns no partial
+            edge list.
+          </p>
+        </section>
+        <section data-http-operation="POST /api/graph/root">
+          <h2 id="root">
+            <span class="http-method">POST</span> <code>/api/graph/root</code
+            ><a
+              class="heading-link"
+              href="#root"
+              aria-label="Link to POST /api/graph/root"
+              >#</a
+            >
+          </h2>
+          <p>
+            Set node_id to a canonical node ID to reorient its component, or
+            explicitly send null to restore all preparation roots. Nodes, tree
+            edges, distances, observations and coordinates are preserved. Rooted
+            indexes and detail groups are rebuilt in one transaction.
+          </p>
+          <h3>Request</h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Field</th>
+                  <th>Type</th>
+                  <th>Required</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>dataset_id</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td>
+                    ID returned by preparation.<br /><small
+                      >minimum length 1</small
+                    >
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>layout_version</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td>
+                    Pin the published version you want to read. When optional
+                    and omitted, the service selects the latest published
+                    version.<br /><small>minimum length 1</small>
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>node_id</code></td>
+                  <td><code>string</code> | <code>null</code></td>
+                  <td>yes</td>
+                  <td>
+                    Canonical node identifier. For rooting, explicitly send null
+                    to restore all original roots.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <h3>Example body</h3>
+          <pre><code>{
+  &quot;dataset_id&quot;: &quot;example-tree&quot;,
+  &quot;layout_version&quot;: &quot;80a675d88f05e453&quot;,
+  &quot;node_id&quot;: &quot;a&quot;
+}</code></pre>
+          <h3>Response · 200</h3>
+          <p>
+            Fields:
+            <a href="http-types.html#GraphRootingResponse"
+              ><code>GraphRootingResponse</code></a
+            >.
+          </p>
+          <pre><code>{
+  &quot;dataset_id&quot;: &quot;example-tree&quot;,
+  &quot;layout_version&quot;: &quot;ad49ac6bc6ac4180&quot;,
+  &quot;node_count&quot;: 3,
+  &quot;edge_count&quot;: 2,
+  &quot;cluster_count&quot;: 3,
+  &quot;lod_tier_count&quot;: 1,
+  &quot;technical_roots&quot;: [
+    &quot;a&quot;
+  ],
+  &quot;layout_status&quot;: &quot;ready&quot;,
+  &quot;warnings&quot;: [],
+  &quot;component_ids&quot;: {
+    &quot;root&quot;: &quot;a&quot;
+  },
+  &quot;default_roots&quot;: [
+    &quot;root&quot;
+  ]
+}</code></pre>
+          <p>
+            The response maps every previous component ID to its replacement in
+            <code>component_ids</code>. Choosing the current root is a no-op
+            that retains the version. Missing layouts return 404. Unknown nodes
+            and versions without a saved preparation snapshot return 422;
+            prepare older inputs again to enable rooting.
+          </p>
+          <p>
+            Rerooting preserves existing edges. It is distinct from PHYLOViZ’s
+            founder-prioritised edge selection. See
+            <a href="technical-roots.html">Technical roots</a>.
+          </p>
+        </section>
+        <h2 id="annotation-reuse">
+          Optional annotation reuse<a
+            class="heading-link"
+            href="#annotation-reuse"
+            aria-label="Link to Optional annotation reuse"
+            >#</a
+          >
+        </h2>
+        <p>
+          Reuse hints require an explicit <code>layout_version</code>. Do not
+          reuse observations across datasets or revisions.
+        </p>
+        <ul>
+          <li>
+            <code>known_annotations</code> lists retained identities with
+            <code>node_id</code>, <code>cluster_id</code> and
+            <code>is_representative</code>. A response marked
+            <code>annotations_cached: true</code> omits static metadata and the
+            tree interval and returns empty isolate/distribution lists. Restore
+            those fields from that exact retained identity; always use new
+            coordinates, counts and edges.
+          </li>
+          <li>
+            <code>known_observations: []</code> opts into stable observation
+            references. In later reads, send the retained IDs. A row with
+            <code>values_cached: true</code> has empty <code>values</code>:
+            restore only its values and use the newly returned count.
+          </li>
+          <li>
+            An isolate marked <code>metadata_cached: true</code> restores
+            metadata using the retained
+            <code>isolate:&lt;id&gt;</code> reference. If the reference was not
+            offered, complete metadata is returned.
+          </li>
+        </ul>
+        <p>
+          Reference rows may repeat equal values. Sum their counts when grouping
+          categories. The default HTTP adapter handles these details for the
+          viewer.
+        </p>
+        <h2 id="errors">
+          Error responses<a
+            class="heading-link"
+            href="#errors"
+            aria-label="Link to Error responses"
+            >#</a
+          >
+        </h2>
+        <p>
+          Request failures use a top-level <code>detail</code>. Catch transport
+          failures separately from failed background jobs.
+        </p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Status</th>
+                <th>Meaning</th>
+                <th>Typical detail</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>400</td>
+                <td>
+                  Invalid Newick or ancillary input, or typing conversion
+                  failed.
+                </td>
+                <td>Message string.</td>
+              </tr>
+              <tr>
+                <td>404</td>
+                <td>Unknown job or missing/unpublished layout.</td>
+                <td>Message string.</td>
+              </tr>
+              <tr>
+                <td>422</td>
+                <td>
+                  Invalid schema or operation, such as an unknown root or
+                  exceeded overlay limit.
+                </td>
+                <td>
+                  Validation list, message string or
+                  <code>{ &quot;errors&quot;: [...] }</code>.
+                </td>
+              </tr>
+              <tr>
+                <td>429</td>
+                <td>The local preparation queue is full.</td>
+                <td>Message string.</td>
+              </tr>
+              <tr>
+                <td>500</td>
+                <td>Unexpected service failure.</td>
+                <td>Unexpected server error.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <pre><code>{
+  &quot;detail&quot;: &quot;The requested prepared forest was not found; load it again.&quot;
+}</code></pre>
+        <p>
+          A failed background job returns HTTP 200 with
+          <code>status: "failed"</code>, <code>error</code> and optional layout
+          <code>error_details</code>. It is not an HTTP success for the
+          preparation itself.
+        </p>
+      </article>
+      <nav class="page-links" aria-label="Page navigation">
+        <a href="api-types.html">← Browser types</a
+        ><a href="http-types.html">HTTP fields →</a>
+      </nav>
+      <footer>
+        PhyloLens documentation ·
+        <a href="https://github.com/phyloviz/phylo-lens/issues"
+          >Report an issue</a
+        >
+      </footer>
+    </main>
+  </body>
+</html>

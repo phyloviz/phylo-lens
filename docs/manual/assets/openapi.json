@@ -1,0 +1,2379 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "PhyloLens Server",
+    "version": "0.2.1"
+  },
+  "paths": {
+    "/api/graph/root": {
+      "post": {
+        "tags": [
+          "graph"
+        ],
+        "summary": "Graph Root",
+        "operationId": "graph_root_api_graph_root_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GraphRootingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GraphRootingResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/graph/connections": {
+      "post": {
+        "tags": [
+          "graph"
+        ],
+        "summary": "Graph Connections",
+        "operationId": "graph_connections_api_graph_connections_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GraphConnectionsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GraphConnectionsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/graph/prepare": {
+      "post": {
+        "tags": [
+          "graph"
+        ],
+        "summary": "Prepare Graph",
+        "operationId": "prepare_graph_api_graph_prepare_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NormalizeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GraphPrepareJob"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/graph/prepare/{job_id}": {
+      "get": {
+        "tags": [
+          "graph"
+        ],
+        "summary": "Prepare Graph Status",
+        "operationId": "prepare_graph_status_api_graph_prepare__job_id__get",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GraphPrepareStatus"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/graph/viewport": {
+      "post": {
+        "tags": [
+          "graph"
+        ],
+        "summary": "Read Graph Viewport",
+        "operationId": "read_graph_viewport_api_graph_viewport_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GraphViewportQuery"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GraphViewportResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/graph/region": {
+      "post": {
+        "tags": [
+          "graph"
+        ],
+        "summary": "Read Graph Region",
+        "operationId": "read_graph_region_api_graph_region_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GraphRegionQuery"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GraphRegionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/graph/search": {
+      "post": {
+        "tags": [
+          "graph"
+        ],
+        "summary": "Search Graph Nodes",
+        "operationId": "search_graph_nodes_api_graph_search_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GraphSearchQuery"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GraphSearchResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/graph/ancillary": {
+      "put": {
+        "tags": [
+          "graph"
+        ],
+        "summary": "Apply Ancillary Data",
+        "description": "Replace metadata in a new version, reusing the source's prepared geometry.",
+        "operationId": "apply_ancillary_data_api_graph_ancillary_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GraphAncillaryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GraphAncillaryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/graph/components": {
+      "post": {
+        "tags": [
+          "graph"
+        ],
+        "summary": "Read Graph Components",
+        "operationId": "read_graph_components_api_graph_components_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GraphComponentsQuery"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GraphComponentsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "summary": "Health",
+        "description": "Return a basic liveness signal for local and CI checks.",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Health Health Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AncillaryDataRequest": {
+        "properties": {
+          "content": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Content"
+          },
+          "join_column": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Join Column"
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "csv",
+              "tsv"
+            ],
+            "title": "Format",
+            "default": "auto"
+          }
+        },
+        "type": "object",
+        "required": [
+          "content",
+          "join_column"
+        ],
+        "title": "AncillaryDataRequest",
+        "description": "Tabular ancillary observations supplied alongside graph/tree content."
+      },
+      "AncillaryField": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Key"
+          },
+          "type": {
+            "$ref": "#/components/schemas/AncillaryType"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "type"
+        ],
+        "title": "AncillaryField"
+      },
+      "AncillaryObservation": {
+        "properties": {
+          "values": {
+            "title": "Values"
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Count"
+          },
+          "reference_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference Id"
+          },
+          "values_cached": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Values Cached"
+          }
+        },
+        "type": "object",
+        "required": [
+          "count"
+        ],
+        "title": "AncillaryObservation",
+        "description": "One joint ancillary row shared by count represented isolates."
+      },
+      "AncillaryType": {
+        "type": "string",
+        "enum": [
+          "string",
+          "number",
+          "boolean",
+          "null"
+        ],
+        "title": "AncillaryType"
+      },
+      "FullMstOptions": {
+        "properties": {
+          "algorithm": {
+            "type": "string",
+            "const": "goeburstfullmst",
+            "title": "Algorithm",
+            "default": "goeburstfullmst"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "FullMstOptions"
+      },
+      "GoeBurstOptions": {
+        "properties": {
+          "algorithm": {
+            "type": "string",
+            "const": "goeburst",
+            "title": "Algorithm",
+            "default": "goeburst"
+          },
+          "nlv": {
+            "type": "integer",
+            "maximum": 2147483647.0,
+            "minimum": 1.0,
+            "title": "Nlv",
+            "default": 3
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "GoeBurstOptions"
+      },
+      "GraphAncillaryField": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "type"
+        ],
+        "title": "GraphAncillaryField"
+      },
+      "GraphAncillaryRequest": {
+        "properties": {
+          "dataset_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Dataset Id"
+          },
+          "layout_version": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Layout Version"
+          },
+          "ancillary_data": {
+            "$ref": "#/components/schemas/AncillaryDataRequest"
+          }
+        },
+        "type": "object",
+        "required": [
+          "dataset_id",
+          "layout_version",
+          "ancillary_data"
+        ],
+        "title": "GraphAncillaryRequest"
+      },
+      "GraphAncillaryResponse": {
+        "properties": {
+          "dataset_id": {
+            "type": "string",
+            "title": "Dataset Id"
+          },
+          "layout_version": {
+            "type": "string",
+            "title": "Layout Version"
+          },
+          "matched_node_count": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Matched Node Count"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings"
+          }
+        },
+        "type": "object",
+        "required": [
+          "dataset_id",
+          "layout_version",
+          "matched_node_count"
+        ],
+        "title": "GraphAncillaryResponse"
+      },
+      "GraphComponent": {
+        "properties": {
+          "component_id": {
+            "type": "string",
+            "title": "Component Id"
+          },
+          "node_count": {
+            "type": "integer",
+            "title": "Node Count"
+          },
+          "dfs_start": {
+            "type": "integer",
+            "title": "Dfs Start"
+          },
+          "min_x": {
+            "type": "number",
+            "title": "Min X"
+          },
+          "max_x": {
+            "type": "number",
+            "title": "Max X"
+          },
+          "min_y": {
+            "type": "number",
+            "title": "Min Y"
+          },
+          "max_y": {
+            "type": "number",
+            "title": "Max Y"
+          }
+        },
+        "type": "object",
+        "required": [
+          "component_id",
+          "node_count",
+          "dfs_start",
+          "min_x",
+          "max_x",
+          "min_y",
+          "max_y"
+        ],
+        "title": "GraphComponent"
+      },
+      "GraphComponentsQuery": {
+        "properties": {
+          "dataset_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Dataset Id"
+          },
+          "layout_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Layout Version"
+          },
+          "after": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "After"
+          },
+          "limit": {
+            "type": "integer",
+            "maximum": 200.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "default": 50
+          }
+        },
+        "type": "object",
+        "required": [
+          "dataset_id"
+        ],
+        "title": "GraphComponentsQuery"
+      },
+      "GraphComponentsResponse": {
+        "properties": {
+          "dataset_id": {
+            "type": "string",
+            "title": "Dataset Id"
+          },
+          "layout_version": {
+            "type": "string",
+            "title": "Layout Version"
+          },
+          "components": {
+            "items": {
+              "$ref": "#/components/schemas/GraphComponent"
+            },
+            "type": "array",
+            "title": "Components"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "type": "object",
+        "required": [
+          "dataset_id",
+          "layout_version",
+          "components"
+        ],
+        "title": "GraphComponentsResponse"
+      },
+      "GraphConnectionEdge": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "target": {
+            "type": "string",
+            "title": "Target"
+          },
+          "distance": {
+            "type": "number",
+            "title": "Distance"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "source",
+          "target",
+          "distance"
+        ],
+        "title": "GraphConnectionEdge"
+      },
+      "GraphConnectionsRequest": {
+        "properties": {
+          "dataset_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Dataset Id"
+          },
+          "layout_version": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Layout Version"
+          },
+          "format": {
+            "$ref": "#/components/schemas/SourceFormat"
+          },
+          "content": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Content"
+          },
+          "threshold": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Threshold"
+          },
+          "max_connections": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Max Connections",
+            "default": 50000
+          }
+        },
+        "type": "object",
+        "required": [
+          "dataset_id",
+          "layout_version",
+          "format",
+          "content",
+          "threshold"
+        ],
+        "title": "GraphConnectionsRequest"
+      },
+      "GraphConnectionsResponse": {
+        "properties": {
+          "dataset_id": {
+            "type": "string",
+            "title": "Dataset Id"
+          },
+          "layout_version": {
+            "type": "string",
+            "title": "Layout Version"
+          },
+          "metric": {
+            "type": "string",
+            "enum": [
+              "allelic",
+              "patristic"
+            ],
+            "title": "Metric"
+          },
+          "threshold": {
+            "type": "number",
+            "title": "Threshold"
+          },
+          "edges": {
+            "items": {
+              "$ref": "#/components/schemas/GraphConnectionEdge"
+            },
+            "type": "array",
+            "title": "Edges"
+          }
+        },
+        "type": "object",
+        "required": [
+          "dataset_id",
+          "layout_version",
+          "metric",
+          "threshold",
+          "edges"
+        ],
+        "title": "GraphConnectionsResponse"
+      },
+      "GraphIsolate": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Id"
+          },
+          "metadata_cached": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metadata Cached"
+          },
+          "metadata": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "object",
+            "title": "Metadata"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "title": "GraphIsolate",
+        "description": "API v1 names; the domain stores ancillary_data instead of metadata."
+      },
+      "GraphLayoutBounds": {
+        "properties": {
+          "min_x": {
+            "type": "number",
+            "title": "Min X"
+          },
+          "max_x": {
+            "type": "number",
+            "title": "Max X"
+          },
+          "min_y": {
+            "type": "number",
+            "title": "Min Y"
+          },
+          "max_y": {
+            "type": "number",
+            "title": "Max Y"
+          }
+        },
+        "type": "object",
+        "required": [
+          "min_x",
+          "max_x",
+          "min_y",
+          "max_y"
+        ],
+        "title": "GraphLayoutBounds"
+      },
+      "GraphNodeAnnotationKey": {
+        "properties": {
+          "node_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Node Id"
+          },
+          "cluster_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Cluster Id"
+          },
+          "is_representative": {
+            "type": "boolean",
+            "title": "Is Representative"
+          }
+        },
+        "type": "object",
+        "required": [
+          "node_id",
+          "cluster_id",
+          "is_representative"
+        ],
+        "title": "GraphNodeAnnotationKey"
+      },
+      "GraphPrepareJob": {
+        "properties": {
+          "job_id": {
+            "type": "string",
+            "title": "Job Id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "ready",
+              "failed"
+            ],
+            "title": "Status"
+          },
+          "dataset_id": {
+            "type": "string",
+            "title": "Dataset Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "job_id",
+          "status",
+          "dataset_id"
+        ],
+        "title": "GraphPrepareJob"
+      },
+      "GraphPrepareResponse": {
+        "properties": {
+          "typing_options": {
+            "anyOf": [
+              {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/FullMstOptions"
+                  },
+                  {
+                    "$ref": "#/components/schemas/GoeBurstOptions"
+                  }
+                ],
+                "discriminator": {
+                  "propertyName": "algorithm",
+                  "mapping": {
+                    "goeburst": "#/components/schemas/GoeBurstOptions",
+                    "goeburstfullmst": "#/components/schemas/FullMstOptions"
+                  }
+                }
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Typing Options"
+          },
+          "distance_cutoff": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Distance Cutoff"
+          },
+          "dataset_id": {
+            "type": "string",
+            "title": "Dataset Id"
+          },
+          "layout_version": {
+            "type": "string",
+            "title": "Layout Version"
+          },
+          "node_count": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Node Count"
+          },
+          "edge_count": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Edge Count"
+          },
+          "cluster_count": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Cluster Count"
+          },
+          "lod_tier_count": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Lod Tier Count",
+            "default": 1
+          },
+          "technical_roots": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Technical Roots"
+          },
+          "layout_status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "refining",
+              "ready",
+              "degraded",
+              "failed"
+            ],
+            "title": "Layout Status"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings"
+          }
+        },
+        "type": "object",
+        "required": [
+          "dataset_id",
+          "layout_version",
+          "node_count",
+          "edge_count",
+          "cluster_count",
+          "layout_status"
+        ],
+        "title": "GraphPrepareResponse"
+      },
+      "GraphPrepareStatus": {
+        "properties": {
+          "job_id": {
+            "type": "string",
+            "title": "Job Id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "ready",
+              "failed"
+            ],
+            "title": "Status"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GraphPrepareResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "error_details": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Details"
+          }
+        },
+        "type": "object",
+        "required": [
+          "job_id",
+          "status"
+        ],
+        "title": "GraphPrepareStatus"
+      },
+      "GraphRegionQuery": {
+        "properties": {
+          "component_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Component Id"
+          },
+          "dataset_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Dataset Id"
+          },
+          "layout_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Layout Version"
+          },
+          "xmin": {
+            "type": "number",
+            "title": "Xmin"
+          },
+          "xmax": {
+            "type": "number",
+            "title": "Xmax"
+          },
+          "ymin": {
+            "type": "number",
+            "title": "Ymin"
+          },
+          "ymax": {
+            "type": "number",
+            "title": "Ymax"
+          },
+          "max_nodes": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Nodes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "dataset_id",
+          "xmin",
+          "xmax",
+          "ymin",
+          "ymax"
+        ],
+        "title": "GraphRegionQuery"
+      },
+      "GraphRegionResponse": {
+        "properties": {
+          "dataset_id": {
+            "type": "string",
+            "title": "Dataset Id"
+          },
+          "layout_version": {
+            "type": "string",
+            "title": "Layout Version"
+          },
+          "layout_status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "refining",
+              "ready",
+              "degraded",
+              "failed"
+            ],
+            "title": "Layout Status"
+          },
+          "truncated": {
+            "type": "boolean",
+            "title": "Truncated"
+          },
+          "total_node_count": {
+            "type": "integer",
+            "title": "Total Node Count"
+          },
+          "nodes": {
+            "items": {
+              "$ref": "#/components/schemas/GraphViewportNode"
+            },
+            "type": "array",
+            "title": "Nodes"
+          },
+          "edges": {
+            "items": {
+              "$ref": "#/components/schemas/GraphViewportEdge"
+            },
+            "type": "array",
+            "title": "Edges"
+          },
+          "metadata_schema": {
+            "items": {
+              "$ref": "#/components/schemas/GraphAncillaryField"
+            },
+            "type": "array",
+            "title": "Metadata Schema"
+          },
+          "aggregated_metadata": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "object",
+            "title": "Aggregated Metadata"
+          }
+        },
+        "type": "object",
+        "required": [
+          "dataset_id",
+          "layout_version",
+          "layout_status",
+          "truncated",
+          "total_node_count",
+          "nodes",
+          "edges"
+        ],
+        "title": "GraphRegionResponse"
+      },
+      "GraphRootingRequest": {
+        "properties": {
+          "dataset_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Dataset Id"
+          },
+          "layout_version": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Layout Version"
+          },
+          "node_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Node Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "dataset_id",
+          "layout_version",
+          "node_id"
+        ],
+        "title": "GraphRootingRequest"
+      },
+      "GraphRootingResponse": {
+        "properties": {
+          "typing_options": {
+            "anyOf": [
+              {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/FullMstOptions"
+                  },
+                  {
+                    "$ref": "#/components/schemas/GoeBurstOptions"
+                  }
+                ],
+                "discriminator": {
+                  "propertyName": "algorithm",
+                  "mapping": {
+                    "goeburst": "#/components/schemas/GoeBurstOptions",
+                    "goeburstfullmst": "#/components/schemas/FullMstOptions"
+                  }
+                }
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Typing Options"
+          },
+          "distance_cutoff": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Distance Cutoff"
+          },
+          "dataset_id": {
+            "type": "string",
+            "title": "Dataset Id"
+          },
+          "layout_version": {
+            "type": "string",
+            "title": "Layout Version"
+          },
+          "node_count": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Node Count"
+          },
+          "edge_count": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Edge Count"
+          },
+          "cluster_count": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Cluster Count"
+          },
+          "lod_tier_count": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Lod Tier Count",
+            "default": 1
+          },
+          "technical_roots": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Technical Roots"
+          },
+          "layout_status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "refining",
+              "ready",
+              "degraded",
+              "failed"
+            ],
+            "title": "Layout Status"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings"
+          },
+          "component_ids": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Component Ids"
+          },
+          "default_roots": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Default Roots"
+          }
+        },
+        "type": "object",
+        "required": [
+          "dataset_id",
+          "layout_version",
+          "node_count",
+          "edge_count",
+          "cluster_count",
+          "layout_status",
+          "component_ids",
+          "default_roots"
+        ],
+        "title": "GraphRootingResponse"
+      },
+      "GraphSearchMatch": {
+        "properties": {
+          "node_id": {
+            "type": "string",
+            "title": "Node Id"
+          },
+          "score": {
+            "type": "integer",
+            "title": "Score"
+          },
+          "matched_text": {
+            "type": "string",
+            "title": "Matched Text"
+          },
+          "cluster_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cluster Id"
+          },
+          "x": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "X"
+          },
+          "y": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Y"
+          }
+        },
+        "type": "object",
+        "required": [
+          "node_id",
+          "score",
+          "matched_text"
+        ],
+        "title": "GraphSearchMatch"
+      },
+      "GraphSearchQuery": {
+        "properties": {
+          "component_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Component Id"
+          },
+          "dataset_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Dataset Id"
+          },
+          "layout_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Layout Version"
+          },
+          "query": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Query"
+          },
+          "limit": {
+            "type": "integer",
+            "maximum": 500.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "default": 25
+          }
+        },
+        "type": "object",
+        "required": [
+          "dataset_id",
+          "query"
+        ],
+        "title": "GraphSearchQuery"
+      },
+      "GraphSearchResponse": {
+        "properties": {
+          "dataset_id": {
+            "type": "string",
+            "title": "Dataset Id"
+          },
+          "layout_version": {
+            "type": "string",
+            "title": "Layout Version"
+          },
+          "query": {
+            "type": "string",
+            "title": "Query"
+          },
+          "matches": {
+            "items": {
+              "$ref": "#/components/schemas/GraphSearchMatch"
+            },
+            "type": "array",
+            "title": "Matches"
+          },
+          "total_count": {
+            "type": "integer",
+            "title": "Total Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "dataset_id",
+          "layout_version",
+          "query",
+          "matches",
+          "total_count"
+        ],
+        "title": "GraphSearchResponse"
+      },
+      "GraphTreeIndex": {
+        "properties": {
+          "component_id": {
+            "type": "string",
+            "title": "Component Id"
+          },
+          "parent_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Id"
+          },
+          "depth": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Depth"
+          },
+          "start": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Start"
+          },
+          "end": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "End"
+          }
+        },
+        "type": "object",
+        "required": [
+          "component_id",
+          "parent_id",
+          "depth",
+          "start",
+          "end"
+        ],
+        "title": "GraphTreeIndex"
+      },
+      "GraphViewportBounds": {
+        "properties": {
+          "xmin": {
+            "type": "number",
+            "title": "Xmin"
+          },
+          "xmax": {
+            "type": "number",
+            "title": "Xmax"
+          },
+          "ymin": {
+            "type": "number",
+            "title": "Ymin"
+          },
+          "ymax": {
+            "type": "number",
+            "title": "Ymax"
+          }
+        },
+        "type": "object",
+        "required": [
+          "xmin",
+          "xmax",
+          "ymin",
+          "ymax"
+        ],
+        "title": "GraphViewportBounds"
+      },
+      "GraphViewportEdge": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "target": {
+            "type": "string",
+            "title": "Target"
+          },
+          "distance": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Distance"
+          },
+          "is_meta": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Meta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "source",
+          "target"
+        ],
+        "title": "GraphViewportEdge"
+      },
+      "GraphViewportNode": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "cluster_id": {
+            "type": "string",
+            "title": "Cluster Id"
+          },
+          "x": {
+            "type": "number",
+            "title": "X"
+          },
+          "y": {
+            "type": "number",
+            "title": "Y"
+          },
+          "layout_status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "refining",
+              "ready",
+              "degraded",
+              "failed"
+            ],
+            "title": "Layout Status"
+          },
+          "member_count": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Member Count",
+            "default": 1
+          },
+          "is_representative": {
+            "type": "boolean",
+            "title": "Is Representative",
+            "default": false
+          },
+          "tree_index": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GraphTreeIndex"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "metadata": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metadata"
+          },
+          "isolates": {
+            "items": {
+              "$ref": "#/components/schemas/GraphIsolate"
+            },
+            "type": "array",
+            "title": "Isolates"
+          },
+          "ancillary_distribution": {
+            "items": {
+              "$ref": "#/components/schemas/AncillaryObservation"
+            },
+            "type": "array",
+            "title": "Ancillary Distribution"
+          },
+          "annotations_cached": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Annotations Cached"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "cluster_id",
+          "x",
+          "y",
+          "layout_status"
+        ],
+        "title": "GraphViewportNode"
+      },
+      "GraphViewportQuery": {
+        "properties": {
+          "component_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Component Id"
+          },
+          "dataset_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Dataset Id"
+          },
+          "layout_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Layout Version"
+          },
+          "cluster_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cluster Id"
+          },
+          "focus_node_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Focus Node Id"
+          },
+          "xmin": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Xmin"
+          },
+          "xmax": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Xmax"
+          },
+          "ymin": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ymin"
+          },
+          "ymax": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ymax"
+          },
+          "zoom": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Zoom",
+            "default": 1.0
+          },
+          "lod_level": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lod Level"
+          },
+          "max_nodes": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Nodes"
+          },
+          "lod_target_representations": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lod Target Representations"
+          },
+          "lod_selection_bounds": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GraphViewportBounds"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "previous_lod_level": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Lod Level"
+          },
+          "known_annotations": {
+            "items": {
+              "$ref": "#/components/schemas/GraphNodeAnnotationKey"
+            },
+            "type": "array",
+            "title": "Known Annotations"
+          },
+          "known_observations": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Known Observations"
+          }
+        },
+        "type": "object",
+        "required": [
+          "dataset_id"
+        ],
+        "title": "GraphViewportQuery"
+      },
+      "GraphViewportResponse": {
+        "properties": {
+          "dataset_id": {
+            "type": "string",
+            "title": "Dataset Id"
+          },
+          "layout_version": {
+            "type": "string",
+            "title": "Layout Version"
+          },
+          "lod_level": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lod Level"
+          },
+          "zoom": {
+            "type": "number",
+            "title": "Zoom"
+          },
+          "layout_status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "refining",
+              "ready",
+              "degraded",
+              "failed"
+            ],
+            "title": "Layout Status"
+          },
+          "truncated": {
+            "type": "boolean",
+            "title": "Truncated"
+          },
+          "total_node_count": {
+            "type": "integer",
+            "title": "Total Node Count"
+          },
+          "nodes": {
+            "items": {
+              "$ref": "#/components/schemas/GraphViewportNode"
+            },
+            "type": "array",
+            "title": "Nodes"
+          },
+          "edges": {
+            "items": {
+              "$ref": "#/components/schemas/GraphViewportEdge"
+            },
+            "type": "array",
+            "title": "Edges"
+          },
+          "global_bounds": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GraphLayoutBounds"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "metadata_schema": {
+            "items": {
+              "$ref": "#/components/schemas/GraphAncillaryField"
+            },
+            "type": "array",
+            "title": "Metadata Schema"
+          }
+        },
+        "type": "object",
+        "required": [
+          "dataset_id",
+          "layout_version",
+          "zoom",
+          "layout_status",
+          "truncated",
+          "total_node_count",
+          "nodes",
+          "edges"
+        ],
+        "title": "GraphViewportResponse"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "LodOptions": {
+        "properties": {
+          "small_component_threshold": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Small Component Threshold",
+            "default": 64
+          }
+        },
+        "type": "object",
+        "title": "LodOptions",
+        "description": "Preparation policy, independent of layout forces and viewport preferences."
+      },
+      "NormalizeOptions": {
+        "properties": {
+          "allow_self_loops": {
+            "type": "boolean",
+            "const": false,
+            "title": "Allow Self Loops",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "NormalizeOptions"
+      },
+      "NormalizeRequest": {
+        "properties": {
+          "format": {
+            "$ref": "#/components/schemas/SourceFormat"
+          },
+          "dataset_name": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Dataset Name",
+            "default": "dataset"
+          },
+          "content": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Content"
+          },
+          "options": {
+            "$ref": "#/components/schemas/NormalizeOptions"
+          },
+          "metadata_schema": {
+            "items": {
+              "$ref": "#/components/schemas/AncillaryField"
+            },
+            "type": "array",
+            "title": "Metadata Schema"
+          },
+          "metadata_by_node_id": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "type": "object"
+            },
+            "type": "object",
+            "title": "Metadata By Node Id"
+          },
+          "ancillary_data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AncillaryDataRequest"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sfdp_options": {
+            "$ref": "#/components/schemas/SfdpOptions"
+          },
+          "lod_options": {
+            "$ref": "#/components/schemas/LodOptions"
+          },
+          "distance_cutoff": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Distance Cutoff"
+          },
+          "typing_options": {
+            "anyOf": [
+              {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/FullMstOptions"
+                  },
+                  {
+                    "$ref": "#/components/schemas/GoeBurstOptions"
+                  }
+                ],
+                "discriminator": {
+                  "propertyName": "algorithm",
+                  "mapping": {
+                    "goeburst": "#/components/schemas/GoeBurstOptions",
+                    "goeburstfullmst": "#/components/schemas/FullMstOptions"
+                  }
+                }
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Typing Options"
+          }
+        },
+        "type": "object",
+        "required": [
+          "format",
+          "content"
+        ],
+        "title": "NormalizeRequest"
+      },
+      "SfdpOptions": {
+        "properties": {
+          "k": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "K",
+            "default": 0.3
+          },
+          "repulsiveForce": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Repulsiveforce",
+            "default": 1.0
+          },
+          "overlap": {
+            "$ref": "#/components/schemas/SfdpOverlap",
+            "default": "prism"
+          },
+          "prismIterations": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Prismiterations",
+            "default": 0
+          },
+          "overlapScaling": {
+            "type": "number",
+            "title": "Overlapscaling",
+            "default": -4.0
+          },
+          "smoothing": {
+            "$ref": "#/components/schemas/SfdpSmoothing",
+            "default": "spring"
+          },
+          "quadtree": {
+            "$ref": "#/components/schemas/SfdpQuadtree",
+            "default": "normal"
+          },
+          "beautify": {
+            "type": "boolean",
+            "title": "Beautify",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "SfdpOptions",
+        "description": "Graphviz SFDP configuration."
+      },
+      "SfdpOverlap": {
+        "type": "string",
+        "enum": [
+          "prism",
+          "scale"
+        ],
+        "title": "SfdpOverlap"
+      },
+      "SfdpQuadtree": {
+        "type": "string",
+        "enum": [
+          "none",
+          "normal",
+          "fast"
+        ],
+        "title": "SfdpQuadtree"
+      },
+      "SfdpSmoothing": {
+        "type": "string",
+        "enum": [
+          "none",
+          "avg_dist",
+          "graph_dist",
+          "power_dist",
+          "rng",
+          "spring",
+          "triangle"
+        ],
+        "title": "SfdpSmoothing"
+      },
+      "SourceFormat": {
+        "type": "string",
+        "enum": [
+          "newick",
+          "typing_data"
+        ],
+        "title": "SourceFormat",
+        "description": "Supported dataset source families in the current server contract."
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}

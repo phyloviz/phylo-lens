@@ -1,11 +1,11 @@
 from phylo_lens_server.domain.ancillary import AncillaryField, AncillaryType
+from phylo_lens_server.domain.dataset import Dataset
 from phylo_lens_server.domain.legacy_metadata import (
     decode_node_annotations,
     encode_dataset_annotations,
     is_summary_key,
 )
 from phylo_lens_server.domain.lod import LodOptions
-from phylo_lens_server.domain.models import Dataset
 from phylo_lens_server.domain.summaries import aggregate_cluster_metadata
 from phylo_lens_server.repository.layout.sqlite_layout_repository import (
     SQLiteLayoutRepository,

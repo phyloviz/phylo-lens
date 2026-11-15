@@ -6,6 +6,7 @@ import type { VisualMappingOptions } from '../../render/mapping/visualMapping';
 import type { GraphSession } from './graphWorkbench.types';
 
 export type GraphWorkbenchAction =
+  | { readonly kind: 'technicalRootChanged'; readonly roots: readonly string[]; readonly lodTierCount: number }
   | { readonly kind: 'loadStarted' }
   | { readonly kind: 'graphPrepared'; readonly session: GraphSession }
   | { readonly kind: 'viewportApplied'; readonly graph: PositionedGraph; readonly layoutVersion?: LayoutVersion }

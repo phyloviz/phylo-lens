@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>PhyloLens · Custom client example</title>
+  </head>
+  <body>
+    <header>
+      <span class="eyebrow">PHYLOLens / Integration example</span>
+      <h1>Your data source. The PhyloLens viewer.</h1>
+      <p>
+        This example supplies precomputed tree data through a custom
+        GraphClient. It runs entirely in the browser.
+      </p>
+      <label>Find a node <input id="query" value="PT-02" /></label>
+      <button id="find">Find</button>
+      <button id="export">Export PNG</button>
+      <span id="status" role="status">Loading…</span>
+    </header>
+    <main id="tree" aria-label="Precomputed example tree"></main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

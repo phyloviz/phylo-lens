@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import csv
 import json
+from collections.abc import Collection, Mapping
 from dataclasses import dataclass, field
 from io import StringIO
+from math import isfinite
 from pathlib import Path
+from types import MappingProxyType
 from typing import NamedTuple
 
 from phylo_lens_server.data.parsers import (
@@ -27,6 +30,9 @@ class ProfileMember(NamedTuple):
     normalized_id: str
 
 
+ProfileMembership = Mapping[str, tuple[ProfileMember, ...]]
+
+
 @dataclass(frozen=True)
 class PreparedTypingProfiles:
     content: str
@@ -35,6 +41,9 @@ class PreparedTypingProfiles:
 
     rows: tuple[TypingRow, ...] = field(init=False, repr=False)
     header: tuple[str, ...] = field(init=False, repr=False)
+    _membership: ProfileMembership | None = field(
+        init=False, default=None, repr=False, compare=False
+    )
 
     def __post_init__(self) -> None:
         header, *rows = csv.reader(StringIO(self.content), delimiter="\t")
@@ -43,29 +52,13 @@ class PreparedTypingProfiles:
             self, "rows", tuple(TypingRow(row[0], tuple(row[1:])) for row in rows)
         )
 
-    def membership(self) -> dict[str, tuple[ProfileMember, ...]]:
-        """Map a profile node to original isolate IDs and normalized graph IDs."""
-        rows = self.rows
-        groups: dict[tuple[str, ...], list[ProfileMember]] = {}
-        normalized_ids: set[str] = set()
-        for row in rows:
-            node_id = slugify_label(row[0])
-            if not node_id or node_id.startswith("union_"):
-                raise ParseError(
-                    "Typing identifiers must normalize to non-empty, non-structural node IDs."
-                )
-            if node_id in normalized_ids:
-                raise ParseError(
-                    "Typing identifiers collide after canonical normalization."
-                )
-            normalized_ids.add(node_id)
-            groups.setdefault(row.alleles, []).append(
-                ProfileMember(row.identifier, node_id)
-            )
-        return {
-            min(node_id for _, node_id in members): tuple(sorted(members))
-            for members in groups.values()
-        }
+    def membership(self) -> ProfileMembership:
+        """Derive membership once; immutable input needs no invalidation."""
+        membership = self._membership
+        if membership is None:
+            membership = MappingProxyType(_group_profiles(self.rows))
+            object.__setattr__(self, "_membership", membership)
+        return membership
 
     def algorithm_content(self, *, distinct: bool = False) -> str:
         """Safe Newick labels; optionally emit one representative per profile."""
@@ -114,6 +107,31 @@ class PreparedTypingProfiles:
                 f"Excluded loci: {', '.join(self.excluded_loci)}."
             ),
         )
+
+
+def _group_profiles(
+    rows: tuple[TypingRow, ...],
+) -> dict[str, tuple[ProfileMember, ...]]:
+    groups: dict[tuple[str, ...], list[ProfileMember]] = {}
+    normalized_ids: set[str] = set()
+    for row in rows:
+        node_id = slugify_label(row.identifier)
+        if not node_id or node_id.startswith("union_"):
+            raise ParseError(
+                "Typing identifiers must normalize to non-empty, non-structural node IDs."
+            )
+        if node_id in normalized_ids:
+            raise ParseError(
+                "Typing identifiers collide after canonical normalization."
+            )
+        normalized_ids.add(node_id)
+        groups.setdefault(row.alleles, []).append(
+            ProfileMember(row.identifier, node_id)
+        )
+    return {
+        min(member.normalized_id for member in members): tuple(sorted(members))
+        for members in groups.values()
+    }
 
 
 def prepare_typing_profiles(content: str) -> PreparedTypingProfiles:
@@ -183,7 +201,7 @@ def prepare_typing_profiles(content: str) -> PreparedTypingProfiles:
 
 
 def collapse_profile_graph(
-    graph: ParsedGraph, membership: dict[str, list[tuple[str, str]]]
+    graph: ParsedGraph, membership: ProfileMembership
 ) -> ParsedGraph:
     """Contract known equivalent typing profiles, never arbitrary zero edges."""
     representative = {
@@ -232,7 +250,7 @@ def collapse_profile_graph(
 
 def validate_goeburst_tree(
     graph: ParsedGraph,
-    membership: dict[str, list[tuple[str, str]]],
+    membership: ProfileMembership,
     *,
     max_level: int | None = None,
 ) -> None:
@@ -243,6 +261,8 @@ def validate_goeburst_tree(
         raise ParseError("A goeBURST Full MST must span one connected profile tree.")
     neighbors: dict[str, list[str]] = {node_id: [] for node_id in graph.nodes}
     for edge in graph.edges:
+        if edge.distance is not None and not isfinite(edge.distance):
+            raise ParseError("goeBURST output contains a non-finite edge distance.")
         if max_level is not None and (
             edge.distance is None or not 0 < edge.distance <= max_level
         ):
@@ -273,7 +293,7 @@ def validate_goeburst_tree(
 def select_goeburst_root(
     matrix_path: Path,
     profiles: PreparedTypingProfiles,
-    membership: dict[str, list[tuple[str, str]]],
+    membership: ProfileMembership,
 ) -> str:
     return select_goeburst_roots(matrix_path, profiles, membership)[0]
 
@@ -281,10 +301,11 @@ def select_goeburst_root(
 def select_goeburst_roots(
     matrix_path: Path,
     profiles: PreparedTypingProfiles,
-    membership: dict[str, list[tuple[str, str]]],
+    membership: ProfileMembership,
     *,
     graph: ParsedGraph | None = None,
     max_level: int | None = None,
+    matrix_ids: Collection[str] | None = None,
 ) -> tuple[str, ...]:
     """Stream PhyloLib's triangular Hamming matrix; rank distinct profiles by LV counts."""
     rows = profiles.rows
@@ -294,20 +315,25 @@ def select_goeburst_roots(
         for node_id, members in membership.items()
         for _, isolate_id in members
     }
+    expected_ids = set(representative if matrix_ids is None else matrix_ids)
     counts: dict[str, dict[int, int]] = {node_id: {} for node_id in membership}
     highest_distance = 0
     previous: list[str] = []
+    seen: set[str] = set()
     try:
         with matrix_path.open(encoding="utf-8", newline="") as stream:
             matrix = csv.reader(stream, delimiter="\t")
             size_row = next(matrix)
-            if len(size_row) != 1 or int(size_row[0]) != len(rows):
+            if len(size_row) != 1 or int(size_row[0]) != len(expected_ids):
                 raise ValueError("unexpected matrix size")
             for fields in matrix:
-                if len(previous) >= len(rows) or len(fields) != len(previous) + 1:
+                if (
+                    len(previous) >= len(expected_ids)
+                    or len(fields) != len(previous) + 1
+                ):
                     raise ValueError("invalid triangular matrix row")
                 node_id = fields[0]
-                if node_id not in representative or node_id in previous:
+                if node_id not in expected_ids or node_id in seen:
                     raise ValueError("unknown or repeated matrix profile")
                 for other, cell in zip(previous, fields[1:], strict=True):
                     number = float(cell)
@@ -329,7 +355,8 @@ def select_goeburst_roots(
                         counts[left][distance] = counts[left].get(distance, 0) + 1
                         counts[right][distance] = counts[right].get(distance, 0) + 1
                 previous.append(node_id)
-        if set(previous) != set(representative):
+                seen.add(node_id)
+        if seen != expected_ids:
             raise ValueError("matrix omitted typing profiles")
     except (OSError, ValueError, OverflowError, StopIteration, csv.Error) as error:
         raise ParseError(f"Invalid PhyloLib Hamming matrix: {error}") from error

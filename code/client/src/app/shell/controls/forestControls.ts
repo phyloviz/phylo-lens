@@ -37,6 +37,13 @@ export default function forestControls(
   return {
     mount,
     reset,
+    refresh() {
+      generation++;
+      busy = false;
+      cursor = null;
+      components = [];
+      return loadPage();
+    },
     load(format: SourceFormat) {
       sourceFormat = format;
       return loadPage();

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from phylo_lens_server.domain.models import Dataset
+from phylo_lens_server.domain.dataset import Dataset
 from phylo_lens_server.domain.preparation import PreparationSummary
 from phylo_lens_server.http.graph.schemas import NormalizeRequest
 from phylo_lens_server.jobs.worker import run_postgres_prepare_worker

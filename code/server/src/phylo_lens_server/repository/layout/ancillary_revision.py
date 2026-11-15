@@ -15,13 +15,14 @@ from itertools import groupby
 from types import MappingProxyType
 
 from phylo_lens_server.database.sql import Connection
+from phylo_lens_server.domain.dataset import Isolate
 from phylo_lens_server.domain.legacy_metadata import encode_node_annotations
-from phylo_lens_server.domain.models import Isolate
 from phylo_lens_server.domain.revisions import (
     AncillaryLayoutNotFoundError,
     AncillaryReplacement,
     AncillarySource,
 )
+from phylo_lens_server.domain.rooting import PreparationSnapshot
 from phylo_lens_server.domain.summaries import aggregate_cluster_metadata_by_node_ids
 from phylo_lens_server.repository.layout.writer import (
     PRECOMPUTED_CLUSTER_METADATA_TIERS,
@@ -89,9 +90,10 @@ def open_revision(
 def require_published(
     connection: Connection, dataset_id: str, version: str, placeholder: str
 ) -> str:
+    lock = " for share" if placeholder == "%s" else ""
     row = connection.execute(
         f"""select status from datasets
-            where dataset_id = {placeholder} and layout_version = {placeholder}""",
+            where dataset_id = {placeholder} and layout_version = {placeholder}{lock}""",
         (dataset_id, version),
     ).fetchone()
     if row is None or row["status"] not in ("ready", "degraded"):
@@ -141,6 +143,30 @@ def publish_revision(
     if inserted is None:
         require_published(connection, dataset_id, version, p)
         return version
+
+    source_row = connection.execute(
+        f"select snapshot_json from preparation_sources where dataset_id = {p} and layout_version = {p}",
+        (dataset_id, source_version),
+    ).fetchone()
+    if source_row is not None:
+        snapshot = PreparationSnapshot.model_validate_json(source_row["snapshot_json"])
+        dataset = snapshot.dataset.model_copy(
+            update={
+                "ancillary_schema": replacement.schema,
+                "summary_schema": (),
+                "annotations_by_node_id": replacement.annotations_by_node_id,
+                "isolates_by_node_id": replacement.isolates_by_node_id,
+                "ancillary_rows_by_node_id": {
+                    node: tuple(isolate.ancillary_data for isolate in isolates)
+                    for node, isolates in replacement.isolates_by_node_id.items()
+                },
+            }
+        )
+        snapshot = snapshot.model_copy(update={"dataset": dataset})
+        connection.execute(
+            f"insert into preparation_sources(dataset_id, layout_version, snapshot_json) values ({p}, {p}, {p})",
+            (dataset_id, version, snapshot.model_dump_json()),
+        )
 
     for table, columns in GEOMETRY_COLUMNS.items():
         connection.execute(

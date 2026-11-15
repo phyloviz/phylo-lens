@@ -6,7 +6,7 @@ import pytest
 from pydantic import ValidationError
 
 from phylo_lens_server.data.parsers import parse_newick_forest
-from phylo_lens_server.domain.models import Dataset
+from phylo_lens_server.domain.dataset import Dataset
 from phylo_lens_server.http.graph.schemas import NormalizeRequest
 from phylo_lens_server.pipeline.ingestion import ingest_dataset
 from phylo_lens_server.pipeline.layout import _place_isolated_nodes

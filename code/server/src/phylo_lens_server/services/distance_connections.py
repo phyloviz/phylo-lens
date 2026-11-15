@@ -8,8 +8,8 @@ from phylo_lens_server.domain.connections import (
     ConnectionQuery,
     ConnectionResult,
 )
-from phylo_lens_server.domain.models import GraphEdge, SourceFormat
-from phylo_lens_server.repository.interfaces import LayoutRepository
+from phylo_lens_server.domain.dataset import GraphEdge, SourceFormat
+from phylo_lens_server.repository.layout_repository import LayoutRepository
 
 
 def read_distance_connections(

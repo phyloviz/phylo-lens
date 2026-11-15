@@ -16,6 +16,7 @@ from phylo_lens_server.domain.preparation import (
     PreparedLayoutArtifacts,
     QuotientEdge,
 )
+from phylo_lens_server.domain.rooting import PreparationSnapshot
 from phylo_lens_server.domain.summaries import aggregate_cluster_metadata_by_node_ids
 from phylo_lens_server.domain.views import LayoutStatus
 
@@ -32,6 +33,7 @@ def save_artifacts(
     *,
     status: LayoutStatus = "refining",
     stage_factory: StageFactory | None = None,
+    snapshot: PreparationSnapshot | None = None,
 ) -> None:
     with _stage(stage_factory, "persist_artifacts.datasets"):
         connection.execute(
@@ -43,6 +45,23 @@ def save_artifacts(
                 """,
             (artifacts.dataset.dataset_id, artifacts.layout_version, status),
         )
+    snapshot = snapshot or PreparationSnapshot(
+        dataset=artifacts.dataset,
+        default_roots=artifacts.dataset.technical_roots,
+        default_rooting_strategy=artifacts.dataset.source.rooting_strategy,
+        sfdp_options=artifacts.sfdp_options,
+        lod_options=artifacts.lod_options,
+    )
+    connection.execute(
+        """insert into preparation_sources(dataset_id, layout_version, snapshot_json)
+            values (?, ?, ?) on conflict(dataset_id, layout_version) do update set
+            snapshot_json = excluded.snapshot_json""",
+        (
+            artifacts.dataset.dataset_id,
+            artifacts.layout_version,
+            snapshot.model_dump_json(),
+        ),
+    )
     with _stage(stage_factory, "persist_artifacts.node_tree_index"):
         execute_many_chunked(
             connection,
@@ -485,6 +504,7 @@ def prepared_edge_rows(prepared_edges: tuple[QuotientEdge, ...]) -> Iterator[SQL
 
 
 LAYOUT_TABLES = (
+    "preparation_sources",
     "forest_components",
     "node_tree_index",
     "node_positions",
@@ -503,6 +523,18 @@ LAYOUT_TABLES = (
 def clear_dataset(
     connection: LayoutSQL, dataset_id: str, layout_version: str | None = None
 ) -> None:
+    if connection.backend == "postgres":
+        suffix = " and layout_version = ?" if layout_version is not None else ""
+        parameters = (
+            (dataset_id, layout_version)
+            if layout_version is not None
+            else (dataset_id,)
+        )
+        # Revision readers lock the published source before reading its tables.
+        connection.execute(
+            f"select layout_version from datasets where dataset_id = ?{suffix} for update",
+            parameters,
+        ).fetchall()
     for table in LAYOUT_TABLES:
         if connection.backend == "sqlite" and not table_exists(
             connection.connection, table

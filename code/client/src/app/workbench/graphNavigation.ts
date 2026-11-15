@@ -73,6 +73,7 @@ export default function createGraphNavigation({
         scope: 'display',
       };
     }
+    if (!graphClient.readRegion) throw new Error('This backend does not support stored region queries.');
     const response = await graphClient.readRegion({
       datasetId: session.datasetId,
       layoutVersion: session.layoutVersion,
@@ -106,6 +107,7 @@ export default function createGraphNavigation({
   }
 
   async function searchNodes(query: { query: string; limit?: number }): Promise<GraphSearchResult> {
+    if (!graphClient.searchGraph) throw new Error('This backend does not support tree search.');
     const session = getGraphSession(getState());
     cancelPendingFocus();
     const generation = getLoadGeneration();
@@ -164,6 +166,7 @@ export default function createGraphNavigation({
       let location = coordinates && { ...coordinates };
 
       if (!location?.clusterId) {
+        if (!graphClient.searchGraph) throw new Error('This backend requires coordinates to focus a hidden node.');
         const response = await graphClient.searchGraph({
           datasetId: session.datasetId,
           layoutVersion: session.layoutVersion,

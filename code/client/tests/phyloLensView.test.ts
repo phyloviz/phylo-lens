@@ -1,4 +1,6 @@
 import type { PhyloLensViewOptions } from '../src/phyloLensView';
+import type { GraphClient } from '../src/index';
+import { createGraphClient } from '../src/services/graph/graphService';
 import type { GraphWorkbenchOptions } from '../src/app/workbench/graphWorkbench.types';
 import { toDatasetId, toLayoutVersion, toClusterId, toNodeId } from '../src/contracts/graph/graphIdentifiers';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -26,7 +28,7 @@ import { createPhyloLensView } from '../src/index';
 import { ERR_PHYLO_LENS_VIEW_DISPOSED } from '../src/phyloLensView';
 
 const views = new Set<ReturnType<typeof createPhyloLensView>>();
-function createView(options: Partial<PhyloLensViewOptions> = {}) {
+function createView(options: Partial<Extract<PhyloLensViewOptions, { apiUrl: string }>> = {}) {
   const container = options.container ?? document.createElement('div');
   const view = createPhyloLensView({ apiUrl: '', ...options, container });
   views.add(view);
@@ -44,6 +46,25 @@ afterEach(() => {
 });
 
 describe('createPhyloLensView', () => {
+  it('accepts a host-owned client without constructing an HTTP transport', () => {
+    const graphClient: GraphClient = {
+      prepareGraph: vi.fn(),
+      readViewport: vi.fn(),
+    };
+    const container = document.createElement('div');
+    const view = createPhyloLensView({ container, graphClient });
+    views.add(view);
+    expect(createGraphClient).not.toHaveBeenCalled();
+    expect(createGraphWorkbench).toHaveBeenCalledWith(expect.objectContaining({ graphClient }));
+  });
+
+  it('rejects ambiguous or missing backend configuration from JavaScript callers', () => {
+    const container = document.createElement('div');
+    // @ts-expect-error Runtime callers also get a clear configuration error.
+    expect(() => createPhyloLensView({ container })).toThrow('exactly one');
+    // @ts-expect-error Both transports are deliberately mutually exclusive.
+    expect(() => createPhyloLensView({ container, apiUrl: '', graphClient: {} })).toThrow('exactly one');
+  });
   it('routes simultaneous views to their own workbenches and disposes them independently', async () => {
     const first = createView();
     const second = createView();

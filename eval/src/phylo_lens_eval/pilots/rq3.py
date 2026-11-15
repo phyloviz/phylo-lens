@@ -15,7 +15,7 @@ import sqlite3
 from pathlib import Path
 from typing import Any
 
-from phylo_lens_server.domain.models import (
+from phylo_lens_server.domain.dataset import (
     Dataset,
     GraphEdge,
     GraphNode,

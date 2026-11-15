@@ -1,11 +1,11 @@
 """Deterministic dataset builders; scenario assertions stay in their suites."""
 
 from phylo_lens_server.domain.ancillary import AncillaryField, AncillaryType
+from phylo_lens_server.domain.dataset import Dataset
 from phylo_lens_server.domain.legacy_metadata import (
     decode_node_annotations,
     is_summary_key,
 )
-from phylo_lens_server.domain.models import Dataset
 from phylo_lens_server.http.graph.schemas import NormalizeRequest
 from phylo_lens_server.pipeline.ingestion import ingest_dataset
 

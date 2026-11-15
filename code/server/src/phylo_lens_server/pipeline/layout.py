@@ -6,11 +6,11 @@ import subprocess
 from math import ceil, hypot, sqrt
 
 from phylo_lens_server.config.settings import graphviz_sfdp_timeout_seconds
+from phylo_lens_server.domain.dataset import Dataset, GraphEdge
 from phylo_lens_server.domain.layout_errors import (
     GraphvizLayoutError,
     LayoutFailureDiagnostics,
 )
-from phylo_lens_server.domain.models import Dataset, GraphEdge
 from phylo_lens_server.domain.preparation import (
     ClusterLayout,
     NodeLayoutPosition,
@@ -24,10 +24,16 @@ GRAPHVIZ_SFDP_COMMAND = "sfdp"
 
 def compute_prepared_layouts(
     artifacts: PreparedLayoutArtifacts,
+    *,
+    positions: dict[str, tuple[float, float]] | None = None,
 ) -> tuple[tuple[ClusterLayout, ...], tuple[NodeLayoutPosition, ...]]:
-    global_positions = compute_global_node_positions(
-        artifacts.dataset,
-        artifacts.sfdp_options,
+    global_positions = (
+        positions
+        if positions is not None
+        else compute_global_node_positions(
+            artifacts.dataset,
+            artifacts.sfdp_options,
+        )
     )
 
     cluster_layouts: list[ClusterLayout] = []

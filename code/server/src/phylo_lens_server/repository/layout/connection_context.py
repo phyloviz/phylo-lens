@@ -2,7 +2,7 @@ from types import MappingProxyType
 
 from phylo_lens_server.database.sql import LayoutSQL
 from phylo_lens_server.domain.connections import ConnectionContext
-from phylo_lens_server.domain.models import GraphEdge
+from phylo_lens_server.domain.dataset import GraphEdge
 
 
 def read_connection_context(

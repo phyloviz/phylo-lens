@@ -90,6 +90,7 @@ jobs:
             package_fixture:
               - 'code/client/**'
               - 'examples/public-library-host/**'
+              - 'examples/custom-client-host/**'
               - '.github/workflows/**'
               - 'scripts/**'
               - 'VERSION'
@@ -108,6 +109,7 @@ jobs:
             rq2_eval:
               - 'eval/**'
               - 'code/client/**'
+              - 'examples/custom-client-host/**'
               - 'code/server/src/**'
               - 'code/server/pyproject.toml'
               - '.github/workflows/**'
@@ -365,6 +367,12 @@ jobs:
           PY
           (cd code/client && node tests/browser/distanceOperations.mjs)
           (cd code/client && node tests/browser/meetingRequirements.mjs --smoke)
+          (cd code/client && REQUIREMENTS_API_URL=http://127.0.0.1:8128 node tests/browser/libraryCompletion.mjs)
+
+      - name: Verify the packed custom adapter without an API service
+        env:
+          PHYLO_LENS_BROWSER_SMOKE: "1"
+        run: ./scripts/packed-package-consumer-smoke.sh
 
       - name: Preserve evaluation failure diagnostics
         if: failure()

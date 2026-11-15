@@ -8,6 +8,17 @@ export function reduceGraphWorkbenchState(
   action: GraphWorkbenchAction
 ): GraphWorkbenchState {
   switch (action.kind) {
+    case 'technicalRootChanged':
+      return hasGraphSession(state)
+        ? {
+            ...state,
+            session: {
+              ...state.session,
+              technicalRoots: Object.freeze([...action.roots]),
+              lodTierCount: action.lodTierCount,
+            },
+          }
+        : state;
     case 'loadStarted':
       return { ...createInitialWorkbenchState(), kind: 'preparing' };
     case 'graphPrepared':

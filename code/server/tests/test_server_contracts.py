@@ -1,4 +1,8 @@
-"""API regression captures from the pre-refactor server, with fixed geometry."""
+"""Original API regression captures with fixed geometry.
+
+Only layout-version values were refreshed for the intentional pipeline v6 cache
+invalidation; existing endpoint shapes, data, ordering and geometry stay captured.
+"""
 
 import json
 import time

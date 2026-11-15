@@ -156,7 +156,7 @@
             </section>
 
             <p class="interaction-hint">
-              Select a node in the graph or search results to inspect it and see its available actions.
+              Select a node in the view or search results to inspect it and see its available actions.
             </p>
 
             <section class="control-card" aria-labelledby="expansion-heading">
@@ -197,7 +197,7 @@
               <button id="region-select-toggle" class="secondary-button full-width" type="button" aria-pressed="false">
                 Select region
               </button>
-              <p class="field-help">Draw a box over the graph to inspect the nodes and ancillary distribution.</p>
+              <p class="field-help">Draw a box over the view to inspect the nodes and ancillary distribution.</p>
             </section>
 
             <section class="control-card motion-card" aria-labelledby="motion-heading">
@@ -568,15 +568,15 @@
         <section id="forest-controls" class="forest-controls" aria-label="Forest views" hidden></section>
         <div class="view-workspace" data-inspector-open="true">
           <section class="canvas-card">
-            <div id="graph-legend" class="graph-legend" role="note" aria-label="Graph symbols" hidden></div>
-            <div id="graph-root" aria-label="Graph render container"></div>
+            <div id="graph-legend" class="graph-legend" role="note" aria-label="Tree symbols" hidden></div>
+            <div id="graph-root" aria-label="Tree view"></div>
           </section>
-          <aside id="workspace-inspector" class="inspector" aria-label="Graph inspector">
+          <aside id="workspace-inspector" class="inspector" aria-label="Tree inspector">
             <div class="inspector-heading">
               <h2>Inspector</h2>
               <button id="inspector-close" class="text-button" type="button">Hide</button>
             </div>
-            <nav class="inspector-tabs" role="tablist" aria-label="Inspect graph">
+            <nav class="inspector-tabs" role="tablist" aria-label="Inspect trees">
               <button
                 id="inspect-node-tab"
                 type="button"
@@ -631,7 +631,7 @@
             >
               <h2 class="panel-title">Selected node</h2>
               <p id="selected-node-label" class="control-feedback" aria-live="polite">
-                Select a node in the graph or search results.
+                Select a node in the view or search results.
               </p>
               <div class="selection-actions">
                 <div class="button-stack">
@@ -644,9 +644,19 @@
                 </div>
 
                 <button class="secondary-button" type="button" id="branch-root" disabled>
-                  Use selected node as arrangement root
+                  Use selected node as branch-drag anchor
+                </button>
+                <button class="secondary-button" type="button" id="technical-root" disabled>
+                  Use as technical root
+                </button>
+                <button class="secondary-button" type="button" id="reset-technical-roots" disabled>
+                  Restore default roots
                 </button>
               </div>
+              <p class="field-help">
+                The technical root orients branches and detail groups. It does not identify an evolutionary ancestor.
+              </p>
+              <p id="technical-root-status" class="control-feedback" role="status"></p>
               <div id="ancillary-selected-node-wheel" aria-live="polite"></div>
             </section>
             <section

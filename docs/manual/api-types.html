@@ -1,0 +1,1183 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta
+      name="description"
+      content="Browser types — PhyloLens documentation."
+    />
+    <title>Browser types — PhyloLens</title>
+    <link rel="icon" type="image/svg+xml" href="assets/tree.svg" />
+    <link rel="stylesheet" href="assets/manual.css" />
+    <link
+      rel="preload"
+      as="font"
+      type="font/ttf"
+      href="assets/fonts/lato-400.ttf"
+      crossorigin
+    />
+    <script defer src="assets/manual.js"></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <aside class="sidebar" aria-label="Manual navigation">
+      <header class="masthead">
+        <a class="brand" href="index.html"
+          ><img
+            src="assets/tree.svg"
+            width="37"
+            height="37"
+            alt=""
+            aria-hidden="true"
+          />PhyloLens</a
+        >
+        <p class="subtitle">Documentation</p>
+      </header>
+      <details open>
+        <summary>Browse documentation</summary>
+        <div class="search">
+          <label for="manual-search">Search the manual</label
+          ><input
+            id="manual-search"
+            type="search"
+            placeholder="Search documentation"
+            aria-controls="search-results"
+            autocomplete="off"
+            disabled
+          />
+        </div>
+        <nav aria-label="Contents">
+          <p>Documentation</p>
+          <ul>
+            <li>
+              <a data-page href="index.html">Overview</a>
+              <ul class="sections">
+                <li><a href="index.html#start">Getting started</a></li>
+                <li><a href="index.html#display">The PhyloLens display</a></li>
+                <li>
+                  <a href="index.html#scope">Trees and sample information</a>
+                </li>
+                <li>
+                  <a href="index.html#integration"
+                    >Use PhyloLens in another application</a
+                  >
+                </li>
+              </ul>
+            </li>
+            <li>
+              <a data-page href="getting-started.html">Getting started</a>
+              <ul class="sections">
+                <li>
+                  <a href="getting-started.html#run">Run PhyloLens locally</a>
+                </li>
+                <li><a href="getting-started.html#load">Load a tree</a></li>
+                <li>
+                  <a href="getting-started.html#observations"
+                    >Add observations</a
+                  >
+                </li>
+                <li>
+                  <a href="getting-started.html#next">Continue exploring</a>
+                </li>
+              </ul>
+            </li>
+            <li>
+              <a data-page href="input-formats.html">Input formats</a>
+              <ul class="sections">
+                <li><a href="input-formats.html#newick">Newick trees</a></li>
+                <li><a href="input-formats.html#typing">Typing data</a></li>
+                <li>
+                  <a href="input-formats.html#ancillary">Ancillary data</a>
+                </li>
+                <li>
+                  <a href="input-formats.html#advanced"
+                    >Advanced input settings</a
+                  >
+                </li>
+              </ul>
+            </li>
+            <li>
+              <a data-page href="viewing.html">Display and navigation</a>
+              <ul class="sections">
+                <li>
+                  <a href="viewing.html#navigate">Move, zoom and select</a>
+                </li>
+                <li>
+                  <a href="viewing.html#inspector"
+                    >Inspect nodes and observations</a
+                  >
+                </li>
+                <li><a href="viewing.html#region">Select a region</a></li>
+                <li><a href="viewing.html#detail">Levels of detail</a></li>
+                <li>
+                  <a href="viewing.html#appearance"
+                    >Colours, pies and node sizes</a
+                  >
+                </li>
+                <li>
+                  <a href="viewing.html#edge-labels">Read edge distances</a>
+                </li>
+                <li>
+                  <a href="viewing.html#arrangement"
+                    >Arrange and relax the layout</a
+                  >
+                </li>
+                <li><a href="viewing.html#components">Forest components</a></li>
+                <li><a href="viewing.html#export">Export a figure</a></li>
+              </ul>
+            </li>
+            <li>
+              <a data-page href="technical-roots.html">Technical roots</a>
+              <ul class="sections">
+                <li><a href="technical-roots.html#choose">Choose a root</a></li>
+                <li><a href="technical-roots.html#effect">What changes</a></li>
+                <li>
+                  <a href="technical-roots.html#restore"
+                    >Restore the defaults</a
+                  >
+                </li>
+                <li>
+                  <a href="technical-roots.html#phyloviz"
+                    >Relationship to PHYLOViZ</a
+                  >
+                </li>
+              </ul>
+            </li>
+            <li>
+              <a data-page href="distances.html">Distance operations</a>
+              <ul class="sections">
+                <li>
+                  <a href="distances.html#inference">Maximum inference level</a>
+                </li>
+                <li>
+                  <a href="distances.html#cutoff">Tree distance cutoff</a>
+                </li>
+                <li>
+                  <a href="distances.html#connections"
+                    >Additional connections</a
+                  >
+                </li>
+              </ul>
+            </li>
+          </ul>
+          <p>Developers</p>
+          <ul>
+            <li>
+              <a data-page href="integration.html">Library integration</a>
+              <ul class="sections">
+                <li><a href="integration.html#embed">Embed the viewer</a></li>
+                <li>
+                  <a href="integration.html#adapter">Supply your own adapter</a>
+                </li>
+                <li>
+                  <a href="integration.html#server"
+                    >Use the service with another frontend</a
+                  >
+                </li>
+              </ul>
+            </li>
+            <li>
+              <a data-page href="reference.html">API overview</a>
+              <ul class="sections">
+                <li><a href="reference.html#api">Choose an API</a></li>
+                <li>
+                  <a href="reference.html#implementation"
+                    >Implementation notes</a
+                  >
+                </li>
+                <li>
+                  <a href="reference.html#algorithms"
+                    >Algorithms and references</a
+                  >
+                </li>
+              </ul>
+            </li>
+            <li>
+              <a data-page href="browser-api.html">Browser API</a>
+              <ul class="sections">
+                <li><a href="browser-api.html#create">Create a view</a></li>
+                <li>
+                  <a href="browser-api.html#load-options">Load options</a>
+                </li>
+                <li>
+                  <a href="browser-api.html#callbacks"
+                    >Callbacks and identifiers</a
+                  >
+                </li>
+                <li>
+                  <a href="browser-api.html#lifecycle">Loading and disposal</a>
+                </li>
+                <li>
+                  <a href="browser-api.html#appearance"
+                    >Appearance and sample data</a
+                  >
+                </li>
+                <li><a href="browser-api.html#search">Search and focus</a></li>
+                <li>
+                  <a href="browser-api.html#expansion">Expansion and folding</a>
+                </li>
+                <li>
+                  <a href="browser-api.html#roots"
+                    >Technical roots and distance connections</a
+                  >
+                </li>
+                <li>
+                  <a href="browser-api.html#components">Forest components</a>
+                </li>
+                <li>
+                  <a href="browser-api.html#layout">Layout and dragging</a>
+                </li>
+                <li><a href="browser-api.html#export">PNG export</a></li>
+                <li><a href="browser-api.html#adapter">Custom adapters</a></li>
+                <li>
+                  <a href="browser-api.html#utilities">Observation utilities</a>
+                </li>
+                <li>
+                  <a href="browser-api.html#errors">Errors and compatibility</a>
+                </li>
+              </ul>
+            </li>
+            <li>
+              <a data-page href="api-types.html" aria-current="page"
+                >Browser types</a
+              >
+              <ul class="sections">
+                <li><a href="#observations">Sample information</a></li>
+                <li><a href="#appearance">Appearance and export</a></li>
+                <li><a href="#tree-state">Tree and view state</a></li>
+                <li><a href="#identifiers">Identifiers and statuses</a></li>
+                <li>
+                  <a href="#adapter-contracts">Adapter requests and results</a>
+                </li>
+                <li><a href="#nested-shapes">Nested and returned shapes</a></li>
+              </ul>
+            </li>
+            <li>
+              <a data-page href="http-api.html">HTTP API</a>
+              <ul class="sections">
+                <li><a href="http-api.html#workflow">Prepare, then read</a></li>
+                <li><a href="http-api.html#health">GET /health</a></li>
+                <li>
+                  <a href="http-api.html#prepare">POST /api/graph/prepare</a>
+                </li>
+                <li>
+                  <a href="http-api.html#status"
+                    >GET /api/graph/prepare/{job_id}</a
+                  >
+                </li>
+                <li>
+                  <a href="http-api.html#viewport">POST /api/graph/viewport</a>
+                </li>
+                <li>
+                  <a href="http-api.html#region">POST /api/graph/region</a>
+                </li>
+                <li>
+                  <a href="http-api.html#search">POST /api/graph/search</a>
+                </li>
+                <li>
+                  <a href="http-api.html#components"
+                    >POST /api/graph/components</a
+                  >
+                </li>
+                <li>
+                  <a href="http-api.html#ancillary">PUT /api/graph/ancillary</a>
+                </li>
+                <li>
+                  <a href="http-api.html#connections"
+                    >POST /api/graph/connections</a
+                  >
+                </li>
+                <li><a href="http-api.html#root">POST /api/graph/root</a></li>
+                <li>
+                  <a href="http-api.html#annotation-reuse"
+                    >Optional annotation reuse</a
+                  >
+                </li>
+                <li><a href="http-api.html#errors">Error responses</a></li>
+              </ul>
+            </li>
+            <li>
+              <a data-page href="http-types.html">HTTP fields</a>
+              <ul class="sections">
+                <li><a href="http-types.html#preparation">Preparation</a></li>
+                <li>
+                  <a href="http-types.html#reads"
+                    >Viewport, region and search</a
+                  >
+                </li>
+                <li>
+                  <a href="http-types.html#revisions"
+                    >Root, table and connection operations</a
+                  >
+                </li>
+                <li>
+                  <a href="http-types.html#shared">Shared values and errors</a>
+                </li>
+              </ul>
+            </li>
+          </ul>
+          <p>Project</p>
+          <ul>
+            <li>
+              <a data-page href="maintenance.html">Maintaining the manual</a>
+              <ul class="sections">
+                <li><a href="maintenance.html#edit">Edit the pages</a></li>
+                <li>
+                  <a href="maintenance.html#preview">Preview and check</a>
+                </li>
+                <li>
+                  <a href="maintenance.html#screenshots">Update screenshots</a>
+                </li>
+                <li>
+                  <a href="maintenance.html#publish">Publish on GitHub Pages</a>
+                </li>
+              </ul>
+            </li>
+          </ul>
+        </nav>
+      </details>
+      <a class="repo-link" href="https://github.com/phyloviz/phylo-lens"
+        >PhyloLens on GitHub <span aria-hidden="true">↗</span></a
+      >
+    </aside>
+    <main id="main" tabindex="-1">
+      <div class="page-heading">
+        <p class="breadcrumb">
+          <a href="index.html">Documentation</a
+          ><span aria-hidden="true">/</span>Browser types
+        </p>
+        <a
+          class="source-link"
+          href="https://github.com/phyloviz/phylo-lens/blob/main/docs/manual/api-types.html"
+          >View source <span aria-hidden="true">↗</span></a
+        >
+      </div>
+      <section id="search-results" aria-label="Search results" hidden></section>
+      <article>
+        <h1>Browser types</h1>
+        <p>
+          These types are exported from <code>@phyloviz/phylo-lens</code>.
+          Select a linked type name to inspect it. The
+          <a href="browser-api.html">Browser API</a> describes view options,
+          callbacks and method behavior.
+        </p>
+        <p>
+          Properties marked <code>readonly</code> should be treated as
+          read-only. Optional properties use <code>?</code>. Identifier brands
+          distinguish string roles; a brand does not prove that an identifier
+          exists.
+        </p>
+        <h2 id="observations">
+          Sample information<a
+            class="heading-link"
+            href="#observations"
+            aria-label="Link to Sample information"
+            >#</a
+          >
+        </h2>
+        <section class="api-member" id="AncillaryData">
+          <h3><code>AncillaryData</code></h3>
+          <pre><code>export type AncillaryData = Readonly&lt;Record&lt;string, <a href="#AncillaryValue">AncillaryValue</a>&gt;&gt;;</code></pre>
+        </section>
+        <section class="api-member" id="AncillaryDataInput">
+          <h3><code>AncillaryDataInput</code></h3>
+          <p>
+            Adapter preparation table input. Unlike AncillaryTableInput, format
+            can be omitted.
+          </p>
+          <pre><code>export type AncillaryDataInput = {
+  readonly content: string;
+  readonly joinColumn: string;
+  readonly format?: &#x27;auto&#x27; | &#x27;csv&#x27; | &#x27;tsv&#x27;;
+};</code></pre>
+        </section>
+        <section class="api-member" id="AncillaryField">
+          <h3><code>AncillaryField</code></h3>
+          <pre><code>export type AncillaryField = {
+  readonly key: string;
+  readonly type: <a href="#AncillaryType">AncillaryType</a>;
+};</code></pre>
+        </section>
+        <section class="api-member" id="AncillaryObservation">
+          <h3><code>AncillaryObservation</code></h3>
+          <pre><code>export type AncillaryObservation = {
+  readonly values: <a href="#AncillaryData">AncillaryData</a>;
+  readonly count: number;
+  /** Stable source-row identity within one immutable layout, when supplied. */
+  readonly referenceId?: string;
+};</code></pre>
+        </section>
+        <section class="api-member" id="AncillarySummary">
+          <h3><code>AncillarySummary</code></h3>
+          <pre><code>export type AncillarySummary = {
+  readonly values: <a href="#AncillaryData">AncillaryData</a>;
+  readonly categoryCounts: Readonly&lt;Record&lt;string, Readonly&lt;Record&lt;string, number&gt;&gt;&gt;&gt;;
+};</code></pre>
+        </section>
+        <section class="api-member" id="AncillaryTableInput">
+          <h3><code>AncillaryTableInput</code></h3>
+          <p>
+            Used by load() and applyAncillaryData(). The browser field is
+            joinColumn; the HTTP wire field is join_column.
+          </p>
+          <pre><code>export type AncillaryTableInput = {
+  readonly content: string;
+  readonly joinColumn: string;
+  readonly format: &#x27;auto&#x27; | &#x27;csv&#x27; | &#x27;tsv&#x27;;
+};</code></pre>
+        </section>
+        <section class="api-member" id="AncillaryType">
+          <h3><code>AncillaryType</code></h3>
+          <pre><code>export type AncillaryType = &#x27;string&#x27; | &#x27;number&#x27; | &#x27;boolean&#x27; | &#x27;null&#x27;;</code></pre>
+        </section>
+        <section class="api-member" id="AncillaryValue">
+          <h3><code>AncillaryValue</code></h3>
+          <pre><code>export type AncillaryValue = string | number | boolean | null;</code></pre>
+        </section>
+        <section class="api-member" id="Isolate">
+          <h3><code>Isolate</code></h3>
+          <pre><code>export type Isolate = {
+  readonly id: string;
+  readonly ancillaryData: <a href="#AncillaryData">AncillaryData</a>;
+};</code></pre>
+        </section>
+        <section class="api-member" id="NodeAnnotations">
+          <h3><code>NodeAnnotations</code></h3>
+          <pre><code>export type NodeAnnotations = {
+  readonly ancillaryData: <a href="#AncillaryData">AncillaryData</a>;
+  readonly ancillarySummary: <a href="#AncillarySummary">AncillarySummary</a>;
+  readonly profileSummary: <a href="#ProfileSummary">ProfileSummary</a>;
+};</code></pre>
+        </section>
+        <section class="api-member" id="ProfileSummary">
+          <h3><code>ProfileSummary</code></h3>
+          <pre><code>export type ProfileSummary = {
+  readonly isolateCount?: number;
+};</code></pre>
+        </section>
+        <h2 id="appearance">
+          Appearance and export<a
+            class="heading-link"
+            href="#appearance"
+            aria-label="Link to Appearance and export"
+            >#</a
+          >
+        </h2>
+        <section class="api-member" id="GraphDisplayOptions">
+          <h3><code>GraphDisplayOptions</code></h3>
+          <p>
+            An exported display-options shape. The current public view does not
+            expose a general updateDisplayOptions() method.
+          </p>
+          <pre><code>export interface GraphDisplayOptions {
+  readonly nodeLabels?: boolean;
+  readonly edgeDistanceLabels?: boolean;
+  /** Auto retains the interactive zoom threshold; always shows enabled labels at every zoom. */
+  readonly edgeDistanceLabelPolicy?: &#x27;auto&#x27; | &#x27;always&#x27;;
+  /** Inclusive numeric distance bounds; omitted bounds are open. */
+  readonly edgeDistanceLabelMin?: number;
+  readonly edgeDistanceLabelMax?: number;
+  /** Encode distance with grayscale at constant edge width. */
+  readonly distanceWeightedEdges?: boolean;
+}</code></pre>
+        </section>
+        <section class="api-member" id="GroupSizeMappingOptions">
+          <h3><code>GroupSizeMappingOptions</code></h3>
+          <pre><code>export type GroupSizeMappingOptions = {
+  /** Radius at the reference zoom before adding represented-node area. Default: 6. */
+  readonly minimumSize?: number;
+  /** Additional squared-radius units per represented node after the first. Default: 1. */
+  readonly areaPerNode?: number;
+  /** Upper radius approached gradually as counts grow. Default: 12. */
+  readonly maximumSize?: number;
+};</code></pre>
+        </section>
+        <section class="api-member" id="PieCategoryGrouping">
+          <h3><code>PieCategoryGrouping</code></h3>
+          <p>
+            Keys are category identities from pieDistribution(). Values choose a
+            separate slice or the Other group.
+          </p>
+          <pre><code>export type PieCategoryGrouping = Readonly&lt;Record&lt;string, &#x27;separate&#x27; | &#x27;other&#x27;&gt;&gt;;</code></pre>
+        </section>
+        <section class="api-member" id="PieMappingOptions">
+          <h3><code>PieMappingOptions</code></h3>
+          <pre><code>export type PieMappingOptions = {
+  readonly enabled?: boolean;
+  readonly fields?: readonly string[];
+  readonly palette?: readonly string[];
+  readonly categoryColors?: Readonly&lt;Record&lt;string, string&gt;&gt;;
+  /** Separate choices reserve up to 11 slots in stable key order, even offscreen.
+   * Excess choices and categories marked other aggregate in the gray Other slice.
+   * For multiple fields, keys are the observed combination identities from pieDistribution.
+   */
+  readonly categoryGrouping?: <a href="#PieCategoryGrouping">PieCategoryGrouping</a>;
+};</code></pre>
+        </section>
+        <section class="api-member" id="PngExportOptions">
+          <h3><code>PngExportOptions</code></h3>
+          <pre><code>export interface PngExportOptions {
+  readonly scale?: number;
+  /** Current follows the live label policy; all ignores zoom; none hides distances. */
+  readonly edgeLabels?: &#x27;current&#x27; | &#x27;all&#x27; | &#x27;none&#x27;;
+  /** Label only these edge IDs; geometry is preserved. Omit to include every distance. */
+  readonly edgeIds?: readonly string[];
+  /** Font size in logical pixels before scaling (6–72). */
+  readonly edgeLabelSize?: number;
+  /** Include category observations and aggregate-symbol explanations in publication exports unless false. */
+  readonly includeLegend?: boolean;
+}</code></pre>
+        </section>
+        <section class="api-member" id="VisualMappingOptions">
+          <h3><code>VisualMappingOptions</code></h3>
+          <pre><code>export type VisualMappingOptions = {
+  readonly colorField?: string;
+  readonly size?: <a href="#SizeMappingOptions">SizeMappingOptions</a>;
+  readonly groupSize?: <a href="#GroupSizeMappingOptions">GroupSizeMappingOptions</a>;
+  readonly palette?: readonly string[];
+  readonly pie?: <a href="#PieMappingOptions">PieMappingOptions</a>;
+};</code></pre>
+        </section>
+        <h2 id="tree-state">
+          Tree and view state<a
+            class="heading-link"
+            href="#tree-state"
+            aria-label="Link to Tree and view state"
+            >#</a
+          >
+        </h2>
+        <section class="api-member" id="DistanceConnectionOptions">
+          <h3><code>DistanceConnectionOptions</code></h3>
+          <pre><code>export type DistanceConnectionOptions = { readonly threshold: number; readonly maxConnections?: number };</code></pre>
+        </section>
+        <section class="api-member" id="DragSelection">
+          <h3><code>DragSelection</code></h3>
+          <pre><code>export type DragSelection =
+  | { readonly kind: &#x27;node&#x27; }
+  | { readonly kind: &#x27;branch&#x27;; readonly rootId: string }
+  | { readonly kind: &#x27;group&#x27;; readonly nodeIds: readonly string[] };</code></pre>
+        </section>
+        <section class="api-member" id="ExpansionResult">
+          <h3><code>ExpansionResult</code></h3>
+          <pre><code>export type ExpansionResult = <a href="#ExpansionState">ExpansionState</a> &amp; {
+  readonly status: &#x27;complete&#x27; | &#x27;partial&#x27; | &#x27;superseded&#x27;;
+};</code></pre>
+        </section>
+        <section class="api-member" id="ExpansionState">
+          <h3><code>ExpansionState</code></h3>
+          <pre><code>export type ExpansionState = {
+  readonly keepExpanded: boolean;
+  readonly expandedClusterIds: readonly <a href="#ClusterId">ClusterId</a>[];
+  readonly allExpanded: boolean;
+  readonly partial: boolean;
+  readonly renderedNodeCount: number;
+  readonly maxNodes?: number;
+  readonly manuallyCollapsedBranchCount?: number;
+};</code></pre>
+        </section>
+        <section class="api-member" id="GraphComponent">
+          <h3><code>GraphComponent</code></h3>
+          <pre><code>export type GraphComponent = {
+  readonly id: string;
+  readonly nodeCount: number;
+  readonly bounds: <a href="#GraphLayoutBounds">GraphLayoutBounds</a>;
+};</code></pre>
+        </section>
+        <section class="api-member" id="LayoutMotionState">
+          <h3><code>LayoutMotionState</code></h3>
+          <pre><code>export type LayoutMotionState = { readonly automatic: boolean; readonly running: boolean };</code></pre>
+        </section>
+        <section class="api-member" id="LodPreparationOptions">
+          <h3><code>LodPreparationOptions</code></h3>
+          <pre><code>export type LodPreparationOptions = {
+  readonly smallComponentThreshold?: number;
+};</code></pre>
+        </section>
+        <section class="api-member" id="Point">
+          <h3><code>Point</code></h3>
+          <pre><code>export type Point = {
+  readonly x: number;
+  readonly y: number;
+};</code></pre>
+        </section>
+        <section class="api-member" id="SfdpOptions">
+          <h3><code>SfdpOptions</code></h3>
+          <pre><code>export type SfdpOptions = {
+  readonly k?: number;
+  readonly repulsiveForce?: number;
+  readonly overlap?: &#x27;prism&#x27; | &#x27;scale&#x27;;
+  readonly prismIterations?: number;
+  readonly overlapScaling?: number;
+  readonly smoothing?: &#x27;none&#x27; | &#x27;avg_dist&#x27; | &#x27;graph_dist&#x27; | &#x27;power_dist&#x27; | &#x27;rng&#x27; | &#x27;spring&#x27; | &#x27;triangle&#x27;;
+  readonly quadtree?: &#x27;none&#x27; | &#x27;normal&#x27; | &#x27;fast&#x27;;
+  readonly beautify?: boolean;
+};</code></pre>
+        </section>
+        <section class="api-member" id="SourceFormat">
+          <h3><code>SourceFormat</code></h3>
+          <pre><code>export type SourceFormat = &#x27;newick&#x27; | &#x27;typing_data&#x27;;</code></pre>
+        </section>
+        <section class="api-member" id="TreeIndex">
+          <h3><code>TreeIndex</code></h3>
+          <p>
+            A half-open DFS subtree interval. Canonical nodes in the subtree
+            occupy [start, end) in the component traversal.
+          </p>
+          <pre><code>export type TreeIndex = {
+  readonly componentId: string;
+  readonly parentId: string | null;
+  readonly depth: number;
+  readonly start: number;
+  readonly end: number;
+};</code></pre>
+        </section>
+        <section class="api-member" id="TypingOptions">
+          <h3><code>TypingOptions</code></h3>
+          <pre><code>export type TypingOptions =
+  { readonly algorithm: &#x27;goeburstfullmst&#x27; } | { readonly algorithm: &#x27;goeburst&#x27;; readonly nlv?: number };</code></pre>
+        </section>
+        <h2 id="identifiers">
+          Identifiers and statuses<a
+            class="heading-link"
+            href="#identifiers"
+            aria-label="Link to Identifiers and statuses"
+            >#</a
+          >
+        </h2>
+        <p>
+          The declarations use a private symbol to mark each string’s role. Call
+          the exported identifier helpers instead of recreating that marker.
+        </p>
+        <section class="api-member" id="ClusterId">
+          <h3><code>ClusterId</code></h3>
+          <p>
+            A branded string. Use toClusterId() for an existing cluster
+            identifier.
+          </p>
+          <pre><code>export type ClusterId = string &amp; { readonly [identifierKind]: &#x27;cluster&#x27; };</code></pre>
+        </section>
+        <section class="api-member" id="DatasetId">
+          <h3><code>DatasetId</code></h3>
+          <p>
+            A branded string. Use toDatasetId() for an existing dataset
+            identifier.
+          </p>
+          <pre><code>export type DatasetId = string &amp; { readonly [identifierKind]: &#x27;dataset&#x27; };</code></pre>
+        </section>
+        <section class="api-member" id="GraphLayoutStatus">
+          <h3><code>GraphLayoutStatus</code></h3>
+          <pre><code>export const GraphLayoutStatus = {
+  PENDING: &#x27;pending&#x27;,
+  REFINING: &#x27;refining&#x27;,
+  READY: &#x27;ready&#x27;,
+  DEGRADED: &#x27;degraded&#x27;,
+  FAILED: &#x27;failed&#x27;,
+} as const;
+
+export type GraphLayoutStatus = (typeof GraphLayoutStatus)[keyof typeof GraphLayoutStatus];</code></pre>
+        </section>
+        <section class="api-member" id="GraphPrepareJobStatus">
+          <h3><code>GraphPrepareJobStatus</code></h3>
+          <pre><code>export const GraphPrepareJobStatus = {
+  PENDING: &#x27;pending&#x27;,
+  READY: &#x27;ready&#x27;,
+  FAILED: &#x27;failed&#x27;,
+} as const;
+
+export type GraphPrepareJobStatus = (typeof GraphPrepareJobStatus)[keyof typeof GraphPrepareJobStatus];</code></pre>
+        </section>
+        <section class="api-member" id="LayoutVersion">
+          <h3><code>LayoutVersion</code></h3>
+          <p>
+            A branded string. Use toLayoutVersion() for an existing published
+            version.
+          </p>
+          <pre><code>export type LayoutVersion = string &amp; { readonly [identifierKind]: &#x27;layout-version&#x27; };</code></pre>
+        </section>
+        <section class="api-member" id="NodeId">
+          <h3><code>NodeId</code></h3>
+          <p>
+            A branded string. Use toNodeId() when starting with a string; the
+            helper does not query or normalize the node.
+          </p>
+          <pre><code>export type NodeId = string &amp; { readonly [identifierKind]: &#x27;node&#x27; };</code></pre>
+        </section>
+        <h2 id="adapter-contracts">
+          Adapter requests and results<a
+            class="heading-link"
+            href="#adapter-contracts"
+            aria-label="Link to Adapter requests and results"
+            >#</a
+          >
+        </h2>
+        <section class="api-member" id="DistanceConnection">
+          <h3><code>DistanceConnection</code></h3>
+          <pre><code>export type DistanceConnection = {
+  readonly id: string;
+  readonly source: string;
+  readonly target: string;
+  readonly distance: number;
+};</code></pre>
+        </section>
+        <section class="api-member" id="DistanceConnectionsRequest">
+          <h3><code>DistanceConnectionsRequest</code></h3>
+          <pre><code>export type DistanceConnectionsRequest = <a href="#DistanceConnectionOptions">DistanceConnectionOptions</a> &amp; {
+  readonly datasetId: string;
+  readonly layoutVersion: string;
+  readonly format: <a href="#SourceFormat">SourceFormat</a>;
+  readonly content: string;
+};</code></pre>
+        </section>
+        <section class="api-member" id="DistanceConnectionsResult">
+          <h3><code>DistanceConnectionsResult</code></h3>
+          <pre><code>export type DistanceConnectionsResult = {
+  readonly metric: &#x27;allelic&#x27; | &#x27;patristic&#x27;;
+  readonly threshold: number;
+  readonly edges: readonly <a href="#DistanceConnection">DistanceConnection</a>[];
+};</code></pre>
+        </section>
+        <section class="api-member" id="GraphAncillaryRequest">
+          <h3><code>GraphAncillaryRequest</code></h3>
+          <pre><code>export type GraphAncillaryRequest = {
+  readonly datasetId: <a href="#DatasetId">DatasetId</a>;
+  readonly layoutVersion: <a href="#LayoutVersion">LayoutVersion</a>;
+  readonly ancillaryData: <a href="#AncillaryDataInput">AncillaryDataInput</a>;
+};</code></pre>
+        </section>
+        <section class="api-member" id="GraphAncillaryResult">
+          <h3><code>GraphAncillaryResult</code></h3>
+          <pre><code>export type GraphAncillaryResult = {
+  readonly datasetId: <a href="#DatasetId">DatasetId</a>;
+  readonly layoutVersion: <a href="#LayoutVersion">LayoutVersion</a>;
+  readonly matchedNodeCount: number;
+  readonly warnings: readonly string[];
+};</code></pre>
+        </section>
+        <section class="api-member" id="GraphClient">
+          <h3><code>GraphClient</code></h3>
+          <p>
+            Only prepareGraph and readViewport are required. Other operations
+            enable optional features.
+          </p>
+          <pre><code>export interface GraphClient {
+  setTechnicalRoot?(request: <a href="#GraphRootingRequest">GraphRootingRequest</a>): Promise&lt;<a href="#GraphRootingResult">GraphRootingResult</a>&gt;;
+  readDistanceConnections?(
+    request: <a href="#DistanceConnectionsRequest">DistanceConnectionsRequest</a>,
+    options?: { signal?: AbortSignal }
+  ): Promise&lt;<a href="#DistanceConnectionsResult">DistanceConnectionsResult</a>&gt;;
+  readComponents?(request: <a href="#GraphComponentsRequest">GraphComponentsRequest</a>): Promise&lt;<a href="#GraphComponentsResult">GraphComponentsResult</a>&gt;;
+  prepareGraph(request: <a href="#GraphPrepareRequest">GraphPrepareRequest</a>, options?: <a href="#GraphPrepareOptions">GraphPrepareOptions</a>): Promise&lt;<a href="#GraphPrepareResult">GraphPrepareResult</a>&gt;;
+
+  applyAncillaryData?(request: <a href="#GraphAncillaryRequest">GraphAncillaryRequest</a>): Promise&lt;<a href="#GraphAncillaryResult">GraphAncillaryResult</a>&gt;;
+
+  readViewport(request: <a href="#GraphViewportRequest">GraphViewportRequest</a>, options?: <a href="#GraphViewportReadOptions">GraphViewportReadOptions</a>): Promise&lt;<a href="#GraphViewportResult">GraphViewportResult</a>&gt;;
+
+  readRegion?(request: <a href="#GraphRegionRequest">GraphRegionRequest</a>): Promise&lt;<a href="#GraphRegionResult">GraphRegionResult</a>&gt;;
+
+  searchGraph?(request: <a href="#GraphSearchRequest">GraphSearchRequest</a>): Promise&lt;<a href="#GraphSearchResult">GraphSearchResult</a>&gt;;
+}</code></pre>
+        </section>
+        <section class="api-member" id="GraphComponentsRequest">
+          <h3><code>GraphComponentsRequest</code></h3>
+          <pre><code>export type GraphComponentsRequest = {
+  readonly datasetId: <a href="#DatasetId">DatasetId</a>;
+  readonly layoutVersion?: <a href="#LayoutVersion">LayoutVersion</a> | null;
+  readonly after?: number;
+  readonly limit?: number;
+};</code></pre>
+        </section>
+        <section class="api-member" id="GraphComponentsResult">
+          <h3><code>GraphComponentsResult</code></h3>
+          <pre><code>export type GraphComponentsResult = {
+  readonly components: readonly <a href="#GraphComponent">GraphComponent</a>[];
+  readonly nextCursor: number | null;
+};</code></pre>
+        </section>
+        <section class="api-member" id="GraphHttpClientOptions">
+          <h3><code>GraphHttpClientOptions</code></h3>
+          <pre><code>export interface GraphHttpClientOptions {
+  baseUrl: string;
+  fetchImpl?: typeof fetch;
+}</code></pre>
+        </section>
+        <section class="api-member" id="GraphLayoutBounds">
+          <h3><code>GraphLayoutBounds</code></h3>
+          <pre><code>export type GraphLayoutBounds = {
+  readonly minX: number;
+  readonly maxX: number;
+  readonly minY: number;
+  readonly maxY: number;
+};</code></pre>
+        </section>
+        <section class="api-member" id="GraphPrepareErrorDetails">
+          <h3><code>GraphPrepareErrorDetails</code></h3>
+          <pre><code>export type GraphPrepareErrorDetails = {
+  readonly algorithm: string;
+  readonly stage: string;
+  readonly exitStatus?: number | null;
+  readonly timeoutSeconds?: number | null;
+  readonly stderr?: string | null;
+  readonly detail?: string | null;
+};</code></pre>
+        </section>
+        <section class="api-member" id="GraphPrepareJob">
+          <h3><code>GraphPrepareJob</code></h3>
+          <pre><code>export type GraphPrepareJob = {
+  readonly jobId: string;
+  readonly status: <a href="#GraphPrepareJobStatus">GraphPrepareJobStatus</a>;
+  readonly datasetId: <a href="#DatasetId">DatasetId</a>;
+};</code></pre>
+        </section>
+        <section class="api-member" id="GraphPrepareOptions">
+          <h3><code>GraphPrepareOptions</code></h3>
+          <pre><code>export type GraphPrepareOptions = {
+  readonly onPending?: (status: <a href="#GraphPrepareStatus">GraphPrepareStatus</a>) =&gt; void;
+  readonly pollIntervalMs?: number;
+  // Optional host-side wait limit. The default is unlimited so a valid global
+  // `sfdp` preparation is not abandoned merely because it is expensive.
+  readonly pollTimeoutMs?: number | null;
+  readonly sleep?: (ms: number) =&gt; Promise&lt;void&gt;;
+};</code></pre>
+        </section>
+        <section class="api-member" id="GraphPrepareRequest">
+          <h3><code>GraphPrepareRequest</code></h3>
+          <p>
+            One preparation input. The custom adapter owns how it is prepared.
+          </p>
+          <pre><code>export type GraphPrepareRequest = {
+  readonly format: <a href="#SourceFormat">SourceFormat</a>;
+  readonly datasetName?: string;
+  readonly content: string;
+  readonly distanceCutoff?: number;
+  readonly typingOptions?: <a href="#TypingOptions">TypingOptions</a>;
+
+  readonly options?: {
+    readonly allowSelfLoops?: false;
+  };
+
+  readonly ancillarySchema?: readonly <a href="#AncillaryField">AncillaryField</a>[];
+  readonly ancillaryByNodeId?: Readonly&lt;Record&lt;string, <a href="#AncillaryData">AncillaryData</a>&gt;&gt;;
+
+  readonly ancillaryData?: <a href="#AncillaryDataInput">AncillaryDataInput</a>;
+
+  readonly sfdpOptions?: <a href="#SfdpOptions">SfdpOptions</a>;
+  readonly lodPreparation?: <a href="#LodPreparationOptions">LodPreparationOptions</a>;
+};</code></pre>
+        </section>
+        <section class="api-member" id="GraphPrepareResult">
+          <h3><code>GraphPrepareResult</code></h3>
+          <p>
+            Return the dataset/version and the settings that were actually
+            applied. The viewer checks typing and cutoff confirmations.
+          </p>
+          <pre><code>export type GraphPrepareResult = {
+  readonly typingOptions?: <a href="#TypingOptions">TypingOptions</a>;
+  readonly distanceCutoff?: number;
+  readonly datasetId: <a href="#DatasetId">DatasetId</a>;
+  readonly layoutVersion: <a href="#LayoutVersion">LayoutVersion</a>;
+  readonly nodeCount: number;
+  readonly edgeCount: number;
+  readonly clusterCount: number;
+  readonly lodTierCount?: number;
+  readonly technicalRoots?: readonly string[];
+  readonly layoutStatus: <a href="#GraphLayoutStatus">GraphLayoutStatus</a>;
+  readonly warnings: readonly string[];
+};</code></pre>
+        </section>
+        <section class="api-member" id="GraphPrepareStatus">
+          <h3><code>GraphPrepareStatus</code></h3>
+          <pre><code>export type GraphPrepareStatus = {
+  readonly jobId: string;
+  readonly status: <a href="#GraphPrepareJobStatus">GraphPrepareJobStatus</a>;
+  readonly result?: <a href="#GraphPrepareResult">GraphPrepareResult</a> | null;
+  readonly error?: string | null;
+  readonly errorDetails?: <a href="#GraphPrepareErrorDetails">GraphPrepareErrorDetails</a> | null;
+};</code></pre>
+        </section>
+        <section class="api-member" id="GraphRegionRequest">
+          <h3><code>GraphRegionRequest</code></h3>
+          <pre><code>export type GraphRegionRequest = {
+  readonly componentId?: string;
+  readonly datasetId: <a href="#DatasetId">DatasetId</a>;
+  readonly layoutVersion?: <a href="#LayoutVersion">LayoutVersion</a> | null;
+  readonly xmin: number;
+  readonly xmax: number;
+  readonly ymin: number;
+  readonly ymax: number;
+  readonly maxNodes?: number | null;
+};</code></pre>
+        </section>
+        <section class="api-member" id="GraphRegionResult">
+          <h3><code>GraphRegionResult</code></h3>
+          <pre><code>export type GraphRegionResult = {
+  readonly datasetId: <a href="#DatasetId">DatasetId</a>;
+  readonly layoutVersion: <a href="#LayoutVersion">LayoutVersion</a>;
+  readonly layoutStatus: <a href="#GraphLayoutStatus">GraphLayoutStatus</a>;
+  readonly truncated: boolean;
+  readonly totalNodeCount: number;
+  readonly nodes: readonly <a href="#GraphViewportNode">GraphViewportNode</a>[];
+  readonly edges: readonly <a href="#GraphViewportEdge">GraphViewportEdge</a>[];
+  readonly ancillarySchema?: readonly <a href="#AncillaryField">AncillaryField</a>[];
+  readonly aggregatedAncillaryData: <a href="#AncillaryData">AncillaryData</a>;
+};</code></pre>
+        </section>
+        <section class="api-member" id="GraphRootingRequest">
+          <h3><code>GraphRootingRequest</code></h3>
+          <pre><code>export type GraphRootingRequest = {
+  readonly datasetId: <a href="#DatasetId">DatasetId</a>;
+  readonly layoutVersion: <a href="#LayoutVersion">LayoutVersion</a>;
+  /** Null restores the original preparation roots in every component. */
+  readonly nodeId: <a href="#NodeId">NodeId</a> | null;
+};</code></pre>
+        </section>
+        <section class="api-member" id="GraphRootingResult">
+          <h3><code>GraphRootingResult</code></h3>
+          <p>
+            Preparation fields plus every old-to-new component mapping and
+            original roots.
+          </p>
+          <pre><code>export type GraphRootingResult = <a href="#GraphPrepareResult">GraphPrepareResult</a> &amp; {
+  readonly technicalRoots: readonly string[];
+  readonly defaultRoots: readonly string[];
+  readonly componentIds: Readonly&lt;Record&lt;string, string&gt;&gt;;
+};</code></pre>
+        </section>
+        <section class="api-member" id="GraphSearchMatch">
+          <h3><code>GraphSearchMatch</code></h3>
+          <p>
+            Match properties use node_id, cluster_id and matched_text, including
+            in the browser adapter API.
+          </p>
+          <pre><code>export type GraphSearchMatch = {
+  readonly nodeId: <a href="#NodeId">NodeId</a>;
+  readonly score: number;
+  readonly matchedText: string;
+  readonly clusterId?: <a href="#ClusterId">ClusterId</a> | null;
+  readonly x?: number | null;
+  readonly y?: number | null;
+};</code></pre>
+        </section>
+        <section class="api-member" id="GraphSearchRequest">
+          <h3><code>GraphSearchRequest</code></h3>
+          <pre><code>export type GraphSearchRequest = {
+  readonly componentId?: string;
+  readonly datasetId: <a href="#DatasetId">DatasetId</a>;
+  readonly layoutVersion?: <a href="#LayoutVersion">LayoutVersion</a> | null;
+  readonly query: string;
+  readonly limit?: number;
+};</code></pre>
+        </section>
+        <section class="api-member" id="GraphSearchResult">
+          <h3><code>GraphSearchResult</code></h3>
+          <pre><code>export type GraphSearchResult = {
+  readonly datasetId: <a href="#DatasetId">DatasetId</a>;
+  readonly query: string;
+  readonly matches: readonly <a href="#GraphSearchMatch">GraphSearchMatch</a>[];
+  readonly totalCount: number;
+};</code></pre>
+        </section>
+        <section class="api-member" id="GraphViewportEdge">
+          <h3><code>GraphViewportEdge</code></h3>
+          <pre><code>export type GraphViewportEdge = {
+  readonly id: string;
+  readonly source: <a href="#NodeId">NodeId</a>;
+  readonly target: <a href="#NodeId">NodeId</a>;
+  readonly distance?: number | null;
+  readonly isMeta?: boolean | null;
+};</code></pre>
+        </section>
+        <section class="api-member" id="GraphViewportNode">
+          <h3><code>GraphViewportNode</code></h3>
+          <p>
+            A positioned ordinary node or detail-group representative, with its
+            observations and optional rooted index.
+          </p>
+          <pre><code>export type GraphViewportNode = <a href="#Point">Point</a> &amp; {
+  readonly id: <a href="#NodeId">NodeId</a>;
+  readonly clusterId: <a href="#ClusterId">ClusterId</a>;
+  readonly layoutStatus: <a href="#GraphLayoutStatus">GraphLayoutStatus</a>;
+  readonly memberCount: number;
+  readonly isRepresentative: boolean;
+  readonly treeIndex?: <a href="#TreeIndex">TreeIndex</a>;
+  readonly annotations: <a href="#NodeAnnotations">NodeAnnotations</a>;
+  readonly isolates?: readonly <a href="#Isolate">Isolate</a>[];
+  readonly ancillaryDistribution?: readonly <a href="#AncillaryObservation">AncillaryObservation</a>[];
+};</code></pre>
+        </section>
+        <section class="api-member" id="GraphViewportReadOptions">
+          <h3><code>GraphViewportReadOptions</code></h3>
+          <pre><code>export type GraphViewportReadOptions = {
+  readonly signal?: AbortSignal;
+  /** Retain annotation references only for the exact immutable dataset/layout. */
+  readonly annotationsFrom?: <a href="#GraphViewportResult">GraphViewportResult</a> | null;
+};</code></pre>
+        </section>
+        <section class="api-member" id="GraphViewportRequest">
+          <h3><code>GraphViewportRequest</code></h3>
+          <pre><code>export type GraphViewportRequest = {
+  readonly componentId?: string;
+  readonly datasetId: <a href="#DatasetId">DatasetId</a>;
+  readonly layoutVersion?: <a href="#LayoutVersion">LayoutVersion</a> | null;
+  readonly clusterId?: <a href="#ClusterId">ClusterId</a> | null;
+  readonly focusNodeId?: <a href="#NodeId">NodeId</a> | null;
+  readonly xmin?: number;
+  readonly xmax?: number;
+  readonly ymin?: number;
+  readonly ymax?: number;
+  readonly zoom?: number;
+  readonly lodLevel?: number | null;
+  readonly maxNodes?: number | null;
+  /** Adaptive selection ceiling is lodLevel; counts never limit retrieval. */
+  readonly lodTargetRepresentations?: number;
+  readonly lodSelectionBounds?: {
+    readonly xmin: number;
+    readonly xmax: number;
+    readonly ymin: number;
+    readonly ymax: number;
+  };
+  readonly previousLodLevel?: number | null;
+};</code></pre>
+        </section>
+        <section class="api-member" id="GraphViewportResult">
+          <h3><code>GraphViewportResult</code></h3>
+          <p>
+            A coherent view of the requested dataset and version. Edges must
+            have both endpoints in nodes.
+          </p>
+          <pre><code>export type GraphViewportResult = {
+  readonly datasetId: <a href="#DatasetId">DatasetId</a>;
+  readonly layoutVersion: <a href="#LayoutVersion">LayoutVersion</a>;
+  readonly lodLevel?: number | null;
+  readonly zoom: number;
+  readonly layoutStatus: <a href="#GraphLayoutStatus">GraphLayoutStatus</a>;
+  readonly truncated: boolean;
+  readonly totalNodeCount: number;
+  readonly nodes: readonly <a href="#GraphViewportNode">GraphViewportNode</a>[];
+  readonly edges: readonly <a href="#GraphViewportEdge">GraphViewportEdge</a>[];
+  readonly globalBounds?: <a href="#GraphLayoutBounds">GraphLayoutBounds</a> | null;
+  readonly ancillarySchema?: readonly <a href="#AncillaryField">AncillaryField</a>[];
+};</code></pre>
+        </section>
+        <section class="api-member" id="PhyloLensAncillaryResult">
+          <h3><code>PhyloLensAncillaryResult</code></h3>
+          <pre><code>export interface PhyloLensAncillaryResult {
+  readonly matchedNodeCount: number;
+  readonly warnings: readonly string[];
+}</code></pre>
+        </section>
+        <h2 id="nested-shapes">
+          Nested and returned shapes<a
+            class="heading-link"
+            href="#nested-shapes"
+            aria-label="Link to Nested and returned shapes"
+            >#</a
+          >
+        </h2>
+        <p>
+          The names below describe nested options or returned snapshots. They
+          are not package-root exports. Read their properties through the
+          returned value or the public options type rather than importing
+          internal files.
+        </p>
+        <section class="api-member" id="LayoutMode">
+          <h3><code>LayoutMode</code></h3>
+          <pre><code>export type LayoutMode = 'force' | 'radial' | 'dendrogram' | 'server';</code></pre>
+        </section>
+        <section class="api-member" id="GraphNodeAttributes">
+          <h3><code>GraphNodeAttributes</code></h3>
+          <pre><code>export type GraphNodeAttributes = Readonly&lt;Record&lt;string, unknown&gt;&gt; &amp; {
+  readonly treeIndex?: <a href="#TreeIndex">TreeIndex</a>;
+  readonly annotations?: <a href="#NodeAnnotations">NodeAnnotations</a>;
+  readonly isolates?: readonly <a href="#Isolate">Isolate</a>[];
+  readonly ancillaryDistribution?: readonly <a href="#AncillaryObservation">AncillaryObservation</a>[];
+};</code></pre>
+        </section>
+        <section class="api-member" id="PositionedNode">
+          <h3><code>PositionedNode</code></h3>
+          <pre><code>export type PositionedNode = <a href="#Point">Point</a> &amp; {
+  readonly id: string;
+  readonly size?: number;
+  readonly color?: string;
+  readonly attributes?: <a href="#GraphNodeAttributes">GraphNodeAttributes</a>;
+};</code></pre>
+        </section>
+        <section class="api-member" id="PositionedEdge">
+          <h3><code>PositionedEdge</code></h3>
+          <pre><code>export type PositionedEdge = {
+  readonly id: string;
+  readonly source: string;
+  readonly target: string;
+  readonly attributes?: Readonly&lt;Record&lt;string, unknown&gt;&gt;;
+};</code></pre>
+        </section>
+        <section class="api-member" id="PositionedGraph">
+          <h3><code>PositionedGraph</code></h3>
+          <pre><code>export type PositionedGraph = {
+  readonly nodes: readonly <a href="#PositionedNode">PositionedNode</a>[];
+  readonly edges: readonly <a href="#PositionedEdge">PositionedEdge</a>[];
+  readonly viewMeta: {
+    readonly distanceCutoff?: number;
+    readonly distanceConnections?: {
+      readonly metric: &#x27;allelic&#x27; | &#x27;patristic&#x27;;
+      readonly threshold: number;
+      readonly totalCount: number;
+      readonly visibleCount: number;
+    };
+    readonly componentId?: string;
+    readonly layout: <a href="#LayoutMode">LayoutMode</a>;
+    readonly lodLevel: number;
+    readonly lodTierCount?: number;
+    readonly sliceNodeCount?: number;
+    readonly sliceEdgeCount?: number;
+    readonly zoom?: number;
+    readonly globalBounds?: <a href="#GraphLayoutBounds">GraphLayoutBounds</a>;
+    readonly layoutStatus?: string;
+    readonly layoutWarnings?: readonly string[];
+  };
+};</code></pre>
+        </section>
+        <section class="api-member" id="AncillaryInputOptions">
+          <h3><code>AncillaryInputOptions</code></h3>
+          <pre><code>export type AncillaryInputOptions = {
+  readonly ancillarySchema?: readonly <a href="#AncillaryField">AncillaryField</a>[];
+  readonly ancillaryByNodeId?: Readonly&lt;Record&lt;string, <a href="#AncillaryData">AncillaryData</a>&gt;&gt;;
+  readonly ancillaryData?: <a href="#AncillaryTableInput">AncillaryTableInput</a>;
+};</code></pre>
+        </section>
+        <section class="api-member" id="SizeScale">
+          <h3><code>SizeScale</code></h3>
+          <pre><code>export type SizeScale = 'linear' | 'log';</code></pre>
+        </section>
+        <section class="api-member" id="SizeMappingOptions">
+          <h3><code>SizeMappingOptions</code></h3>
+          <pre><code>export type SizeMappingOptions = {
+  readonly field?: string;
+  /** Fixed radius growth by value or ln(1 + value), independent of the visible slice. */
+  readonly scale?: <a href="#SizeScale">SizeScale</a>;
+};</code></pre>
+        </section>
+        <section class="api-member" id="PieCategory">
+          <h3><code>PieCategory</code></h3>
+          <pre><code>export type PieCategory = {
+  readonly key: string;
+  readonly category: string;
+  readonly label: string;
+  readonly value: number;
+  readonly missing?: boolean;
+};</code></pre>
+        </section>
+      </article>
+      <nav class="page-links" aria-label="Page navigation">
+        <a href="browser-api.html">← Browser API</a
+        ><a href="http-api.html">HTTP API →</a>
+      </nav>
+      <footer>
+        PhyloLens documentation ·
+        <a href="https://github.com/phyloviz/phylo-lens/issues"
+          >Report an issue</a
+        >
+      </footer>
+    </main>
+  </body>
+</html>
