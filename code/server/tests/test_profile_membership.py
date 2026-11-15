@@ -19,11 +19,11 @@ ANCILLARY = (
 
 
 def grouped_dataset(monkeypatch, **kwargs):
-    def convert(profiles):
+    def convert(profiles, options=None):
         assert profiles.algorithm_content().count("\t1\t2\n") == 2
         parsed = parse_newick("(b_02:0,c:2)a_01;")
         return RootedTypingForest(
-            parsed, collapse_profile_graph(parsed, profiles.membership()), ("a_01",)
+            collapse_profile_graph(parsed, profiles.membership()), ("a_01",)
         )
 
     monkeypatch.setattr(

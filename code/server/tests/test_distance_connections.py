@@ -72,7 +72,7 @@ def test_radius_index_handles_deep_forests_and_named_nodes_without_recursion():
     ) == [("n0", "n5999", 5999)]
 
 
-@pytest.mark.parametrize("threshold", [0, 1, 5, 20])
+@pytest.mark.parametrize("threshold", [0, 1, 5, 20, 21, 999])
 def test_allelic_block_candidates_match_full_hamming_with_component_scope(threshold):
     rng = Random(93)
     profiles = {
@@ -92,7 +92,7 @@ def test_allelic_block_candidates_match_full_hamming_with_component_scope(thresh
         and sum(x != y for x, y in zip(profiles[a], profiles[b], strict=True))
         <= threshold
     }
-    assert set(allelic_pairs(profiles, threshold, owners)) == expected
+    assert list(allelic_pairs(profiles, threshold, owners)) == sorted(expected)
 
 
 @pytest.fixture

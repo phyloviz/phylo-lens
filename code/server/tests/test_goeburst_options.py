@@ -118,7 +118,9 @@ def test_standard_goeburst_preserves_bounded_forest_and_isolates(
             output.write_text(newick)
 
     monkeypatch.setattr(phylolib, "_run_phylolib_cli", cli_spy)
-    dataset = ingest_dataset(request(nlv).to_domain()).dataset
+    result = ingest_dataset(request(nlv).to_domain())
+    dataset = result.dataset
+    assert result.warnings == ()
     assert calls[1][0:2] == ["algorithm", "goeburst"]
     assert f"--lvs={min(nlv, 4)}" in calls[1]
     assert {node.id for node in dataset.nodes} == {"a", "b", "c", "d"}
@@ -156,6 +158,17 @@ def test_bounded_goeburst_still_rejects_cycles_and_over_level_edges():
             ),
             membership,
             max_level=1,
+        )
+
+
+@pytest.mark.parametrize("distance", [float("inf"), float("-inf"), float("nan")])
+def test_full_mst_rejects_nonfinite_inference_edges(distance):
+    with pytest.raises(ParseError, match="non-finite"):
+        validate_goeburst_tree(
+            ParsedGraph(
+                ["a", "b"], [ParsedEdge("a", "b", distance)], component_roots=("a",)
+            ),
+            {"a": (), "b": ()},
         )
 
 

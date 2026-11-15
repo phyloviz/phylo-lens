@@ -4,13 +4,14 @@ import logging
 import os
 import subprocess
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from phylo_lens_server.config.settings import phylolib_timeout_seconds
-from phylo_lens_server.data.parsers import ParsedEdge, ParsedGraph, parse_newick_forest
+from phylo_lens_server.data.parsers import ParsedGraph, parse_newick_forest
 from phylo_lens_server.data.typing_profiles import (
     PreparedTypingProfiles,
+    ProfileMember,
     collapse_profile_graph,
     select_goeburst_root,
     select_goeburst_roots,
@@ -158,8 +159,7 @@ def _run_command(
 
 @dataclass(frozen=True)
 class RootedTypingForest:
-    parsed: ParsedGraph
-    distinct: ParsedGraph
+    forest: ParsedGraph
     roots: tuple[str, ...]
 
 
@@ -177,34 +177,21 @@ def typing_profiles_to_rooted_forest(
     """
     membership = profiles.membership()
     bounded = isinstance(options, GoeBurstOptions)
-    # Standard goeBURST ignores zero-distance links. Infer on representatives,
-    # then restore duplicate isolates as zero-length spokes for the ingest join.
-    algorithm_profiles = (
-        PreparedTypingProfiles(
-            profiles.algorithm_content(distinct=True),
-            profiles.retained_loci,
-            profiles.excluded_loci,
-        )
-        if bounded
-        else profiles
-    )
     max_level = min(options.nlv, len(profiles.retained_loci)) if bounded else None
     if len(membership) == 1:
-        ids = [node_id for members in membership.values() for _, node_id in members]
-        parsed = ParsedGraph(
-            ids,
-            [ParsedEdge(ids[0], node_id, 0) for node_id in ids[1:]],
-            component_roots=(ids[0],),
-            explicit_node_ids=set(ids),
+        node_id = next(iter(membership))
+        forest = ParsedGraph(
+            (node_id,),
+            (),
+            component_roots=(node_id,),
+            explicit_node_ids={node_id},
         )
-        distinct = collapse_profile_graph(parsed, membership)
-        validate_goeburst_tree(distinct, membership)
-        return RootedTypingForest(parsed, distinct, (next(iter(membership)),))
+        return RootedTypingForest(forest, (node_id,))
 
     with tempfile.TemporaryDirectory(prefix="phylolib-") as tmp:
         files_dir = Path(tmp)
         (files_dir / PROFILES_FILENAME).write_text(
-            algorithm_profiles.algorithm_content(), encoding="utf-8"
+            profiles.algorithm_content(distinct=bounded), encoding="utf-8"
         )
 
         profiles_path = str(files_dir / PROFILES_FILENAME)
@@ -251,33 +238,26 @@ def typing_profiles_to_rooted_forest(
 
         parsed = parse_newick_forest(newick)
         if bounded:
-            distinct = collapse_profile_graph(parsed, algorithm_profiles.membership())
+            # Standard goeBURST skips zero-distance links, so its matrix contains
+            # representatives only. Isolate membership remains in the input.
+            distinct = collapse_profile_graph(
+                parsed,
+                {node_id: (ProfileMember(node_id, node_id),) for node_id in membership},
+            )
             validate_goeburst_tree(distinct, membership, max_level=max_level)
             roots = select_goeburst_roots(
                 Path(matrix_path),
-                algorithm_profiles,
-                algorithm_profiles.membership(),
+                profiles,
+                membership,
                 graph=distinct,
                 max_level=max_level,
+                matrix_ids=membership.keys(),
             )
-            ids = [node_id for members in membership.values() for _, node_id in members]
-            parsed = ParsedGraph(
-                ids,
-                [
-                    *distinct.edges,
-                    *(
-                        ParsedEdge(representative, node_id, 0)
-                        for representative, members in membership.items()
-                        for _, node_id in members
-                        if node_id != representative
-                    ),
-                ],
-                component_roots=roots,
-                explicit_node_ids=set(ids),
-            )
-            return RootedTypingForest(parsed, distinct, roots)
+            # Separate components are expected here; Newick is only the CLI
+            # serialization, so its input-forest warning does not apply.
+            return RootedTypingForest(replace(distinct, warnings=()), roots)
 
         root = select_goeburst_root(Path(matrix_path), profiles, membership)
         distinct = collapse_profile_graph(parsed, membership)
         validate_goeburst_tree(distinct, membership)
-        return RootedTypingForest(parsed, distinct, (root,))
+        return RootedTypingForest(distinct, (root,))

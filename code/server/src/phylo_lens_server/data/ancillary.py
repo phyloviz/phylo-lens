@@ -1,20 +1,20 @@
 from __future__ import annotations
 
 import csv
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from io import StringIO
 from math import isfinite
 from urllib.parse import quote
 
-from phylo_lens_server.data.parsers import ParsedGraph, ParseError, slugify_label
+from phylo_lens_server.data.parsers import ParseError, slugify_label
 from phylo_lens_server.domain.ancillary import (
     AncillaryData,
     AncillaryField,
     AncillaryValue,
     NodeAnnotations,
 )
-from phylo_lens_server.domain.dataset import Isolate, SourceFormat
+from phylo_lens_server.domain.dataset import Isolate
 from phylo_lens_server.domain.legacy_metadata import (
     CATEGORY_COUNT_FIELD_PREFIX,
     PROFILE_COUNT_FIELD,
@@ -68,8 +68,7 @@ class PreparedDatasetAncillary:
 
 def prepare_dataset_ancillary(
     *,
-    format_name: SourceFormat,
-    parsed: ParsedGraph,
+    join_ids: Collection[str],
     membership: Mapping[str, Sequence[tuple[str, str]]],
     schema: Sequence[AncillaryField],
     by_node_id: Mapping[str, AncillaryData],
@@ -101,11 +100,7 @@ def prepare_dataset_ancillary(
             ancillary_warnings,
         ) = _parse_ancillary_data(
             table,
-            node_ids=(
-                set(parsed.explicit_node_ids)
-                if format_name == SourceFormat.NEWICK
-                else set(parsed.nodes)
-            ),
+            node_ids=set(join_ids),
             declared_schema=schema,
         )
         metadata_by_node_id = _merge_node_ancillary_data(
@@ -116,7 +111,7 @@ def prepare_dataset_ancillary(
 
     isolates_by_node_id: dict[str, list[Isolate]] = {}
     if membership:
-        if set(metadata_by_node_id) - set(parsed.nodes):
+        if set(metadata_by_node_id) - set(join_ids):
             raise ParseError("Typing metadata references an unknown isolate.")
         for node_id, members in membership.items():
             isolates = []

@@ -527,11 +527,11 @@ def test_typing_data_maps_phylolib_graph_into_pipeline(monkeypatch) -> None:
 
     calls: list[str] = []
 
-    def fake_convert(profiles):
+    def fake_convert(profiles, options=None):
         calls.append(profiles.algorithm_content())
         parsed = parse_newick(TYPING_NEWICK)
         return RootedTypingForest(
-            parsed, collapse_profile_graph(parsed, profiles.membership()), ("a",)
+            collapse_profile_graph(parsed, profiles.membership()), ("a",)
         )
 
     monkeypatch.setattr(
@@ -612,7 +612,7 @@ def test_typing_profiles_to_rooted_forest_prefers_local_phylolib_jar(
     )
 
     assert tree.roots == ("a",)
-    assert sorted(tree.distinct.nodes) == ["a", "b", "c"]
+    assert sorted(tree.forest.nodes) == ["a", "b", "c"]
     assert commands
     expected_prefix = ["/opt/java/openjdk/bin/java", "-jar", str(jar_path)]
     assert all(command[:3] == expected_prefix for command in commands)

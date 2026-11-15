@@ -136,7 +136,7 @@ export class GraphViewportCoordinator {
     this.manipulating = active;
     if (active) {
       this.refreshAfterManipulation ||= this.debounceTimer !== null || this.requests.hasPendingReads;
-      this.invalidateViewportRequest();
+      this.requests.invalidate();
       if (this.debounceTimer !== null) window.clearTimeout(this.debounceTimer);
       this.debounceTimer = null;
       this.cancelFit?.();
@@ -199,7 +199,7 @@ export class GraphViewportCoordinator {
       this.cancelFit();
       this.cancelFit = null;
     }
-    this.invalidateViewportRequest();
+    this.requests.invalidate();
     this.panels.clear();
     if (this.initialViewportAwaited) {
       this.rejectInitialViewport(new Error(ERR_VIEWPORT_COORDINATOR_UNMOUNTED));
@@ -322,7 +322,7 @@ export class GraphViewportCoordinator {
     this.replacingLayout = true;
     this.nextForcedLodLevel = undefined;
     this.fitNextResponse = false;
-    const sequence = this.invalidateViewportRequest();
+    const sequence = this.requests.invalidate();
     if (this.debounceTimer !== null) {
       window.clearTimeout(this.debounceTimer);
       this.debounceTimer = null;
@@ -396,7 +396,7 @@ export class GraphViewportCoordinator {
     this.keepExpanded = keep;
     if (!keep) this.expansionLodLevel = undefined;
     else this.expansionLodLevel = this.baseResponse?.lodLevel ?? 0;
-    this.invalidateViewportRequest();
+    this.requests.invalidate();
     this.refreshNow();
     return this.getExpansionState();
   }
@@ -550,15 +550,11 @@ export class GraphViewportCoordinator {
     return this.mounted && this.requests.isCurrent(sequence);
   }
 
-  private invalidateViewportRequest(): number {
-    return this.requests.invalidate();
-  }
-
   private beginExpansion(): number {
     if (this.debounceTimer !== null) window.clearTimeout(this.debounceTimer);
     this.debounceTimer = null;
     this.cancelFit?.();
-    return this.invalidateViewportRequest();
+    return this.requests.invalidate();
   }
 
   private expansionResult(status?: 'superseded'): ExpansionResult {
@@ -650,7 +646,7 @@ export class GraphViewportCoordinator {
       window.clearTimeout(this.debounceTimer);
     }
     // Invalidate immediately: an old response can arrive during the debounce window.
-    this.invalidateViewportRequest();
+    this.requests.invalidate();
     this.debounceTimer = window.setTimeout(() => {
       this.debounceTimer = null;
       void this.loadViewport();

@@ -162,8 +162,8 @@ run still requires validation against that run's input and settings.
 After complete-locus filtering, identical allele vectors represent one profile.
 Full MST sends all input rows to PhyloLib, preserving their multiplicity during
 tree construction. Standard goeBURST runs on distinct profiles because its
-algorithm skips zero-distance links; original isolate membership is restored
-before ancillary joining. Identifiers are normalized to safe Newick labels before conversion;
+algorithm skips zero-distance links; original isolate membership is retained
+separately for ancillary joining. Identifiers are normalized to safe Newick labels before conversion;
 original IDs are retained separately. Empty, structural (`union_...`) or colliding
 normalized identifiers are rejected rather than silently merged.
 

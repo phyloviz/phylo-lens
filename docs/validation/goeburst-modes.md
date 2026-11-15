@@ -15,9 +15,9 @@ Inspection of `pt.ist.phylolib.command.algorithm.goeburst.GoeBURST`
 - `goeburstfullmst` continues to provide the existing all-level spanning tree.
 
 PhyloLens therefore runs standard goeBURST on one representative per distinct
-profile, in first-occurrence order. It restores original isolates as zero-length
-spokes at the ingest boundary, where the existing contraction and ancillary join
-retain all isolate observations on the canonical profile node. Full MST retains
+profile, in first-occurrence order. Original isolate membership is retained
+separately for the ancillary join; no synthetic duplicate-isolate edges are
+needed. All isolate observations remain on the canonical profile node. Full MST retains
 its existing duplicate-profile input behavior. This is a required adaptation to
 standard goeBURST's zero-distance behavior, not a claim of parity with another
 PHYLOViZ implementation's tie-breaking or frequency weighting.
@@ -49,10 +49,13 @@ tie comparisons may inspect K entries, giving an O(U²K) worst-case bound.
 The Python root pass reads the matrix once in O(U²) time, keeps at most
 O(U min(U,L)) distance-count entries, and ranks roots in O(UK) time.
 Forest validation and root traversal take O(U+E) time and space for E inferred
-edges. Representative preparation and isolate restoration add O(NL) work and
-storage for profile content plus O(N) membership/spoke storage; sorting isolate
+edges. Representative preparation adds O(NL) work and
+storage for profile content plus O(N) membership storage; sorting isolate
 members adds O(N log N) work in the worst case. No measured
 latency improvement is claimed.
+
+The [pipeline simplicity review](typing-pipeline-simplicity.md) records the later
+removal of discarded graph objects and repeated membership grouping.
 
 ## Verification
 
