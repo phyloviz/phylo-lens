@@ -1,7 +1,7 @@
 import type { GraphPrepareResponseDto } from '../src/services/graph/prepare/prepareDto';
 import type { GraphViewportResponseDto } from '../src/services/graph/viewport/viewportDto';
 import { deferred } from './helpers/state';
-import { toDatasetId, toLayoutVersion } from '../src/contracts/graph/graphIdentifiers';
+import { toDatasetId, toLayoutVersion, toNodeId } from '../src/contracts/graph/graphIdentifiers';
 import { describe, expect, it, vi } from 'vitest';
 
 import { createGraphClient } from '../src/services/graph/graphService';
@@ -80,6 +80,31 @@ function makeJsonResponse(payload: unknown, status = 200): Response {
 }
 
 describe('graphClient', () => {
+  it('validates and maps technical root revisions and rejects an unconfirmed reset', async () => {
+    const response = {
+      ...PREPARE_FIXTURE,
+      lod_tier_count: 1,
+      technical_roots: ['b'],
+      default_roots: ['a'],
+      component_ids: { a: 'b' },
+    };
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(makeJsonResponse(response))
+      .mockResolvedValueOnce(makeJsonResponse(response));
+    const client = createGraphClient({ baseUrl: BASE_URL, fetchImpl });
+    const request = { datasetId: toDatasetId('tree'), layoutVersion: toLayoutVersion('old'), nodeId: toNodeId('b') };
+    await expect(client.setTechnicalRoot!(request)).resolves.toMatchObject({
+      technicalRoots: ['b'],
+      componentIds: { a: 'b' },
+    });
+    expect(JSON.parse(String(fetchImpl.mock.calls[0][1]?.body))).toEqual({
+      dataset_id: 'tree',
+      layout_version: 'old',
+      node_id: 'b',
+    });
+    await expect(client.setTechnicalRoot!({ ...request, nodeId: null })).rejects.toThrow('did not restore');
+  });
   it('restores original isolate values when a cluster becomes an individual profile', async () => {
     const values = { country: 'PT', year: 2020 };
     const replies = [

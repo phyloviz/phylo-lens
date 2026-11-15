@@ -259,6 +259,13 @@ erDiagram
 PostgreSQL additionally stores durable prepare jobs and lease state in
 `prepare_jobs`.
 
+Technical-root revisions also persist a `preparation_sources` snapshot containing
+the normalized dataset, default roots, original rooting policy, and preparation
+options. Ancillary revisions update that snapshot with their new annotations.
+Rerooting can therefore preserve exact topology, observations and coordinates
+after a restart. The additional table and schema migration are described in
+[technical rooting](REROOTING.md).
+
 ## Publication semantics
 
 The preparation service stages and publishes a layout in ordered repository

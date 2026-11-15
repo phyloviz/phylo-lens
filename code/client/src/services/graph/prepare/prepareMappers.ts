@@ -44,7 +44,7 @@ export function copyGraphPrepareRequestDto(dto: GraphPrepareRequestDto): GraphPr
   };
 }
 
-function toGraphPrepareResult(dto: GraphPrepareResponseDto): GraphPrepareResult {
+export function toGraphPrepareResult(dto: GraphPrepareResponseDto): GraphPrepareResult {
   return {
     ...(dto.typing_options == null ? {} : { typingOptions: { ...dto.typing_options } }),
     ...(dto.distance_cutoff == null ? {} : { distanceCutoff: dto.distance_cutoff }),

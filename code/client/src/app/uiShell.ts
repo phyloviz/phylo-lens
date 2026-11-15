@@ -21,6 +21,7 @@ import createPngExportControls, { type PngExportControlsElements } from './shell
 import createWorkspaceControls from './shell/controls/workspaceControls';
 
 import forestControls, { type ForestControlsElements } from './shell/controls/forestControls';
+import { rootingControls, type RootingControlsElements } from './shell/controls/rootingControls';
 
 export { STATUS_RENDERED_PREFIX } from './shell/status/renderedStatus';
 export { STATUS_RENDERING_PREFIX } from './shell/inputs/graphLoading';
@@ -40,6 +41,7 @@ export const ERR_RENDER_FORM_REQUIRED = 'Render form is required.';
 export const ERR_NEWICK_INPUT_REQUIRED = 'Newick input is required.';
 
 export type UiShellElements = ForestControlsElements &
+  RootingControlsElements &
   ArrangementControlsElements &
   DisplayOptionsControlsElements &
   PngExportControlsElements &
@@ -130,6 +132,12 @@ export default function createUiShell(options: UiShellOptions): UiShell {
     expansion.setReady(false);
   });
   const connections = distanceConnectionsControls(workbench, elements);
+  const rooting = rootingControls(workbench, elements, async () => {
+    selectNode(null);
+    search.reset();
+    region.reset();
+    await forest.refresh();
+  });
   const loading = createGraphLoading({
     workbench,
     elements,
@@ -139,6 +147,7 @@ export default function createUiShell(options: UiShellOptions): UiShell {
     setStatus,
     setFailureStatus,
     onLoadStarted: () => {
+      rooting.reset();
       connections.setSource(null);
       forest.reset();
       workspace.loadStarted();
@@ -151,6 +160,7 @@ export default function createUiShell(options: UiShellOptions): UiShell {
       refreshLodControls(false);
     },
     onLoadFailed: () => {
+      rooting.reset();
       workspace.loadFailed();
       lastRenderedGraph = null;
       ancillary.resetAfterFailure();
@@ -182,6 +192,7 @@ export default function createUiShell(options: UiShellOptions): UiShell {
     loading.mount();
     connections.mount();
     arrangement.mount();
+    rooting.mount();
     expansion.mount();
     workbench.setErrorHandler(error => setFailureStatus(error.message));
     workbench.setGraphRenderedHandler(handleGraphRendered);
@@ -221,6 +232,7 @@ export default function createUiShell(options: UiShellOptions): UiShell {
     workbench.setErrorHandler(null);
     workbench.setGraphRenderedHandler(null);
     arrangement.unmount();
+    rooting.unmount();
     workbench.setNodeClickedHandler(null);
     workbench.setRegionSelectedHandler(null);
     workbench.dispose();
@@ -240,6 +252,7 @@ export default function createUiShell(options: UiShellOptions): UiShell {
     setStatus(buildRenderedStatus(graph));
     lastRenderedGraph = graph;
     arrangement.setReady(graph.nodes.length > 1);
+    rooting.setReady(true);
     expansion.setReady(true);
     loading.updateApplyAncillaryButton();
     ancillary.refreshGraph(graph);
@@ -260,6 +273,7 @@ export default function createUiShell(options: UiShellOptions): UiShell {
     const node = lastRenderedGraph?.nodes.find(candidate => candidate.id === selectedNodeId);
     expansion.select({ nodeId: node?.id ?? null, attributes: node?.attributes });
     arrangement.selectNode(node?.id ?? null);
+    rooting.select(node);
   }
 
   function handleLodPlaybackChange(paused: boolean): void {

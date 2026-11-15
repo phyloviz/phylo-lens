@@ -53,7 +53,7 @@ function isOptionalTypingOptions(value: unknown, format: unknown): boolean {
   }
 }
 
-function isGraphPrepareResponseDto(value: unknown): value is GraphPrepareResponseDto {
+export function isGraphPrepareResponseDto(value: unknown): value is GraphPrepareResponseDto {
   return (
     isRecord(value) &&
     (value.typing_options == null || isOptionalTypingOptions(value.typing_options, 'typing_data')) &&

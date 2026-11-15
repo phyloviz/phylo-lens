@@ -51,6 +51,9 @@ pnpm-debug.log*
 code/client/*.tgz
 
 .tmp
+site/
+output/playwright/
+.playwright-cli/
 
 # Local release rehearsal artifacts
 .release/

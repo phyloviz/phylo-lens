@@ -15,6 +15,7 @@ from .values import FrozenMapping, FrozenValue
 
 NEWICK_ROOTING_STRATEGY = "newick-component-root-v1"
 GOEBURST_ROOTING_STRATEGY = "goeburst-lv-v1"
+USER_ROOTING_STRATEGY = "user-selected-component-root-v1"
 
 
 class SourceFormat(StrEnum):
@@ -103,7 +104,10 @@ class Dataset(FrozenValue):
             if self.source.format == SourceFormat.TYPING_DATA
             else NEWICK_ROOTING_STRATEGY
         )
-        if self.source.rooting_strategy != expected_strategy:
+        if self.source.rooting_strategy not in (
+            expected_strategy,
+            USER_ROOTING_STRATEGY,
+        ):
             raise ValueError("Rooting strategy does not match the dataset source.")
         return self
 

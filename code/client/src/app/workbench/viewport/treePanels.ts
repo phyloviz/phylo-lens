@@ -55,4 +55,9 @@ export class TreePanels {
     this.active = null;
     this.switchSequence = null;
   }
+
+  resetOrientation(component: GraphComponent | null): void {
+    this.clear();
+    this.active = component;
+  }
 }

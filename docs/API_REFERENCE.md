@@ -31,6 +31,24 @@ Optional response fields with `None` values are omitted on graph routes.
 | `POST` | `/api/graph/search` | `GraphSearchQuery` | `GraphSearchResponse` | `200` |
 | `PUT` | `/api/graph/ancillary` | `GraphAncillaryRequest` | `GraphAncillaryResponse` | `200` |
 | `POST` | `/api/graph/connections` | `GraphConnectionsRequest` | `GraphConnectionsResponse` | `200` |
+| `POST` | `/api/graph/components` | `GraphComponentsQuery` | `GraphComponentsResponse` | `200` |
+| `POST` | `/api/graph/root` | `GraphRootingRequest` | `GraphRootingResponse` | `200` |
+
+## Technical-root revisions
+
+`POST /api/graph/root` accepts `dataset_id`, an explicit published `layout_version`,
+and required `node_id`: a nonempty canonical node ID to root its component, or
+JSON `null` to restore all original preparation roots. Unknown nodes return `422`;
+missing/unpublished layouts return `404`. A layout prepared before rerooting
+snapshots were stored returns `422` with instructions to load it again.
+
+The response includes the preparation result fields, the new `technical_roots`,
+`default_roots`, and `component_ids` mapping every previous component/root ID to
+its replacement. Tree nodes, edges, distances, metadata and global coordinates
+are preserved. Rooted indexes and LoD artifacts are rebuilt in one transaction;
+the original version remains available. Repeating the current root is a no-op
+that retains its layout version. This additive route requires an updated service.
+See [technical-root semantics and cost](REROOTING.md).
 
 ## Additional distance connections
 
@@ -76,8 +94,8 @@ validation errors therefore fail directly on `POST /prepare`. Once a job is
 ready, callers use its `dataset_id` and `layout_version` for viewport, region,
 and search requests.
 
-The browser package polls every `1000 ms` with a default client-side timeout of
-`600000 ms`. These values are client implementation defaults, not server
+The default HTTP adapter polls every `1000 ms` with no client-side timeout unless
+one is explicitly configured. These values are client implementation defaults, not server
 contract fields.
 
 ## Error responses

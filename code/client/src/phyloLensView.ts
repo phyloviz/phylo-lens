@@ -6,6 +6,7 @@ import type { ExpansionState, ExpansionResult } from './contracts/expansion';
 import type { AncillaryTableInput } from './contracts/ancillary';
 import type { AncillaryInputOptions } from './ancillary/ancillaryInput';
 import { createGraphClient } from './services/graph/graphService';
+import type { GraphClient } from './contracts/graph/GraphClient';
 import type { SfdpOptions } from './contracts/graph/SfdpOptions';
 import type { TypingOptions } from './contracts/graph/TypingOptions';
 import { SOURCE_FORMAT_NEWICK, type SourceFormat } from './contracts/models';
@@ -20,9 +21,8 @@ import { snapshotAppliedObserverForContainer } from './app/workbench/internalSna
 
 export const ERR_PHYLO_LENS_VIEW_DISPOSED = 'PhyloLens view has been disposed.';
 
-export interface PhyloLensViewOptions {
+interface PhyloLensViewCommonOptions {
   container: HTMLElement;
-  apiUrl: string;
   onError?: (error: Error) => void;
   onNodeSelected?: (selection: {
     nodeId: NodeId | null;
@@ -34,6 +34,10 @@ export interface PhyloLensViewOptions {
   onInteractionFeedback?: (message: string) => void;
   onExpansionChanged?: (state: ExpansionState) => void;
 }
+
+/** Supply exactly one backend boundary. A custom client owns its transport. */
+export type PhyloLensViewOptions = PhyloLensViewCommonOptions &
+  ({ apiUrl: string; graphClient?: never } | { graphClient: GraphClient; apiUrl?: never });
 
 export interface PhyloLensLoadOptions extends AncillaryInputOptions {
   content: string;
@@ -57,6 +61,12 @@ export interface PhyloLensAncillaryResult {
 }
 
 export interface PhyloLensView {
+  canSetTechnicalRoot: () => boolean;
+  getTechnicalRoots: () => readonly string[];
+  /** Reroot one component, or restore all default roots with null. */
+  setTechnicalRoot: (
+    nodeId: NodeId | null
+  ) => Promise<{ readonly technicalRoots: readonly string[]; readonly defaultRoots: readonly string[] }>;
   setDistanceConnections: GraphWorkbench['setDistanceConnections'];
   listComponents: GraphWorkbench['listComponents'];
   selectComponent: GraphWorkbench['selectComponent'];
@@ -113,6 +123,18 @@ export function createPhyloLensView(options: PhyloLensViewOptions): PhyloLensVie
   };
 
   return {
+    canSetTechnicalRoot: () => activeWorkbench().canSetTechnicalRoot(),
+    getTechnicalRoots: () => activeWorkbench().getTechnicalRoots(),
+    setTechnicalRoot: async nodeId => {
+      const current = activeWorkbench();
+      try {
+        const result = await current.setTechnicalRoot(nodeId);
+        return { technicalRoots: result.technicalRoots, defaultRoots: result.defaultRoots };
+      } catch (error) {
+        if (disposed) throw new Error(ERR_PHYLO_LENS_VIEW_DISPOSED);
+        throw error;
+      }
+    },
     listComponents: page => activeWorkbench().listComponents(page),
     selectComponent: component => activeWorkbench().selectComponent(component),
     getComponentId: () => activeWorkbench().getComponentId(),
@@ -189,9 +211,19 @@ export function createPhyloLensView(options: PhyloLensViewOptions): PhyloLensVie
   };
 }
 
-function createWorkbench({ container, apiUrl }: PhyloLensViewOptions): GraphWorkbench {
+function createWorkbench(configuration: PhyloLensViewOptions): GraphWorkbench {
+  const { container, apiUrl, graphClient } = configuration;
+  if ((apiUrl !== undefined) === (graphClient !== undefined)) {
+    throw new Error('Supply exactly one of apiUrl or graphClient.');
+  }
+  if (
+    graphClient !== undefined &&
+    (!graphClient || typeof graphClient.prepareGraph !== 'function' || typeof graphClient.readViewport !== 'function')
+  ) {
+    throw new Error('A custom GraphClient must provide prepareGraph and readViewport.');
+  }
   const options: GraphWorkbenchOptions = {
-    graphClient: createGraphClient({ baseUrl: apiUrl }),
+    graphClient: graphClient ?? createGraphClient({ baseUrl: apiUrl ?? '' }),
     rendererFactory: rendererFactory(),
     rendererType: RendererType.Sigma,
     renderContext: { container },

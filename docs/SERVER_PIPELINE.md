@@ -339,7 +339,7 @@ The response uses `next_cursor: null` at the end. Missing prepared versions retu
 404. Summaries are indexed, copied to ancillary revisions and deleted with their
 layout. Existing caches must be prepared with pipeline identity
 `component-panels-lod-v5`; the PostgreSQL schema identity is
-`component-panels-schema-v4`.
+`technical-root-revisions-schema-v5`.
 
 Viewport, region and search requests accept optional `component_id`. Omitting it
 queries the forest. Supplying it restricts membership before pagination and

@@ -15,6 +15,70 @@ import type { GraphViewportResult } from '../src/contracts/graph/viewport/GraphV
 import type { RenderViewportRequestState, RendererFactory } from '../src/render/renderer.types';
 import type { PositionedGraph } from '../src/contracts/positioned';
 import type { DistanceConnectionsResult } from '../src/contracts/graph/connections';
+import type { GraphRootingResult } from '../src/contracts/graph/rooting';
+
+const rootedResponse = (): GraphRootingResult => ({
+  ...prepareResponse('tree', 'rooted'),
+  technicalRoots: ['b'],
+  defaultRoots: ['a'],
+  componentIds: { a: 'b' },
+  lodTierCount: 2,
+});
+
+it('supports a minimal adapter and explains unavailable optional operations', async () => {
+  const { workbench } = createWorkbenchHarness({
+    searchGraph: undefined,
+    readRegion: undefined,
+    applyAncillaryData: undefined,
+  });
+  await workbench.loadGraph({ content: '(a:1)b;', format: 'newick' });
+  await expect(workbench.searchNodes({ query: 'a' })).rejects.toThrow('does not support tree search');
+  await expect(
+    workbench.applyAncillaryData({ content: 'id,country\na,PT', joinColumn: 'id', format: 'csv' })
+  ).rejects.toThrow('does not support ancillary replacement');
+  expect(workbench.canSetTechnicalRoot()).toBe(false);
+  await expect(workbench.setTechnicalRoot(toNodeId('a'))).rejects.toThrow('does not support technical rerooting');
+  workbench.dispose();
+});
+
+it('adopts rerooted viewports and rejects a competing ancillary revision', async () => {
+  const pending = deferred<GraphRootingResult>();
+  const setRoot = vi.fn().mockReturnValue(pending.promise);
+  const readViewport = vi.fn<GraphClient['readViewport']>(async request =>
+    viewportResponse('tree', request.layoutVersion ?? 'layout-1')
+  );
+  const { workbench, graphClient } = createWorkbenchHarness({ setTechnicalRoot: setRoot, readViewport });
+  const rendered = vi.fn();
+  workbench.setGraphRenderedHandler(rendered);
+  await workbench.loadGraph({ content: '(b:1)a;', format: 'newick' });
+  const change = workbench.setTechnicalRoot(toNodeId('b'));
+  await expect(
+    workbench.applyAncillaryData({ content: 'id,country\nb,PT', joinColumn: 'id', format: 'csv' })
+  ).rejects.toThrow('revision is already pending');
+  expect(graphClient.applyAncillaryData).not.toHaveBeenCalled();
+  pending.resolve(rootedResponse());
+  await change;
+  expect(setRoot).toHaveBeenCalledWith({ datasetId: 'tree', layoutVersion: 'layout-1', nodeId: 'b' });
+  expect(workbench.getTechnicalRoots()).toEqual(['b']);
+  expect(rendered.mock.calls.at(-1)?.[0].viewMeta.lodTierCount).toBe(2);
+  expect(readViewport.mock.calls.at(-1)?.[0].layoutVersion).toBe('rooted');
+  workbench.dispose();
+});
+
+it('rejects a late root result after another dataset has loaded', async () => {
+  const pending = deferred<GraphRootingResult>();
+  const { workbench, renderer } = createWorkbenchHarness({ setTechnicalRoot: () => pending.promise });
+  await workbench.loadGraph({ content: '(b:1)a;', format: 'newick' });
+  const change = workbench.setTechnicalRoot(toNodeId('b'));
+  const rejected = expect(change).rejects.toThrow('superseded');
+  await workbench.loadGraph({ content: '(c:1)d;', format: 'newick' });
+  const count = renderer.appliedGraphs.length;
+  pending.resolve(rootedResponse());
+  await rejected;
+  expect(renderer.appliedGraphs).toHaveLength(count);
+  expect(workbench.getTechnicalRoots()).toEqual([]);
+  workbench.dispose();
+});
 
 it('uses the owned loaded source and leaves the previous overlay intact when a query fails', async () => {
   const read = vi

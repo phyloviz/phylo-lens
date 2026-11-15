@@ -34,6 +34,7 @@ import { DistanceConnectionOverlay } from './distanceConnections';
 import { TreePanels } from './treePanels';
 import { ViewportRequests } from './viewportRequests';
 import type { DistanceConnectionsResult } from '../../../contracts/graph/connections';
+import type { GraphRootingResult } from '../../../contracts/graph/rooting';
 
 export type GraphViewportCoordinatorOptions = {
   readonly datasetId: DatasetId;
@@ -79,7 +80,7 @@ export class GraphViewportCoordinator {
   private readonly debounceMs: number;
   private readonly maxNodes: number | undefined;
   private readonly representationSpacingPx: number;
-  private readonly lodTierCount: number;
+  private lodTierCount: number;
   private readonly smallTreeThreshold: number;
   private readonly preparedNodeCount: number | null;
   private manualFolds = new ManualBranches();
@@ -296,6 +297,72 @@ export class GraphViewportCoordinator {
   }
 
   // Viewport and layout replacement
+
+  async replaceRootedLayout(result: GraphRootingResult, beforeApply: () => void): Promise<void> {
+    if (
+      !this.mounted ||
+      !this.loadedInitialViewport ||
+      !this.lastViewportRequest ||
+      this.replacingLayout ||
+      this.panels.switching
+    ) {
+      throw new Error('Wait for the current view operation before changing the technical root.');
+    }
+    const active = this.panels.component;
+    const componentId = active ? result.componentIds[active.id] : undefined;
+    if (active && componentId === undefined) throw new Error('The rooted revision omitted the active component.');
+    this.replacingLayout = true;
+    const sequence = this.requests.invalidate();
+    if (this.debounceTimer !== null) window.clearTimeout(this.debounceTimer);
+    this.debounceTimer = null;
+    this.cancelFit?.();
+    this.cancelFit = null;
+    const request = {
+      ...this.lastViewportRequest,
+      layoutVersion: result.layoutVersion,
+      componentId,
+      clusterId: undefined,
+      focusNodeId: undefined,
+      lodLevel: Math.min(this.lastViewportRequest.lodLevel ?? 0, (result.lodTierCount ?? 1) - 1),
+      previousLodLevel: undefined,
+    };
+    try {
+      const response = await this.client.readViewport(request);
+      if (!this.isCurrentRequest(sequence)) throw new Error('Technical-root change was superseded by a newer view.');
+      if (response.layoutVersion !== result.layoutVersion || response.datasetId !== this.datasetId) {
+        throw new Error('The rooted viewport returned a different layout.');
+      }
+      beforeApply();
+      this.layoutVersion = result.layoutVersion;
+      this.lodTierCount = result.lodTierCount ?? 1;
+      this.panels.resetOrientation(active && componentId ? { ...active, id: componentId } : null);
+      this.expandedPatches.clear();
+      this.manualFolds.clear();
+      this.distanceConnections = null;
+      this.keepExpanded = false;
+      this.allExpanded = false;
+      this.expansionPartial = false;
+      this.expansionLodLevel = undefined;
+      this.priorityNodeId = null;
+      this.nextForcedLodLevel = undefined;
+      this.fitNextResponse = false;
+      this.baseResponse = response;
+      this.lastViewportRequest = request;
+      this.lastRequestedLodLevel = request.lodLevel;
+      this.totalNodeCount = response.totalNodeCount;
+      this.renderer.stopLayout?.();
+      this.renderer.setDragSelection?.({ kind: 'node' });
+      const graph = this.composeGraph();
+      this.applyGraph(graph, 'viewport_sync', null, true);
+      this.onGraphApplied?.(graph, response);
+    } finally {
+      this.replacingLayout = false;
+      if (this.refreshAfterReplacement) {
+        this.refreshAfterReplacement = false;
+        this.scheduleViewportRefresh(0);
+      }
+    }
+  }
 
   refreshNow(options: ViewportRefreshOptions = {}): void {
     if (options.lodLevel === 'finest') {

@@ -38,6 +38,11 @@ algorithm costs in [Indexed branch operations](TREE_INDEX.md).
 Technical roots are explicit in `Dataset.technical_roots`; the source
 records the rooting strategy. Both participate in the layout fingerprint.
 
+Users can replace a component's technical root through the
+[rerooting operation](REROOTING.md). Default roots remain recorded for restoration.
+This preserves topology and coordinates while rebuilding the rooted index and
+detail tiers under a new immutable layout version.
+
 ## Hop-depth hierarchy
 
 One hop is one tree edge, irrespective of its branch/allelic distance. Orient

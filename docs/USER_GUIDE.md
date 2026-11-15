@@ -20,6 +20,19 @@ in the current view. Open **About symbols** for the size explanation. The key
 updates as you expand, collapse or change views; it disappears when none of those
 symbols are present. Exact counts remain available when hovering or selecting.
 
+## Choose a technical root
+
+Select an ordinary node and choose **Use as technical root** in its inspector.
+This reorients that component's branches and rebuilds detail groups while
+preserving nodes, tree edges, distances, metadata and global coordinates.
+**Restore default roots** returns all components to their original preparation
+roots. Current roots are listed in the inspector.
+
+Changing orientation clears folds, expansion choices and additional distance
+connections. The **branch-drag anchor** controls dragging separately. Technical
+roots do not identify evolutionary ancestors. See [technical roots](REROOTING.md)
+for details and the browser API.
+
 ## Choose a distance operation
 
 | Operation | Where | Effect |

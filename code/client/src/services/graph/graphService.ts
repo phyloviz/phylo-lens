@@ -8,11 +8,13 @@ import { searchGraph } from './search/searchService';
 
 import { readGraphComponents } from './graphComponentsService';
 import { readDistanceConnections } from './graphConnectionsService';
+import { setTechnicalRoot } from './rooting/rootingService';
 
-export function createGraphClient(options: HttpClientOptions): GraphClient {
+export function createGraphClient(options: HttpClientOptions): Required<GraphClient> {
   const http = createHttpClient(options);
 
   return {
+    setTechnicalRoot: request => setTechnicalRoot(http, request),
     readDistanceConnections: (request, options) => readDistanceConnections(http, request, options),
     readComponents: request => readGraphComponents(http, request),
     prepareGraph: (request, options) => prepareGraph(http, request, options),

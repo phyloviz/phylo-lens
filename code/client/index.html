@@ -644,9 +644,19 @@
                 </div>
 
                 <button class="secondary-button" type="button" id="branch-root" disabled>
-                  Use selected node as arrangement root
+                  Use selected node as branch-drag anchor
+                </button>
+                <button class="secondary-button" type="button" id="technical-root" disabled>
+                  Use as technical root
+                </button>
+                <button class="secondary-button" type="button" id="reset-technical-roots" disabled>
+                  Restore default roots
                 </button>
               </div>
+              <p class="field-help">
+                The technical root orients branches and detail groups. It does not identify an evolutionary ancestor.
+              </p>
+              <p id="technical-root-status" class="control-feedback" role="status"></p>
               <div id="ancillary-selected-node-wheel" aria-live="polite"></div>
             </section>
             <section

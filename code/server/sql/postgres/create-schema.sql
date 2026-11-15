@@ -221,3 +221,11 @@ create index if not exists forest_components_page_idx
 
 create index if not exists prepared_clusters_representative_idx
     on prepared_clusters(dataset_id, layout_version, representative_node_id, lod_level);
+
+-- Immutable normalized source and preparation options for technical rerooting.
+create table if not exists preparation_sources(
+    dataset_id text not null,
+    layout_version text not null,
+    snapshot_json text not null,
+    primary key(dataset_id, layout_version)
+);

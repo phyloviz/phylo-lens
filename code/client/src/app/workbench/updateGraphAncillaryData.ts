@@ -17,19 +17,13 @@ export interface UpdateGraphAncillaryDataDependencies {
 }
 
 export function createGraphAncillaryUpdater(dependencies: UpdateGraphAncillaryDataDependencies) {
-  let pending: { coordinator: GraphViewportCoordinator; generation: number } | null = null;
-
   return async function updateGraphAncillaryData(data: AncillaryTableInput): Promise<GraphAncillaryResult> {
     const { getState, graphClient, requireViewportCoordinator, getLoadGeneration, getViewportCoordinator } =
       dependencies;
     const coordinator = requireViewportCoordinator();
+    if (!graphClient.applyAncillaryData) throw new Error('This backend does not support ancillary replacement.');
     const session = getGraphSession(getState());
     const generation = getLoadGeneration();
-    if (pending?.coordinator === coordinator && pending.generation === generation) {
-      throw new Error('An ancillary update is already pending for this graph.');
-    }
-    const operation = { coordinator, generation };
-    pending = operation;
     const assertCurrent = () => assertCurrentGraph(generation, coordinator, getLoadGeneration, getViewportCoordinator);
     try {
       const result = await graphClient.applyAncillaryData({
@@ -44,8 +38,6 @@ export function createGraphAncillaryUpdater(dependencies: UpdateGraphAncillaryDa
     } catch (error) {
       assertCurrent();
       throw error;
-    } finally {
-      if (pending === operation) pending = null;
     }
   };
 }

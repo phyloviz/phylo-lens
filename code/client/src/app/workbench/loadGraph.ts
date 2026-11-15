@@ -230,5 +230,6 @@ function createGraphSession(
     layoutVersion: preparedGraph.layoutVersion,
     layoutWarnings: Object.freeze([...preparedGraph.warnings]),
     lodTierCount: preparedGraph.lodTierCount,
+    technicalRoots: preparedGraph.technicalRoots && Object.freeze([...preparedGraph.technicalRoots]),
   });
 }

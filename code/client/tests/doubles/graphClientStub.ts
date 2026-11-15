@@ -9,9 +9,9 @@ export function graphClientStub(overrides: Partial<GraphClient> = {}) {
   return {
     prepareGraph: vi.fn<GraphClient['prepareGraph']>(unexpected),
     readViewport: vi.fn<GraphClient['readViewport']>(unexpected),
-    applyAncillaryData: vi.fn<GraphClient['applyAncillaryData']>(unexpected),
-    searchGraph: vi.fn<GraphClient['searchGraph']>(unexpected),
-    readRegion: vi.fn<GraphClient['readRegion']>(unexpected),
+    applyAncillaryData: vi.fn<NonNullable<GraphClient['applyAncillaryData']>>(unexpected),
+    searchGraph: vi.fn<NonNullable<GraphClient['searchGraph']>>(unexpected),
+    readRegion: vi.fn<NonNullable<GraphClient['readRegion']>>(unexpected),
     ...overrides,
   } satisfies GraphClient;
 }

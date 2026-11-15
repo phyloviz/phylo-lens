@@ -325,3 +325,66 @@ def test_postgres_reuse_and_lease_ownership(stores):
     assert not store.mark_ready(job_id=job_id, worker_id="first", result=summary)
     assert store.mark_ready(job_id=job_id, worker_id="second", result=summary)
     assert registry.snapshot(job_id).result == summary
+
+
+def test_postgres_root_revisions_converge_and_protect_the_source(stores, monkeypatch):
+    from phylo_lens_server.database.sql import LayoutSQL
+    from phylo_lens_server.domain.rooting import RootingUpdate
+    from phylo_lens_server.repository.layout import writer
+    from phylo_lens_server.services.rooting import set_technical_root
+
+    store, _ = stores
+    monkeypatch.setattr(
+        layout,
+        "compute_global_node_positions",
+        lambda dataset, options: {
+            node.id: (float(i), 0.0) for i, node in enumerate(dataset.nodes)
+        },
+    )
+    dataset = ingest_dataset(
+        NormalizeRequest(format="newick", content="((C:1,D:1)B:1,E:1)A;").to_domain()
+    ).dataset
+    original = PreparationService(store).prepare_dataset(
+        dataset, lod_options=LodOptions(small_component_threshold=0)
+    )
+    source_version = original.artifacts.layout_version
+    barrier = Barrier(2)
+
+    def reroot():
+        barrier.wait(timeout=5)
+        return set_technical_root(
+            RootingUpdate(dataset.dataset_id, source_version, "b"), store
+        )
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        first, second = list(pool.map(lambda _: reroot(), range(2)))
+    assert first == second
+    assert first.summary.technical_roots == ("b",)
+    assert {
+        p.node_id: (p.x, p.y)
+        for p in store.load_node_positions(
+            dataset.dataset_id, first.summary.layout_version
+        )
+    } == {p.node_id: (p.x, p.y) for p in original.node_positions}
+    psycopg = postgres.import_psycopg()
+
+    def delete_locked_source():
+        with store._connect() as connection, connection.transaction():
+            connection.execute("set local lock_timeout = '100ms'")
+            writer.clear_dataset(
+                LayoutSQL(connection, "postgres"), dataset.dataset_id, source_version
+            )
+
+    with (
+        store.rooting_revision(dataset.dataset_id, source_version),
+        ThreadPoolExecutor(max_workers=1) as pool,
+    ):
+        deletion = pool.submit(delete_locked_source)
+        with pytest.raises(psycopg.errors.LockNotAvailable):
+            deletion.result(timeout=5)
+    with store.rooting_revision(dataset.dataset_id, source_version) as revision:
+        assert revision.source.dataset.technical_roots == ("a",)
+    restored = set_technical_root(
+        RootingUpdate(dataset.dataset_id, first.summary.layout_version, None), store
+    )
+    assert restored.summary.layout_version == source_version

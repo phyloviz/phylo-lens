@@ -24,10 +24,16 @@ GRAPHVIZ_SFDP_COMMAND = "sfdp"
 
 def compute_prepared_layouts(
     artifacts: PreparedLayoutArtifacts,
+    *,
+    positions: dict[str, tuple[float, float]] | None = None,
 ) -> tuple[tuple[ClusterLayout, ...], tuple[NodeLayoutPosition, ...]]:
-    global_positions = compute_global_node_positions(
-        artifacts.dataset,
-        artifacts.sfdp_options,
+    global_positions = (
+        positions
+        if positions is not None
+        else compute_global_node_positions(
+            artifacts.dataset,
+            artifacts.sfdp_options,
+        )
     )
 
     cluster_layouts: list[ClusterLayout] = []

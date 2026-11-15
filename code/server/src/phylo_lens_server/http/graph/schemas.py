@@ -138,6 +138,19 @@ class GraphPrepareJob(BaseModel):
     dataset_id: str
 
 
+class GraphRootingRequest(BaseModel):
+    model_config = {"extra": "forbid"}
+    dataset_id: str = Field(min_length=1)
+    layout_version: str = Field(min_length=1)
+    # Null restores the original roots of all current components.
+    node_id: str | None = Field(min_length=1)
+
+
+class GraphRootingResponse(GraphPrepareResponse):
+    component_ids: dict[str, str]
+    default_roots: list[str]
+
+
 class GraphPrepareStatus(BaseModel):
     job_id: str
     status: Literal["pending", "ready", "failed"]

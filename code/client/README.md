@@ -13,8 +13,8 @@ The package owns the complete client lifecycle:
 - metadata-driven visual mappings;
 - cluster expansion and collapse.
 
-The host application supplies a DOM container, a PhyloLens API service base URL,
-and input content. HTTP DTOs, job identifiers, layout versions, renderer
+The host application supplies a DOM container, either a PhyloLens API service
+base URL or its own `GraphClient`, and input content. HTTP DTOs, job identifiers, layout versions, renderer
 factories, and viewport controllers are internal implementation details.
 
 ## Installation
@@ -51,13 +51,16 @@ await view.load({
 view.dispose();
 ```
 
-`load()` resolves only after:
+With the default HTTP adapter, `load()` resolves only after:
 
 1. the service reports a compatible API contract;
 2. preparation completes successfully (including any expensive global `sfdp`
    layout; the default wait is unlimited);
 3. the first viewport response is received;
 4. the first graph snapshot is applied to the renderer.
+
+With a custom `GraphClient`, preparation is owned by the adapter; the viewer
+still waits for its result, the first viewport and the rendered snapshot.
 
 A newer `load()` supersedes an older in-flight load. `dispose()` invalidates
 pending loads and releases renderer event handlers and resources.
@@ -100,7 +103,11 @@ PhyloLensViewOptions
 PhyloLensLoadOptions
 AncillaryField
 SourceFormat
-Viewport
+GraphClient
+GraphPrepareRequest
+GraphPrepareResult
+GraphViewportRequest
+GraphViewportResult
 VisualMappingOptions
 PhyloLensServiceUnavailableError
 PhyloLensServiceProtocolError
@@ -108,8 +115,12 @@ IncompatiblePhyloLensServiceError
 SUPPORTED_PHYLO_LENS_API_VERSION
 ```
 
-Transport clients, workbench classes, renderer adapters, Graphology types, and
-HTTP response DTOs are intentionally not exported.
+`GraphClient` and its request/result types are public adapter contracts.
+`createGraphClient()` exposes the default HTTP implementation and accepts a
+caller-supplied `fetchImpl`. Workbench classes, renderer adapters, Graphology
+types, and HTTP wire DTOs remain internal. See the
+[integration guide](../../docs/INTEGRATION.md) and
+[custom-client example](../../examples/custom-client-host/README.md).
 
 ## `createPhyloLensView`
 
@@ -123,6 +134,7 @@ function createPhyloLensView(options: PhyloLensViewOptions): PhyloLensView;
 | --- | --- | --- |
 | `container` | `HTMLElement` | Element owned by the host application. PhyloLens mounts the Sigma renderer inside it. |
 | `apiUrl` | `string` | Base URL or path prefix used for `/health` and `/api/graph/*` requests. |
+| `graphClient` | `GraphClient` | A host-owned backend adapter. Supply exactly one of this and `apiUrl`. Only `prepareGraph` and `readViewport` are required; other features are optional. |
 
 Supported `apiUrl` forms:
 
@@ -133,8 +145,19 @@ Supported `apiUrl` forms:
 | `""` | Same-origin `/health` and `/api/graph/*` routes |
 | `"/phylo-lens"` | Same-origin reverse-proxy prefix |
 
-Trailing slashes are normalized. PhyloLens does not add authentication headers
-or browser credentials.
+Trailing slashes are normalized. The default transport does not add authentication
+headers or browser credentials. A host can provide its own `fetchImpl` to
+`createGraphClient()` or implement its own adapter.
+
+### Technical rooting
+
+`view.canSetTechnicalRoot()` reports adapter support.
+`await view.setTechnicalRoot(toNodeId('node-id'))` reorients that node's component
+and rebuilds its prepared detail representation while preserving topology and
+coordinates. `view.getTechnicalRoots()` returns the current roots.
+`await view.setTechnicalRoot(null)` restores all original preparation roots.
+The operation clears folds, expansion and connection overlays when adopting a
+changed orientation. See [technical roots](../../docs/REROOTING.md).
 
 ## `PhyloLensView`
 

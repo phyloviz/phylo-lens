@@ -48,6 +48,15 @@ class PostgresLayoutRepository:
                 connection, dataset_id, layout_version, "%s"
             )
 
+    @contextmanager
+    def rooting_revision(self, dataset_id: str, layout_version: str):
+        from .rooting_revision import open_revision
+
+        with self._connect() as connection, connection.transaction():
+            yield open_revision(
+                LayoutSQL(connection, "postgres"), dataset_id, layout_version
+            )
+
     def clear_dataset(self, dataset_id: str) -> None:
         with self._connect() as connection, connection.transaction():
             writer.clear_dataset(LayoutSQL(connection, "postgres"), dataset_id)

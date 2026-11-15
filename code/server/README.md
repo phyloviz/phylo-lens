@@ -39,7 +39,7 @@ cached layouts to ensure this handling takes effect.
 ```bash
 cd code/server
 python -m pip install -e '.[test,dev]'
-export PHYLO_LENS_PHYLOLIB_JAR=/absolute/path/to/PhyloLib-1.0.0.jar
+export PHYLO_LENS_PHYLOLIB_JAR=/absolute/path/to/PhyloLib-1.0.1.jar
 uvicorn phylo_lens_server.main:app --reload
 ```
 
@@ -147,6 +147,10 @@ The smoke test verifies:
 | `POST` | `/api/graph/viewport`         | Read a bounded graph slice at a requested LoD tier             |
 | `POST` | `/api/graph/region`           | Read a finest-detail rectangular subgraph and metadata summary |
 | `POST` | `/api/graph/search`           | Search node identifiers and metadata across a prepared layout  |
+| `POST` | `/api/graph/components`       | List component summaries for a published forest                |
+| `POST` | `/api/graph/connections`      | Query additional distance connections within components        |
+| `PUT`  | `/api/graph/ancillary`        | Publish a metadata revision while preserving prepared geometry  |
+| `POST` | `/api/graph/root`             | Change technical roots and rebuild LoD using saved coordinates  |
 
 See the [HTTP API reference](../../docs/API_REFERENCE.md) for request and
 response models, defaults, validation and examples.
@@ -390,6 +394,14 @@ computed counts are decoded as node summaries; legacy records without counts
 remain direct ancillary values.
 
 ## Server architecture
+
+Technical rerooting uses an immutable normalized preparation snapshot stored in
+`preparation_sources`. It preserves topology, distances, observations and global
+coordinates and publishes new rooted indexes and LoD artifacts atomically.
+PostgreSQL deployments must apply schema v5 with `phylo-lens-init-postgres` before
+starting updated replicas and workers. Pipeline identity v6 ensures that reloading
+an older dataset prepares a snapshot rather than reusing an incompatible cached
+version. See [technical-root behavior and costs](../../docs/REROOTING.md).
 
 HTTP routes own request/response DTOs, dependency injection and error translation.
 Services orchestrate typed queries, ancillary replacement and preparation. Domain

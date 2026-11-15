@@ -10,9 +10,11 @@ from phylo_lens_server.domain.preparation import (
     ClusterLayout,
     NodeLayoutPosition,
     PreparedLayoutArtifacts,
+    PreparedLayoutResult,
     QuotientEdge,
 )
 from phylo_lens_server.domain.revisions import AncillaryReplacement, AncillarySource
+from phylo_lens_server.domain.rooting import PreparationSnapshot
 from phylo_lens_server.domain.search import SearchReadResult
 from phylo_lens_server.domain.views import (
     LayoutStatus,
@@ -28,7 +30,17 @@ class AncillaryRevision(Protocol):
     def publish(self, replacement: AncillaryReplacement) -> str: ...
 
 
+class RootingRevision(Protocol):
+    source: PreparationSnapshot
+    positions: dict[str, tuple[float, float]]
+
+    def publish(self, result: "PreparedLayoutResult") -> None: ...
+
+
 class LayoutRepository(Protocol):
+    def rooting_revision(
+        self, dataset_id: str, layout_version: str
+    ) -> AbstractContextManager[RootingRevision]: ...
     def read_connection_context(
         self, dataset_id: str, layout_version: str
     ) -> ConnectionContext: ...
