@@ -7,7 +7,6 @@ trees (MSTs), and forests, with optional distance-connection overlays.
 > **Live demo:** [Try PhyloLens in your browser](http://192.92.147.22:3000/).
 >
 > **Documentation:** [User guide and API reference](https://phyloviz.github.io/phylo-lens/).
-> GitHub Pages publication is pending; the [HTML manual](docs/manual/index.html) is available in this checkout.
 
 The browser package owns rendering and interaction. The service owns input
 normalization, PhyloLib-based typing-data processing, Graphviz layout
@@ -54,8 +53,17 @@ PhyloLens currently accepts:
 - **CSV or TSV ancillary metadata**, joined to explicitly labeled nodes or
   typing-profile identifiers.
 
-See [Input formats](docs/INPUT_FORMATS.md) for the exact contracts and
-normalization rules.
+See [Input formats](https://phyloviz.github.io/phylo-lens/input-formats.html)
+for examples and accepted formats.
+
+## Explore and integrate
+
+- Pan, zoom, search, inspect sample distributions, and expand or fold branches.
+- Set a technical root without changing the tree's edges or coordinates.
+- Adjust colours, palettes, pies, labels and node sizes, then export the view as PNG.
+- Embed the [browser library](https://phyloviz.github.io/phylo-lens/browser-api.html),
+  supply a custom `GraphClient`, or use the
+  [HTTP service](https://phyloviz.github.io/phylo-lens/http-api.html) independently.
 
 ## Runtime lifecycle
 
@@ -100,7 +108,7 @@ docker run --rm \
   -p 8000:8000 \
   -e PHYLO_LENS_CORS_ORIGINS=http://localhost:5173 \
   -v phylo-lens-data:/data \
-  ghcr.io/phyloviz/phylo-lens-service:0.2.1
+  ghcr.io/phyloviz/phylo-lens-service:0.4.0
 ```
 
 Verify the service:
@@ -112,7 +120,7 @@ curl http://localhost:8000/health
 ```json
 {
   "status": "ok",
-  "service_version": "0.2.1",
+  "service_version": "0.4.0",
   "api_version": "1"
 }
 ```
@@ -195,7 +203,8 @@ or open the [HTML manual locally](docs/manual/index.html). The
 - [Architecture](docs/ARCHITECTURE_SPEC.md)
 - [Runtime flow](docs/flow.md)
 - [Input formats](docs/INPUT_FORMATS.md)
-- [HTTP API reference](docs/API_REFERENCE.md)
+- [Browser API](https://phyloviz.github.io/phylo-lens/browser-api.html)
+- [HTTP API reference](https://phyloviz.github.io/phylo-lens/http-api.html)
 - [Data model and persistence](docs/DATA_MODEL.md)
 - [Server preparation pipeline](docs/SERVER_PIPELINE.md)
 - [LoD and clustering](docs/LOD_AND_CLUSTERING.md)

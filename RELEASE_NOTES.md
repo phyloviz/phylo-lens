@@ -1,18 +1,18 @@
 ## Changes
 
-- Add a forest overview and individual tree tabs, retaining each view's camera and expansion state with one active renderer.
-- Keep layout positions stable during zoom. Relax explicitly, stop and retain the result, or opt into automatic relaxation. Dragged and relaxed positions are retained for the open dataset session.
-- Organize the workspace into Explore, Appearance and Data sections, with contextual inspection, keyboard navigation and a focused export dialog.
-- Correct linear and logarithmic node sizing and make nodes shrink on zoom-out.
-- Support manual branch folding independently of automatic aggregation. Keep small forest components explicit using a configurable threshold, defaulting to 64 nodes.
-- Add palette reset, prevent custom colors leaking across datasets, filter distance labels by an inclusive interval, and encode distance-weighted edges in grayscale.
-- Fix interrupted and overlapping tree-tab switches so expansion controls recover correctly.
+- Choose goeBURST Full MST or standard goeBURST with a maximum nLV level, defaulting to 3. Equivalent profiles keep their original isolate identities and observations.
+- Change a component's technical root and rebuild its levels of detail while preserving tree edges, distances, coordinates and sample information. Restore the original roots when needed.
+- Connect the browser viewer to a custom `GraphClient`. Public adapter contracts and a standalone example support using the viewer without the companion service.
+- Explore the complete [HTML documentation](https://phyloviz.github.io/phylo-lens/), with screenshots, user instructions, browser and HTTP API references, search and an OpenAPI download.
+- Split trees with a distance cutoff and add separate distance-connection overlays without changing the prepared branches.
+- Improve viewport responsiveness and group clarity, and strengthen client, server, browser and package-consumer verification.
 
 ## Upgrade notes
 
-- Update the client package and service together to use forest tabs and component-scoped queries. The API contract remains version 1.
-- PostgreSQL deployments must run `phylo-lens-init-postgres` with the new service version before starting API replicas and workers. The schema initializer adds the required tables and indexes; it can be run again safely.
-- Prepare existing datasets again to obtain component summaries, subtree indices and the revised small-component policy. The preparation pipeline identity is now `component-panels-lod-v5`.
-- Automatic relaxation is now opt-in. Position retention lasts for the current dataset session; reloading the browser or loading a new dataset clears it.
+- Update the browser package and service together for the new operations. The HTTP API contract remains version 1.
+- PostgreSQL deployments must run `phylo-lens-init-postgres` using the new service image before starting updated API replicas and preparation workers. Schema v5 adds preparation snapshots needed for technical-root revisions.
+- Load older inputs again to create snapshots and the revised LoD artifacts. Existing prepared versions remain readable; versions without snapshots cannot be rerooted. The preparation pipeline identity is `technical-root-revisions-lod-v6`.
+- A changed technical root clears manual folds, explicit expansions and additional connections, while preserving the active component and camera. Technical rooting does not perform PHYLOViZ founder-prioritised edge selection.
+- Explicit typing options and distance cutoffs require confirmation in the preparation response. Update older services that ignore those settings.
 
-Full changelog: https://github.com/phyloviz/phylo-lens/compare/v0.2.4...v0.3.0
+Full changelog: https://github.com/phyloviz/phylo-lens/compare/v0.3.0...v0.4.0
