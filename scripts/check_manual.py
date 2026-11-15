@@ -52,7 +52,7 @@ class Page(HTMLParser):
             self.has_title = True
         if tag == "h1":
             self.heading_count += 1
-        if tag == "img" and not attrs.get("alt"):
+        if tag == "img" and "alt" not in attrs:
             self.errors.append("image needs a description")
         if attrs.get("aria-current") == "page":
             self.current_pages.append(attrs.get("href"))

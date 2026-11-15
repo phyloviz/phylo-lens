@@ -1,7 +1,60 @@
-// The manual is ordinary HTML. This script only adds optional full-text search.
-if (matchMedia("(max-width: 800px)").matches) {
-  document.querySelector(".sidebar details").open = false;
+// Reading and navigation work without JavaScript. Enhance search and orientation.
+const compactLayout = matchMedia("(max-width: 800px)");
+const contents = document.querySelector(".sidebar details");
+const updateContents = () => {
+  contents.open = !compactLayout.matches;
+};
+updateContents();
+const currentPage = document.querySelector('.sidebar a[aria-current="page"]');
+function revealCurrentPage() {
+  if (compactLayout.matches || !currentPage) return;
+  const link = currentPage.getBoundingClientRect();
+  const panel = contents.getBoundingClientRect();
+  const searchHeight = contents
+    .querySelector(".search")
+    .getBoundingClientRect().height;
+  if (link.bottom > panel.bottom || link.top < panel.top + searchHeight) {
+    contents.scrollTop += link.top - panel.top - searchHeight - 20;
+  }
 }
+revealCurrentPage();
+document.fonts.ready.then(() => requestAnimationFrame(revealCurrentPage));
+compactLayout.addEventListener("change", () => {
+  updateContents();
+  revealCurrentPage();
+});
+document.querySelector(".sidebar nav").addEventListener("click", (event) => {
+  if (compactLayout.matches && event.target.closest("a")) contents.open = false;
+});
+
+const sectionLinks = [
+  ...document.querySelectorAll('.sidebar .sections a[href^="#"]'),
+];
+let scrollPending = false;
+function updateSection() {
+  scrollPending = false;
+  let active;
+  for (const link of sectionLinks) {
+    const heading = document.getElementById(
+      decodeURIComponent(link.hash.slice(1)),
+    );
+    if (heading.getBoundingClientRect().top <= Math.max(100, innerHeight * 0.2))
+      active = link;
+    link.removeAttribute("aria-current");
+  }
+  active?.setAttribute("aria-current", "location");
+}
+addEventListener(
+  "scroll",
+  () => {
+    if (!scrollPending) {
+      scrollPending = true;
+      requestAnimationFrame(updateSection);
+    }
+  },
+  { passive: true },
+);
+updateSection();
 
 const input = document.querySelector("#manual-search");
 const results = document.querySelector("#search-results");
@@ -19,6 +72,7 @@ async function readPages() {
         await response.text(),
         "text/html",
       );
+      page.querySelectorAll(".heading-link").forEach((link) => link.remove());
       const article = page.querySelector("article");
       return {
         title: link.textContent.trim(),
@@ -82,6 +136,12 @@ if (location.protocol === "http:" || location.protocol === "https:") {
       ++request;
       input.value = "";
       results.hidden = true;
+    }
+    if (event.key === "Enter" && !results.hidden && compactLayout.matches) {
+      contents.open = false;
+      results.tabIndex = -1;
+      results.focus({ preventScroll: true });
+      results.scrollIntoView({ block: "start" });
     }
   });
 }

@@ -1,0 +1,2987 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta
+      name="description"
+      content="HTTP field reference — PhyloLens documentation."
+    />
+    <title>HTTP field reference — PhyloLens</title>
+    <link rel="icon" type="image/svg+xml" href="assets/tree.svg" />
+    <link rel="stylesheet" href="assets/manual.css" />
+    <link
+      rel="preload"
+      as="font"
+      type="font/ttf"
+      href="assets/fonts/lato-400.ttf"
+      crossorigin
+    />
+    <script defer src="assets/manual.js"></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <aside class="sidebar" aria-label="Manual navigation">
+      <header class="masthead">
+        <a class="brand" href="index.html"
+          ><img
+            src="assets/tree.svg"
+            width="37"
+            height="37"
+            alt=""
+            aria-hidden="true"
+          />PhyloLens</a
+        >
+        <p class="subtitle">Documentation</p>
+      </header>
+      <details open>
+        <summary>Browse documentation</summary>
+        <div class="search">
+          <label for="manual-search">Search the manual</label
+          ><input
+            id="manual-search"
+            type="search"
+            placeholder="Search documentation"
+            aria-controls="search-results"
+            autocomplete="off"
+            disabled
+          />
+        </div>
+        <nav aria-label="Contents">
+          <p>Documentation</p>
+          <ul>
+            <li>
+              <a data-page href="index.html">Overview</a>
+              <ul class="sections">
+                <li><a href="index.html#start">Getting started</a></li>
+                <li><a href="index.html#display">The PhyloLens display</a></li>
+                <li>
+                  <a href="index.html#scope">Trees and sample information</a>
+                </li>
+                <li>
+                  <a href="index.html#integration"
+                    >Use PhyloLens in another application</a
+                  >
+                </li>
+              </ul>
+            </li>
+            <li>
+              <a data-page href="getting-started.html">Getting started</a>
+              <ul class="sections">
+                <li>
+                  <a href="getting-started.html#run">Run PhyloLens locally</a>
+                </li>
+                <li><a href="getting-started.html#load">Load a tree</a></li>
+                <li>
+                  <a href="getting-started.html#observations"
+                    >Add observations</a
+                  >
+                </li>
+                <li>
+                  <a href="getting-started.html#next">Continue exploring</a>
+                </li>
+              </ul>
+            </li>
+            <li>
+              <a data-page href="input-formats.html">Input formats</a>
+              <ul class="sections">
+                <li><a href="input-formats.html#newick">Newick trees</a></li>
+                <li><a href="input-formats.html#typing">Typing data</a></li>
+                <li>
+                  <a href="input-formats.html#ancillary">Ancillary data</a>
+                </li>
+                <li>
+                  <a href="input-formats.html#advanced"
+                    >Advanced input settings</a
+                  >
+                </li>
+              </ul>
+            </li>
+            <li>
+              <a data-page href="viewing.html">Display and navigation</a>
+              <ul class="sections">
+                <li>
+                  <a href="viewing.html#navigate">Move, zoom and select</a>
+                </li>
+                <li>
+                  <a href="viewing.html#inspector"
+                    >Inspect nodes and observations</a
+                  >
+                </li>
+                <li><a href="viewing.html#region">Select a region</a></li>
+                <li><a href="viewing.html#detail">Levels of detail</a></li>
+                <li>
+                  <a href="viewing.html#appearance"
+                    >Colours, pies and node sizes</a
+                  >
+                </li>
+                <li>
+                  <a href="viewing.html#edge-labels">Read edge distances</a>
+                </li>
+                <li>
+                  <a href="viewing.html#arrangement"
+                    >Arrange and relax the layout</a
+                  >
+                </li>
+                <li><a href="viewing.html#components">Forest components</a></li>
+                <li><a href="viewing.html#export">Export a figure</a></li>
+              </ul>
+            </li>
+            <li>
+              <a data-page href="technical-roots.html">Technical roots</a>
+              <ul class="sections">
+                <li><a href="technical-roots.html#choose">Choose a root</a></li>
+                <li><a href="technical-roots.html#effect">What changes</a></li>
+                <li>
+                  <a href="technical-roots.html#restore"
+                    >Restore the defaults</a
+                  >
+                </li>
+                <li>
+                  <a href="technical-roots.html#phyloviz"
+                    >Relationship to PHYLOViZ</a
+                  >
+                </li>
+              </ul>
+            </li>
+            <li>
+              <a data-page href="distances.html">Distance operations</a>
+              <ul class="sections">
+                <li>
+                  <a href="distances.html#inference">Maximum inference level</a>
+                </li>
+                <li>
+                  <a href="distances.html#cutoff">Tree distance cutoff</a>
+                </li>
+                <li>
+                  <a href="distances.html#connections"
+                    >Additional connections</a
+                  >
+                </li>
+              </ul>
+            </li>
+          </ul>
+          <p>Developers</p>
+          <ul>
+            <li>
+              <a data-page href="integration.html">Library integration</a>
+              <ul class="sections">
+                <li><a href="integration.html#embed">Embed the viewer</a></li>
+                <li>
+                  <a href="integration.html#adapter">Supply your own adapter</a>
+                </li>
+                <li>
+                  <a href="integration.html#server"
+                    >Use the service with another frontend</a
+                  >
+                </li>
+              </ul>
+            </li>
+            <li>
+              <a data-page href="reference.html">API overview</a>
+              <ul class="sections">
+                <li><a href="reference.html#api">Choose an API</a></li>
+                <li>
+                  <a href="reference.html#implementation"
+                    >Implementation notes</a
+                  >
+                </li>
+                <li>
+                  <a href="reference.html#algorithms"
+                    >Algorithms and references</a
+                  >
+                </li>
+              </ul>
+            </li>
+            <li>
+              <a data-page href="browser-api.html">Browser API</a>
+              <ul class="sections">
+                <li><a href="browser-api.html#create">Create a view</a></li>
+                <li>
+                  <a href="browser-api.html#load-options">Load options</a>
+                </li>
+                <li>
+                  <a href="browser-api.html#callbacks"
+                    >Callbacks and identifiers</a
+                  >
+                </li>
+                <li>
+                  <a href="browser-api.html#lifecycle">Loading and disposal</a>
+                </li>
+                <li>
+                  <a href="browser-api.html#appearance"
+                    >Appearance and sample data</a
+                  >
+                </li>
+                <li><a href="browser-api.html#search">Search and focus</a></li>
+                <li>
+                  <a href="browser-api.html#expansion">Expansion and folding</a>
+                </li>
+                <li>
+                  <a href="browser-api.html#roots"
+                    >Technical roots and distance connections</a
+                  >
+                </li>
+                <li>
+                  <a href="browser-api.html#components">Forest components</a>
+                </li>
+                <li>
+                  <a href="browser-api.html#layout">Layout and dragging</a>
+                </li>
+                <li><a href="browser-api.html#export">PNG export</a></li>
+                <li><a href="browser-api.html#adapter">Custom adapters</a></li>
+                <li>
+                  <a href="browser-api.html#utilities">Observation utilities</a>
+                </li>
+                <li>
+                  <a href="browser-api.html#errors">Errors and compatibility</a>
+                </li>
+              </ul>
+            </li>
+            <li>
+              <a data-page href="api-types.html">Browser types</a>
+              <ul class="sections">
+                <li>
+                  <a href="api-types.html#observations">Sample information</a>
+                </li>
+                <li>
+                  <a href="api-types.html#appearance">Appearance and export</a>
+                </li>
+                <li>
+                  <a href="api-types.html#tree-state">Tree and view state</a>
+                </li>
+                <li>
+                  <a href="api-types.html#identifiers"
+                    >Identifiers and statuses</a
+                  >
+                </li>
+                <li>
+                  <a href="api-types.html#adapter-contracts"
+                    >Adapter requests and results</a
+                  >
+                </li>
+                <li>
+                  <a href="api-types.html#nested-shapes"
+                    >Nested and returned shapes</a
+                  >
+                </li>
+              </ul>
+            </li>
+            <li>
+              <a data-page href="http-api.html">HTTP API</a>
+              <ul class="sections">
+                <li><a href="http-api.html#workflow">Prepare, then read</a></li>
+                <li><a href="http-api.html#health">GET /health</a></li>
+                <li>
+                  <a href="http-api.html#prepare">POST /api/graph/prepare</a>
+                </li>
+                <li>
+                  <a href="http-api.html#status"
+                    >GET /api/graph/prepare/{job_id}</a
+                  >
+                </li>
+                <li>
+                  <a href="http-api.html#viewport">POST /api/graph/viewport</a>
+                </li>
+                <li>
+                  <a href="http-api.html#region">POST /api/graph/region</a>
+                </li>
+                <li>
+                  <a href="http-api.html#search">POST /api/graph/search</a>
+                </li>
+                <li>
+                  <a href="http-api.html#components"
+                    >POST /api/graph/components</a
+                  >
+                </li>
+                <li>
+                  <a href="http-api.html#ancillary">PUT /api/graph/ancillary</a>
+                </li>
+                <li>
+                  <a href="http-api.html#connections"
+                    >POST /api/graph/connections</a
+                  >
+                </li>
+                <li><a href="http-api.html#root">POST /api/graph/root</a></li>
+                <li>
+                  <a href="http-api.html#annotation-reuse"
+                    >Optional annotation reuse</a
+                  >
+                </li>
+                <li><a href="http-api.html#errors">Error responses</a></li>
+              </ul>
+            </li>
+            <li>
+              <a data-page href="http-types.html" aria-current="page"
+                >HTTP fields</a
+              >
+              <ul class="sections">
+                <li><a href="#preparation">Preparation</a></li>
+                <li><a href="#reads">Viewport, region and search</a></li>
+                <li>
+                  <a href="#revisions">Root, table and connection operations</a>
+                </li>
+                <li><a href="#shared">Shared values and errors</a></li>
+              </ul>
+            </li>
+          </ul>
+          <p>Project</p>
+          <ul>
+            <li>
+              <a data-page href="maintenance.html">Maintaining the manual</a>
+              <ul class="sections">
+                <li><a href="maintenance.html#edit">Edit the pages</a></li>
+                <li>
+                  <a href="maintenance.html#preview">Preview and check</a>
+                </li>
+                <li>
+                  <a href="maintenance.html#screenshots">Update screenshots</a>
+                </li>
+                <li>
+                  <a href="maintenance.html#publish">Publish on GitHub Pages</a>
+                </li>
+              </ul>
+            </li>
+          </ul>
+        </nav>
+      </details>
+      <a class="repo-link" href="https://github.com/phyloviz/phylo-lens"
+        >PhyloLens on GitHub <span aria-hidden="true">↗</span></a
+      >
+    </aside>
+    <main id="main" tabindex="-1">
+      <div class="page-heading">
+        <p class="breadcrumb">
+          <a href="index.html">Documentation</a
+          ><span aria-hidden="true">/</span>HTTP fields
+        </p>
+        <a
+          class="source-link"
+          href="https://github.com/phyloviz/phylo-lens/blob/main/docs/manual/http-types.html"
+          >View source <span aria-hidden="true">↗</span></a
+        >
+      </div>
+      <section id="search-results" aria-label="Search results" hidden></section>
+      <article>
+        <h1>HTTP field reference</h1>
+        <p>
+          These tables list the request and response shapes published by the
+          service. Follow a type link to inspect nested fields. Required
+          describes the schema. Some routes omit null response values, including
+          a root’s parent_id; allow for those omitted nullable fields when
+          reading JSON. Arrays and maps supplied by default factories may have
+          no explicit OpenAPI default.
+        </p>
+        <p>
+          Download the
+          <a href="assets/openapi.json" download>OpenAPI schema</a> for client
+          generation. See the <a href="http-api.html">HTTP API</a> for examples
+          and rules that cannot be expressed by field types alone.
+        </p>
+        <h2 id="preparation">
+          Preparation<a
+            class="heading-link"
+            href="#preparation"
+            aria-label="Link to Preparation"
+            >#</a
+          >
+        </h2>
+        <section class="api-member" id="GraphPrepareJob">
+          <h3><code>GraphPrepareJob</code></h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Field</th>
+                  <th>Type</th>
+                  <th>Required</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>job_id</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td>Preparation job identifier.</td>
+                </tr>
+                <tr>
+                  <td><code>status</code></td>
+                  <td>
+                    <code>&quot;pending&quot;</code> |
+                    <code>&quot;ready&quot;</code> |
+                    <code>&quot;failed&quot;</code>
+                  </td>
+                  <td>yes</td>
+                  <td>Job state, or service liveness for health responses.</td>
+                </tr>
+                <tr>
+                  <td><code>dataset_id</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td>ID returned by preparation.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+        <section class="api-member" id="GraphPrepareResponse">
+          <h3><code>GraphPrepareResponse</code></h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Field</th>
+                  <th>Type</th>
+                  <th>Required</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>typing_options</code></td>
+                  <td>
+                    <a href="http-types.html#FullMstOptions"
+                      ><code>FullMstOptions</code></a
+                    >
+                    |
+                    <a href="http-types.html#GoeBurstOptions"
+                      ><code>GoeBurstOptions</code></a
+                    >
+                    | <code>null</code>
+                  </td>
+                  <td>no</td>
+                  <td>
+                    Typing inference method and optional maximum nLV. Only valid
+                    for typing_data.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>distance_cutoff</code></td>
+                  <td><code>number</code> | <code>null</code></td>
+                  <td>no</td>
+                  <td>
+                    Keep tree edges at or below this distance before
+                    preparation. Zero is valid. All distances must be known.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>dataset_id</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td>ID returned by preparation.</td>
+                </tr>
+                <tr>
+                  <td><code>layout_version</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td>
+                    Pin the published version you want to read. When optional
+                    and omitted, the service selects the latest published
+                    version.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>node_count</code></td>
+                  <td><code>integer</code></td>
+                  <td>yes</td>
+                  <td>
+                    Number of canonical nodes.<br /><small>minimum 0.0</small>
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>edge_count</code></td>
+                  <td><code>integer</code></td>
+                  <td>yes</td>
+                  <td>Number of tree edges.<br /><small>minimum 0.0</small></td>
+                </tr>
+                <tr>
+                  <td><code>cluster_count</code></td>
+                  <td><code>integer</code></td>
+                  <td>yes</td>
+                  <td>
+                    Materialized cluster records across tiers.<br /><small
+                      >minimum 0.0</small
+                    >
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>lod_tier_count</code></td>
+                  <td><code>integer</code></td>
+                  <td>no</td>
+                  <td>
+                    Number of prepared detail tiers.<br /><small
+                      >minimum 1.0; default 1</small
+                    >
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>technical_roots</code></td>
+                  <td>array of <code>string</code></td>
+                  <td>no</td>
+                  <td>One current root ID per component.</td>
+                </tr>
+                <tr>
+                  <td><code>layout_status</code></td>
+                  <td>
+                    <code>&quot;pending&quot;</code> |
+                    <code>&quot;refining&quot;</code> |
+                    <code>&quot;ready&quot;</code> |
+                    <code>&quot;degraded&quot;</code> |
+                    <code>&quot;failed&quot;</code>
+                  </td>
+                  <td>yes</td>
+                  <td>Publication status of the prepared layout.</td>
+                </tr>
+                <tr>
+                  <td><code>warnings</code></td>
+                  <td>array of <code>string</code></td>
+                  <td>no</td>
+                  <td>Messages about input, joins or preparation.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+        <section class="api-member" id="GraphPrepareStatus">
+          <h3><code>GraphPrepareStatus</code></h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Field</th>
+                  <th>Type</th>
+                  <th>Required</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>job_id</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td>Preparation job identifier.</td>
+                </tr>
+                <tr>
+                  <td><code>status</code></td>
+                  <td>
+                    <code>&quot;pending&quot;</code> |
+                    <code>&quot;ready&quot;</code> |
+                    <code>&quot;failed&quot;</code>
+                  </td>
+                  <td>yes</td>
+                  <td>Job state, or service liveness for health responses.</td>
+                </tr>
+                <tr>
+                  <td><code>result</code></td>
+                  <td>
+                    <a href="http-types.html#GraphPrepareResponse"
+                      ><code>GraphPrepareResponse</code></a
+                    >
+                    | <code>null</code>
+                  </td>
+                  <td>no</td>
+                  <td>Present when the preparation job is ready.</td>
+                </tr>
+                <tr>
+                  <td><code>error</code></td>
+                  <td><code>string</code> | <code>null</code></td>
+                  <td>no</td>
+                  <td>Explanation when the background job failed.</td>
+                </tr>
+                <tr>
+                  <td><code>error_details</code></td>
+                  <td>
+                    record of <code>string</code> | <code>integer</code> |
+                    <code>number</code> | <code>null</code> | <code>null</code>
+                  </td>
+                  <td>no</td>
+                  <td>
+                    Structured layout failure information, when available.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+        <section class="api-member" id="LodOptions">
+          <h3><code>LodOptions</code></h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Field</th>
+                  <th>Type</th>
+                  <th>Required</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>small_component_threshold</code></td>
+                  <td><code>integer</code></td>
+                  <td>no</td>
+                  <td>
+                    Components this size or smaller remain explicit at every
+                    tier. Zero disables protection.<br /><small
+                      >minimum 0.0; default 64</small
+                    >
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+        <section class="api-member" id="NormalizeOptions">
+          <h3><code>NormalizeOptions</code></h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Field</th>
+                  <th>Type</th>
+                  <th>Required</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>allow_self_loops</code></td>
+                  <td><code>false</code></td>
+                  <td>no</td>
+                  <td>
+                    Must be false. Prepared data must remain a tree or
+                    forest.<br /><small>default false</small>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+        <section class="api-member" id="NormalizeRequest">
+          <h3><code>NormalizeRequest</code></h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Field</th>
+                  <th>Type</th>
+                  <th>Required</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>format</code></td>
+                  <td>
+                    <a href="http-types.html#SourceFormat"
+                      ><code>SourceFormat</code></a
+                    >
+                  </td>
+                  <td>yes</td>
+                  <td>Input format.</td>
+                </tr>
+                <tr>
+                  <td><code>dataset_name</code></td>
+                  <td><code>string</code></td>
+                  <td>no</td>
+                  <td>
+                    Name used to identify the dataset.<br /><small
+                      >minimum length 1; default &quot;dataset&quot;</small
+                    >
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>content</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td>
+                    Raw Newick, typing-table or ancillary-table content,
+                    according to the operation.<br /><small
+                      >minimum length 1</small
+                    >
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>options</code></td>
+                  <td>
+                    <a href="http-types.html#NormalizeOptions"
+                      ><code>NormalizeOptions</code></a
+                    >
+                  </td>
+                  <td>no</td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td><code>metadata_schema</code></td>
+                  <td>
+                    array of
+                    <a href="http-types.html#AncillaryField"
+                      ><code>AncillaryField</code></a
+                    >
+                  </td>
+                  <td>no</td>
+                  <td>Alias for ancillary_schema. Do not send both names.</td>
+                </tr>
+                <tr>
+                  <td><code>metadata_by_node_id</code></td>
+                  <td>
+                    record of record of <code>string</code> |
+                    <code>number</code> | <code>boolean</code> |
+                    <code>null</code>
+                  </td>
+                  <td>no</td>
+                  <td>
+                    Alias for ancillary_by_node_id. Do not send both names.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>ancillary_data</code></td>
+                  <td>
+                    <a href="http-types.html#AncillaryDataRequest"
+                      ><code>AncillaryDataRequest</code></a
+                    >
+                    | <code>null</code>
+                  </td>
+                  <td>no</td>
+                  <td>
+                    Table of observations joined through its identifier column.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>sfdp_options</code></td>
+                  <td>
+                    <a href="http-types.html#SfdpOptions"
+                      ><code>SfdpOptions</code></a
+                    >
+                  </td>
+                  <td>no</td>
+                  <td>Global Graphviz layout settings.</td>
+                </tr>
+                <tr>
+                  <td><code>lod_options</code></td>
+                  <td>
+                    <a href="http-types.html#LodOptions"
+                      ><code>LodOptions</code></a
+                    >
+                  </td>
+                  <td>no</td>
+                  <td>Preparation policy for protecting small components.</td>
+                </tr>
+                <tr>
+                  <td><code>distance_cutoff</code></td>
+                  <td><code>number</code> | <code>null</code></td>
+                  <td>no</td>
+                  <td>
+                    Keep tree edges at or below this distance before
+                    preparation. Zero is valid. All distances must be known.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>typing_options</code></td>
+                  <td>
+                    <a href="http-types.html#FullMstOptions"
+                      ><code>FullMstOptions</code></a
+                    >
+                    |
+                    <a href="http-types.html#GoeBurstOptions"
+                      ><code>GoeBurstOptions</code></a
+                    >
+                    | <code>null</code>
+                  </td>
+                  <td>no</td>
+                  <td>
+                    Typing inference method and optional maximum nLV. Only valid
+                    for typing_data.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+        <section class="api-member" id="SfdpOptions">
+          <h3><code>SfdpOptions</code></h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Field</th>
+                  <th>Type</th>
+                  <th>Required</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>k</code></td>
+                  <td><code>number</code></td>
+                  <td>no</td>
+                  <td>
+                    Positive Graphviz spring-length parameter.<br /><small
+                      >greater than 0.0; default 0.3</small
+                    >
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>repulsiveForce</code></td>
+                  <td><code>number</code></td>
+                  <td>no</td>
+                  <td>
+                    Nonnegative repulsive-force parameter.<br /><small
+                      >minimum 0.0; default 1.0</small
+                    >
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>overlap</code></td>
+                  <td>
+                    <a href="http-types.html#SfdpOverlap"
+                      ><code>SfdpOverlap</code></a
+                    >
+                  </td>
+                  <td>no</td>
+                  <td>
+                    Overlap-removal strategy.<br /><small
+                      >default &quot;prism&quot;</small
+                    >
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>prismIterations</code></td>
+                  <td><code>integer</code></td>
+                  <td>no</td>
+                  <td>
+                    Nonnegative Prism iteration setting. Only valid with prism
+                    overlap.<br /><small>minimum 0.0; default 0</small>
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>overlapScaling</code></td>
+                  <td><code>number</code></td>
+                  <td>no</td>
+                  <td>
+                    Prism overlap scaling. Only valid with prism overlap.<br /><small
+                      >default -4.0</small
+                    >
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>smoothing</code></td>
+                  <td>
+                    <a href="http-types.html#SfdpSmoothing"
+                      ><code>SfdpSmoothing</code></a
+                    >
+                  </td>
+                  <td>no</td>
+                  <td>
+                    Graphviz smoothing strategy.<br /><small
+                      >default &quot;spring&quot;</small
+                    >
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>quadtree</code></td>
+                  <td>
+                    <a href="http-types.html#SfdpQuadtree"
+                      ><code>SfdpQuadtree</code></a
+                    >
+                  </td>
+                  <td>no</td>
+                  <td>
+                    Graphviz quadtree strategy.<br /><small
+                      >default &quot;normal&quot;</small
+                    >
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>beautify</code></td>
+                  <td><code>boolean</code></td>
+                  <td>no</td>
+                  <td>
+                    Enable Graphviz leaf beautification.<br /><small
+                      >default false</small
+                    >
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+        <section class="api-member" id="SfdpOverlap">
+          <h3><code>SfdpOverlap</code></h3>
+          <p><code>&quot;prism&quot;</code> | <code>&quot;scale&quot;</code></p>
+        </section>
+        <section class="api-member" id="SfdpQuadtree">
+          <h3><code>SfdpQuadtree</code></h3>
+          <p>
+            <code>&quot;none&quot;</code> | <code>&quot;normal&quot;</code> |
+            <code>&quot;fast&quot;</code>
+          </p>
+        </section>
+        <section class="api-member" id="SfdpSmoothing">
+          <h3><code>SfdpSmoothing</code></h3>
+          <p>
+            <code>&quot;none&quot;</code> | <code>&quot;avg_dist&quot;</code> |
+            <code>&quot;graph_dist&quot;</code> |
+            <code>&quot;power_dist&quot;</code> | <code>&quot;rng&quot;</code> |
+            <code>&quot;spring&quot;</code> | <code>&quot;triangle&quot;</code>
+          </p>
+        </section>
+        <h2 id="reads">
+          Viewport, region and search<a
+            class="heading-link"
+            href="#reads"
+            aria-label="Link to Viewport, region and search"
+            >#</a
+          >
+        </h2>
+        <section class="api-member" id="GraphComponent">
+          <h3><code>GraphComponent</code></h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Field</th>
+                  <th>Type</th>
+                  <th>Required</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>component_id</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td>
+                    Restrict a read to this prepared component; omit for the
+                    overview.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>node_count</code></td>
+                  <td><code>integer</code></td>
+                  <td>yes</td>
+                  <td>Number of canonical nodes.</td>
+                </tr>
+                <tr>
+                  <td><code>dfs_start</code></td>
+                  <td><code>integer</code></td>
+                  <td>yes</td>
+                  <td>Stable traversal offset used for pagination.</td>
+                </tr>
+                <tr>
+                  <td><code>min_x</code></td>
+                  <td><code>number</code></td>
+                  <td>yes</td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td><code>max_x</code></td>
+                  <td><code>number</code></td>
+                  <td>yes</td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td><code>min_y</code></td>
+                  <td><code>number</code></td>
+                  <td>yes</td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td><code>max_y</code></td>
+                  <td><code>number</code></td>
+                  <td>yes</td>
+                  <td></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+        <section class="api-member" id="GraphComponentsQuery">
+          <h3><code>GraphComponentsQuery</code></h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Field</th>
+                  <th>Type</th>
+                  <th>Required</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>dataset_id</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td>
+                    ID returned by preparation.<br /><small
+                      >minimum length 1</small
+                    >
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>layout_version</code></td>
+                  <td><code>string</code> | <code>null</code></td>
+                  <td>no</td>
+                  <td>
+                    Pin the published version you want to read. When optional
+                    and omitted, the service selects the latest published
+                    version.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>after</code></td>
+                  <td><code>integer</code> | <code>null</code></td>
+                  <td>no</td>
+                  <td>Pagination cursor from the previous next_cursor.</td>
+                </tr>
+                <tr>
+                  <td><code>limit</code></td>
+                  <td><code>integer</code></td>
+                  <td>no</td>
+                  <td>
+                    Maximum results on this page.<br /><small
+                      >minimum 1.0; maximum 200.0; default 50</small
+                    >
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+        <section class="api-member" id="GraphComponentsResponse">
+          <h3><code>GraphComponentsResponse</code></h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Field</th>
+                  <th>Type</th>
+                  <th>Required</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>dataset_id</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td>ID returned by preparation.</td>
+                </tr>
+                <tr>
+                  <td><code>layout_version</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td>
+                    Pin the published version you want to read. When optional
+                    and omitted, the service selects the latest published
+                    version.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>components</code></td>
+                  <td>
+                    array of
+                    <a href="http-types.html#GraphComponent"
+                      ><code>GraphComponent</code></a
+                    >
+                  </td>
+                  <td>yes</td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td><code>next_cursor</code></td>
+                  <td><code>integer</code> | <code>null</code></td>
+                  <td>no</td>
+                  <td>
+                    Supply as after to read the next page. Null means there are
+                    no more pages.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+        <section class="api-member" id="GraphIsolate">
+          <h3><code>GraphIsolate</code></h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Field</th>
+                  <th>Type</th>
+                  <th>Required</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>id</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td>
+                    Stable identifier within the relevant dataset/version.<br /><small
+                      >minimum length 1</small
+                    >
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>metadata_cached</code></td>
+                  <td><code>boolean</code> | <code>null</code></td>
+                  <td>no</td>
+                  <td>Restore retained isolate metadata when true.</td>
+                </tr>
+                <tr>
+                  <td><code>metadata</code></td>
+                  <td>
+                    record of <code>string</code> | <code>number</code> |
+                    <code>boolean</code> | <code>null</code>
+                  </td>
+                  <td>no</td>
+                  <td>
+                    Node or original-isolate field values. The wire name remains
+                    metadata in API v1.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+        <section class="api-member" id="GraphLayoutBounds">
+          <h3><code>GraphLayoutBounds</code></h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Field</th>
+                  <th>Type</th>
+                  <th>Required</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>min_x</code></td>
+                  <td><code>number</code></td>
+                  <td>yes</td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td><code>max_x</code></td>
+                  <td><code>number</code></td>
+                  <td>yes</td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td><code>min_y</code></td>
+                  <td><code>number</code></td>
+                  <td>yes</td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td><code>max_y</code></td>
+                  <td><code>number</code></td>
+                  <td>yes</td>
+                  <td></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+        <section class="api-member" id="GraphNodeAnnotationKey">
+          <h3><code>GraphNodeAnnotationKey</code></h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Field</th>
+                  <th>Type</th>
+                  <th>Required</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>node_id</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td>
+                    Canonical node identifier. For rooting, explicitly send null
+                    to restore all original roots.<br /><small
+                      >minimum length 1</small
+                    >
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>cluster_id</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td>
+                    Expand this group. Spatial bounds are ignored for explicit
+                    expansion.<br /><small>minimum length 1</small>
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>is_representative</code></td>
+                  <td><code>boolean</code></td>
+                  <td>yes</td>
+                  <td>True for a grouped representation.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+        <section class="api-member" id="GraphRegionQuery">
+          <h3><code>GraphRegionQuery</code></h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Field</th>
+                  <th>Type</th>
+                  <th>Required</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>component_id</code></td>
+                  <td><code>string</code> | <code>null</code></td>
+                  <td>no</td>
+                  <td>
+                    Restrict a read to this prepared component; omit for the
+                    overview.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>dataset_id</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td>
+                    ID returned by preparation.<br /><small
+                      >minimum length 1</small
+                    >
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>layout_version</code></td>
+                  <td><code>string</code> | <code>null</code></td>
+                  <td>no</td>
+                  <td>
+                    Pin the published version you want to read. When optional
+                    and omitted, the service selects the latest published
+                    version.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>xmin</code></td>
+                  <td><code>number</code></td>
+                  <td>yes</td>
+                  <td>Minimum x coordinate.</td>
+                </tr>
+                <tr>
+                  <td><code>xmax</code></td>
+                  <td><code>number</code></td>
+                  <td>yes</td>
+                  <td>Maximum x coordinate; must not be less than xmin.</td>
+                </tr>
+                <tr>
+                  <td><code>ymin</code></td>
+                  <td><code>number</code></td>
+                  <td>yes</td>
+                  <td>Minimum y coordinate.</td>
+                </tr>
+                <tr>
+                  <td><code>ymax</code></td>
+                  <td><code>number</code></td>
+                  <td>yes</td>
+                  <td>Maximum y coordinate; must not be less than ymin.</td>
+                </tr>
+                <tr>
+                  <td><code>max_nodes</code></td>
+                  <td><code>integer</code> | <code>null</code></td>
+                  <td>no</td>
+                  <td>
+                    Optional primary-node budget. Attachment neighbours can make
+                    the returned node count larger.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+        <section class="api-member" id="GraphRegionResponse">
+          <h3><code>GraphRegionResponse</code></h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Field</th>
+                  <th>Type</th>
+                  <th>Required</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>dataset_id</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td>ID returned by preparation.</td>
+                </tr>
+                <tr>
+                  <td><code>layout_version</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td>
+                    Pin the published version you want to read. When optional
+                    and omitted, the service selects the latest published
+                    version.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>layout_status</code></td>
+                  <td>
+                    <code>&quot;pending&quot;</code> |
+                    <code>&quot;refining&quot;</code> |
+                    <code>&quot;ready&quot;</code> |
+                    <code>&quot;degraded&quot;</code> |
+                    <code>&quot;failed&quot;</code>
+                  </td>
+                  <td>yes</td>
+                  <td>Publication status of the prepared layout.</td>
+                </tr>
+                <tr>
+                  <td><code>truncated</code></td>
+                  <td><code>boolean</code></td>
+                  <td>yes</td>
+                  <td>
+                    An explicit budget omitted primary nodes or representations.
+                    Spatial bounds alone do not imply truncation.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>total_node_count</code></td>
+                  <td><code>integer</code></td>
+                  <td>yes</td>
+                  <td>
+                    Node count before the explicit read limit for this query.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>nodes</code></td>
+                  <td>
+                    array of
+                    <a href="http-types.html#GraphViewportNode"
+                      ><code>GraphViewportNode</code></a
+                    >
+                  </td>
+                  <td>yes</td>
+                  <td>Returned nodes or group representatives.</td>
+                </tr>
+                <tr>
+                  <td><code>edges</code></td>
+                  <td>
+                    array of
+                    <a href="http-types.html#GraphViewportEdge"
+                      ><code>GraphViewportEdge</code></a
+                    >
+                  </td>
+                  <td>yes</td>
+                  <td>
+                    Returned tree or overlay edges, according to the endpoint.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>metadata_schema</code></td>
+                  <td>
+                    array of
+                    <a href="http-types.html#GraphAncillaryField"
+                      ><code>GraphAncillaryField</code></a
+                    >
+                  </td>
+                  <td>no</td>
+                  <td>Alias for ancillary_schema. Do not send both names.</td>
+                </tr>
+                <tr>
+                  <td><code>aggregated_metadata</code></td>
+                  <td>
+                    record of <code>string</code> | <code>number</code> |
+                    <code>boolean</code> | <code>null</code>
+                  </td>
+                  <td>no</td>
+                  <td>Summary of public node fields inside the region.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+        <section class="api-member" id="GraphSearchMatch">
+          <h3><code>GraphSearchMatch</code></h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Field</th>
+                  <th>Type</th>
+                  <th>Required</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>node_id</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td>
+                    Canonical node identifier. For rooting, explicitly send null
+                    to restore all original roots.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>score</code></td>
+                  <td><code>integer</code></td>
+                  <td>yes</td>
+                  <td>
+                    Ranking score: exact ID 100, prefix 60, substring 40,
+                    ancillary value 20.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>matched_text</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td>
+                    Identifier or value responsible for the match. Original
+                    isolate IDs are preserved when matched.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>cluster_id</code></td>
+                  <td><code>string</code> | <code>null</code></td>
+                  <td>no</td>
+                  <td>
+                    Expand this group. Spatial bounds are ignored for explicit
+                    expansion.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>x</code></td>
+                  <td><code>number</code> | <code>null</code></td>
+                  <td>no</td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td><code>y</code></td>
+                  <td><code>number</code> | <code>null</code></td>
+                  <td>no</td>
+                  <td></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+        <section class="api-member" id="GraphSearchQuery">
+          <h3><code>GraphSearchQuery</code></h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Field</th>
+                  <th>Type</th>
+                  <th>Required</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>component_id</code></td>
+                  <td><code>string</code> | <code>null</code></td>
+                  <td>no</td>
+                  <td>
+                    Restrict a read to this prepared component; omit for the
+                    overview.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>dataset_id</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td>
+                    ID returned by preparation.<br /><small
+                      >minimum length 1</small
+                    >
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>layout_version</code></td>
+                  <td><code>string</code> | <code>null</code></td>
+                  <td>no</td>
+                  <td>
+                    Pin the published version you want to read. When optional
+                    and omitted, the service selects the latest published
+                    version.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>query</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td>
+                    Non-empty identifier or sample-value text.<br /><small
+                      >minimum length 1</small
+                    >
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>limit</code></td>
+                  <td><code>integer</code></td>
+                  <td>no</td>
+                  <td>
+                    Maximum results on this page.<br /><small
+                      >minimum 1.0; maximum 500.0; default 25</small
+                    >
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+        <section class="api-member" id="GraphSearchResponse">
+          <h3><code>GraphSearchResponse</code></h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Field</th>
+                  <th>Type</th>
+                  <th>Required</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>dataset_id</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td>ID returned by preparation.</td>
+                </tr>
+                <tr>
+                  <td><code>layout_version</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td>
+                    Pin the published version you want to read. When optional
+                    and omitted, the service selects the latest published
+                    version.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>query</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td>Non-empty identifier or sample-value text.</td>
+                </tr>
+                <tr>
+                  <td><code>matches</code></td>
+                  <td>
+                    array of
+                    <a href="http-types.html#GraphSearchMatch"
+                      ><code>GraphSearchMatch</code></a
+                    >
+                  </td>
+                  <td>yes</td>
+                  <td>Matching profiles, in ranked order.</td>
+                </tr>
+                <tr>
+                  <td><code>total_count</code></td>
+                  <td><code>integer</code></td>
+                  <td>yes</td>
+                  <td>Matching profiles before the result limit.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+        <section class="api-member" id="GraphTreeIndex">
+          <h3><code>GraphTreeIndex</code></h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Field</th>
+                  <th>Type</th>
+                  <th>Required</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>component_id</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td>
+                    Restrict a read to this prepared component; omit for the
+                    overview.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>parent_id</code></td>
+                  <td><code>string</code> | <code>null</code></td>
+                  <td>yes</td>
+                  <td>
+                    Rooted parent; absent for roots when null fields are
+                    omitted.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>depth</code></td>
+                  <td><code>integer</code></td>
+                  <td>yes</td>
+                  <td>
+                    Number of tree edges from the component root.<br /><small
+                      >minimum 0.0</small
+                    >
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>start</code></td>
+                  <td><code>integer</code></td>
+                  <td>yes</td>
+                  <td>
+                    Start of the half-open DFS subtree interval.<br /><small
+                      >minimum 0.0</small
+                    >
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>end</code></td>
+                  <td><code>integer</code></td>
+                  <td>yes</td>
+                  <td>End of that interval.<br /><small>minimum 1.0</small></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+        <section class="api-member" id="GraphViewportBounds">
+          <h3><code>GraphViewportBounds</code></h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Field</th>
+                  <th>Type</th>
+                  <th>Required</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>xmin</code></td>
+                  <td><code>number</code></td>
+                  <td>yes</td>
+                  <td>Minimum x coordinate.</td>
+                </tr>
+                <tr>
+                  <td><code>xmax</code></td>
+                  <td><code>number</code></td>
+                  <td>yes</td>
+                  <td>Maximum x coordinate; must not be less than xmin.</td>
+                </tr>
+                <tr>
+                  <td><code>ymin</code></td>
+                  <td><code>number</code></td>
+                  <td>yes</td>
+                  <td>Minimum y coordinate.</td>
+                </tr>
+                <tr>
+                  <td><code>ymax</code></td>
+                  <td><code>number</code></td>
+                  <td>yes</td>
+                  <td>Maximum y coordinate; must not be less than ymin.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+        <section class="api-member" id="GraphViewportEdge">
+          <h3><code>GraphViewportEdge</code></h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Field</th>
+                  <th>Type</th>
+                  <th>Required</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>id</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td>
+                    Stable identifier within the relevant dataset/version.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>source</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td>Connection source node ID.</td>
+                </tr>
+                <tr>
+                  <td><code>target</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td>Connection target node ID.</td>
+                </tr>
+                <tr>
+                  <td><code>distance</code></td>
+                  <td><code>number</code> | <code>null</code></td>
+                  <td>no</td>
+                  <td>
+                    Known edge or pair distance; an omitted branch distance
+                    remains unknown.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>is_meta</code></td>
+                  <td><code>boolean</code> | <code>null</code></td>
+                  <td>no</td>
+                  <td></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+        <section class="api-member" id="GraphViewportNode">
+          <h3><code>GraphViewportNode</code></h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Field</th>
+                  <th>Type</th>
+                  <th>Required</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>id</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td>
+                    Stable identifier within the relevant dataset/version.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>cluster_id</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td>
+                    Expand this group. Spatial bounds are ignored for explicit
+                    expansion.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>x</code></td>
+                  <td><code>number</code></td>
+                  <td>yes</td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td><code>y</code></td>
+                  <td><code>number</code></td>
+                  <td>yes</td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td><code>layout_status</code></td>
+                  <td>
+                    <code>&quot;pending&quot;</code> |
+                    <code>&quot;refining&quot;</code> |
+                    <code>&quot;ready&quot;</code> |
+                    <code>&quot;degraded&quot;</code> |
+                    <code>&quot;failed&quot;</code>
+                  </td>
+                  <td>yes</td>
+                  <td>Publication status of the prepared layout.</td>
+                </tr>
+                <tr>
+                  <td><code>member_count</code></td>
+                  <td><code>integer</code></td>
+                  <td>no</td>
+                  <td>
+                    Canonical nodes represented by this symbol, not the isolate
+                    frequency.<br /><small>minimum 1.0; default 1</small>
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>is_representative</code></td>
+                  <td><code>boolean</code></td>
+                  <td>no</td>
+                  <td>
+                    True for a grouped representation.<br /><small
+                      >default false</small
+                    >
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>tree_index</code></td>
+                  <td>
+                    <a href="http-types.html#GraphTreeIndex"
+                      ><code>GraphTreeIndex</code></a
+                    >
+                    | <code>null</code>
+                  </td>
+                  <td>no</td>
+                  <td>Rooted tree membership and traversal interval.</td>
+                </tr>
+                <tr>
+                  <td><code>metadata</code></td>
+                  <td>
+                    record of <code>string</code> | <code>number</code> |
+                    <code>boolean</code> | <code>null</code> | <code>null</code>
+                  </td>
+                  <td>no</td>
+                  <td>
+                    Node or original-isolate field values. The wire name remains
+                    metadata in API v1.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>isolates</code></td>
+                  <td>
+                    array of
+                    <a href="http-types.html#GraphIsolate"
+                      ><code>GraphIsolate</code></a
+                    >
+                  </td>
+                  <td>no</td>
+                  <td>Original isolate IDs and their observations.</td>
+                </tr>
+                <tr>
+                  <td><code>ancillary_distribution</code></td>
+                  <td>
+                    array of
+                    <a href="http-types.html#AncillaryObservation"
+                      ><code>AncillaryObservation</code></a
+                    >
+                  </td>
+                  <td>no</td>
+                  <td>Joint observations and represented frequencies.</td>
+                </tr>
+                <tr>
+                  <td><code>annotations_cached</code></td>
+                  <td><code>boolean</code> | <code>null</code></td>
+                  <td>no</td>
+                  <td>Restore retained static annotations when true.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+        <section class="api-member" id="GraphViewportQuery">
+          <h3><code>GraphViewportQuery</code></h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Field</th>
+                  <th>Type</th>
+                  <th>Required</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>component_id</code></td>
+                  <td><code>string</code> | <code>null</code></td>
+                  <td>no</td>
+                  <td>
+                    Restrict a read to this prepared component; omit for the
+                    overview.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>dataset_id</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td>
+                    ID returned by preparation.<br /><small
+                      >minimum length 1</small
+                    >
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>layout_version</code></td>
+                  <td><code>string</code> | <code>null</code></td>
+                  <td>no</td>
+                  <td>
+                    Pin the published version you want to read. When optional
+                    and omitted, the service selects the latest published
+                    version.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>cluster_id</code></td>
+                  <td><code>string</code> | <code>null</code></td>
+                  <td>no</td>
+                  <td>
+                    Expand this group. Spatial bounds are ignored for explicit
+                    expansion.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>focus_node_id</code></td>
+                  <td><code>string</code> | <code>null</code></td>
+                  <td>no</td>
+                  <td>Include the searched node.</td>
+                </tr>
+                <tr>
+                  <td><code>xmin</code></td>
+                  <td><code>number</code> | <code>null</code></td>
+                  <td>no</td>
+                  <td>Minimum x coordinate.</td>
+                </tr>
+                <tr>
+                  <td><code>xmax</code></td>
+                  <td><code>number</code> | <code>null</code></td>
+                  <td>no</td>
+                  <td>Maximum x coordinate; must not be less than xmin.</td>
+                </tr>
+                <tr>
+                  <td><code>ymin</code></td>
+                  <td><code>number</code> | <code>null</code></td>
+                  <td>no</td>
+                  <td>Minimum y coordinate.</td>
+                </tr>
+                <tr>
+                  <td><code>ymax</code></td>
+                  <td><code>number</code> | <code>null</code></td>
+                  <td>no</td>
+                  <td>Maximum y coordinate; must not be less than ymin.</td>
+                </tr>
+                <tr>
+                  <td><code>zoom</code></td>
+                  <td><code>number</code></td>
+                  <td>no</td>
+                  <td>
+                    Display zoom. With no explicit tier, values below 1 select
+                    tier 0; other values request the finest tier.<br /><small
+                      >minimum 0.0; default 1.0</small
+                    >
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>lod_level</code></td>
+                  <td><code>integer</code> | <code>null</code></td>
+                  <td>no</td>
+                  <td>
+                    Requested detail tier. With an adaptive target, it is a
+                    preference; the response gives the effective tier.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>max_nodes</code></td>
+                  <td><code>integer</code> | <code>null</code></td>
+                  <td>no</td>
+                  <td>
+                    Optional primary-node budget. Attachment neighbours can make
+                    the returned node count larger.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>lod_target_representations</code></td>
+                  <td><code>integer</code> | <code>null</code></td>
+                  <td>no</td>
+                  <td>
+                    Target used to choose a tier; it does not truncate
+                    retrieval.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>lod_selection_bounds</code></td>
+                  <td>
+                    <a href="http-types.html#GraphViewportBounds"
+                      ><code>GraphViewportBounds</code></a
+                    >
+                    | <code>null</code>
+                  </td>
+                  <td>no</td>
+                  <td>
+                    Visible bounds for detail selection, separate from retrieval
+                    bounds.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>previous_lod_level</code></td>
+                  <td><code>integer</code> | <code>null</code></td>
+                  <td>no</td>
+                  <td>Previous effective tier, used for density hysteresis.</td>
+                </tr>
+                <tr>
+                  <td><code>known_annotations</code></td>
+                  <td>
+                    array of
+                    <a href="http-types.html#GraphNodeAnnotationKey"
+                      ><code>GraphNodeAnnotationKey</code></a
+                    >
+                  </td>
+                  <td>no</td>
+                  <td>
+                    Annotation identities already retained for this explicit
+                    layout version.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>known_observations</code></td>
+                  <td>array of <code>string</code> | <code>null</code></td>
+                  <td>no</td>
+                  <td>
+                    Retained observation references. An empty array opts into
+                    reference responses.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+        <section class="api-member" id="GraphViewportResponse">
+          <h3><code>GraphViewportResponse</code></h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Field</th>
+                  <th>Type</th>
+                  <th>Required</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>dataset_id</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td>ID returned by preparation.</td>
+                </tr>
+                <tr>
+                  <td><code>layout_version</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td>
+                    Pin the published version you want to read. When optional
+                    and omitted, the service selects the latest published
+                    version.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>lod_level</code></td>
+                  <td><code>integer</code> | <code>null</code></td>
+                  <td>no</td>
+                  <td>
+                    Requested detail tier. With an adaptive target, it is a
+                    preference; the response gives the effective tier.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>zoom</code></td>
+                  <td><code>number</code></td>
+                  <td>yes</td>
+                  <td>
+                    Display zoom. With no explicit tier, values below 1 select
+                    tier 0; other values request the finest tier.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>layout_status</code></td>
+                  <td>
+                    <code>&quot;pending&quot;</code> |
+                    <code>&quot;refining&quot;</code> |
+                    <code>&quot;ready&quot;</code> |
+                    <code>&quot;degraded&quot;</code> |
+                    <code>&quot;failed&quot;</code>
+                  </td>
+                  <td>yes</td>
+                  <td>Publication status of the prepared layout.</td>
+                </tr>
+                <tr>
+                  <td><code>truncated</code></td>
+                  <td><code>boolean</code></td>
+                  <td>yes</td>
+                  <td>
+                    An explicit budget omitted primary nodes or representations.
+                    Spatial bounds alone do not imply truncation.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>total_node_count</code></td>
+                  <td><code>integer</code></td>
+                  <td>yes</td>
+                  <td>
+                    Node count before the explicit read limit for this query.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>nodes</code></td>
+                  <td>
+                    array of
+                    <a href="http-types.html#GraphViewportNode"
+                      ><code>GraphViewportNode</code></a
+                    >
+                  </td>
+                  <td>yes</td>
+                  <td>Returned nodes or group representatives.</td>
+                </tr>
+                <tr>
+                  <td><code>edges</code></td>
+                  <td>
+                    array of
+                    <a href="http-types.html#GraphViewportEdge"
+                      ><code>GraphViewportEdge</code></a
+                    >
+                  </td>
+                  <td>yes</td>
+                  <td>
+                    Returned tree or overlay edges, according to the endpoint.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>global_bounds</code></td>
+                  <td>
+                    <a href="http-types.html#GraphLayoutBounds"
+                      ><code>GraphLayoutBounds</code></a
+                    >
+                    | <code>null</code>
+                  </td>
+                  <td>no</td>
+                  <td>Bounds of the prepared layout.</td>
+                </tr>
+                <tr>
+                  <td><code>metadata_schema</code></td>
+                  <td>
+                    array of
+                    <a href="http-types.html#GraphAncillaryField"
+                      ><code>GraphAncillaryField</code></a
+                    >
+                  </td>
+                  <td>no</td>
+                  <td>Alias for ancillary_schema. Do not send both names.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+        <h2 id="revisions">
+          Root, table and connection operations<a
+            class="heading-link"
+            href="#revisions"
+            aria-label="Link to Root, table and connection operations"
+            >#</a
+          >
+        </h2>
+        <section class="api-member" id="GraphAncillaryField">
+          <h3><code>GraphAncillaryField</code></h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Field</th>
+                  <th>Type</th>
+                  <th>Required</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>key</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td>Ancillary field name.</td>
+                </tr>
+                <tr>
+                  <td><code>type</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td>Declared scalar type.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+        <section class="api-member" id="GraphAncillaryRequest">
+          <h3><code>GraphAncillaryRequest</code></h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Field</th>
+                  <th>Type</th>
+                  <th>Required</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>dataset_id</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td>
+                    ID returned by preparation.<br /><small
+                      >minimum length 1</small
+                    >
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>layout_version</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td>
+                    Pin the published version you want to read. When optional
+                    and omitted, the service selects the latest published
+                    version.<br /><small>minimum length 1</small>
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>ancillary_data</code></td>
+                  <td>
+                    <a href="http-types.html#AncillaryDataRequest"
+                      ><code>AncillaryDataRequest</code></a
+                    >
+                  </td>
+                  <td>yes</td>
+                  <td>
+                    Table of observations joined through its identifier column.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+        <section class="api-member" id="GraphAncillaryResponse">
+          <h3><code>GraphAncillaryResponse</code></h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Field</th>
+                  <th>Type</th>
+                  <th>Required</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>dataset_id</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td>ID returned by preparation.</td>
+                </tr>
+                <tr>
+                  <td><code>layout_version</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td>
+                    Pin the published version you want to read. When optional
+                    and omitted, the service selects the latest published
+                    version.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>matched_node_count</code></td>
+                  <td><code>integer</code></td>
+                  <td>yes</td>
+                  <td>
+                    Number of nodes matched by the replacement table.<br /><small
+                      >minimum 1.0</small
+                    >
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>warnings</code></td>
+                  <td>array of <code>string</code></td>
+                  <td>no</td>
+                  <td>Messages about input, joins or preparation.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+        <section class="api-member" id="GraphConnectionEdge">
+          <h3><code>GraphConnectionEdge</code></h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Field</th>
+                  <th>Type</th>
+                  <th>Required</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>id</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td>
+                    Stable identifier within the relevant dataset/version.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>source</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td>Connection source node ID.</td>
+                </tr>
+                <tr>
+                  <td><code>target</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td>Connection target node ID.</td>
+                </tr>
+                <tr>
+                  <td><code>distance</code></td>
+                  <td><code>number</code></td>
+                  <td>yes</td>
+                  <td>
+                    Known edge or pair distance; an omitted branch distance
+                    remains unknown.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+        <section class="api-member" id="GraphConnectionsRequest">
+          <h3><code>GraphConnectionsRequest</code></h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Field</th>
+                  <th>Type</th>
+                  <th>Required</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>dataset_id</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td>
+                    ID returned by preparation.<br /><small
+                      >minimum length 1</small
+                    >
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>layout_version</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td>
+                    Pin the published version you want to read. When optional
+                    and omitted, the service selects the latest published
+                    version.<br /><small>minimum length 1</small>
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>format</code></td>
+                  <td>
+                    <a href="http-types.html#SourceFormat"
+                      ><code>SourceFormat</code></a
+                    >
+                  </td>
+                  <td>yes</td>
+                  <td>Input format.</td>
+                </tr>
+                <tr>
+                  <td><code>content</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td>
+                    Raw Newick, typing-table or ancillary-table content,
+                    according to the operation.<br /><small
+                      >minimum length 1</small
+                    >
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>threshold</code></td>
+                  <td><code>number</code></td>
+                  <td>yes</td>
+                  <td>
+                    Inclusive nonnegative distance limit. Typing thresholds must
+                    be whole numbers.<br /><small>minimum 0.0</small>
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>max_connections</code></td>
+                  <td><code>integer</code></td>
+                  <td>no</td>
+                  <td>
+                    Reject the whole overlay if this output limit would be
+                    exceeded.<br /><small>minimum 1.0; default 50000</small>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+        <section class="api-member" id="GraphConnectionsResponse">
+          <h3><code>GraphConnectionsResponse</code></h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Field</th>
+                  <th>Type</th>
+                  <th>Required</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>dataset_id</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td>ID returned by preparation.</td>
+                </tr>
+                <tr>
+                  <td><code>layout_version</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td>
+                    Pin the published version you want to read. When optional
+                    and omitted, the service selects the latest published
+                    version.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>metric</code></td>
+                  <td>
+                    <code>&quot;allelic&quot;</code> |
+                    <code>&quot;patristic&quot;</code>
+                  </td>
+                  <td>yes</td>
+                  <td>
+                    allelic means differing retained loci; patristic means
+                    summed tree-path length.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>threshold</code></td>
+                  <td><code>number</code></td>
+                  <td>yes</td>
+                  <td>
+                    Inclusive nonnegative distance limit. Typing thresholds must
+                    be whole numbers.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>edges</code></td>
+                  <td>
+                    array of
+                    <a href="http-types.html#GraphConnectionEdge"
+                      ><code>GraphConnectionEdge</code></a
+                    >
+                  </td>
+                  <td>yes</td>
+                  <td>
+                    Returned tree or overlay edges, according to the endpoint.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+        <section class="api-member" id="GraphRootingRequest">
+          <h3><code>GraphRootingRequest</code></h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Field</th>
+                  <th>Type</th>
+                  <th>Required</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>dataset_id</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td>
+                    ID returned by preparation.<br /><small
+                      >minimum length 1</small
+                    >
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>layout_version</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td>
+                    Pin the published version you want to read. When optional
+                    and omitted, the service selects the latest published
+                    version.<br /><small>minimum length 1</small>
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>node_id</code></td>
+                  <td><code>string</code> | <code>null</code></td>
+                  <td>yes</td>
+                  <td>
+                    Canonical node identifier. For rooting, explicitly send null
+                    to restore all original roots.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+        <section class="api-member" id="GraphRootingResponse">
+          <h3><code>GraphRootingResponse</code></h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Field</th>
+                  <th>Type</th>
+                  <th>Required</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>typing_options</code></td>
+                  <td>
+                    <a href="http-types.html#FullMstOptions"
+                      ><code>FullMstOptions</code></a
+                    >
+                    |
+                    <a href="http-types.html#GoeBurstOptions"
+                      ><code>GoeBurstOptions</code></a
+                    >
+                    | <code>null</code>
+                  </td>
+                  <td>no</td>
+                  <td>
+                    Typing inference method and optional maximum nLV. Only valid
+                    for typing_data.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>distance_cutoff</code></td>
+                  <td><code>number</code> | <code>null</code></td>
+                  <td>no</td>
+                  <td>
+                    Keep tree edges at or below this distance before
+                    preparation. Zero is valid. All distances must be known.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>dataset_id</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td>ID returned by preparation.</td>
+                </tr>
+                <tr>
+                  <td><code>layout_version</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td>
+                    Pin the published version you want to read. When optional
+                    and omitted, the service selects the latest published
+                    version.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>node_count</code></td>
+                  <td><code>integer</code></td>
+                  <td>yes</td>
+                  <td>
+                    Number of canonical nodes.<br /><small>minimum 0.0</small>
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>edge_count</code></td>
+                  <td><code>integer</code></td>
+                  <td>yes</td>
+                  <td>Number of tree edges.<br /><small>minimum 0.0</small></td>
+                </tr>
+                <tr>
+                  <td><code>cluster_count</code></td>
+                  <td><code>integer</code></td>
+                  <td>yes</td>
+                  <td>
+                    Materialized cluster records across tiers.<br /><small
+                      >minimum 0.0</small
+                    >
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>lod_tier_count</code></td>
+                  <td><code>integer</code></td>
+                  <td>no</td>
+                  <td>
+                    Number of prepared detail tiers.<br /><small
+                      >minimum 1.0; default 1</small
+                    >
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>technical_roots</code></td>
+                  <td>array of <code>string</code></td>
+                  <td>no</td>
+                  <td>One current root ID per component.</td>
+                </tr>
+                <tr>
+                  <td><code>layout_status</code></td>
+                  <td>
+                    <code>&quot;pending&quot;</code> |
+                    <code>&quot;refining&quot;</code> |
+                    <code>&quot;ready&quot;</code> |
+                    <code>&quot;degraded&quot;</code> |
+                    <code>&quot;failed&quot;</code>
+                  </td>
+                  <td>yes</td>
+                  <td>Publication status of the prepared layout.</td>
+                </tr>
+                <tr>
+                  <td><code>warnings</code></td>
+                  <td>array of <code>string</code></td>
+                  <td>no</td>
+                  <td>Messages about input, joins or preparation.</td>
+                </tr>
+                <tr>
+                  <td><code>component_ids</code></td>
+                  <td>record of <code>string</code></td>
+                  <td>yes</td>
+                  <td>Map every previous component ID to its replacement.</td>
+                </tr>
+                <tr>
+                  <td><code>default_roots</code></td>
+                  <td>array of <code>string</code></td>
+                  <td>yes</td>
+                  <td>Roots recorded by original preparation.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+        <h2 id="shared">
+          Shared values and errors<a
+            class="heading-link"
+            href="#shared"
+            aria-label="Link to Shared values and errors"
+            >#</a
+          >
+        </h2>
+        <section class="api-member" id="AncillaryDataRequest">
+          <h3><code>AncillaryDataRequest</code></h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Field</th>
+                  <th>Type</th>
+                  <th>Required</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>content</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td>
+                    Raw Newick, typing-table or ancillary-table content,
+                    according to the operation.<br /><small
+                      >minimum length 1</small
+                    >
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>join_column</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td>
+                    Header of the column containing node or original isolate
+                    identifiers.<br /><small>minimum length 1</small>
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>format</code></td>
+                  <td>
+                    <code>&quot;auto&quot;</code> |
+                    <code>&quot;csv&quot;</code> | <code>&quot;tsv&quot;</code>
+                  </td>
+                  <td>no</td>
+                  <td>
+                    Input format.<br /><small>default &quot;auto&quot;</small>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+        <section class="api-member" id="AncillaryField">
+          <h3><code>AncillaryField</code></h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Field</th>
+                  <th>Type</th>
+                  <th>Required</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>key</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td>
+                    Ancillary field name.<br /><small>minimum length 1</small>
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>type</code></td>
+                  <td>
+                    <a href="http-types.html#AncillaryType"
+                      ><code>AncillaryType</code></a
+                    >
+                  </td>
+                  <td>yes</td>
+                  <td>Declared scalar type.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+        <section class="api-member" id="AncillaryObservation">
+          <h3><code>AncillaryObservation</code></h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Field</th>
+                  <th>Type</th>
+                  <th>Required</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>values</code></td>
+                  <td><code>object</code></td>
+                  <td>no</td>
+                  <td>Joint sample field values.</td>
+                </tr>
+                <tr>
+                  <td><code>count</code></td>
+                  <td><code>integer</code></td>
+                  <td>yes</td>
+                  <td>
+                    Represented observations with these joint values.<br /><small
+                      >minimum 1.0</small
+                    >
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>reference_id</code></td>
+                  <td><code>string</code> | <code>null</code></td>
+                  <td>no</td>
+                  <td>Observation source-row reference within this layout.</td>
+                </tr>
+                <tr>
+                  <td><code>values_cached</code></td>
+                  <td><code>boolean</code> | <code>null</code></td>
+                  <td>no</td>
+                  <td>
+                    Restore retained observation values when true; always use
+                    the new count.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+        <section class="api-member" id="AncillaryType">
+          <h3><code>AncillaryType</code></h3>
+          <p>
+            <code>&quot;string&quot;</code> | <code>&quot;number&quot;</code> |
+            <code>&quot;boolean&quot;</code> | <code>&quot;null&quot;</code>
+          </p>
+        </section>
+        <section class="api-member" id="FullMstOptions">
+          <h3><code>FullMstOptions</code></h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Field</th>
+                  <th>Type</th>
+                  <th>Required</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>algorithm</code></td>
+                  <td><code>&quot;goeburstfullmst&quot;</code></td>
+                  <td>no</td>
+                  <td>
+                    Full MST or standard goeBURST.<br /><small
+                      >default &quot;goeburstfullmst&quot;</small
+                    >
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+        <section class="api-member" id="GoeBurstOptions">
+          <h3><code>GoeBurstOptions</code></h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Field</th>
+                  <th>Type</th>
+                  <th>Required</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>algorithm</code></td>
+                  <td><code>&quot;goeburst&quot;</code></td>
+                  <td>no</td>
+                  <td>
+                    Full MST or standard goeBURST.<br /><small
+                      >default &quot;goeburst&quot;</small
+                    >
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>nlv</code></td>
+                  <td><code>integer</code></td>
+                  <td>no</td>
+                  <td>
+                    Positive maximum level for standard goeBURST; defaults to 3.
+                    Not accepted for Full MST.<br /><small
+                      >minimum 1.0; maximum 2147483647.0; default 3</small
+                    >
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+        <section class="api-member" id="HTTPValidationError">
+          <h3><code>HTTPValidationError</code></h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Field</th>
+                  <th>Type</th>
+                  <th>Required</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>detail</code></td>
+                  <td>
+                    array of
+                    <a href="http-types.html#ValidationError"
+                      ><code>ValidationError</code></a
+                    >
+                  </td>
+                  <td>no</td>
+                  <td></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+        <section class="api-member" id="SourceFormat">
+          <h3><code>SourceFormat</code></h3>
+          <p>
+            <code>&quot;newick&quot;</code> |
+            <code>&quot;typing_data&quot;</code>
+          </p>
+        </section>
+        <section class="api-member" id="ValidationError">
+          <h3><code>ValidationError</code></h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Field</th>
+                  <th>Type</th>
+                  <th>Required</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>loc</code></td>
+                  <td>array of <code>string</code> | <code>integer</code></td>
+                  <td>yes</td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td><code>msg</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td><code>type</code></td>
+                  <td><code>string</code></td>
+                  <td>yes</td>
+                  <td>Declared scalar type.</td>
+                </tr>
+                <tr>
+                  <td><code>input</code></td>
+                  <td><code>object</code></td>
+                  <td>no</td>
+                  <td></td>
+                </tr>
+                <tr>
+                  <td><code>ctx</code></td>
+                  <td><code>object</code></td>
+                  <td>no</td>
+                  <td></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </article>
+      <nav class="page-links" aria-label="Page navigation">
+        <a href="http-api.html">← HTTP API</a
+        ><a href="maintenance.html">Maintaining the manual →</a>
+      </nav>
+      <footer>
+        PhyloLens documentation ·
+        <a href="https://github.com/phyloviz/phylo-lens/issues"
+          >Report an issue</a
+        >
+      </footer>
+    </main>
+  </body>
+</html>

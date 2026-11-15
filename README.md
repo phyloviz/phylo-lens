@@ -5,6 +5,9 @@ service for interactive exploration of fully labelled trees, minimum spanning
 trees (MSTs), and forests, with optional distance-connection overlays.
 
 > **Live demo:** [Try PhyloLens in your browser](http://192.92.147.22:3000/).
+>
+> **Documentation:** [User guide and API reference](https://phyloviz.github.io/phylo-lens/).
+> GitHub Pages publication is pending; the [HTML manual](docs/manual/index.html) is available in this checkout.
 
 The browser package owns rendering and interaction. The service owns input
 normalization, PhyloLib-based typing-data processing, Graphviz layout
@@ -185,7 +188,9 @@ external host fixture and smoke-tests the Docker service on `linux/amd64` and
 
 ## Documentation
 
-Start with the [documentation index](docs/README.md).
+Read the [user guide and API reference](https://phyloviz.github.io/phylo-lens/),
+or open the [HTML manual locally](docs/manual/index.html). The
+[repository documentation index](docs/README.md) also links to the technical notes.
 
 - [Architecture](docs/ARCHITECTURE_SPEC.md)
 - [Runtime flow](docs/flow.md)

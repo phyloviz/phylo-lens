@@ -2,43 +2,131 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta
       name="description"
-      content="Technical roots — PhyloLens user and integration manual."
+      content="Technical roots — PhyloLens documentation."
     />
     <title>Technical roots — PhyloLens</title>
-    <link rel="icon" href="data:," />
+    <link rel="icon" type="image/svg+xml" href="assets/tree.svg" />
     <link rel="stylesheet" href="assets/manual.css" />
+    <link
+      rel="preload"
+      as="font"
+      type="font/ttf"
+      href="assets/fonts/lato-400.ttf"
+      crossorigin
+    />
     <script defer src="assets/manual.js"></script>
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
     <aside class="sidebar" aria-label="Manual navigation">
-      <a class="brand" href="index.html">PhyloLens</a>
-      <p class="subtitle">Documentation</p>
+      <header class="masthead">
+        <a class="brand" href="index.html"
+          ><img
+            src="assets/tree.svg"
+            width="37"
+            height="37"
+            alt=""
+            aria-hidden="true"
+          />PhyloLens</a
+        >
+        <p class="subtitle">Documentation</p>
+      </header>
       <details open>
-        <summary>Contents</summary>
+        <summary>Browse documentation</summary>
         <div class="search">
           <label for="manual-search">Search the manual</label
           ><input
             id="manual-search"
             type="search"
-            placeholder="Search…"
+            placeholder="Search documentation"
             aria-controls="search-results"
             autocomplete="off"
             disabled
           />
         </div>
         <nav aria-label="Contents">
-          <p>User guide</p>
+          <p>Documentation</p>
           <ul>
-            <li><a data-page href="index.html">PhyloLens documentation</a></li>
+            <li>
+              <a data-page href="index.html">Overview</a>
+              <ul class="sections">
+                <li><a href="index.html#start">Getting started</a></li>
+                <li><a href="index.html#display">The PhyloLens display</a></li>
+                <li>
+                  <a href="index.html#scope">Trees and sample information</a>
+                </li>
+                <li>
+                  <a href="index.html#integration"
+                    >Use PhyloLens in another application</a
+                  >
+                </li>
+              </ul>
+            </li>
             <li>
               <a data-page href="getting-started.html">Getting started</a>
+              <ul class="sections">
+                <li>
+                  <a href="getting-started.html#run">Run PhyloLens locally</a>
+                </li>
+                <li><a href="getting-started.html#load">Load a tree</a></li>
+                <li>
+                  <a href="getting-started.html#observations"
+                    >Add observations</a
+                  >
+                </li>
+                <li>
+                  <a href="getting-started.html#next">Continue exploring</a>
+                </li>
+              </ul>
             </li>
-            <li><a data-page href="input-formats.html">Input formats</a></li>
-            <li><a data-page href="viewing.html">Display and navigation</a></li>
+            <li>
+              <a data-page href="input-formats.html">Input formats</a>
+              <ul class="sections">
+                <li><a href="input-formats.html#newick">Newick trees</a></li>
+                <li><a href="input-formats.html#typing">Typing data</a></li>
+                <li>
+                  <a href="input-formats.html#ancillary">Ancillary data</a>
+                </li>
+                <li>
+                  <a href="input-formats.html#advanced"
+                    >Advanced input settings</a
+                  >
+                </li>
+              </ul>
+            </li>
+            <li>
+              <a data-page href="viewing.html">Display and navigation</a>
+              <ul class="sections">
+                <li>
+                  <a href="viewing.html#navigate">Move, zoom and select</a>
+                </li>
+                <li>
+                  <a href="viewing.html#inspector"
+                    >Inspect nodes and observations</a
+                  >
+                </li>
+                <li><a href="viewing.html#region">Select a region</a></li>
+                <li><a href="viewing.html#detail">Levels of detail</a></li>
+                <li>
+                  <a href="viewing.html#appearance"
+                    >Colours, pies and node sizes</a
+                  >
+                </li>
+                <li>
+                  <a href="viewing.html#edge-labels">Read edge distances</a>
+                </li>
+                <li>
+                  <a href="viewing.html#arrangement"
+                    >Arrange and relax the layout</a
+                  >
+                </li>
+                <li><a href="viewing.html#components">Forest components</a></li>
+                <li><a href="viewing.html#export">Export a figure</a></li>
+              </ul>
+            </li>
             <li>
               <a data-page href="technical-roots.html" aria-current="page"
                 >Technical roots</a
@@ -50,45 +138,246 @@
                 <li><a href="#phyloviz">Relationship to PHYLOViZ</a></li>
               </ul>
             </li>
-            <li><a data-page href="distances.html">Distance operations</a></li>
+            <li>
+              <a data-page href="distances.html">Distance operations</a>
+              <ul class="sections">
+                <li>
+                  <a href="distances.html#inference">Maximum inference level</a>
+                </li>
+                <li>
+                  <a href="distances.html#cutoff">Tree distance cutoff</a>
+                </li>
+                <li>
+                  <a href="distances.html#connections"
+                    >Additional connections</a
+                  >
+                </li>
+              </ul>
+            </li>
           </ul>
-          <p>Developer guide</p>
+          <p>Developers</p>
           <ul>
             <li>
-              <a data-page href="integration.html"
-                >Library and server integration</a
-              >
+              <a data-page href="integration.html">Library integration</a>
+              <ul class="sections">
+                <li><a href="integration.html#embed">Embed the viewer</a></li>
+                <li>
+                  <a href="integration.html#adapter">Supply your own adapter</a>
+                </li>
+                <li>
+                  <a href="integration.html#server"
+                    >Use the service with another frontend</a
+                  >
+                </li>
+              </ul>
             </li>
             <li>
-              <a data-page href="reference.html">API and technical reference</a>
+              <a data-page href="reference.html">API overview</a>
+              <ul class="sections">
+                <li><a href="reference.html#api">Choose an API</a></li>
+                <li>
+                  <a href="reference.html#implementation"
+                    >Implementation notes</a
+                  >
+                </li>
+                <li>
+                  <a href="reference.html#algorithms"
+                    >Algorithms and references</a
+                  >
+                </li>
+              </ul>
+            </li>
+            <li>
+              <a data-page href="browser-api.html">Browser API</a>
+              <ul class="sections">
+                <li><a href="browser-api.html#create">Create a view</a></li>
+                <li>
+                  <a href="browser-api.html#load-options">Load options</a>
+                </li>
+                <li>
+                  <a href="browser-api.html#callbacks"
+                    >Callbacks and identifiers</a
+                  >
+                </li>
+                <li>
+                  <a href="browser-api.html#lifecycle">Loading and disposal</a>
+                </li>
+                <li>
+                  <a href="browser-api.html#appearance"
+                    >Appearance and sample data</a
+                  >
+                </li>
+                <li><a href="browser-api.html#search">Search and focus</a></li>
+                <li>
+                  <a href="browser-api.html#expansion">Expansion and folding</a>
+                </li>
+                <li>
+                  <a href="browser-api.html#roots"
+                    >Technical roots and distance connections</a
+                  >
+                </li>
+                <li>
+                  <a href="browser-api.html#components">Forest components</a>
+                </li>
+                <li>
+                  <a href="browser-api.html#layout">Layout and dragging</a>
+                </li>
+                <li><a href="browser-api.html#export">PNG export</a></li>
+                <li><a href="browser-api.html#adapter">Custom adapters</a></li>
+                <li>
+                  <a href="browser-api.html#utilities">Observation utilities</a>
+                </li>
+                <li>
+                  <a href="browser-api.html#errors">Errors and compatibility</a>
+                </li>
+              </ul>
+            </li>
+            <li>
+              <a data-page href="api-types.html">Browser types</a>
+              <ul class="sections">
+                <li>
+                  <a href="api-types.html#observations">Sample information</a>
+                </li>
+                <li>
+                  <a href="api-types.html#appearance">Appearance and export</a>
+                </li>
+                <li>
+                  <a href="api-types.html#tree-state">Tree and view state</a>
+                </li>
+                <li>
+                  <a href="api-types.html#identifiers"
+                    >Identifiers and statuses</a
+                  >
+                </li>
+                <li>
+                  <a href="api-types.html#adapter-contracts"
+                    >Adapter requests and results</a
+                  >
+                </li>
+                <li>
+                  <a href="api-types.html#nested-shapes"
+                    >Nested and returned shapes</a
+                  >
+                </li>
+              </ul>
+            </li>
+            <li>
+              <a data-page href="http-api.html">HTTP API</a>
+              <ul class="sections">
+                <li><a href="http-api.html#workflow">Prepare, then read</a></li>
+                <li><a href="http-api.html#health">GET /health</a></li>
+                <li>
+                  <a href="http-api.html#prepare">POST /api/graph/prepare</a>
+                </li>
+                <li>
+                  <a href="http-api.html#status"
+                    >GET /api/graph/prepare/{job_id}</a
+                  >
+                </li>
+                <li>
+                  <a href="http-api.html#viewport">POST /api/graph/viewport</a>
+                </li>
+                <li>
+                  <a href="http-api.html#region">POST /api/graph/region</a>
+                </li>
+                <li>
+                  <a href="http-api.html#search">POST /api/graph/search</a>
+                </li>
+                <li>
+                  <a href="http-api.html#components"
+                    >POST /api/graph/components</a
+                  >
+                </li>
+                <li>
+                  <a href="http-api.html#ancillary">PUT /api/graph/ancillary</a>
+                </li>
+                <li>
+                  <a href="http-api.html#connections"
+                    >POST /api/graph/connections</a
+                  >
+                </li>
+                <li><a href="http-api.html#root">POST /api/graph/root</a></li>
+                <li>
+                  <a href="http-api.html#annotation-reuse"
+                    >Optional annotation reuse</a
+                  >
+                </li>
+                <li><a href="http-api.html#errors">Error responses</a></li>
+              </ul>
+            </li>
+            <li>
+              <a data-page href="http-types.html">HTTP fields</a>
+              <ul class="sections">
+                <li><a href="http-types.html#preparation">Preparation</a></li>
+                <li>
+                  <a href="http-types.html#reads"
+                    >Viewport, region and search</a
+                  >
+                </li>
+                <li>
+                  <a href="http-types.html#revisions"
+                    >Root, table and connection operations</a
+                  >
+                </li>
+                <li>
+                  <a href="http-types.html#shared">Shared values and errors</a>
+                </li>
+              </ul>
             </li>
           </ul>
           <p>Project</p>
           <ul>
             <li>
-              <a data-page href="maintenance.html">Maintaining this manual</a>
+              <a data-page href="maintenance.html">Maintaining the manual</a>
+              <ul class="sections">
+                <li><a href="maintenance.html#edit">Edit the pages</a></li>
+                <li>
+                  <a href="maintenance.html#preview">Preview and check</a>
+                </li>
+                <li>
+                  <a href="maintenance.html#screenshots">Update screenshots</a>
+                </li>
+                <li>
+                  <a href="maintenance.html#publish">Publish on GitHub Pages</a>
+                </li>
+              </ul>
             </li>
           </ul>
         </nav>
-        <a class="repo-link" href="https://github.com/phyloviz/phylo-lens"
-          >PhyloLens on GitHub</a
-        >
       </details>
+      <a class="repo-link" href="https://github.com/phyloviz/phylo-lens"
+        >PhyloLens on GitHub <span aria-hidden="true">↗</span></a
+      >
     </aside>
     <main id="main" tabindex="-1">
-      <p class="breadcrumb">
-        <a href="index.html">PhyloLens</a> / Technical roots
-      </p>
+      <div class="page-heading">
+        <p class="breadcrumb">
+          <a href="index.html">Documentation</a
+          ><span aria-hidden="true">/</span>Technical roots
+        </p>
+        <a
+          class="source-link"
+          href="https://github.com/phyloviz/phylo-lens/blob/main/docs/manual/technical-roots.html"
+          >View source <span aria-hidden="true">↗</span></a
+        >
+      </div>
       <section id="search-results" aria-label="Search results" hidden></section>
       <article>
         <h1>Technical roots</h1>
 
         <p>
-          A technical root is the starting node used to orient a tree component.
-          Changing it changes which nodes are parents, children and descendants.
-          This affects branch folding and the construction of detail groups.
+          Choose a technical root to set the starting point for branch
+          navigation. This changes which nodes are treated as parents and
+          descendants, so branch folding and detail groups can change.
         </p>
-        <h2 id="choose">Choose a root</h2>
+        <h2 id="choose">
+          Choose a root<a
+            class="heading-link"
+            href="#choose"
+            aria-label="Link to Choose a root"
+            >#</a
+          >
+        </h2>
         <ol>
           <li>
             Select an ordinary node in the display or locate it using search.
@@ -118,7 +407,14 @@
             changing them.
           </figcaption>
         </figure>
-        <h2 id="effect">What changes</h2>
+        <h2 id="effect">
+          What changes<a
+            class="heading-link"
+            href="#effect"
+            aria-label="Link to What changes"
+            >#</a
+          >
+        </h2>
         <p>
           The tree keeps every original node, connection and distance.
           Coordinates and ancillary observations are preserved. PhyloLib
@@ -127,10 +423,9 @@
         <p>
           Parent links, depths, subtree membership and detail groups are
           recalculated. The active component and camera are retained. Manual
-          folds, explicit expansion state and additional distance connections
-          are cleared when a changed orientation is adopted. Automatic
-          relaxation stops and dragging returns to individual nodes. You can
-          apply these controls again.
+          folds, expanded groups and additional distance connections are cleared
+          when the new root is applied. Automatic relaxation stops and dragging
+          returns to individual nodes. You can apply these controls again.
         </p>
         <p>
           Small components may look unchanged because their nodes remain at the
@@ -143,7 +438,14 @@
             infer the tree.
           </p>
         </div>
-        <h2 id="restore">Restore the defaults</h2>
+        <h2 id="restore">
+          Restore the defaults<a
+            class="heading-link"
+            href="#restore"
+            aria-label="Link to Restore the defaults"
+            >#</a
+          >
+        </h2>
         <p>
           Choose <strong>Restore default roots</strong> to restore the original
           preparation roots for every component. Newick defaults follow the
@@ -154,7 +456,14 @@
           The separate <strong>branch-drag anchor</strong> determines how
           branches move during dragging. It does not change the technical root.
         </p>
-        <h2 id="phyloviz">Relationship to PHYLOViZ</h2>
+        <h2 id="phyloviz">
+          Relationship to PHYLOViZ<a
+            class="heading-link"
+            href="#phyloviz"
+            aria-label="Link to Relationship to PHYLOViZ"
+            >#</a
+          >
+        </h2>
         <p>
           PHYLOViZ's desktop goeBURST viewer includes a
           <em>Set as founder</em> control. Its implementation gives the selected
@@ -190,9 +499,8 @@
       </nav>
       <footer>
         PhyloLens documentation ·
-        <a
-          href="https://github.com/phyloviz/phylo-lens/blob/main/docs/manual/technical-roots.html"
-          >Edit this page</a
+        <a href="https://github.com/phyloviz/phylo-lens/issues"
+          >Report an issue</a
         >
       </footer>
     </main>

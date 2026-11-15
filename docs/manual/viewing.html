@@ -2,95 +2,381 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta
       name="description"
-      content="Display and navigation — PhyloLens user and integration manual."
+      content="Display and navigation — PhyloLens documentation."
     />
     <title>Display and navigation — PhyloLens</title>
-    <link rel="icon" href="data:," />
+    <link rel="icon" type="image/svg+xml" href="assets/tree.svg" />
     <link rel="stylesheet" href="assets/manual.css" />
+    <link
+      rel="preload"
+      as="font"
+      type="font/ttf"
+      href="assets/fonts/lato-400.ttf"
+      crossorigin
+    />
     <script defer src="assets/manual.js"></script>
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
     <aside class="sidebar" aria-label="Manual navigation">
-      <a class="brand" href="index.html">PhyloLens</a>
-      <p class="subtitle">Documentation</p>
+      <header class="masthead">
+        <a class="brand" href="index.html"
+          ><img
+            src="assets/tree.svg"
+            width="37"
+            height="37"
+            alt=""
+            aria-hidden="true"
+          />PhyloLens</a
+        >
+        <p class="subtitle">Documentation</p>
+      </header>
       <details open>
-        <summary>Contents</summary>
+        <summary>Browse documentation</summary>
         <div class="search">
           <label for="manual-search">Search the manual</label
           ><input
             id="manual-search"
             type="search"
-            placeholder="Search…"
+            placeholder="Search documentation"
             aria-controls="search-results"
             autocomplete="off"
             disabled
           />
         </div>
         <nav aria-label="Contents">
-          <p>User guide</p>
+          <p>Documentation</p>
           <ul>
-            <li><a data-page href="index.html">PhyloLens documentation</a></li>
+            <li>
+              <a data-page href="index.html">Overview</a>
+              <ul class="sections">
+                <li><a href="index.html#start">Getting started</a></li>
+                <li><a href="index.html#display">The PhyloLens display</a></li>
+                <li>
+                  <a href="index.html#scope">Trees and sample information</a>
+                </li>
+                <li>
+                  <a href="index.html#integration"
+                    >Use PhyloLens in another application</a
+                  >
+                </li>
+              </ul>
+            </li>
             <li>
               <a data-page href="getting-started.html">Getting started</a>
+              <ul class="sections">
+                <li>
+                  <a href="getting-started.html#run">Run PhyloLens locally</a>
+                </li>
+                <li><a href="getting-started.html#load">Load a tree</a></li>
+                <li>
+                  <a href="getting-started.html#observations"
+                    >Add observations</a
+                  >
+                </li>
+                <li>
+                  <a href="getting-started.html#next">Continue exploring</a>
+                </li>
+              </ul>
             </li>
-            <li><a data-page href="input-formats.html">Input formats</a></li>
+            <li>
+              <a data-page href="input-formats.html">Input formats</a>
+              <ul class="sections">
+                <li><a href="input-formats.html#newick">Newick trees</a></li>
+                <li><a href="input-formats.html#typing">Typing data</a></li>
+                <li>
+                  <a href="input-formats.html#ancillary">Ancillary data</a>
+                </li>
+                <li>
+                  <a href="input-formats.html#advanced"
+                    >Advanced input settings</a
+                  >
+                </li>
+              </ul>
+            </li>
             <li>
               <a data-page href="viewing.html" aria-current="page"
                 >Display and navigation</a
               >
               <ul class="sections">
                 <li><a href="#navigate">Move, zoom and select</a></li>
+                <li><a href="#inspector">Inspect nodes and observations</a></li>
+                <li><a href="#region">Select a region</a></li>
                 <li><a href="#detail">Levels of detail</a></li>
+                <li><a href="#appearance">Colours, pies and node sizes</a></li>
+                <li><a href="#edge-labels">Read edge distances</a></li>
+                <li><a href="#arrangement">Arrange and relax the layout</a></li>
                 <li><a href="#components">Forest components</a></li>
                 <li><a href="#export">Export a figure</a></li>
               </ul>
             </li>
             <li>
               <a data-page href="technical-roots.html">Technical roots</a>
+              <ul class="sections">
+                <li><a href="technical-roots.html#choose">Choose a root</a></li>
+                <li><a href="technical-roots.html#effect">What changes</a></li>
+                <li>
+                  <a href="technical-roots.html#restore"
+                    >Restore the defaults</a
+                  >
+                </li>
+                <li>
+                  <a href="technical-roots.html#phyloviz"
+                    >Relationship to PHYLOViZ</a
+                  >
+                </li>
+              </ul>
             </li>
-            <li><a data-page href="distances.html">Distance operations</a></li>
+            <li>
+              <a data-page href="distances.html">Distance operations</a>
+              <ul class="sections">
+                <li>
+                  <a href="distances.html#inference">Maximum inference level</a>
+                </li>
+                <li>
+                  <a href="distances.html#cutoff">Tree distance cutoff</a>
+                </li>
+                <li>
+                  <a href="distances.html#connections"
+                    >Additional connections</a
+                  >
+                </li>
+              </ul>
+            </li>
           </ul>
-          <p>Developer guide</p>
+          <p>Developers</p>
           <ul>
             <li>
-              <a data-page href="integration.html"
-                >Library and server integration</a
-              >
+              <a data-page href="integration.html">Library integration</a>
+              <ul class="sections">
+                <li><a href="integration.html#embed">Embed the viewer</a></li>
+                <li>
+                  <a href="integration.html#adapter">Supply your own adapter</a>
+                </li>
+                <li>
+                  <a href="integration.html#server"
+                    >Use the service with another frontend</a
+                  >
+                </li>
+              </ul>
             </li>
             <li>
-              <a data-page href="reference.html">API and technical reference</a>
+              <a data-page href="reference.html">API overview</a>
+              <ul class="sections">
+                <li><a href="reference.html#api">Choose an API</a></li>
+                <li>
+                  <a href="reference.html#implementation"
+                    >Implementation notes</a
+                  >
+                </li>
+                <li>
+                  <a href="reference.html#algorithms"
+                    >Algorithms and references</a
+                  >
+                </li>
+              </ul>
+            </li>
+            <li>
+              <a data-page href="browser-api.html">Browser API</a>
+              <ul class="sections">
+                <li><a href="browser-api.html#create">Create a view</a></li>
+                <li>
+                  <a href="browser-api.html#load-options">Load options</a>
+                </li>
+                <li>
+                  <a href="browser-api.html#callbacks"
+                    >Callbacks and identifiers</a
+                  >
+                </li>
+                <li>
+                  <a href="browser-api.html#lifecycle">Loading and disposal</a>
+                </li>
+                <li>
+                  <a href="browser-api.html#appearance"
+                    >Appearance and sample data</a
+                  >
+                </li>
+                <li><a href="browser-api.html#search">Search and focus</a></li>
+                <li>
+                  <a href="browser-api.html#expansion">Expansion and folding</a>
+                </li>
+                <li>
+                  <a href="browser-api.html#roots"
+                    >Technical roots and distance connections</a
+                  >
+                </li>
+                <li>
+                  <a href="browser-api.html#components">Forest components</a>
+                </li>
+                <li>
+                  <a href="browser-api.html#layout">Layout and dragging</a>
+                </li>
+                <li><a href="browser-api.html#export">PNG export</a></li>
+                <li><a href="browser-api.html#adapter">Custom adapters</a></li>
+                <li>
+                  <a href="browser-api.html#utilities">Observation utilities</a>
+                </li>
+                <li>
+                  <a href="browser-api.html#errors">Errors and compatibility</a>
+                </li>
+              </ul>
+            </li>
+            <li>
+              <a data-page href="api-types.html">Browser types</a>
+              <ul class="sections">
+                <li>
+                  <a href="api-types.html#observations">Sample information</a>
+                </li>
+                <li>
+                  <a href="api-types.html#appearance">Appearance and export</a>
+                </li>
+                <li>
+                  <a href="api-types.html#tree-state">Tree and view state</a>
+                </li>
+                <li>
+                  <a href="api-types.html#identifiers"
+                    >Identifiers and statuses</a
+                  >
+                </li>
+                <li>
+                  <a href="api-types.html#adapter-contracts"
+                    >Adapter requests and results</a
+                  >
+                </li>
+                <li>
+                  <a href="api-types.html#nested-shapes"
+                    >Nested and returned shapes</a
+                  >
+                </li>
+              </ul>
+            </li>
+            <li>
+              <a data-page href="http-api.html">HTTP API</a>
+              <ul class="sections">
+                <li><a href="http-api.html#workflow">Prepare, then read</a></li>
+                <li><a href="http-api.html#health">GET /health</a></li>
+                <li>
+                  <a href="http-api.html#prepare">POST /api/graph/prepare</a>
+                </li>
+                <li>
+                  <a href="http-api.html#status"
+                    >GET /api/graph/prepare/{job_id}</a
+                  >
+                </li>
+                <li>
+                  <a href="http-api.html#viewport">POST /api/graph/viewport</a>
+                </li>
+                <li>
+                  <a href="http-api.html#region">POST /api/graph/region</a>
+                </li>
+                <li>
+                  <a href="http-api.html#search">POST /api/graph/search</a>
+                </li>
+                <li>
+                  <a href="http-api.html#components"
+                    >POST /api/graph/components</a
+                  >
+                </li>
+                <li>
+                  <a href="http-api.html#ancillary">PUT /api/graph/ancillary</a>
+                </li>
+                <li>
+                  <a href="http-api.html#connections"
+                    >POST /api/graph/connections</a
+                  >
+                </li>
+                <li><a href="http-api.html#root">POST /api/graph/root</a></li>
+                <li>
+                  <a href="http-api.html#annotation-reuse"
+                    >Optional annotation reuse</a
+                  >
+                </li>
+                <li><a href="http-api.html#errors">Error responses</a></li>
+              </ul>
+            </li>
+            <li>
+              <a data-page href="http-types.html">HTTP fields</a>
+              <ul class="sections">
+                <li><a href="http-types.html#preparation">Preparation</a></li>
+                <li>
+                  <a href="http-types.html#reads"
+                    >Viewport, region and search</a
+                  >
+                </li>
+                <li>
+                  <a href="http-types.html#revisions"
+                    >Root, table and connection operations</a
+                  >
+                </li>
+                <li>
+                  <a href="http-types.html#shared">Shared values and errors</a>
+                </li>
+              </ul>
             </li>
           </ul>
           <p>Project</p>
           <ul>
             <li>
-              <a data-page href="maintenance.html">Maintaining this manual</a>
+              <a data-page href="maintenance.html">Maintaining the manual</a>
+              <ul class="sections">
+                <li><a href="maintenance.html#edit">Edit the pages</a></li>
+                <li>
+                  <a href="maintenance.html#preview">Preview and check</a>
+                </li>
+                <li>
+                  <a href="maintenance.html#screenshots">Update screenshots</a>
+                </li>
+                <li>
+                  <a href="maintenance.html#publish">Publish on GitHub Pages</a>
+                </li>
+              </ul>
             </li>
           </ul>
         </nav>
-        <a class="repo-link" href="https://github.com/phyloviz/phylo-lens"
-          >PhyloLens on GitHub</a
-        >
       </details>
+      <a class="repo-link" href="https://github.com/phyloviz/phylo-lens"
+        >PhyloLens on GitHub <span aria-hidden="true">↗</span></a
+      >
     </aside>
     <main id="main" tabindex="-1">
-      <p class="breadcrumb">
-        <a href="index.html">PhyloLens</a> / Display and navigation
-      </p>
+      <div class="page-heading">
+        <p class="breadcrumb">
+          <a href="index.html">Documentation</a
+          ><span aria-hidden="true">/</span>Display and navigation
+        </p>
+        <a
+          class="source-link"
+          href="https://github.com/phyloviz/phylo-lens/blob/main/docs/manual/viewing.html"
+          >View source <span aria-hidden="true">↗</span></a
+        >
+      </div>
       <section id="search-results" aria-label="Search results" hidden></section>
       <article>
         <h1>Display and navigation</h1>
 
         <p>
-          After loading data, the central view shows the prepared tree or
-          forest. The surrounding controls allow you to select nodes, change the
-          display and inspect observations.
+          Once the data loads, you can move around the tree, search for a node
+          and inspect its sample information. This chapter shows how to use the
+          display controls.
         </p>
-        <h2 id="navigate">Move, zoom and select</h2>
+        <p>
+          Use the <strong>Explore</strong>, <strong>Appearance</strong> and
+          <strong>Data</strong> tabs to switch tasks. The header’s
+          <strong>Load data</strong> button returns to input settings. On a
+          narrow screen, <strong>Controls</strong> shows or hides the left panel
+          so you can give more room to the tree.
+        </p>
+        <h2 id="navigate">
+          Move, zoom and select<a
+            class="heading-link"
+            href="#navigate"
+            aria-label="Link to Move, zoom and select"
+            >#</a
+          >
+        </h2>
         <p>
           Drag the background to pan and use the mouse wheel to zoom. Select an
           ordinary node to inspect its identifier and observations. Use the
@@ -116,7 +402,63 @@
             Appearance.
           </figcaption>
         </figure>
-        <h2 id="detail">Levels of detail</h2>
+        <h2 id="inspector">Inspect nodes and observations</h2>
+        <p>
+          Open <strong>Inspector</strong> to switch between
+          <strong>Node</strong>, <strong>Overview</strong> and
+          <strong>Region</strong>. Choose <strong>Hide</strong> to give the tree
+          more space.
+        </p>
+        <p>
+          The Node tab shows the selected profile, its original isolate
+          identifiers and available branch actions. A shared typing profile can
+          represent several isolates; a triangular detail group can represent
+          several tree nodes. These counts describe different things.
+        </p>
+        <p>
+          The Overview distribution summarizes the <em>current view</em>, using
+          the selected colour and pie fields. It is not a whole-dataset census
+          when only part of the tree is loaded. The Node distribution describes
+          the selected node or group. For a manually folded branch, the
+          distribution describes only its retained root node; hidden descendants
+          are not added to that root’s sample information.
+        </p>
+        <p>
+          If the selected node moves outside the current view, the inspector
+          says so. Search for it again to bring it back into view.
+        </p>
+        <h2 id="region">Select a region</h2>
+        <ol>
+          <li>
+            In Explore, choose <strong>Select region</strong>, then drag a box
+            over the display. You can also hold <strong>Shift</strong> while
+            dragging.
+          </li>
+          <li>
+            Read the selected-node count and distribution in the inspector’s
+            <strong>Region</strong> tab.
+          </li>
+          <li>
+            Turn off the active region-selection control to clear the selection.
+          </li>
+        </ol>
+        <p>
+          Region selection uses the loaded nodes at their displayed positions,
+          including positions you have dragged. It does not fetch every hidden
+          or offscreen node. The count is the number of selected display nodes;
+          a representative can stand for more than one original node. Choose
+          colour and pie fields to see their distribution in the selected
+          region.
+        </p>
+
+        <h2 id="detail">
+          Levels of detail<a
+            class="heading-link"
+            href="#detail"
+            aria-label="Link to Levels of detail"
+            >#</a
+          >
+        </h2>
         <p>
           Large trees are displayed using detail groups. Zoom in to show finer
           detail. A triangular group represents several connected nodes; it is
@@ -144,7 +486,164 @@
           reached; it does not mean that the remaining observations have been
           removed.
         </p>
-        <h2 id="components">Forest components</h2>
+        <p>
+          <strong>Keep detail and expansions</strong> locks the current detail
+          tier and retains expanded groups while still allowing view updates as
+          you pan. Turning it off resumes automatic detail selection.
+        </p>
+        <p>
+          <strong>Automatic detail updates</strong> is different: turn it off to
+          keep the currently loaded view as you navigate. It does not control
+          node movement. Use the separate layout-relaxation controls for that.
+        </p>
+        <p>
+          Automatic detail groups use amber triangles. Manually folded branches
+          use violet symbols. Their counts describe represented tree nodes,
+          while profile and distribution counts describe isolate observations.
+        </p>
+        <h2 id="appearance">Colours, pies and node sizes</h2>
+        <p>
+          Open <strong>Appearance</strong> and use
+          <strong>Color and pie fields</strong> to select a sample field. Click
+          a selected field again to deselect it. Select several fields to show
+          observed combinations, such as country together with collection year.
+          Each observation contributes once to its combination.
+        </p>
+        <p>
+          Choose <strong>None — neutral nodes</strong> to clear the field
+          mapping. Turn off <strong>Show node pie charts</strong> to show solid
+          nodes while keeping the selected fields, sample information and
+          inspector distributions.
+        </p>
+        <p>
+          Under <strong>Node size</strong>, choose
+          <strong>Profile count</strong> or a numeric field.
+          <strong>Linear</strong> uses the value directly;
+          <strong>Logarithmic</strong> compresses large differences. Missing or
+          nonnumeric values use the base size. Detail-group symbols use their
+          represented-node count with a bounded size mapping; their area is not
+          an exact proportional chart.
+        </p>
+        <p>
+          Use <strong>Node labels</strong> to show or hide node identifiers.
+          These display choices do not change the tree or stored sample values.
+        </p>
+        <h3>Category colours and Other grouping</h3>
+        <p>
+          In <strong>Category colors</strong>, choose a colour for each
+          category. Each row shows its count, percentage and grouping choice:
+        </p>
+        <ul>
+          <li>
+            <strong>Automatic</strong> uses frequency in the current view. Up to
+            12 categories can appear separately. With more categories, the 11
+            most frequent remain separate and the rest become grey
+            <strong>Other (grouped)</strong>.
+          </li>
+          <li>
+            <strong>Separate</strong> reserves a category’s own slot, including
+            when it is offscreen. Up to 11 such slots are available; excess
+            choices are grouped in a fixed category order.
+          </li>
+          <li>
+            <strong>Other</strong> always puts the category in the grouped
+            slice.
+          </li>
+        </ul>
+        <p>
+          Changing palette length does not change the slice limit. Grouping
+          combines display slices; it does not remove observations.
+        </p>
+        <h3>Load, save and reset a palette</h3>
+        <p>
+          <strong>Save palette</strong> downloads
+          <code>phyloviz-category-colors.txt</code>. It contains one
+          <code>red,green,blue</code> line per displayed category, in the
+          current category order. Each channel is an integer from 0 to 255.
+          <strong>Load palette</strong> applies that order, so select the same
+          fields and check the categories before reusing an ordered palette.
+        </p>
+        <p>
+          You can also load JSON that names its categories, for example
+          <code>{ "Portugal": "#2e7d32", "Spain": "#1565c0" }</code>. A
+          <code>colors</code> object wrapping that mapping is also accepted.
+          Colours use six-digit hexadecimal values. With several fields,
+          category identities represent the observed combinations.
+        </p>
+        <p>
+          <strong>Reset palette</strong> restores default colours. Loading
+          another dataset or applying a replacement table resets the palette;
+          save colours you want to reuse. Palette files save colours, not the
+          tree, positions or grouping choices.
+        </p>
+        <h2 id="edge-labels">Read edge distances</h2>
+        <p>
+          In Appearance → Edges, enable <strong>Edge distance labels</strong>.
+          Choose <strong>Automatic with zoom</strong> to show them at suitable
+          zoom levels, or <strong>At every zoom</strong> to keep them enabled
+          throughout navigation.
+        </p>
+        <p>
+          Use <strong>Minimum label distance</strong> and
+          <strong>Maximum label distance</strong> to restrict the labels shown.
+          Both bounds are inclusive; leave a bound blank to keep it open. These
+          settings affect labels only. They do not cut tree edges or filter
+          nodes.
+        </p>
+        <p>
+          <strong>Distance-weighted edges (grayscale)</strong> encodes distances
+          using grey shades at a constant edge width. Dragging nodes changes
+          their drawn separation, not their stored edge distance; use the labels
+          to read that value.
+        </p>
+        <h2 id="arrangement">Arrange and relax the layout</h2>
+        <p>
+          The view starts in manual mode. Drag a node to move it. Zoom changes
+          the camera and visible detail while keeping arranged positions.
+        </p>
+        <ul>
+          <li>
+            <strong>Relax layout</strong> adjusts the loaded view once and stops
+            when it settles.
+          </li>
+          <li>
+            <strong>Automatic layout relaxation</strong> also allows movement
+            after navigation and dragging.
+          </li>
+          <li>
+            <strong>Stop and keep</strong> stops movement immediately, retains
+            the positions and disables automatic relaxation.
+          </li>
+          <li>
+            <strong>Reset positions</strong> restores the computed layout, stops
+            motion and returns to individual-node dragging.
+          </li>
+        </ul>
+        <p>
+          For branch dragging, select a node and choose
+          <strong>Use selected node as branch-drag anchor</strong> in the
+          inspector. Drag another node to move its loaded branch away from that
+          anchor. Choose <strong>Direct dragging</strong> to return to moving
+          one node at a time. The anchor affects arrangement only;
+          <a href="technical-roots.html">changing the technical root</a> is a
+          separate operation.
+        </p>
+        <p>
+          Arranged positions are kept across detail changes, component tabs and
+          replacement sample tables during this dataset session. Resetting a
+          component restores that panel; resetting the forest overview restores
+          all components. Loading a new dataset or reloading the page clears
+          manual arrangements.
+        </p>
+
+        <h2 id="components">
+          Forest components<a
+            class="heading-link"
+            href="#components"
+            aria-label="Link to Forest components"
+            >#</a
+          >
+        </h2>
         <p>
           Use the component tabs to view one tree or return to the overview.
           Newick components use Group labels. Typing components use local CC
@@ -165,7 +664,14 @@
             maximum nLV level.
           </figcaption>
         </figure>
-        <h2 id="export">Export a figure</h2>
+        <h2 id="export">
+          Export a figure<a
+            class="heading-link"
+            href="#export"
+            aria-label="Link to Export a figure"
+            >#</a
+          >
+        </h2>
         <p>
           Open <strong>Export view</strong>, choose the resolution and label
           size, and download the PNG. The image can include a legend and
@@ -187,6 +693,14 @@
           folded branches and distance overlays. Expand the required groups
           before export if the figure should show individual nodes.
         </p>
+        <p>
+          Resolution ranges from 1× to 4× the viewport size. In the reference
+          app, enable <strong>Edge distance labels</strong> before exporting to
+          include distances; the PNG shows them at every zoom. Turn that setting
+          off to export without distance labels. The reference app includes the
+          legend; a host application can change these choices through the
+          <a href="browser-api.html#export">PNG export API</a>.
+        </p>
       </article>
       <nav class="page-links" aria-label="Page navigation">
         <a href="input-formats.html">← Input formats</a
@@ -194,9 +708,8 @@
       </nav>
       <footer>
         PhyloLens documentation ·
-        <a
-          href="https://github.com/phyloviz/phylo-lens/blob/main/docs/manual/viewing.html"
-          >Edit this page</a
+        <a href="https://github.com/phyloviz/phylo-lens/issues"
+          >Report an issue</a
         >
       </footer>
     </main>

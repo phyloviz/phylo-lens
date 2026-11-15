@@ -44,9 +44,9 @@ Each detailed topic has one canonical document:
 
 | Topic | Canonical source |
 | --- | --- |
-| Public browser API | `code/client/README.md` |
+| Public browser API | `docs/manual/browser-api.html` and `docs/manual/api-types.html` |
 | Server deployment and environment variables | `code/server/README.md` |
-| HTTP request and response contracts | `docs/API_REFERENCE.md` |
+| HTTP request and response contracts | `docs/manual/http-api.html` and `docs/manual/http-types.html` |
 | Input syntax and normalization semantics | `docs/INPUT_FORMATS.md` |
 | Internal architecture and dependency direction | `docs/ARCHITECTURE_SPEC.md` |
 | Persistence schema and model layers | `docs/DATA_MODEL.md` |
