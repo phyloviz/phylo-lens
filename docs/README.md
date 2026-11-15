@@ -6,6 +6,9 @@ release information across several files.
 
 ## Reading guide
 
+The [HTML manual homepage](index.md), [visual walkthrough](walkthrough.md), and
+[local build instructions](DOCUMENTATION_SITE.md) provide the documentation website.
+
 | Goal | Document |
 | --- | --- |
 | Load, interpret and split trees by distance | [User guide](USER_GUIDE.md) |
@@ -15,6 +18,8 @@ release information across several files.
 | Follow one dataset from `load()` to interactive rendering | [Runtime flow](flow.md) |
 | Prepare Newick, typing profiles, and ancillary metadata correctly | [Input formats](INPUT_FORMATS.md) |
 | Integrate directly with the HTTP service | [API reference](API_REFERENCE.md) |
+| Use either component independently or implement a custom client | [Integration choices](INTEGRATION.md) |
+| Choose and restore technical roots | [Technical rooting](REROOTING.md) |
 | Understand domain, prepared, wire, and persistence models | [Data model](DATA_MODEL.md) |
 | Understand ingestion, clustering, layout, jobs, and publication | [Server preparation pipeline](SERVER_PIPELINE.md) |
 | Understand hop-depth tiers and semantic zoom | [LoD and clustering](LOD_AND_CLUSTERING.md) |
