@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Library and server integration — PhyloLens user and integration manual."
+    />
+    <title>Library and server integration — PhyloLens</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="assets/manual.css" />
+    <script defer src="assets/manual.js"></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <aside class="sidebar" aria-label="Manual navigation">
+      <a class="brand" href="index.html">PhyloLens</a>
+      <p class="subtitle">Documentation</p>
+      <details open>
+        <summary>Contents</summary>
+        <div class="search">
+          <label for="manual-search">Search the manual</label
+          ><input
+            id="manual-search"
+            type="search"
+            placeholder="Search…"
+            aria-controls="search-results"
+            autocomplete="off"
+            disabled
+          />
+        </div>
+        <nav aria-label="Contents">
+          <p>User guide</p>
+          <ul>
+            <li><a data-page href="index.html">PhyloLens documentation</a></li>
+            <li>
+              <a data-page href="getting-started.html">Getting started</a>
+            </li>
+            <li><a data-page href="input-formats.html">Input formats</a></li>
+            <li><a data-page href="viewing.html">Display and navigation</a></li>
+            <li>
+              <a data-page href="technical-roots.html">Technical roots</a>
+            </li>
+            <li><a data-page href="distances.html">Distance operations</a></li>
+          </ul>
+          <p>Developer guide</p>
+          <ul>
+            <li>
+              <a data-page href="integration.html" aria-current="page"
+                >Library and server integration</a
+              >
+              <ul class="sections">
+                <li><a href="#embed">Embed the viewer</a></li>
+                <li><a href="#adapter">Supply your own adapter</a></li>
+                <li>
+                  <a href="#server">Use the service with another frontend</a>
+                </li>
+              </ul>
+            </li>
+            <li>
+              <a data-page href="reference.html">API and technical reference</a>
+            </li>
+          </ul>
+          <p>Project</p>
+          <ul>
+            <li>
+              <a data-page href="maintenance.html">Maintaining this manual</a>
+            </li>
+          </ul>
+        </nav>
+        <a class="repo-link" href="https://github.com/phyloviz/phylo-lens"
+          >PhyloLens on GitHub</a
+        >
+      </details>
+    </aside>
+    <main id="main" tabindex="-1">
+      <p class="breadcrumb">
+        <a href="index.html">PhyloLens</a> / Library and server integration
+      </p>
+      <section id="search-results" aria-label="Search results" hidden></section>
+      <article>
+        <h1>Library and server integration</h1>
+
+        <p>
+          The browser viewer and the HTTP preparation service can be used
+          independently. Choose the boundary that fits your application.
+        </p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Use case</th>
+                <th>Integration</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Use both components</td>
+                <td>Create a view with <code>apiUrl</code>.</td>
+              </tr>
+              <tr>
+                <td>Use another frontend</td>
+                <td>Call the documented service HTTP API.</td>
+              </tr>
+              <tr>
+                <td>Use another backend or local data</td>
+                <td>Supply a <code>GraphClient</code> adapter.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <h2 id="embed">Embed the viewer</h2>
+        <p>
+          Install <code>@phyloviz/phylo-lens</code>. Give the container a
+          visible width and height, then create and load the view:
+        </p>
+        <pre><code>import { createPhyloLensView } from '@phyloviz/phylo-lens';
+
+const view = createPhyloLensView({
+  container,
+  apiUrl: 'https://your-service.example',
+});
+await view.load({
+  content: '(A:1,B:2)Root;',
+  sourceFormat: 'newick',
+});</code></pre>
+        <p>
+          Call <code>view.dispose()</code> when the host removes the viewer. The
+          <a
+            href="https://github.com/phyloviz/phylo-lens/blob/main/code/client/README.md"
+            >browser API README</a
+          >
+          defines the public methods, events and options.
+        </p>
+        <h2 id="adapter">Supply your own adapter</h2>
+        <p>
+          Provide exactly one of <code>apiUrl</code> and
+          <code>graphClient</code>. A custom adapter only needs preparation and
+          viewport reads:
+        </p>
+        <pre><code>import {
+  createPhyloLensView,
+  type GraphClient,
+} from '@phyloviz/phylo-lens';
+
+const graphClient: GraphClient = {
+  prepareGraph: request =&gt; yourService.prepare(request),
+  readViewport: (request, options) =&gt;
+    yourService.viewport(request, options?.signal),
+};
+const view = createPhyloLensView({ container, graphClient });</code></pre>
+        <p>
+          Search, region queries, ancillary updates, component listing,
+          additional distance connections and technical rerooting are optional
+          capabilities. Expose the controls that your adapter supports. Check
+          <code>view.canSetTechnicalRoot()</code> before offering rerooting.
+        </p>
+        <p>
+          An adapter owns its transport and response validation. Every viewport
+          slice must refer to the requested immutable dataset and layout
+          version. Tree edges, component membership, subtree intervals and
+          observation summaries must remain coherent.
+        </p>
+        <p>
+          The
+          <a
+            href="https://github.com/phyloviz/phylo-lens/tree/main/examples/custom-client-host"
+            >custom-client example</a
+          >
+          uses the public package with an in-memory tree and no API requests.
+          See the
+          <a
+            href="https://github.com/phyloviz/phylo-lens/blob/main/docs/INTEGRATION.md"
+            >integration contract</a
+          >
+          for required semantics and custom HTTP transports.
+        </p>
+        <h2 id="server">Use the service with another frontend</h2>
+        <ol>
+          <li>Read <code>/health</code> and check <code>api_version</code>.</li>
+          <li>Submit <code>POST /api/graph/prepare</code>.</li>
+          <li>
+            Poll <code>GET /api/graph/prepare/{job_id}</code> until preparation
+            succeeds or fails.
+          </li>
+          <li>
+            Use the returned dataset ID and explicit layout version for viewport
+            reads.
+          </li>
+          <li>
+            Add the search, metadata and navigation operations your frontend
+            requires.
+          </li>
+        </ol>
+        <p>
+          The service does not require the npm viewer. A running instance
+          exposes <code>/openapi.json</code> and interactive <code>/docs</code>.
+          The
+          <a
+            href="https://github.com/phyloviz/phylo-lens/blob/main/docs/API_REFERENCE.md"
+            >HTTP reference</a
+          >
+          defines JSON shapes and errors; the
+          <a
+            href="https://github.com/phyloviz/phylo-lens/blob/main/code/server/README.md"
+            >server README</a
+          >
+          covers installation and deployment.
+        </p>
+      </article>
+      <nav class="page-links" aria-label="Page navigation">
+        <a href="distances.html">← Distance operations</a
+        ><a href="reference.html">API and technical reference →</a>
+      </nav>
+      <footer>
+        PhyloLens documentation ·
+        <a
+          href="https://github.com/phyloviz/phylo-lens/blob/main/docs/manual/integration.html"
+          >Edit this page</a
+        >
+      </footer>
+    </main>
+  </body>
+</html>

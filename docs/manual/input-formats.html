@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Input formats — PhyloLens user and integration manual."
+    />
+    <title>Input formats — PhyloLens</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="assets/manual.css" />
+    <script defer src="assets/manual.js"></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <aside class="sidebar" aria-label="Manual navigation">
+      <a class="brand" href="index.html">PhyloLens</a>
+      <p class="subtitle">Documentation</p>
+      <details open>
+        <summary>Contents</summary>
+        <div class="search">
+          <label for="manual-search">Search the manual</label
+          ><input
+            id="manual-search"
+            type="search"
+            placeholder="Search…"
+            aria-controls="search-results"
+            autocomplete="off"
+            disabled
+          />
+        </div>
+        <nav aria-label="Contents">
+          <p>User guide</p>
+          <ul>
+            <li><a data-page href="index.html">PhyloLens documentation</a></li>
+            <li>
+              <a data-page href="getting-started.html">Getting started</a>
+            </li>
+            <li>
+              <a data-page href="input-formats.html" aria-current="page"
+                >Input formats</a
+              >
+              <ul class="sections">
+                <li><a href="#newick">Newick trees</a></li>
+                <li><a href="#typing">Typing data</a></li>
+                <li><a href="#ancillary">Ancillary data</a></li>
+              </ul>
+            </li>
+            <li><a data-page href="viewing.html">Display and navigation</a></li>
+            <li>
+              <a data-page href="technical-roots.html">Technical roots</a>
+            </li>
+            <li><a data-page href="distances.html">Distance operations</a></li>
+          </ul>
+          <p>Developer guide</p>
+          <ul>
+            <li>
+              <a data-page href="integration.html"
+                >Library and server integration</a
+              >
+            </li>
+            <li>
+              <a data-page href="reference.html">API and technical reference</a>
+            </li>
+          </ul>
+          <p>Project</p>
+          <ul>
+            <li>
+              <a data-page href="maintenance.html">Maintaining this manual</a>
+            </li>
+          </ul>
+        </nav>
+        <a class="repo-link" href="https://github.com/phyloviz/phylo-lens"
+          >PhyloLens on GitHub</a
+        >
+      </details>
+    </aside>
+    <main id="main" tabindex="-1">
+      <p class="breadcrumb">
+        <a href="index.html">PhyloLens</a> / Input formats
+      </p>
+      <section id="search-results" aria-label="Search results" hidden></section>
+      <article>
+        <h1>Input formats</h1>
+
+        <p>
+          Tree structure and ancillary observations are supplied separately. You
+          can import Newick or infer a tree from a tab-separated typing table.
+        </p>
+        <h2 id="newick">Newick trees</h2>
+        <p>
+          Newick represents branches using parentheses and optional branch
+          lengths:
+        </p>
+        <pre><code>('isolate 1':1,('isolate 2':2,'isolate 3':4)'internal clade':3)root;</code></pre>
+        <p>
+          Leaf and internal labels are accepted. Unnamed junctions receive
+          generated structural identifiers; these do not identify observed
+          isolates and cannot be used as external ancillary join targets. Use
+          explicit labels for nodes that need observations.
+        </p>
+        <p>
+          Several semicolon-terminated trees in one file are treated as a
+          forest. Components stay separate. Non-negative finite branch lengths
+          are preserved. Negative lengths are clamped to zero with a warning;
+          omitted lengths remain unknown.
+        </p>
+        <h2 id="typing">Typing data</h2>
+        <p>
+          Provide a tab-separated table with a header, one identifier column and
+          one or more locus columns. Every identifier must be non-empty and
+          unique, and every row must have the same number of fields.
+        </p>
+        <pre><code>ST	adk	fumC	gdh
+ST1	1	2	4
+ST2	1	3	4
+ST3	8	9	10</code></pre>
+        <p>
+          Alleles are categorical identifiers. The distance is the number of
+          differing retained loci (Hamming distance). Allele
+          <code>0</code> means missing data. If any profile has
+          <code>0</code> at a locus, that locus is excluded from every profile.
+          Warnings list excluded loci. Blank cells are rejected.
+        </p>
+        <h3>Choose the goeBURST method</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Method</th>
+                <th>Result</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>goeBURST Full MST (all levels)</td>
+                <td>
+                  Uses all locus-variant levels to connect the profiles in one
+                  spanning tree. This is the default.
+                </td>
+              </tr>
+              <tr>
+                <td>goeBURST (up to nLV)</td>
+                <td>
+                  Includes links up to the chosen maximum level. The initial
+                  value is 3. Profiles can remain in separate components.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          For example, maximum nLV 3 permits links with one, two or three
+          differing loci. It does not require all those links to appear:
+          goeBURST selects the tree edges. The maximum level must be a positive
+          integer.
+        </p>
+        <figure>
+          <a href="assets/screenshots/typing-options.png"
+            ><img
+              src="assets/screenshots/typing-options.png"
+              width="1440"
+              height="1000"
+              alt="Typing-data input showing the goeBURST method and maximum nLV level"
+              loading="lazy"
+          /></a>
+          <figcaption>
+            Select the method and maximum nLV level before applying typing data.
+          </figcaption>
+        </figure>
+        <h3>Equivalent profiles</h3>
+        <p>
+          Profiles that are identical after complete-locus filtering share one
+          biological node. Every original isolate identifier and its ancillary
+          observations are retained. The isolate count is distinct from the
+          number of nodes represented by a detail group.
+        </p>
+        <p>
+          These typing-derived relationships do not, by themselves, establish an
+          evolutionary phylogeny.
+        </p>
+        <h2 id="ancillary">Ancillary data</h2>
+        <p>
+          Use a CSV or TSV table with a header. Choose the column containing the
+          node or isolate identifiers:
+        </p>
+        <pre><code>ID,country,year
+ST1,Portugal,2024
+ST2,Spain,2024
+ST3,Portugal,2025</code></pre>
+        <p>
+          For Newick, observations join to explicitly labelled nodes. For typing
+          input, observations join to the original isolate identifiers,
+          including isolates sharing a profile. Supply at most one ancillary row
+          per original typing isolate.
+        </p>
+        <p>
+          Nodes without a matching ancillary row remain in the tree. Unmatched
+          identifiers produce warnings. For complete normalization rules and
+          programmatic metadata options, see the
+          <a
+            href="https://github.com/phyloviz/phylo-lens/blob/main/docs/INPUT_FORMATS.md"
+            >input-format reference</a
+          >.
+        </p>
+      </article>
+      <nav class="page-links" aria-label="Page navigation">
+        <a href="getting-started.html">← Getting started</a
+        ><a href="viewing.html">Display and navigation →</a>
+      </nav>
+      <footer>
+        PhyloLens documentation ·
+        <a
+          href="https://github.com/phyloviz/phylo-lens/blob/main/docs/manual/input-formats.html"
+          >Edit this page</a
+        >
+      </footer>
+    </main>
+  </body>
+</html>

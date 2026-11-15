@@ -11,7 +11,7 @@ Select an ordinary node in the view or search results. In **Selected node**, cho
 The operation changes only that node's component root. The inspector lists the
 current technical roots.
 
-![Technical root controls and current orientation](assets/screenshots/rerooting.png)
+![Technical root controls and current orientation](manual/assets/screenshots/rerooting.png)
 
 **Restore default roots** restores the roots recorded by the original preparation
 for all components. Newick defaults come from its serialization. Typing defaults
@@ -19,6 +19,20 @@ use the configured goeBURST LV ranking. A new input load establishes new default
 
 The separate **branch-drag anchor** controls how branches move during dragging.
 It does not change technical rooting or rebuild LoD.
+
+### PHYLOViZ comparison
+
+The desktop PHYLOViZ goeBURST viewer's **Set as founder** control is related but
+has different edge semantics. In the `phyloviz-main` source, the
+[Founder action](https://github.com/phyloviz/phyloviz-main/blob/master/net-phyloviz-gtview/src/net/phyloviz/gtview/ui/GraphView.java#L1043)
+calls
+[`updateVisibleEdges(root)`](https://github.com/phyloviz/phyloviz-main/blob/master/net-phyloviz-goeburst/src/net/phyloviz/goeburst/cluster/GOeBurstClusterWithStats.java#L175).
+That method temporarily raises the selected profile's LV ranks and repeats
+Kruskal edge selection. The displayed spanning-tree edges can change.
+
+PhyloLens technical rerooting preserves every existing edge and changes only
+rooted orientation and derived artifacts. It implements the topology-preserving
+requirement; it does not establish parity with PHYLOViZ founder selection.
 
 ## What changes
 

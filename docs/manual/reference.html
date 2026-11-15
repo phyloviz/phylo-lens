@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="API and technical reference — PhyloLens user and integration manual."
+    />
+    <title>API and technical reference — PhyloLens</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="assets/manual.css" />
+    <script defer src="assets/manual.js"></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <aside class="sidebar" aria-label="Manual navigation">
+      <a class="brand" href="index.html">PhyloLens</a>
+      <p class="subtitle">Documentation</p>
+      <details open>
+        <summary>Contents</summary>
+        <div class="search">
+          <label for="manual-search">Search the manual</label
+          ><input
+            id="manual-search"
+            type="search"
+            placeholder="Search…"
+            aria-controls="search-results"
+            autocomplete="off"
+            disabled
+          />
+        </div>
+        <nav aria-label="Contents">
+          <p>User guide</p>
+          <ul>
+            <li><a data-page href="index.html">PhyloLens documentation</a></li>
+            <li>
+              <a data-page href="getting-started.html">Getting started</a>
+            </li>
+            <li><a data-page href="input-formats.html">Input formats</a></li>
+            <li><a data-page href="viewing.html">Display and navigation</a></li>
+            <li>
+              <a data-page href="technical-roots.html">Technical roots</a>
+            </li>
+            <li><a data-page href="distances.html">Distance operations</a></li>
+          </ul>
+          <p>Developer guide</p>
+          <ul>
+            <li>
+              <a data-page href="integration.html"
+                >Library and server integration</a
+              >
+            </li>
+            <li>
+              <a data-page href="reference.html" aria-current="page"
+                >API and technical reference</a
+              >
+              <ul class="sections">
+                <li><a href="#api">Public interfaces</a></li>
+                <li><a href="#implementation">Implementation</a></li>
+                <li><a href="#algorithms">Algorithms and references</a></li>
+              </ul>
+            </li>
+          </ul>
+          <p>Project</p>
+          <ul>
+            <li>
+              <a data-page href="maintenance.html">Maintaining this manual</a>
+            </li>
+          </ul>
+        </nav>
+        <a class="repo-link" href="https://github.com/phyloviz/phylo-lens"
+          >PhyloLens on GitHub</a
+        >
+      </details>
+    </aside>
+    <main id="main" tabindex="-1">
+      <p class="breadcrumb">
+        <a href="index.html">PhyloLens</a> / API and technical reference
+      </p>
+      <section id="search-results" aria-label="Search results" hidden></section>
+      <article>
+        <h1>API and technical reference</h1>
+
+        <p>
+          The following documents are maintained with the implementation in the
+          GitHub repository. They describe complete contracts and technical
+          details beyond the user manual.
+        </p>
+        <h2 id="api">Public interfaces</h2>
+        <ul>
+          <li>
+            <a
+              href="https://github.com/phyloviz/phylo-lens/blob/main/code/client/README.md"
+              >Browser library API</a
+            >
+            — package exports, view options, methods and events.
+          </li>
+          <li>
+            <a
+              href="https://github.com/phyloviz/phylo-lens/blob/main/docs/API_REFERENCE.md"
+              >HTTP API</a
+            >
+            — preparation jobs, viewport queries, ancillary updates and
+            technical-root revisions.
+          </li>
+          <li>
+            <a
+              href="https://github.com/phyloviz/phylo-lens/blob/main/code/server/README.md"
+              >Server installation</a
+            >
+            — dependencies, configuration, storage and deployment.
+          </li>
+          <li>
+            <a
+              href="https://github.com/phyloviz/phylo-lens/blob/main/docs/INTEGRATION.md"
+              >Integration contract</a
+            >
+            — independent components and custom adapters.
+          </li>
+          <li>
+            <a
+              href="https://github.com/phyloviz/phylo-lens/blob/main/docs/INPUT_FORMATS.md"
+              >Input specification</a
+            >
+            — parsing, normalization, missing loci and observations.
+          </li>
+        </ul>
+        <h2 id="implementation">Implementation</h2>
+        <ul>
+          <li>
+            <a
+              href="https://github.com/phyloviz/phylo-lens/blob/main/docs/ARCHITECTURE_SPEC.md"
+              >Architecture</a
+            >
+            and
+            <a
+              href="https://github.com/phyloviz/phylo-lens/blob/main/docs/flow.md"
+              >runtime flow</a
+            >.
+          </li>
+          <li>
+            <a
+              href="https://github.com/phyloviz/phylo-lens/blob/main/docs/DATA_MODEL.md"
+              >Data model</a
+            >
+            and
+            <a
+              href="https://github.com/phyloviz/phylo-lens/blob/main/docs/ancillary-domain.md"
+              >ancillary observations</a
+            >.
+          </li>
+          <li>
+            <a
+              href="https://github.com/phyloviz/phylo-lens/blob/main/docs/SERVER_PIPELINE.md"
+              >Preparation pipeline</a
+            >
+            and
+            <a
+              href="https://github.com/phyloviz/phylo-lens/blob/main/docs/LOD_AND_CLUSTERING.md"
+              >levels of detail</a
+            >.
+          </li>
+          <li>
+            <a
+              href="https://github.com/phyloviz/phylo-lens/blob/main/docs/TREE_INDEX.md"
+              >Tree indexing</a
+            >,
+            <a
+              href="https://github.com/phyloviz/phylo-lens/blob/main/docs/EXPAND_COLLAPSE.md"
+              >expansion and folding</a
+            >, and
+            <a
+              href="https://github.com/phyloviz/phylo-lens/blob/main/docs/CLIENT_RENDERING.md"
+              >rendering</a
+            >.
+          </li>
+          <li>
+            <a
+              href="https://github.com/phyloviz/phylo-lens/blob/main/docs/SEARCH.md"
+              >Search</a
+            >,
+            <a
+              href="https://github.com/phyloviz/phylo-lens/blob/main/docs/DISTANCE_OPERATIONS.md"
+              >distance algorithms</a
+            >, and
+            <a
+              href="https://github.com/phyloviz/phylo-lens/blob/main/docs/REROOTING.md"
+              >technical-root revisions</a
+            >.
+          </li>
+          <li>
+            <a
+              href="https://github.com/phyloviz/phylo-lens/blob/main/docs/RELEASE.md"
+              >Releases and CI</a
+            >.
+          </li>
+        </ul>
+        <h2 id="algorithms">Algorithms and references</h2>
+        <p>
+          PhyloLens uses PhyloLib for typing-data inference and Graphviz for the
+          initial global layout. Rooted indexes and detail groups support tree
+          navigation and semantic zoom. The
+          <a
+            href="https://github.com/phyloviz/phylo-lens/blob/main/docs/ALGORITHM_REFERENCES.md"
+            >algorithm references</a
+          >
+          distinguish published methods from project-specific adaptations and
+          list their sources.
+        </p>
+        <p>
+          Technical roots are computational choices. A typing-derived MST does
+          not by itself establish ancestry. Original isolates, equivalent typing
+          profiles and visual representatives have different meanings; counts
+          should be interpreted accordingly.
+        </p>
+      </article>
+      <nav class="page-links" aria-label="Page navigation">
+        <a href="integration.html">← Library and server integration</a
+        ><a href="maintenance.html">Maintaining this manual →</a>
+      </nav>
+      <footer>
+        PhyloLens documentation ·
+        <a
+          href="https://github.com/phyloviz/phylo-lens/blob/main/docs/manual/reference.html"
+          >Edit this page</a
+        >
+      </footer>
+    </main>
+  </body>
+</html>

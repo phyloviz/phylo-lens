@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Getting started — PhyloLens user and integration manual."
+    />
+    <title>Getting started — PhyloLens</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="assets/manual.css" />
+    <script defer src="assets/manual.js"></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <aside class="sidebar" aria-label="Manual navigation">
+      <a class="brand" href="index.html">PhyloLens</a>
+      <p class="subtitle">Documentation</p>
+      <details open>
+        <summary>Contents</summary>
+        <div class="search">
+          <label for="manual-search">Search the manual</label
+          ><input
+            id="manual-search"
+            type="search"
+            placeholder="Search…"
+            aria-controls="search-results"
+            autocomplete="off"
+            disabled
+          />
+        </div>
+        <nav aria-label="Contents">
+          <p>User guide</p>
+          <ul>
+            <li><a data-page href="index.html">PhyloLens documentation</a></li>
+            <li>
+              <a data-page href="getting-started.html" aria-current="page"
+                >Getting started</a
+              >
+              <ul class="sections">
+                <li><a href="#run">Run PhyloLens locally</a></li>
+                <li><a href="#load">Load a tree</a></li>
+                <li><a href="#observations">Add observations</a></li>
+                <li><a href="#next">Continue exploring</a></li>
+              </ul>
+            </li>
+            <li><a data-page href="input-formats.html">Input formats</a></li>
+            <li><a data-page href="viewing.html">Display and navigation</a></li>
+            <li>
+              <a data-page href="technical-roots.html">Technical roots</a>
+            </li>
+            <li><a data-page href="distances.html">Distance operations</a></li>
+          </ul>
+          <p>Developer guide</p>
+          <ul>
+            <li>
+              <a data-page href="integration.html"
+                >Library and server integration</a
+              >
+            </li>
+            <li>
+              <a data-page href="reference.html">API and technical reference</a>
+            </li>
+          </ul>
+          <p>Project</p>
+          <ul>
+            <li>
+              <a data-page href="maintenance.html">Maintaining this manual</a>
+            </li>
+          </ul>
+        </nav>
+        <a class="repo-link" href="https://github.com/phyloviz/phylo-lens"
+          >PhyloLens on GitHub</a
+        >
+      </details>
+    </aside>
+    <main id="main" tabindex="-1">
+      <p class="breadcrumb">
+        <a href="index.html">PhyloLens</a> / Getting started
+      </p>
+      <section id="search-results" aria-label="Search results" hidden></section>
+      <article>
+        <h1>Getting started</h1>
+
+        <p>
+          This example loads a small labelled tree and adds country information.
+          If PhyloLens is already running in your host application, continue to
+          <a href="#load">Load a tree</a>.
+        </p>
+        <h2 id="run">Run PhyloLens locally</h2>
+        <p>Start the API service from the repository root:</p>
+        <pre><code>python -m pip install -e 'code/server[test,dev]'
+python -m uvicorn phylo_lens_server.main:app --host 127.0.0.1 --port 8000</code></pre>
+        <p>In a second terminal, start the browser application:</p>
+        <pre><code>cd code/client
+npm ci
+npm run dev</code></pre>
+        <p>
+          Open the address printed by Vite. The development application forwards
+          service requests to port 8000. Newick preparation requires Graphviz
+          <code>sfdp</code>. Typing-data preparation also requires Java and the
+          configured PhyloLib JAR. The service Docker image includes these
+          dependencies. See the
+          <a
+            href="https://github.com/phyloviz/phylo-lens/blob/main/code/server/README.md"
+            >server installation instructions</a
+          >
+          for configuration and deployment.
+        </p>
+        <h2 id="load">Load a tree</h2>
+        <ol>
+          <li>Save the following Newick text as <code>example.nwk</code>.</li>
+          <li>
+            Open the <strong>Data</strong> panel and choose
+            <strong>Newick</strong>.
+          </li>
+          <li>Select the file and apply the input.</li>
+        </ol>
+        <pre><code>((PT-01:1,PT-02:1)Lineage:1,ES-01:2)Root;</code></pre>
+        <p>
+          Drag the background to move the view. Use the mouse wheel to zoom.
+          Select a node to display its information in the right-hand panel.
+        </p>
+        <h2 id="observations">Add observations</h2>
+        <p>
+          Save the following table as <code>countries.csv</code>. Supply it as
+          ancillary data and choose <code>ID</code> as its identifier column.
+        </p>
+        <pre><code>ID,country
+PT-01,Portugal
+PT-02,Portugal
+ES-01,Spain</code></pre>
+        <p>
+          In <strong>Appearance</strong>, choose <code>country</code> as the
+          colour field. The labels in the identifier column must match the
+          labelled nodes or original typing isolates. Unmatched rows are
+          reported as warnings.
+        </p>
+        <h2 id="next">Continue exploring</h2>
+        <p>
+          Search for <code>PT-01</code> to locate the node. Larger trees can be
+          explored by zooming or expanding groups. To save a figure, open
+          <strong>Export view</strong> and download a PNG.
+        </p>
+        <p>
+          For a larger example, use the
+          <a
+            href="https://github.com/phyloviz/phylo-lens/tree/main/examples/documentation"
+            >documentation example files</a
+          >. Continue to <a href="viewing.html">Display and navigation</a> for
+          screenshots of these operations.
+        </p>
+      </article>
+      <nav class="page-links" aria-label="Page navigation">
+        <a href="index.html">← PhyloLens documentation</a
+        ><a href="input-formats.html">Input formats →</a>
+      </nav>
+      <footer>
+        PhyloLens documentation ·
+        <a
+          href="https://github.com/phyloviz/phylo-lens/blob/main/docs/manual/getting-started.html"
+          >Edit this page</a
+        >
+      </footer>
+    </main>
+  </body>
+</html>

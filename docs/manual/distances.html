@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Distance operations — PhyloLens user and integration manual."
+    />
+    <title>Distance operations — PhyloLens</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="assets/manual.css" />
+    <script defer src="assets/manual.js"></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <aside class="sidebar" aria-label="Manual navigation">
+      <a class="brand" href="index.html">PhyloLens</a>
+      <p class="subtitle">Documentation</p>
+      <details open>
+        <summary>Contents</summary>
+        <div class="search">
+          <label for="manual-search">Search the manual</label
+          ><input
+            id="manual-search"
+            type="search"
+            placeholder="Search…"
+            aria-controls="search-results"
+            autocomplete="off"
+            disabled
+          />
+        </div>
+        <nav aria-label="Contents">
+          <p>User guide</p>
+          <ul>
+            <li><a data-page href="index.html">PhyloLens documentation</a></li>
+            <li>
+              <a data-page href="getting-started.html">Getting started</a>
+            </li>
+            <li><a data-page href="input-formats.html">Input formats</a></li>
+            <li><a data-page href="viewing.html">Display and navigation</a></li>
+            <li>
+              <a data-page href="technical-roots.html">Technical roots</a>
+            </li>
+            <li>
+              <a data-page href="distances.html" aria-current="page"
+                >Distance operations</a
+              >
+              <ul class="sections">
+                <li><a href="#inference">Maximum inference level</a></li>
+                <li><a href="#cutoff">Tree distance cutoff</a></li>
+                <li><a href="#connections">Additional connections</a></li>
+              </ul>
+            </li>
+          </ul>
+          <p>Developer guide</p>
+          <ul>
+            <li>
+              <a data-page href="integration.html"
+                >Library and server integration</a
+              >
+            </li>
+            <li>
+              <a data-page href="reference.html">API and technical reference</a>
+            </li>
+          </ul>
+          <p>Project</p>
+          <ul>
+            <li>
+              <a data-page href="maintenance.html">Maintaining this manual</a>
+            </li>
+          </ul>
+        </nav>
+        <a class="repo-link" href="https://github.com/phyloviz/phylo-lens"
+          >PhyloLens on GitHub</a
+        >
+      </details>
+    </aside>
+    <main id="main" tabindex="-1">
+      <p class="breadcrumb">
+        <a href="index.html">PhyloLens</a> / Distance operations
+      </p>
+      <section id="search-results" aria-label="Search results" hidden></section>
+      <article>
+        <h1>Distance operations</h1>
+
+        <p>
+          PhyloLens has three distance settings with different effects. The
+          inference level constructs the typing tree; a cutoff splits tree
+          edges; additional connections annotate an existing tree.
+        </p>
+        <h2 id="inference">Maximum inference level</h2>
+        <p>
+          For typing data, <strong>goeBURST (up to nLV)</strong> limits the
+          locus-variant levels considered when selecting tree edges. Maximum nLV
+          3 allows links with up to three differing retained loci. The result
+          may be a forest. Full MST uses all levels to construct one connected
+          tree.
+        </p>
+        <p>
+          Choose this option in the Data panel before applying the input. See
+          <a href="input-formats.html#typing">Typing data</a>.
+        </p>
+        <h2 id="cutoff">Tree distance cutoff</h2>
+        <p>
+          A cutoff keeps tree edges whose distance is less than or equal to the
+          selected value. Longer edges are removed, but every node remains. The
+          resulting components are prepared as separate trees.
+        </p>
+        <p>
+          A blank value disables the cutoff. Zero is a valid cutoff. An edge
+          with an unknown distance cannot be interpreted as zero. Applying a
+          cutoff reloads the data and rebuilds the layout; previous manual
+          arrangements are lost.
+        </p>
+        <h2 id="connections">Additional connections</h2>
+        <p>
+          The nLV or distance-connection controls add an overlay to the prepared
+          tree. Connections are restricted to nodes within the same prepared
+          component. They do not join components, change branch membership or
+          alter the springs used by tree layout.
+        </p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Input</th>
+                <th>Overlay distance</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Typing data</td>
+                <td>Number of differing retained loci (Hamming distance).</td>
+              </tr>
+              <tr>
+                <td>Weighted Newick</td>
+                <td>Sum of branch lengths along the existing tree path.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          Pairs at exactly the threshold are included. Self-connections and
+          duplicate tree edges are excluded. Connections to grouped or manually
+          hidden endpoints are omitted from the visible overlay; the total query
+          count and visible count can differ.
+        </p>
+        <p>
+          The overlay can contain cycles. This does not change the underlying
+          tree. Its metric and threshold are included in the PNG caption. Full
+          rules and algorithm costs are in the
+          <a
+            href="https://github.com/phyloviz/phylo-lens/blob/main/docs/DISTANCE_OPERATIONS.md"
+            >distance reference</a
+          >.
+        </p>
+      </article>
+      <nav class="page-links" aria-label="Page navigation">
+        <a href="technical-roots.html">← Technical roots</a
+        ><a href="integration.html">Library and server integration →</a>
+      </nav>
+      <footer>
+        PhyloLens documentation ·
+        <a
+          href="https://github.com/phyloviz/phylo-lens/blob/main/docs/manual/distances.html"
+          >Edit this page</a
+        >
+      </footer>
+    </main>
+  </body>
+</html>

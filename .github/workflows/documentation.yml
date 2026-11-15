@@ -3,21 +3,19 @@ name: Documentation
 on:
   pull_request:
     paths:
-      - 'docs/**'
-      - 'code/client/README.md'
-      - 'code/server/README.md'
-      - 'mkdocs.yml'
-      - 'scripts/docs_hooks.py'
-      - '.github/workflows/documentation.yml'
+      - "docs/**"
+      - "code/client/README.md"
+      - "code/server/README.md"
+      - "scripts/check_manual.py"
+      - ".github/workflows/documentation.yml"
   push:
     branches: [main]
     paths:
-      - 'docs/**'
-      - 'code/client/README.md'
-      - 'code/server/README.md'
-      - 'mkdocs.yml'
-      - 'scripts/docs_hooks.py'
-      - '.github/workflows/documentation.yml'
+      - "docs/**"
+      - "code/client/README.md"
+      - "code/server/README.md"
+      - "scripts/check_manual.py"
+      - ".github/workflows/documentation.yml"
   workflow_dispatch:
 
 permissions:
@@ -37,12 +35,11 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
-          python-version: '3.12'
-      - run: python -m pip install -r docs/requirements.txt
-      - run: python -m mkdocs build --strict
+          python-version: "3.12"
+      - run: python scripts/check_manual.py
       - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
         with:
-          path: site
+          path: docs/manual
 
   deploy:
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'

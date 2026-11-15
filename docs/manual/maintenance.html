@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Maintaining this manual — PhyloLens user and integration manual."
+    />
+    <title>Maintaining this manual — PhyloLens</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="assets/manual.css" />
+    <script defer src="assets/manual.js"></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <aside class="sidebar" aria-label="Manual navigation">
+      <a class="brand" href="index.html">PhyloLens</a>
+      <p class="subtitle">Documentation</p>
+      <details open>
+        <summary>Contents</summary>
+        <div class="search">
+          <label for="manual-search">Search the manual</label
+          ><input
+            id="manual-search"
+            type="search"
+            placeholder="Search…"
+            aria-controls="search-results"
+            autocomplete="off"
+            disabled
+          />
+        </div>
+        <nav aria-label="Contents">
+          <p>User guide</p>
+          <ul>
+            <li><a data-page href="index.html">PhyloLens documentation</a></li>
+            <li>
+              <a data-page href="getting-started.html">Getting started</a>
+            </li>
+            <li><a data-page href="input-formats.html">Input formats</a></li>
+            <li><a data-page href="viewing.html">Display and navigation</a></li>
+            <li>
+              <a data-page href="technical-roots.html">Technical roots</a>
+            </li>
+            <li><a data-page href="distances.html">Distance operations</a></li>
+          </ul>
+          <p>Developer guide</p>
+          <ul>
+            <li>
+              <a data-page href="integration.html"
+                >Library and server integration</a
+              >
+            </li>
+            <li>
+              <a data-page href="reference.html">API and technical reference</a>
+            </li>
+          </ul>
+          <p>Project</p>
+          <ul>
+            <li>
+              <a data-page href="maintenance.html" aria-current="page"
+                >Maintaining this manual</a
+              >
+              <ul class="sections">
+                <li><a href="#edit">Edit the pages</a></li>
+                <li><a href="#preview">Preview and check</a></li>
+                <li><a href="#screenshots">Update screenshots</a></li>
+                <li><a href="#publish">Publish on GitHub Pages</a></li>
+              </ul>
+            </li>
+          </ul>
+        </nav>
+        <a class="repo-link" href="https://github.com/phyloviz/phylo-lens"
+          >PhyloLens on GitHub</a
+        >
+      </details>
+    </aside>
+    <main id="main" tabindex="-1">
+      <p class="breadcrumb">
+        <a href="index.html">PhyloLens</a> / Maintaining this manual
+      </p>
+      <section id="search-results" aria-label="Search results" hidden></section>
+      <article>
+        <h1>Maintaining this manual</h1>
+
+        <p>
+          The manual consists of checked-in HTML pages, one stylesheet and a
+          small optional search script. It has no build step, theme package,
+          external fonts or CDN dependencies.
+        </p>
+        <h2 id="edit">Edit the pages</h2>
+        <p>
+          Edit the files in <code>docs/manual/</code> directly. Keep
+          instructions short and describe an action followed by its visible
+          result. Use the control names shown in the application. Explain the
+          meaning of a count or distance where it first appears.
+        </p>
+        <p>
+          The navigation is ordinary HTML in each page. When adding a page,
+          update the contents and previous/next links in the existing pages.
+          Preserve descriptive page titles, heading IDs, image descriptions and
+          the current-page marker.
+        </p>
+        <p>
+          Public API signatures and deployment settings remain in the repository
+          READMEs and reference documents. Link to those sources instead of
+          maintaining another complete copy here.
+        </p>
+        <h2 id="preview">Preview and check</h2>
+        <p>
+          Open <code>docs/manual/index.html</code> directly to read the manual.
+          For full-text search, serve the directory over HTTP from the
+          repository root:
+        </p>
+        <pre><code>python -m http.server 8010 --bind 127.0.0.1 --directory docs/manual</code></pre>
+        <p>
+          Open <code>http://127.0.0.1:8010/</code>. Search reads the manual
+          pages from the same server. Navigation and content remain usable
+          without JavaScript.
+        </p>
+        <p>Run the dependency-free link and HTML check before committing:</p>
+        <pre><code>python scripts/check_manual.py</code></pre>
+        <h2 id="screenshots">Update screenshots</h2>
+        <p>
+          Use synthetic example data. Start the real application service,
+          install the client and evaluation-browser dependencies, then run:
+        </p>
+        <pre><code>cd code/client
+REQUIREMENTS_API_URL=http://127.0.0.1:8000 DOC_INCLUDE_TYPING=1   node tests/browser/libraryCompletion.mjs --screenshots</code></pre>
+        <p>
+          Typing captures require the configured PhyloLib JAR. Captures are
+          written to <code>output/playwright/library-completion/</code>. Inspect
+          them and copy the selected images into
+          <code>docs/manual/assets/screenshots/</code>. Update image dimensions
+          and captions when needed. The capture also checks technical rerooting
+          through the service.
+        </p>
+        <h2 id="publish">Publish on GitHub Pages</h2>
+        <p>
+          In the repository's <strong>Settings → Pages</strong>, select
+          <strong>GitHub Actions</strong> as the source. The Documentation
+          workflow validates the manual for pull requests. On <code>main</code>,
+          it uploads <code>docs/manual/</code> directly and deploys the Pages
+          artifact. No Python packages need to be installed for publication.
+        </p>
+        <p>
+          The configured address is
+          <code>https://phyloviz.github.io/phylo-lens/</code>. The manual is a
+          static website. It does not run the preparation service or an embedded
+          live viewer.
+        </p>
+      </article>
+      <nav class="page-links" aria-label="Page navigation">
+        <a href="reference.html">← API and technical reference</a
+        ><a href="index.html">Back to the contents →</a>
+      </nav>
+      <footer>
+        PhyloLens documentation ·
+        <a
+          href="https://github.com/phyloviz/phylo-lens/blob/main/docs/manual/maintenance.html"
+          >Edit this page</a
+        >
+      </footer>
+    </main>
+  </body>
+</html>

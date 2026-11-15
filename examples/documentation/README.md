@@ -19,4 +19,4 @@ BD=4 and CD=4. A and A2 have the same profile. The two inference modes and nLV
 boundaries are also checked against this hand-calculated oracle in server tests.
 
 Regenerate and verify screenshots with the workflow in
-[the documentation maintenance guide](../../docs/DOCUMENTATION_SITE.md).
+[the documentation maintenance guide](../../docs/manual/maintenance.html).

@@ -6,8 +6,10 @@ release information across several files.
 
 ## Reading guide
 
-The [HTML manual homepage](index.md), [visual walkthrough](walkthrough.md), and
-[local build instructions](DOCUMENTATION_SITE.md) provide the documentation website.
+The [HTML manual](manual/index.html), [display guide](manual/viewing.html), and
+[maintenance instructions](manual/maintenance.html) provide the documentation
+website. The manual is authored directly in HTML and CSS and has no build step.
+The Markdown documents below retain the detailed repository references.
 
 | Goal | Document |
 | --- | --- |

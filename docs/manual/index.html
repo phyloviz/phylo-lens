@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="PhyloLens documentation — PhyloLens user and integration manual."
+    />
+    <title>PhyloLens documentation — PhyloLens</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="assets/manual.css" />
+    <script defer src="assets/manual.js"></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <aside class="sidebar" aria-label="Manual navigation">
+      <a class="brand" href="index.html">PhyloLens</a>
+      <p class="subtitle">Documentation</p>
+      <details open>
+        <summary>Contents</summary>
+        <div class="search">
+          <label for="manual-search">Search the manual</label
+          ><input
+            id="manual-search"
+            type="search"
+            placeholder="Search…"
+            aria-controls="search-results"
+            autocomplete="off"
+            disabled
+          />
+        </div>
+        <nav aria-label="Contents">
+          <p>User guide</p>
+          <ul>
+            <li>
+              <a data-page href="index.html" aria-current="page"
+                >PhyloLens documentation</a
+              >
+              <ul class="sections">
+                <li><a href="#start">Getting started</a></li>
+                <li><a href="#scope">Trees and observations</a></li>
+                <li><a href="#contents">Contents</a></li>
+              </ul>
+            </li>
+            <li>
+              <a data-page href="getting-started.html">Getting started</a>
+            </li>
+            <li><a data-page href="input-formats.html">Input formats</a></li>
+            <li><a data-page href="viewing.html">Display and navigation</a></li>
+            <li>
+              <a data-page href="technical-roots.html">Technical roots</a>
+            </li>
+            <li><a data-page href="distances.html">Distance operations</a></li>
+          </ul>
+          <p>Developer guide</p>
+          <ul>
+            <li>
+              <a data-page href="integration.html"
+                >Library and server integration</a
+              >
+            </li>
+            <li>
+              <a data-page href="reference.html">API and technical reference</a>
+            </li>
+          </ul>
+          <p>Project</p>
+          <ul>
+            <li>
+              <a data-page href="maintenance.html">Maintaining this manual</a>
+            </li>
+          </ul>
+        </nav>
+        <a class="repo-link" href="https://github.com/phyloviz/phylo-lens"
+          >PhyloLens on GitHub</a
+        >
+      </details>
+    </aside>
+    <main id="main" tabindex="-1">
+      <p class="breadcrumb">
+        <a href="index.html">PhyloLens</a> / PhyloLens documentation
+      </p>
+      <section id="search-results" aria-label="Search results" hidden></section>
+      <article>
+        <h1>PhyloLens documentation</h1>
+
+        <p>
+          PhyloLens is a browser viewer for fully labelled trees, minimum
+          spanning trees (MSTs) and forests. It displays large trees at several
+          levels of detail and allows you to examine individual nodes and their
+          associated observations.
+        </p>
+        <p>
+          This manual describes how to load data, explore a tree and save the
+          current view. It also explains how to use the browser library and the
+          preparation service in another application.
+        </p>
+        <h2 id="start">Getting started</h2>
+        <ul>
+          <li>
+            <a href="getting-started.html">Load your first tree</a> and attach
+            sample information.
+          </li>
+          <li>
+            <a href="input-formats.html">Prepare input files</a> in Newick or
+            allelic-profile format.
+          </li>
+          <li>
+            <a href="viewing.html">Explore the display</a>, search for nodes and
+            expand groups.
+          </li>
+          <li>
+            <a href="integration.html">Use PhyloLens in your application</a>.
+          </li>
+        </ul>
+        <figure>
+          <a href="assets/screenshots/overview.png"
+            ><img
+              src="assets/screenshots/overview.png"
+              width="1440"
+              height="1000"
+              alt="PhyloLens displaying a labelled tree, country colours and the selected-node panel"
+          /></a>
+          <figcaption>
+            A tree with ancillary country information. All examples shown in
+            this manual use synthetic data. Select a screenshot to view it at
+            its original size.
+          </figcaption>
+        </figure>
+        <h2 id="scope">Trees and observations</h2>
+        <p>
+          You can import an existing Newick tree or construct a tree from
+          MLST/cgMLST-style allelic profiles using goeBURST. Separate trees are
+          displayed as components of a forest. PhyloLens does not add
+          connections between them.
+        </p>
+        <p>
+          Ancillary tables supply observations such as country, collection year
+          or resistance category. Several isolates may share one typing profile.
+          Their original identifiers and observations remain available even when
+          the profile is displayed as one node.
+        </p>
+        <p>
+          A technical root determines the direction used for branch navigation
+          and detail groups. It does not identify an evolutionary ancestor.
+          Additional distance connections are a display overlay and do not
+          become branches of the tree.
+        </p>
+        <h2 id="contents">Contents</h2>
+        <ul>
+          <li><a href="getting-started.html">Getting started</a></li>
+          <li><a href="input-formats.html">Input formats</a></li>
+          <li><a href="viewing.html">Display and navigation</a></li>
+          <li><a href="technical-roots.html">Technical roots</a></li>
+          <li><a href="distances.html">Distance operations</a></li>
+          <li><a href="integration.html">Library and server integration</a></li>
+          <li><a href="reference.html">API and technical reference</a></li>
+          <li><a href="maintenance.html">Maintaining this manual</a></li>
+        </ul>
+      </article>
+      <nav class="page-links" aria-label="Page navigation">
+        <span></span><a href="getting-started.html">Getting started →</a>
+      </nav>
+      <footer>
+        PhyloLens documentation ·
+        <a
+          href="https://github.com/phyloviz/phylo-lens/blob/main/docs/manual/index.html"
+          >Edit this page</a
+        >
+      </footer>
+    </main>
+  </body>
+</html>

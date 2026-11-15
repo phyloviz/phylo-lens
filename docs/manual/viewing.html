@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Display and navigation — PhyloLens user and integration manual."
+    />
+    <title>Display and navigation — PhyloLens</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="assets/manual.css" />
+    <script defer src="assets/manual.js"></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <aside class="sidebar" aria-label="Manual navigation">
+      <a class="brand" href="index.html">PhyloLens</a>
+      <p class="subtitle">Documentation</p>
+      <details open>
+        <summary>Contents</summary>
+        <div class="search">
+          <label for="manual-search">Search the manual</label
+          ><input
+            id="manual-search"
+            type="search"
+            placeholder="Search…"
+            aria-controls="search-results"
+            autocomplete="off"
+            disabled
+          />
+        </div>
+        <nav aria-label="Contents">
+          <p>User guide</p>
+          <ul>
+            <li><a data-page href="index.html">PhyloLens documentation</a></li>
+            <li>
+              <a data-page href="getting-started.html">Getting started</a>
+            </li>
+            <li><a data-page href="input-formats.html">Input formats</a></li>
+            <li>
+              <a data-page href="viewing.html" aria-current="page"
+                >Display and navigation</a
+              >
+              <ul class="sections">
+                <li><a href="#navigate">Move, zoom and select</a></li>
+                <li><a href="#detail">Levels of detail</a></li>
+                <li><a href="#components">Forest components</a></li>
+                <li><a href="#export">Export a figure</a></li>
+              </ul>
+            </li>
+            <li>
+              <a data-page href="technical-roots.html">Technical roots</a>
+            </li>
+            <li><a data-page href="distances.html">Distance operations</a></li>
+          </ul>
+          <p>Developer guide</p>
+          <ul>
+            <li>
+              <a data-page href="integration.html"
+                >Library and server integration</a
+              >
+            </li>
+            <li>
+              <a data-page href="reference.html">API and technical reference</a>
+            </li>
+          </ul>
+          <p>Project</p>
+          <ul>
+            <li>
+              <a data-page href="maintenance.html">Maintaining this manual</a>
+            </li>
+          </ul>
+        </nav>
+        <a class="repo-link" href="https://github.com/phyloviz/phylo-lens"
+          >PhyloLens on GitHub</a
+        >
+      </details>
+    </aside>
+    <main id="main" tabindex="-1">
+      <p class="breadcrumb">
+        <a href="index.html">PhyloLens</a> / Display and navigation
+      </p>
+      <section id="search-results" aria-label="Search results" hidden></section>
+      <article>
+        <h1>Display and navigation</h1>
+
+        <p>
+          After loading data, the central view shows the prepared tree or
+          forest. The surrounding controls allow you to select nodes, change the
+          display and inspect observations.
+        </p>
+        <h2 id="navigate">Move, zoom and select</h2>
+        <p>
+          Drag the background to pan and use the mouse wheel to zoom. Select an
+          ordinary node to inspect its identifier and observations. Use the
+          search controls to find an identifier or ancillary value, including
+          records outside the current view.
+        </p>
+        <p>
+          Typing search also matches original isolate identifiers. Several
+          matching isolates in one profile produce one profile result. Focusing
+          a result centres the view on its node.
+        </p>
+        <figure>
+          <a href="assets/screenshots/overview.png"
+            ><img
+              src="assets/screenshots/overview.png"
+              width="1440"
+              height="1000"
+              alt="Tree display with ancillary colours, navigation controls and selected-node information"
+              loading="lazy"
+          /></a>
+          <figcaption>
+            The main display with a synthetic country field selected in
+            Appearance.
+          </figcaption>
+        </figure>
+        <h2 id="detail">Levels of detail</h2>
+        <p>
+          Large trees are displayed using detail groups. Zoom in to show finer
+          detail. A triangular group represents several connected nodes; it is
+          not an individual isolate.
+        </p>
+        <figure>
+          <a href="assets/screenshots/detail-groups.png"
+            ><img
+              src="assets/screenshots/detail-groups.png"
+              width="1440"
+              height="1000"
+              alt="A large tree displayed using triangular detail groups"
+              loading="lazy"
+          /></a>
+          <figcaption>
+            Detail groups provide an overview of a larger tree. Group counts
+            refer to represented nodes.
+          </figcaption>
+        </figure>
+        <p>
+          Use <strong>Expand selected branch or group</strong>,
+          <strong>Expand all</strong> and <strong>Collapse all</strong> to
+          control detail. Branch folding follows the current technical root. A
+          request can show only part of a group when the display budget is
+          reached; it does not mean that the remaining observations have been
+          removed.
+        </p>
+        <h2 id="components">Forest components</h2>
+        <p>
+          Use the component tabs to view one tree or return to the overview.
+          Newick components use Group labels. Typing components use local CC
+          labels; these numbers are not clonal-complex assignments from a
+          reference database.
+        </p>
+        <figure>
+          <a href="assets/screenshots/typing-forest.png"
+            ><img
+              src="assets/screenshots/typing-forest.png"
+              width="1440"
+              height="1000"
+              alt="A bounded goeBURST forest with separate CC tabs"
+              loading="lazy"
+          /></a>
+          <figcaption>
+            Standard goeBURST can produce separate components at the selected
+            maximum nLV level.
+          </figcaption>
+        </figure>
+        <h2 id="export">Export a figure</h2>
+        <p>
+          Open <strong>Export view</strong>, choose the resolution and label
+          size, and download the PNG. The image can include a legend and
+          explanations of aggregate symbols.
+        </p>
+        <figure>
+          <a href="assets/screenshots/export.png"
+            ><img
+              src="assets/screenshots/export.png"
+              width="1440"
+              height="1000"
+              alt="PNG export controls for resolution, labels and legend"
+              loading="lazy"
+          /></a>
+          <figcaption>Export settings for the current view.</figcaption>
+        </figure>
+        <p>
+          The export contains the current camera and visible detail, including
+          folded branches and distance overlays. Expand the required groups
+          before export if the figure should show individual nodes.
+        </p>
+      </article>
+      <nav class="page-links" aria-label="Page navigation">
+        <a href="input-formats.html">← Input formats</a
+        ><a href="technical-roots.html">Technical roots →</a>
+      </nav>
+      <footer>
+        PhyloLens documentation ·
+        <a
+          href="https://github.com/phyloviz/phylo-lens/blob/main/docs/manual/viewing.html"
+          >Edit this page</a
+        >
+      </footer>
+    </main>
+  </body>
+</html>
